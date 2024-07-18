@@ -1,14 +1,9 @@
-# practicalfp - Practical Functional Programming for Go
+# fluentfp -- Functional programming in Go with an emphasis on fluent interfaces
 
 practicalfp is a collection of small packages for Go, inspired by functional programming
 principles.
 
-Why another Go fp package?  My favorite Go fp packages are [valor] and [fp-go].  When I
-wanted to dive into fp in Go, I looked across a number of packages and tried a few on for
-size.  I like packages that have focus and don't try to do everything, packages with a
-surface area small enough to read the code and have a good sense of what they do.  This
-means I like packages which may not cover everything I might want, but let me pick and
-choose.
+Why another Go fp package?  
 
 [valor]: https://github.com/phelmkamp/valor
 [fp-go]: https://github.com/repeale/fp-go
