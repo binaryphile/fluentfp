@@ -2,6 +2,7 @@ package anymappable
 
 import "github.com/binaryphile/funcTrunk/option"
 
+// SliceOf
 type SliceOf[T any] []T
 
 // KeepIf returns the slice of elements from ts for which fn returns true.  It's the same as Filter would be.

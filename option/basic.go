@@ -12,12 +12,12 @@ func BasicOf[T any](t T) Basic[T] {
 	}
 }
 
-func (o Basic[T]) Get() (_ T, _ bool) {
-	if o.ok {
-		return o.t, true
-	}
+func (o Basic[T]) Get() (T, bool) {
+	return o.t, o.ok
+}
 
-	return
+func (o Basic[T]) IsOk() bool {
+	return o.ok
 }
 
 func (o Basic[T]) MustGet() T {
