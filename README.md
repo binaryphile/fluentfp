@@ -1,14 +1,28 @@
-# funcTrunk - functional junk in a trunk
+# practicalfp - Practical Functional Programming for Go
 
-funcTrunk is a collection of small packages for Go, are inspired by functional programming
-principles.  It is motivated by a desire to bring a more fluent style to my own Go programs,
-and maybe to yours as well.
+practicalfp is a collection of small packages for Go, inspired by functional programming
+principles.
+
+Why another Go fp package?  My favorite Go fp packages are [valor] and [fp-go].  When I
+wanted to dive into fp in Go, I looked across a number of packages and tried a few on for
+size.  I like packages that have focus and don't try to do everything, packages with a
+surface area small enough to read the code and have a good sense of what they do.  This
+means I like packages which may not cover everything I might want, but let me pick and
+choose.
+
+[valor]: https://github.com/phelmkamp/valor
+[fp-go]: https://github.com/repeale/fp-go
+
+Valor has 
 
 It includes the following packages:
 
-- **mappable** -- collection methods for slices in a fluent style, such as *map* and *filter*, along with conventional methods like *contains*
-  - **anymappable** -- a version of mappable for types that aren't comparable (no *contains* since it requires comparison)
-- **iterator** -- an iterator function, where calling the function returns the next value and whether it is valid (if not, the iterator is done)
+- **mappable** -- mappable implements versions of the *map* and *filter* collection methods
+  for slices in a fluent style, along with conventional methods like *contains*
+    - **anymappable** -- a version of mappable for types that aren't comparable (no
+      *contains* since it requires comparison)
+- **iterator** -- an iterator function, where calling the function returns the next value
+  and whether it is valid (if not, the iterator is done)
 - **must** -- functions that turn errors into panics, making some fluent approaches possible
 - **option** -- a basic option package to serve as the foundation for bespoke option types
 - **ternary** -- a ternary implemented in a fluent style, i.e. If(cond).Then(alt1).Else(alt2)
@@ -32,3 +46,5 @@ SliceOf []T
   RemoveIf
 
 to run *filter* and *map* as methods on a slice.  If you are unfamiliar with map and slice,
+
+[fluent interface]: https://en.wikipedia.org/wiki/Fluent_interface
