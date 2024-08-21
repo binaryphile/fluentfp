@@ -1,12 +1,13 @@
-package anymappable
+package mappable
 
-import "github.com/binaryphile/funcTrunk/option"
+import (
+	"bitbucket.org/accelecon/charybdis/tools/avwob2drm/pkg/option"
+)
 
-// SliceOf
-type SliceOf[T any] []T
+type RawSliceOf[T any] []T
 
 // KeepIf returns the slice of elements from ts for which fn returns true.  It's the same as Filter would be.
-func (ts SliceOf[T]) KeepIf(fn func(T) bool) SliceOf[T] {
+func (ts RawSliceOf[T]) KeepIf(fn func(T) bool) RawSliceOf[T] {
 	results := make([]T, 0, len(ts))
 
 	for _, t := range ts {
@@ -19,7 +20,7 @@ func (ts SliceOf[T]) KeepIf(fn func(T) bool) SliceOf[T] {
 }
 
 // Map returns the slice resulting from applying fn, whose return type is the same as the elements of ts, to each member of ts.
-func (ts SliceOf[T]) Map(fn func(T) T) SliceOf[T] {
+func (ts RawSliceOf[T]) Map(fn func(T) T) RawSliceOf[T] {
 	results := make([]T, len(ts))
 
 	for i := range ts {
@@ -30,7 +31,7 @@ func (ts SliceOf[T]) Map(fn func(T) T) SliceOf[T] {
 }
 
 // MapToBool returns the slice resulting from applying fn, whose return type is bool, to each member of ts.
-func (ts SliceOf[T]) MapToBool(fn func(T) bool) SliceOf[bool] {
+func (ts RawSliceOf[T]) MapToBool(fn func(T) bool) RawSliceOf[bool] {
 	results := make([]bool, len(ts))
 
 	for i := range ts {
@@ -41,7 +42,7 @@ func (ts SliceOf[T]) MapToBool(fn func(T) bool) SliceOf[bool] {
 }
 
 // MapToInt returns the slice resulting from applying fn, whose return type is int, to each member of ts.
-func (ts SliceOf[T]) MapToInt(fn func(T) int) SliceOf[int] {
+func (ts RawSliceOf[T]) MapToInt(fn func(T) int) RawSliceOf[int] {
 	results := make([]int, len(ts))
 
 	for i := range ts {
@@ -51,8 +52,19 @@ func (ts SliceOf[T]) MapToInt(fn func(T) int) SliceOf[int] {
 	return results
 }
 
+// MapToInt64 returns the slice resulting from applying fn, whose return type is int64, to each member of ts.
+func (ts RawSliceOf[T]) MapToInt64(fn func(T) int64) RawSliceOf[int64] {
+	results := make([]int64, len(ts))
+
+	for i := range ts {
+		results[i] = fn(ts[i])
+	}
+
+	return results
+}
+
 // MapToStr returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts SliceOf[T]) MapToStr(fn func(T) string) SliceOf[string] {
+func (ts RawSliceOf[T]) MapToStr(fn func(T) string) RawSliceOf[string] {
 	results := make([]string, len(ts))
 
 	for i := range ts {
@@ -62,9 +74,9 @@ func (ts SliceOf[T]) MapToStr(fn func(T) string) SliceOf[string] {
 	return results
 }
 
-// MapToStrOption returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts SliceOf[T]) MapToStrOption(fn func(T) option.String) SliceOf[option.String] {
-	results := make([]option.String, len(ts))
+// MapToSliceOfStrings returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
+func (ts RawSliceOf[T]) MapToSliceOfStrings(fn func(T) []string) SliceOfStrSlices {
+	results := make([][]string, len(ts))
 
 	for i := range ts {
 		results[i] = fn(ts[i])
@@ -73,9 +85,9 @@ func (ts SliceOf[T]) MapToStrOption(fn func(T) option.String) SliceOf[option.Str
 	return results
 }
 
-// MapToStrSlice returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
-func (ts SliceOf[T]) MapToStrSlice(fn func(T) []string) SliceOfStrSlice {
-	results := make([][]string, len(ts))
+// MapToStrOption returns the slice resulting from applying fn, whose return type is string, to each member of ts.
+func (ts RawSliceOf[T]) MapToStrOption(fn func(T) option.String) RawSliceOf[option.String] {
+	results := make([]option.String, len(ts))
 
 	for i := range ts {
 		results[i] = fn(ts[i])
@@ -86,7 +98,7 @@ func (ts SliceOf[T]) MapToStrSlice(fn func(T) []string) SliceOfStrSlice {
 
 // RemoveIf returns the slice of elements from ts for which fn returns false.
 // It's the negation of what Filter would be, since it's not easy to write an in-line function for negation in Go.
-func (ts SliceOf[T]) RemoveIf(fn func(T) bool) SliceOf[T] {
+func (ts RawSliceOf[T]) RemoveIf(fn func(T) bool) RawSliceOf[T] {
 	results := make([]T, 0, len(ts))
 
 	for _, t := range ts {

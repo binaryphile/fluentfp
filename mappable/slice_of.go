@@ -1,8 +1,7 @@
 package mappable
 
 import (
-	"github.com/binaryphile/funcTrunk/anymappable"
-	"github.com/binaryphile/funcTrunk/option"
+	"bitbucket.org/accelecon/charybdis/tools/avwob2drm/pkg/option"
 )
 
 type SliceOf[T comparable] []T
@@ -45,7 +44,7 @@ func (ts SliceOf[T]) Map(fn func(T) T) SliceOf[T] {
 }
 
 // MapToBool returns the slice resulting from applying fn, whose return type is bool, to each member of ts.
-func (ts SliceOf[T]) MapToBool(fn func(T) bool) SliceOfBool {
+func (ts SliceOf[T]) MapToBool(fn func(T) bool) SliceOfBools {
 	results := make([]bool, len(ts))
 
 	for i := range ts {
@@ -56,7 +55,7 @@ func (ts SliceOf[T]) MapToBool(fn func(T) bool) SliceOfBool {
 }
 
 // MapToInt returns the slice resulting from applying fn, whose return type is int, to each member of ts.
-func (ts SliceOf[T]) MapToInt(fn func(T) int) SliceOfInt {
+func (ts SliceOf[T]) MapToInt(fn func(T) int) SliceOfInts {
 	results := make([]int, len(ts))
 
 	for i := range ts {
@@ -67,7 +66,7 @@ func (ts SliceOf[T]) MapToInt(fn func(T) int) SliceOfInt {
 }
 
 // MapToStr returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts SliceOf[T]) MapToStr(fn func(T) string) SliceOfString {
+func (ts SliceOf[T]) MapToStr(fn func(T) string) SliceOfStrings {
 	results := make([]string, len(ts))
 
 	for i := range ts {
@@ -89,7 +88,7 @@ func (ts SliceOf[T]) MapToStrOption(fn func(T) option.String) SliceOf[option.Str
 }
 
 // MapToStrSlice returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
-func (ts SliceOf[T]) MapToStrSlice(fn func(T) []string) anymappable.SliceOfStrSlice {
+func (ts SliceOf[T]) MapToStrSlice(fn func(T) []string) SliceOfStrSlices {
 	results := make([][]string, len(ts))
 
 	for i := range ts {
