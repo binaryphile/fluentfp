@@ -12,8 +12,20 @@ func BasicOf[T any](t T) Basic[T] {
 	}
 }
 
-func (o Basic[T]) Get() (T, bool) {
-	return o.t, o.ok
+func NewBasic[T any](t T, ok bool) (_ Basic[T]) {
+	if !ok {
+		return
+	}
+
+	return BasicOf(t)
+}
+
+func (o Basic[T]) Get() (_ T, _ bool) {
+	if !o.ok {
+		return
+	}
+
+	return o.t, true
 }
 
 func (o Basic[T]) IsOk() bool {
@@ -21,25 +33,33 @@ func (o Basic[T]) IsOk() bool {
 }
 
 func (o Basic[T]) MustGet() T {
-	if o.ok {
-		return o.t
+	if !o.ok {
+		panic("option: not ok")
 	}
 
-	panic("option: not ok")
+	return o.t
 }
 
 func (o Basic[T]) Or(t T) T {
-	if o.ok {
-		return o.t
+	if !o.ok {
+		return t
 	}
 
-	return t
+	return o.t
+}
+
+func (o Basic[T]) OrFalse() (_ T) {
+	if !o.ok {
+		return
+	}
+
+	return o.t
 }
 
 func (o Basic[T]) OrZero() (_ T) {
-	if o.ok {
-		return o.t
+	if !o.ok {
+		return
 	}
 
-	return
+	return o.t
 }
