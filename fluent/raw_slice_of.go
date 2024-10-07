@@ -1,13 +1,13 @@
-package mappable
+package fluent
 
 import (
-	"bitbucket.org/accelecon/charybdis/tools/avwob2drm/pkg/option"
+	"github.com/binaryphile/fluentfp/option"
 )
 
 type RawSliceOf[T any] []T
 
-// ForEach applies fn to each element of ts.
-func (ts RawSliceOf[T]) ForEach(fn func(T)) {
+// Each applies fn to each element of ts.
+func (ts RawSliceOf[T]) Each(fn func(T)) {
 	for _, t := range ts {
 		fn(t)
 	}
@@ -38,7 +38,7 @@ func (ts RawSliceOf[T]) Map(fn func(T) T) RawSliceOf[T] {
 }
 
 // MapToBool returns the slice resulting from applying fn, whose return type is bool, to each member of ts.
-func (ts RawSliceOf[T]) MapToBool(fn func(T) bool) RawSliceOf[bool] {
+func (ts RawSliceOf[T]) MapToBool(fn func(T) bool) SliceOf[bool] {
 	results := make([]bool, len(ts))
 
 	for i := range ts {
@@ -48,8 +48,19 @@ func (ts RawSliceOf[T]) MapToBool(fn func(T) bool) RawSliceOf[bool] {
 	return results
 }
 
+// MapToError returns the slice resulting from applying fn, whose return type is error, to each member of ts.
+func (ts RawSliceOf[T]) MapToError(fn func(T) error) RawSliceOf[error] {
+	results := make([]error, len(ts))
+
+	for i := range ts {
+		results[i] = fn(ts[i])
+	}
+
+	return results
+}
+
 // MapToInt returns the slice resulting from applying fn, whose return type is int, to each member of ts.
-func (ts RawSliceOf[T]) MapToInt(fn func(T) int) RawSliceOf[int] {
+func (ts RawSliceOf[T]) MapToInt(fn func(T) int) SliceOf[int] {
 	results := make([]int, len(ts))
 
 	for i := range ts {
@@ -60,7 +71,7 @@ func (ts RawSliceOf[T]) MapToInt(fn func(T) int) RawSliceOf[int] {
 }
 
 // MapToInt64 returns the slice resulting from applying fn, whose return type is int64, to each member of ts.
-func (ts RawSliceOf[T]) MapToInt64(fn func(T) int64) RawSliceOf[int64] {
+func (ts RawSliceOf[T]) MapToInt64(fn func(T) int64) SliceOf[int64] {
 	results := make([]int64, len(ts))
 
 	for i := range ts {
@@ -71,7 +82,7 @@ func (ts RawSliceOf[T]) MapToInt64(fn func(T) int64) RawSliceOf[int64] {
 }
 
 // MapToString returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts RawSliceOf[T]) MapToString(fn func(T) string) RawSliceOf[string] {
+func (ts RawSliceOf[T]) MapToString(fn func(T) string) SliceOf[string] {
 	results := make([]string, len(ts))
 
 	for i := range ts {
@@ -93,7 +104,7 @@ func (ts RawSliceOf[T]) MapToSliceOfStrings(fn func(T) []string) SliceOfStringSl
 }
 
 // MapToStringOption returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts RawSliceOf[T]) MapToStringOption(fn func(T) option.String) RawSliceOf[option.String] {
+func (ts RawSliceOf[T]) MapToStringOption(fn func(T) option.String) SliceOf[option.String] {
 	results := make([]option.String, len(ts))
 
 	for i := range ts {

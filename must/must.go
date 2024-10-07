@@ -5,16 +5,16 @@ import (
 	"os"
 )
 
-// AssertNil panics if err is not nil.
-func AssertNil(err error) {
+// BeNil panics if err is not nil.
+func BeNil(err error) {
 	if err != nil {
 		panic(err)
 	}
 }
 
-// Must returns the value of a (value, error) pair of arguments unless error is non-nil.
+// Get returns the value of a (value, error) pair of arguments unless error is non-nil.
 // In that case, it panics.
-func Must[T any](t T, err error) T {
+func Get[T any](t T, err error) T {
 	if err != nil {
 		panic(err)
 	}
@@ -22,9 +22,9 @@ func Must[T any](t T, err error) T {
 	return t
 }
 
-// MustGetenv returns the value in the environment variable named by key.
+// Getenv returns the value in the environment variable named by key.
 // It panics if the environment variable doesn't exist or is empty.
-func MustGetenv(key string) string {
+func Getenv(key string) string {
 	result := os.Getenv(key)
 
 	if result == "" {

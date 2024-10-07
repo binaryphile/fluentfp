@@ -5,28 +5,36 @@ type Basic[T any] struct {
 	t  T
 }
 
-func BasicOf[T any](t T) Basic[T] {
+func New[T any](t T, ok bool) (_ Basic[T]) {
+	if !ok {
+		return
+	}
+
+	return Of(t)
+}
+
+func Of[T any](t T) Basic[T] {
 	return Basic[T]{
 		ok: true,
 		t:  t,
 	}
 }
 
-func BasicOfNonZero[T comparable](t T) (_ Basic[T]) {
+func OfPointee[T any](t *T) (_ Basic[T]) {
+	if t == nil {
+		return
+	}
+
+	return Of(*t)
+}
+
+func IfProvided[T comparable](t T) (_ Basic[T]) {
 	var zero T
 	if t == zero {
 		return
 	}
 
-	return BasicOf(t)
-}
-
-func NewBasic[T any](t T, ok bool) (_ Basic[T]) {
-	if !ok {
-		return
-	}
-
-	return BasicOf(t)
+	return Of(t)
 }
 
 func (o Basic[T]) Get() (_ T, _ bool) {
@@ -57,9 +65,25 @@ func (o Basic[T]) Or(t T) T {
 	return o.t
 }
 
+func (o Basic[T]) OrEmpty() (_ T) {
+	if !o.ok {
+		return
+	}
+
+	return o.t
+}
+
 func (o Basic[T]) OrFalse() (_ T) {
 	if !o.ok {
 		return
+	}
+
+	return o.t
+}
+
+func (o Basic[T]) OrCall(fn func() T) (_ T) {
+	if !o.ok {
+		return fn()
 	}
 
 	return o.t
@@ -71,4 +95,12 @@ func (o Basic[T]) OrZero() (_ T) {
 	}
 
 	return o.t
+}
+
+func (o Basic[T]) ToPointer() (_ *T) {
+	if !o.ok {
+		return
+	}
+
+	return &o.t
 }
