@@ -1,4 +1,4 @@
-package mappable
+package fluent
 
 type RawSliceFromTo[T, R any] []T
 

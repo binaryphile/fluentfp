@@ -12,19 +12,18 @@ Valor has
 
 It includes the following packages:
 
-- **mappable** -- mappable implements versions of the *map* and *filter* collection methods
+- **fluent** -- fluent implements versions of the *map* and *filter* collection methods
   for slices in a fluent style, along with conventional methods like *contains*
-    - **anymappable** -- a version of mappable for types that aren't comparable (no
-      *contains* since it requires comparison)
 - **iterator** -- an iterator function, where calling the function returns the next value
-  and whether it is valid (if not, the iterator is done)
+  and whether it is valid, following go's usual comma-ok idiom (if not ok, the iterator is 
+  done)
 - **must** -- functions that turn errors into panics, making some fluent approaches possible
 - **option** -- a basic option package to serve as the foundation for bespoke option types
 - **ternary** -- a ternary implemented in a fluent style, i.e. If(cond).Then(alt1).Else(alt2)
 
-## Mappable
+## fluent
 
-`mappable.SliceOf` is the basic type of the mappable package.  It has the following
+`fluent.SliceOf` is the basic type of the fluent package.  It has the following
 structure:
 
 | Method | 

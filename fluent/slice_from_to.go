@@ -1,16 +1,30 @@
-package mappable
+package fluent
 
 import (
-	"bitbucket.org/accelecon/charybdis/tools/avwob2drm/pkg/option"
+	"github.com/binaryphile/fluentfp/option"
 )
 
 type SliceFromTo[T comparable, R any] []T
+
+func (ts SliceFromTo[T, R]) Contains(t T) bool {
+	return ts.Index(t) != -1
+}
 
 // ForEach applies fn to each member of ts.
 func (ts SliceFromTo[T, R]) ForEach(fn func(T)) {
 	for _, t := range ts {
 		fn(t)
 	}
+}
+
+func (ts SliceFromTo[T, R]) Index(t T) int {
+	for i := range ts {
+		if t == ts[i] {
+			return i
+		}
+	}
+
+	return -1
 }
 
 // KeepIf returns the slice of elements from ts for which fn returns true.  It's the same as Filter would be.
@@ -68,8 +82,8 @@ func (ts SliceFromTo[T, R]) MapToInt(fn func(T) int) SliceFromTo[int, R] {
 	return results
 }
 
-// MapToStr returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts SliceFromTo[T, R]) MapToStr(fn func(T) string) SliceFromTo[string, R] {
+// MapToString returns the slice resulting from applying fn, whose return type is string, to each member of ts.
+func (ts SliceFromTo[T, R]) MapToString(fn func(T) string) SliceFromTo[string, R] {
 	results := make([]string, len(ts))
 
 	for i := range ts {
@@ -79,8 +93,8 @@ func (ts SliceFromTo[T, R]) MapToStr(fn func(T) string) SliceFromTo[string, R] {
 	return results
 }
 
-// MapToStrOption returns the slice resulting from applying fn, whose return type is option.String, to each member of ts.
-func (ts SliceFromTo[T, R]) MapToStrOption(fn func(T) option.String) SliceFromTo[option.String, R] {
+// MapToStringOption returns the slice resulting from applying fn, whose return type is option.String, to each member of ts.
+func (ts SliceFromTo[T, R]) MapToStringOption(fn func(T) option.String) SliceFromTo[option.String, R] {
 	results := make([]option.String, len(ts))
 
 	for i := range ts {
@@ -90,8 +104,8 @@ func (ts SliceFromTo[T, R]) MapToStrOption(fn func(T) option.String) SliceFromTo
 	return results
 }
 
-// MapToStrSlice returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
-func (ts SliceFromTo[T, R]) MapToStrSlice(fn func(T) []string) RawSliceFromTo[[]string, R] {
+// MapToStringSlice returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
+func (ts SliceFromTo[T, R]) MapToStringSlice(fn func(T) []string) RawSliceFromTo[[]string, R] {
 	results := make([][]string, len(ts))
 
 	for i := range ts {
