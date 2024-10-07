@@ -12,6 +12,15 @@ func BasicOf[T any](t T) Basic[T] {
 	}
 }
 
+func BasicOfNonZero[T comparable](t T) (_ Basic[T]) {
+	var zero T
+	if t == zero {
+		return
+	}
+
+	return BasicOf(t)
+}
+
 func NewBasic[T any](t T, ok bool) (_ Basic[T]) {
 	if !ok {
 		return

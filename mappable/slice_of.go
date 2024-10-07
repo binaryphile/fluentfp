@@ -10,6 +10,13 @@ func (ts SliceOf[T]) Contains(t T) bool {
 	return ts.Index(t) != -1
 }
 
+// ForEach applies fn to each member of ts.
+func (ts SliceOf[T]) ForEach(fn func(T)) {
+	for _, t := range ts {
+		fn(t)
+	}
+}
+
 func (ts SliceOf[T]) Index(t T) int {
 	for i := range ts {
 		if t == ts[i] {
@@ -65,8 +72,8 @@ func (ts SliceOf[T]) MapToInt(fn func(T) int) SliceOfInts {
 	return results
 }
 
-// MapToStr returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts SliceOf[T]) MapToStr(fn func(T) string) SliceOfStrings {
+// MapToString returns the slice resulting from applying fn, whose return type is string, to each member of ts.
+func (ts SliceOf[T]) MapToString(fn func(T) string) SliceOfStrings {
 	results := make([]string, len(ts))
 
 	for i := range ts {
@@ -76,8 +83,8 @@ func (ts SliceOf[T]) MapToStr(fn func(T) string) SliceOfStrings {
 	return results
 }
 
-// MapToStrOption returns the slice resulting from applying fn, whose return type is option.String, to each member of ts.
-func (ts SliceOf[T]) MapToStrOption(fn func(T) option.String) SliceOf[option.String] {
+// MapToStringOption returns the slice resulting from applying fn, whose return type is option.String, to each member of ts.
+func (ts SliceOf[T]) MapToStringOption(fn func(T) option.String) SliceOf[option.String] {
 	results := make([]option.String, len(ts))
 
 	for i := range ts {
@@ -87,8 +94,8 @@ func (ts SliceOf[T]) MapToStrOption(fn func(T) option.String) SliceOf[option.Str
 	return results
 }
 
-// MapToStrSlice returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
-func (ts SliceOf[T]) MapToStrSlice(fn func(T) []string) SliceOfStrSlices {
+// MapToSliceOfStrings returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
+func (ts SliceOf[T]) MapToSliceOfStrings(fn func(T) []string) SliceOfStringSlices {
 	results := make([][]string, len(ts))
 
 	for i := range ts {

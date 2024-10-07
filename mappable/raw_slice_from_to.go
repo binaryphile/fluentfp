@@ -1,9 +1,16 @@
 package mappable
 
-type RawSliceTo[T, R any] []T
+type RawSliceFromTo[T, R any] []T
+
+// ForEach applies fn to each member of ts.
+func (ts RawSliceFromTo[T, R]) ForEach(fn func(T)) {
+	for _, t := range ts {
+		fn(t)
+	}
+}
 
 // KeepIf returns the slice of elements from ts for which fn returns true.
-func (ts RawSliceTo[T, R]) KeepIf(fn func(T) bool) RawSliceTo[T, R] {
+func (ts RawSliceFromTo[T, R]) KeepIf(fn func(T) bool) RawSliceFromTo[T, R] {
 	results := make([]T, 0, len(ts))
 
 	for _, t := range ts {
@@ -15,7 +22,7 @@ func (ts RawSliceTo[T, R]) KeepIf(fn func(T) bool) RawSliceTo[T, R] {
 	return results
 }
 
-func (ts RawSliceTo[T, R]) MapTo(fn func(T) R) RawSliceOf[R] {
+func (ts RawSliceFromTo[T, R]) MapTo(fn func(T) R) RawSliceOf[R] {
 	results := make([]R, len(ts))
 
 	for i, t := range ts {
@@ -26,7 +33,7 @@ func (ts RawSliceTo[T, R]) MapTo(fn func(T) R) RawSliceOf[R] {
 }
 
 // MapToBool returns the slice resulting from applying fn, whose return type is bool, to each member of ts.
-func (ts RawSliceTo[T, R]) MapToBool(fn func(T) bool) RawSliceTo[bool, R] {
+func (ts RawSliceFromTo[T, R]) MapToBool(fn func(T) bool) RawSliceFromTo[bool, R] {
 	results := make([]bool, len(ts))
 
 	for i := range ts {
@@ -37,7 +44,7 @@ func (ts RawSliceTo[T, R]) MapToBool(fn func(T) bool) RawSliceTo[bool, R] {
 }
 
 // MapToInt returns the slice resulting from applying fn, whose return type is int, to each member of ts.
-func (ts RawSliceTo[T, R]) MapToInt(fn func(T) int) RawSliceTo[int, R] {
+func (ts RawSliceFromTo[T, R]) MapToInt(fn func(T) int) RawSliceFromTo[int, R] {
 	results := make([]int, len(ts))
 
 	for i := range ts {
@@ -47,18 +54,8 @@ func (ts RawSliceTo[T, R]) MapToInt(fn func(T) int) RawSliceTo[int, R] {
 	return results
 }
 
-func (ts RawSliceTo[T, R]) MapToOther(fn func(T) R) RawSliceOf[R] {
-	results := make([]R, len(ts))
-
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
-// MapToStrSlice returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
-func (ts RawSliceTo[T, R]) MapToStrSlice(fn func(T) []string) RawSliceTo[[]string, R] {
+// MapToSliceOfStrings returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
+func (ts RawSliceFromTo[T, R]) MapToSliceOfStrings(fn func(T) []string) RawSliceFromTo[[]string, R] {
 	results := make([][]string, len(ts))
 
 	for i := range ts {
@@ -68,8 +65,8 @@ func (ts RawSliceTo[T, R]) MapToStrSlice(fn func(T) []string) RawSliceTo[[]strin
 	return results
 }
 
-// MapToStr returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts RawSliceTo[T, R]) MapToStr(fn func(T) string) RawSliceTo[string, R] {
+// MapToString returns the slice resulting from applying fn, whose return type is string, to each member of ts.
+func (ts RawSliceFromTo[T, R]) MapToString(fn func(T) string) RawSliceFromTo[string, R] {
 	results := make([]string, len(ts))
 
 	for i := range ts {
@@ -80,7 +77,7 @@ func (ts RawSliceTo[T, R]) MapToStr(fn func(T) string) RawSliceTo[string, R] {
 }
 
 // RemoveIf returns the slice of elements from ts for which fn returns false.
-func (ts RawSliceTo[T, R]) RemoveIf(fn func(T) bool) RawSliceTo[T, R] {
+func (ts RawSliceFromTo[T, R]) RemoveIf(fn func(T) bool) RawSliceFromTo[T, R] {
 	results := make([]T, 0, len(ts))
 
 	for _, t := range ts {
