@@ -6,6 +6,13 @@ import (
 
 type RawSliceOf[T any] []T
 
+// ForEach applies fn to each element of ts.
+func (ts RawSliceOf[T]) ForEach(fn func(T)) {
+	for _, t := range ts {
+		fn(t)
+	}
+}
+
 // KeepIf returns the slice of elements from ts for which fn returns true.  It's the same as Filter would be.
 func (ts RawSliceOf[T]) KeepIf(fn func(T) bool) RawSliceOf[T] {
 	results := make([]T, 0, len(ts))
@@ -63,8 +70,8 @@ func (ts RawSliceOf[T]) MapToInt64(fn func(T) int64) RawSliceOf[int64] {
 	return results
 }
 
-// MapToStr returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts RawSliceOf[T]) MapToStr(fn func(T) string) RawSliceOf[string] {
+// MapToString returns the slice resulting from applying fn, whose return type is string, to each member of ts.
+func (ts RawSliceOf[T]) MapToString(fn func(T) string) RawSliceOf[string] {
 	results := make([]string, len(ts))
 
 	for i := range ts {
@@ -75,7 +82,7 @@ func (ts RawSliceOf[T]) MapToStr(fn func(T) string) RawSliceOf[string] {
 }
 
 // MapToSliceOfStrings returns the slice resulting from applying fn, whose return type is []string, to each member of ts.
-func (ts RawSliceOf[T]) MapToSliceOfStrings(fn func(T) []string) SliceOfStrSlices {
+func (ts RawSliceOf[T]) MapToSliceOfStrings(fn func(T) []string) SliceOfStringSlices {
 	results := make([][]string, len(ts))
 
 	for i := range ts {
@@ -85,8 +92,8 @@ func (ts RawSliceOf[T]) MapToSliceOfStrings(fn func(T) []string) SliceOfStrSlice
 	return results
 }
 
-// MapToStrOption returns the slice resulting from applying fn, whose return type is string, to each member of ts.
-func (ts RawSliceOf[T]) MapToStrOption(fn func(T) option.String) RawSliceOf[option.String] {
+// MapToStringOption returns the slice resulting from applying fn, whose return type is string, to each member of ts.
+func (ts RawSliceOf[T]) MapToStringOption(fn func(T) option.String) RawSliceOf[option.String] {
 	results := make([]option.String, len(ts))
 
 	for i := range ts {
