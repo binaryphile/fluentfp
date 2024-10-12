@@ -21,6 +21,11 @@ func _() {
 }
 
 var (
+	_ = AnyOf
+	_ = NewAny
+	_ = NotOkAny
+	_ = AnyIfProvided
+
 	_ = BoolOf
 	_ = NewBool
 	_ = NotOkBool

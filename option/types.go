@@ -1,5 +1,14 @@
 package option
 
+type Any = Basic[any]
+
+var (
+	AnyOf         = Of[any]
+	NewAny        = New[any]
+	NotOkAny      = Any{}
+	AnyIfProvided = IfProvided[any]
+)
+
 type Bool = Basic[bool]
 
 var (

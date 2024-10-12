@@ -1,3 +1,5 @@
+//go:build must
+
 package main
 
 import (
