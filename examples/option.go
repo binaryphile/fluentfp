@@ -62,7 +62,7 @@ func main() {
 	// https://go.dev/ref/spec#Method_expressions
 
 	// Now print the first three posts.
-	posts.Take(3).Each(PrintPost)
+	posts.TakeFirst(3).Each(PrintPost)
 }
 
 // Close closes closer.
