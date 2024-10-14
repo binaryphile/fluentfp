@@ -1,4 +1,4 @@
-//go:build fluent
+///go:build fluent
 
 package main
 
@@ -11,6 +11,14 @@ import (
 	"slices"
 	"strings"
 )
+
+// This example assumes you are familiar with the standard map and filter functions from functional programming.
+// If not, you may want to read up on them now:
+// https://en.wikipedia.org/wiki/Map_(higher-order_function)
+// https://en.wikipedia.org/wiki/Filter_(higher-order_function)
+//
+// Also, method expressions are very useful with fluent slices.
+// See https://go.dev/ref/spec#Method_expressions for details.
 
 // main retrieves a list of posts from the JSONPlaceholder API and prints various details about them.
 func main() {
@@ -28,17 +36,19 @@ func main() {
 		panic(err)
 	}
 
-	// There are three names for Map-related methods:
-	//  - To[BuiltinType] for returning a slice of string or int, for example
+	// There are three names for (functional programming) map-related methods:
+	//  - To[BuiltinType]With for returning a slice of string or int, for example
 	//  - Convert for returning a slice of the same type as the original
-	//  - Map for returning a slice of a specified type, usually a struct type
+	//  - MapWith for returning a slice of a specified type, usually a struct type
 	// Shown here is the Convert method since we're making Posts from Posts.
+
+	// Frequently a data source that is managed by others requires validation and/or transformation.
 	// The following validates posts and makes titles friendly by ensuring they are not empty:
 	posts = posts.
 		KeepIf(Post.IsValid). // KeepIf is a filter implementation
 		Convert(Post.ToFriendlyPost)
-	// Post.ToFriendlyPost takes the usual method receiver (a post in this case) as its first argument instead.
-	// see https://go.dev/ref/spec#Method_expressions
+	// Post.ToFriendlyPost takes the usual method receiver (a post in this case) as its first regular argument instead.
+	// See https://go.dev/ref/spec#Method_expressions.
 
 	// for comparison to above:
 	//
@@ -54,9 +64,9 @@ func main() {
 	fmt.Println("the first three posts:")
 
 	posts.
-		TakeFirst(3).              // TakeFirst returns a slice of the first n elements
-		ToStringWith(Post.String). // ToStringWith is Map to the named builtin type, string in this case
-		Each(Println)              // Each applies the named function to each element for its side effects
+		TakeFirst(3).               // TakeFirst returns a slice of the first n elements
+		ToStringsWith(Post.String). // ToStringsWith is the same as map but to the named builtin type, string in this case
+		Each(Println)               // Each applies the named function to each element for its side effects
 	// for comparison to above:
 	//
 	//     for i, post := range posts { // again, which form of this?
@@ -69,7 +79,7 @@ func main() {
 	// print the longest post title (if multiple, the first one found)
 	fmt.Println("\nthe longest post title in words:")
 
-	titles := posts.ToStringWith(Post.GetTitle)
+	titles := posts.ToStringsWith(Post.GetTitle)
 	// for comparison to above:
 	//
 	//     titles := make([]string, len(posts))
@@ -81,21 +91,19 @@ func main() {
 	fmt.Println(longestTitle)
 
 	// The Map method requires a type to map to, so SliceOf[T] doesn't have enough type parameters to support Map.
-	// For this reason, there's an additional type, SliceWithMap.
+	// For this reason, there's an additional type, MappableSliceOf.
 	// Rather than go through creating a new type to demonstrate, we'll just specify string as the target type,
 	// but it could be any type of your own.  Imagine your own type as the return type in this example.
 
-	// first, type-convert our existing slice to a SliceWithMap
-	mappablePosts := fluent.SliceWithMap[Post, string](posts)
+	// first, type-convert our existing slice to a MappableSliceOf
+	mappablePosts := fluent.MappableSliceOf[Post, string](posts)
 
 	// now use Map to convert to strings
 	fmt.Println("\nthe first three posts again!  encore!")
 	mappablePosts.
 		TakeFirst(3).
-		Map(Post.String). // imagine to your type here instead
+		MapWith(Post.String). // imagine to your type here instead
 		Each(Println)
-
-	// Because of Go's type system, there are a couple other
 }
 
 // Post type definition
@@ -137,6 +145,7 @@ func (p Post) ToFriendlyPost() Post {
 // Functions
 ////////////
 
+// CompareWordCounts compares the number of words in two strings.
 func CompareWordCounts(first, second string) int {
 	return cmp.Compare(len(strings.Fields(first)), len(strings.Fields(second)))
 }
