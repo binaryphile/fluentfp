@@ -39,6 +39,11 @@ func (ts RawSliceOf[T]) KeepIf(fn func(T) bool) RawSliceOf[T] {
 	return results
 }
 
+// Len returns the length of the slice.
+func (ts RawSliceOf[T]) Len() int {
+	return len(ts)
+}
+
 // RemoveIf returns the slice of elements from ts for which fn returns false.
 func (ts RawSliceOf[T]) RemoveIf(fn func(T) bool) RawSliceOf[T] {
 	results := make([]T, 0, len(ts))
