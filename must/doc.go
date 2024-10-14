@@ -1,10 +1,9 @@
 //go:build ignore
-// +build ignore
 
 package must
 
 func _() {
 	_ = BeNil
-	_ = Get
+	_ = Get[int]
 	_ = Getenv
 }

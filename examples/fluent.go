@@ -1,4 +1,4 @@
-///go:build fluent
+//go:build ignore
 
 package main
 
@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/binaryphile/fluentfp/fluent"
+	"github.com/binaryphile/fluentfp/hof"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -17,33 +19,50 @@ import (
 // https://en.wikipedia.org/wiki/Map_(higher-order_function)
 // https://en.wikipedia.org/wiki/Filter_(higher-order_function)
 //
+// Whenever this example refers to "map", I'm referring to the functional programming concept, not the Go built-in type.
+//
 // Also, method expressions are very useful with fluent slices.
 // See https://go.dev/ref/spec#Method_expressions for details.
 
 // main retrieves a list of posts from the JSONPlaceholder API and prints various details about them.
 func main() {
-	// get some posts from the REST endpoint with some standard boilerplate error handling etc.
-	resp, err := http.Get("https://jsonplaceholder.typicode.com/posts")
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
+	// get some posts from the REST endpoint
+	resp, _ := http.Get("https://jsonplaceholder.typicode.com/posts")
 
-	// A fluent slice is derived from a regular slice, so it is usable in the same way wherever a regular slice is.
-	// Just supply the element type in the declaration (fluent.SliceOf[element type]).
-	var posts fluent.SliceOf[Post] // instead of []Post
-	if err = json.NewDecoder(resp.Body).Decode(&posts); err != nil {
-		panic(err)
-	}
+	// A fluent slice is a _named type_ with an _underlying type_ of a regular slice,
+	// so it usable in all the same ways as a regular slice.
+	// Its definition is `type SliceOf[T comparable] []T`.
+	// The slice is also automatically converted between a regular slice and fluent slice
+	// as you assign it to a variable of one type or the other.
+	// That includes supplying them as arguments to function calls.
+	// A function signature that expects a regular slice can receive a fluent slice
+	// and implicitly convert it to regular, and vice versa.
 
-	// There are three names for (functional programming) map-related methods:
-	//  - To[BuiltinType]With for returning a slice of string or int, for example
-	//  - Convert for returning a slice of the same type as the original
-	//  - MapWith for returning a slice of a specified type, usually a struct type
-	// Shown here is the Convert method since we're making Posts from Posts.
+	// From the Go language specification:
 
-	// Frequently a data source that is managed by others requires validation and/or transformation.
-	// The following validates posts and makes titles friendly by ensuring they are not empty:
+	// > A value x of type V is assignable to a variable of type T ("x is assignable to T")
+	// > if [...] V and T have identical underlying types [...] and at least one of V or T is not a named type.
+	// [Ed: slices are built-in and so are not named types and are defined to have themselves as their underlying type]
+
+	// https://go.dev/ref/spec#Types
+	// https://go.dev/ref/spec#Underlying_types
+	// https://go.dev/ref/spec#Assignability
+
+	// create a fluent slice and decode the response into it
+	var posts fluent.SliceOf[Post]            // supply the element type in the declaration
+	json.NewDecoder(resp.Body).Decode(&posts) // Decode takes an `any` argument that happens to work with fluent slices
+
+	// There are three names for the map-related methods:
+	//
+	//  - `To[Type]sWith` for returning built-in types such as string or int
+	//  - `Convert` for returning a slice of the same type as the original
+	//  - `MapWith` for returning a slice of a named type, usually structs
+	//
+	// Shown here is `Convert` since we're making posts from posts.
+
+	// Frequently a data source that is managed by others requires input validation and/or normalization.
+	// You can do this easily with fluent slices.
+	// Here we filter out invalid posts and normalize the titles of the rest.
 	posts = posts.
 		KeepIf(Post.IsValid). // KeepIf is a filter implementation
 		Convert(Post.ToFriendlyPost)
@@ -58,25 +77,25 @@ func main() {
 	//             friendlyPosts = append(friendlyPosts, post)
 	//         }
 	//     }
-	//     posts = friendlyPosts
+	//     posts = friendlyPosts  // now friendlyPosts is just hanging around, stinking up the namespace
 
 	// print the first three posts
 	fmt.Println("the first three posts:")
 
 	posts.
 		TakeFirst(3).               // TakeFirst returns a slice of the first n elements
-		ToStringsWith(Post.String). // ToStringsWith is the same as map but to the named builtin type, string in this case
-		Each(Println)               // Each applies the named function to each element for its side effects
+		ToStringsWith(Post.String). // ToStringsWith is map to a built-in type, string in this case
+		Each(hof.Println)           // Each applies the named function to each element for its side effects
 	// for comparison to above:
 	//
-	//     for i, post := range posts { // again, which form of this?
-	//         if i == 3 {              // three lines of code just to break, but simpler than C-style for loop
+	//     for i, post := range posts { // again, which form of this? notice it's different this time.
+	//         if i == 3 {              // three lines of code just to break, but simpler than a C-style for loop
 	//            break
 	//         }
 	//         fmt.Println(post.String())
 	//     }
 
-	// print the longest post title (if multiple, the first one found)
+	// print the longest post title
 	fmt.Println("\nthe longest post title in words:")
 
 	titles := posts.ToStringsWith(Post.GetTitle)
@@ -87,23 +106,31 @@ func main() {
 	//         titles[i] = post.Title
 	//     }
 
+	// use titles as a regular slice argument
 	longestTitle := slices.MaxFunc(titles, CompareWordCounts) // fluent slices don't have Max or MaxFunc methods
 	fmt.Println(longestTitle)
 
-	// The Map method requires a type to map to, so SliceOf[T] doesn't have enough type parameters to support Map.
+	// MapWith requires a return type to map to, so SliceOf[T] doesn't have enough type parameters to support it.
 	// For this reason, there's an additional type, MappableSliceOf.
 	// Rather than go through creating a new type to demonstrate, we'll just specify string as the target type,
-	// but it could be any type of your own.  Imagine your own type as the return type in this example.
+	// but it could be any type of your own.
+	// Imagine your own type as the return type in this example.
 
 	// first, type-convert our existing slice to a MappableSliceOf
-	mappablePosts := fluent.MappableSliceOf[Post, string](posts)
+	var mappablePosts fluent.MappableSliceOf[Post, string]
+	mappablePosts = []Post(posts)
 
-	// now use Map to convert to strings
-	fmt.Println("\nthe first three posts again!  encore!")
-	mappablePosts.
+	// now use MapWith to convert to strings
+	fmt.Println("\nthe title lengths of the first three posts:")
+	first3Titles := mappablePosts.
 		TakeFirst(3).
-		MapWith(Post.String). // imagine to your type here instead
-		Each(Println)
+		MapWith(Post.GetTitle) // imagine your return type here
+
+	// finish printing
+	first3Titles.
+		ToIntsWith(hof.StringLen).   // package hof has a few functions useful as arguments to higher-order functions
+		ToStringsWith(strconv.Itoa). // some standard library functions are useful too, if they don't need to return an error
+		Each(hof.Println)
 }
 
 // Post type definition
@@ -120,7 +147,7 @@ func (p Post) GetTitle() string {
 	return p.Title
 }
 
-// IsValid returns whether the ID is positive.
+// IsValid returns whether the post ID is positive.
 func (p Post) IsValid() bool {
 	return p.ID > 0
 }
@@ -133,7 +160,7 @@ func (p Post) String() string {
 	return fmt.Sprint("Post ID: ", p.ID, ", Title: ", p.Title)
 }
 
-// ToFriendlyPost returns p with title "No title" if p.Title is blank.
+// ToFriendlyPost returns p with title "No title" if its title is blank.
 func (p Post) ToFriendlyPost() Post {
 	if p.Title == "" {
 		p.Title = "No title"
@@ -148,12 +175,4 @@ func (p Post) ToFriendlyPost() Post {
 // CompareWordCounts compares the number of words in two strings.
 func CompareWordCounts(first, second string) int {
 	return cmp.Compare(len(strings.Fields(first)), len(strings.Fields(second)))
-}
-
-// Println prints a string to stdout.
-// Since fmt.Println has variadic `any` args, it can't be used directly with Each.
-// This function wraps fmt.Println to make it usable with Each
-// by changing the signature from variadic `any` arguments to a single argument of string.
-func Println(s string) {
-	fmt.Println(s)
 }
