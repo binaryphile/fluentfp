@@ -5,7 +5,7 @@ type Basic[T any] struct {
 	t  T
 }
 
-func New[T any](t T, ok bool) (_ Basic[T]) {
+func NewBasic[T any](t T, ok bool) (_ Basic[T]) {
 	if !ok {
 		return
 	}

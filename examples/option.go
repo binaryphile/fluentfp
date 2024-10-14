@@ -1,84 +1,94 @@
-//go:build option
-
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/binaryphile/fluentfp/fluent"
-	"io"
-	"log"
+	"github.com/binaryphile/fluentfp/option"
 	"net/http"
+	"strconv"
 )
 
-// main fetches posts from the post api as options
+// main fetches posts from the post api as options.
 func main() {
+	// option.Basic offers a variety of option-related methods.
+	// It is generic, so you have to instantiate it with the type of value it holds.
+	// We alias option.Basic[Post] here to make things a little more readable when it's used.
+	type PostOption = option.Basic[Post]
+
+	// getPosts returns the posts with the provided ids.
+	getPosts := func(ids ...int) []Post {
+		posts := make([]Post, len(ids))
+		for i, id := range ids {
+			resp, _ := http.Get("https://jsonplaceholder.typicode.com/posts/" + strconv.Itoa(id))
+
+			// decode the response into a post
+			json.NewDecoder(resp.Body).Decode(&posts[i])
+		}
+
+		return posts
+	}
+
+	posts := getPosts(1, 2, 3, 4)
+
+	postOptions := make([]PostOption, len(posts))
+	for i, post := range posts {
+		postOptions[i] = post.ToOption()
+	}
+
+	return postOptions
+
+	// print how many are not-ok, i.e. not valid
+	lenNotOkPosts := 0
+	for _, postOption := range postOptions {
+		if !postOption.IsOk() {
+			lenNotOkPosts += 1
+		}
+	}
+	if lenNotOkPosts > 0 {
+		fmt.Println(lenNotOkPosts, "posts were invalid.")
+	}
+
+	// print my notes on the posts that are ok
+	// each note below corresponds to the post id by its index
+	myNotesOnPosts := []string{
+		"a compelling tale of woe",
+		"some recipes from a stuntman",
+		"a reggae music review",
+		"commercials from the 70s and 80s",
+	}
+	for i, postOption := range postOptions {
+		if post, ok := postOption.Get(); ok {
+			fmt.Println(post)
+			fmt.Println("my notes:", myNotesOnPosts[i])
+		}
+	}
+
+	// for comparison, the same code with fluent slices
+	var posts fluent.MappableSliceOf[Post, PostOption]
 
 }
 
+// Post type definition
+///////////////////////
+
 // Post represents a post from the JSONPlaceholder API.
-// Only the ID and Title fields are used.
 type Post struct {
 	ID    int    `json:"id"`
 	Title string `json:"title"`
 }
 
-// ToFriendlyPost returns a validated version of the post.
-// If the title is empty, it is set to "No title".
-func (p Post) ToValidatedPost() Post {
-	if p.Title == "" {
-		p.Title = "No title"
-	}
-
-	return p
+// GetTitle returns the post's title.
+func (p Post) GetTitle() string {
+	return p.Title
 }
 
-// main retrieves a list of posts from the JSONPlaceholder API and prints the first three to stdout.
-func main() {
-	resp, err := http.Get("https://jsonplaceholder.typicode.com/posts")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer Close(resp.Body)
-
-	// a fluent slice is derived from a regular slice, so it is usable wherever a regular slice is.
-	// just use the fluent.SliceOf[T] type to declare it.
-	var posts fluent.SliceOf[Post]
-	if err = json.NewDecoder(resp.Body).Decode(&posts); err != nil {
-		log.Fatal(err)
-	}
-
-	// the Map method returns the result of applying a supplied function to each element of the slice.
-	// the return type is a new fluent slice with the same element type as the original.
-	// the following validates the posts in the slice:
-	posts = posts.Convert(Post.ToValidatedPost)
-
-	// Post.ToValidatedPost is a method expression.
-	// a method expression is a function with the same signature as the method it is named for,
-	// but in the form Type.Method and with a first argument that is the receiver (in this case, a Post instance).
-	// that means, for the element type of a fluent slice, any no-argument method such as ToValidatedPost()
-	// is also a single-argument function.
-	// Any Type.MethodNameHere can be used as an argument to Map.
-	// https://go.dev/ref/spec#Method_expressions
-
-	// Now print the first three posts.
-	posts.TakeFirst(3).Each(PrintPost)
+// IsValid returns whether the post ID is positive.
+func (p Post) IsValid() bool {
+	return p.ID > 0
 }
 
-// Close closes closer.
-// If it errors, the error is printed to stderr.
-func Close(closer io.ReadCloser) {
-	err := closer.Close()
-	if err != nil {
-		fmt.Println("error:", err)
-	}
-}
-
-// PrintPost prints a friendly version of post to stdout.
-// It could easily also have been a method on Post.
-// The output looks like:
-//
-//	Post ID: 1, Title: sunt aut facere repellat provident ...
-func PrintPost(post Post) {
-	fmt.Println("Post ID:", post.ID, ", Title:", post.Title)
+// ToOption returns an ok option for valid posts, otherwise a not-ok option.
+func (p Post) ToOption() option.Basic[Post] {
+	return option.NewBasic(p, p.IsValid())
 }

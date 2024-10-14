@@ -14,7 +14,7 @@ func _() {
 	_ = (Basic[bool]{}).OrZero
 	_ = (Basic[bool]{}).ToPointer
 	_ = Getenv("")
-	_ = New[bool]
+	_ = NewBasic[bool]
 	_ = OfPointee[bool]
 	_ = IfProvided[bool]
 	_ = Of[bool]

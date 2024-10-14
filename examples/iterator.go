@@ -1,4 +1,4 @@
-//go:build iterator
+//go:build ignore
 
 package main
 
