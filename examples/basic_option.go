@@ -114,9 +114,18 @@ func main() {
 	// The value type must be the same as the original.
 	okDoubledIntOption := okIntOption.Convert(func(i int) int { return 2 * i })
 
-	// There are To[Type]With methods for the built-in types.
-	// Unlike package fluent, there is no mapping to named types.
+	// there are To[Type]With methods for the built-in types
 	okStringOption := okIntOption.ToStringWith(strconv.Itoa)
+
+	// But no method for map to a named type.
+	// Use option.Map instead, it is the generic map function.
+	IntToPost := func(i int) Post {
+		return Post{
+			ID:    i,
+			Title: "Post #" + strconv.Itoa(i),
+		}
+	}
+	okPostOption := option.Map(okIntOption, IntToPost)
 
 	intIs42 := func(i int) bool {
 		return i == 42
@@ -129,12 +138,13 @@ func main() {
 	// See advanced_option.go for examples of options with behavior from their value types.
 
 	// ignore the following -- to keep Go happy
-	eatYourVegetables[*[]Post](pseudoOption)
-	eatYourVegetables[bool](False)
-	eatYourVegetables[int](fortyTwo, sixtyEight, zero)
-	eatYourVegetables[option.Int](fortyTwoOption, notOkIntOption, stillOkIntOption, nowNotOkIntOption, okDoubledIntOption)
-	eatYourVegetables[option.String](notOkStringOption, okStringOption)
-	eatYourVegetables[string](empty)
+	eat[*[]Post](pseudoOption)
+	eat[PostOption](okPostOption)
+	eat[bool](False)
+	eat[int](fortyTwo, sixtyEight, zero)
+	eat[option.Int](fortyTwoOption, notOkIntOption, stillOkIntOption, nowNotOkIntOption, okDoubledIntOption)
+	eat[option.String](notOkStringOption, okStringOption)
+	eat[string](empty)
 }
 
 // Post type definition
@@ -142,8 +152,8 @@ func main() {
 
 // Post represents a post from the JSONPlaceholder API.
 type Post struct {
-	ID    int    `json:"id"`
-	Title string `json:"title"`
+	ID    int
+	Title string
 }
 
 // IsValid returns whether the post ID is positive.
@@ -159,6 +169,6 @@ func (p Post) String() string {
 	return fmt.Sprint("Post ID: ", p.ID, ", Title: ", p.Title)
 }
 
-func eatYourVegetables[T any](_ ...T) {
+func eat[T any](_ ...T) {
 	return
 }

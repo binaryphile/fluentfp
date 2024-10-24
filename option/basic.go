@@ -41,6 +41,14 @@ func OfPointee[T any](t *T) (_ Basic[T]) {
 
 // methods
 
+func (b Basic[T]) Call(fn func(T)) {
+	if !b.ok {
+		return
+	}
+
+	fn(b.t)
+}
+
 func (b Basic[T]) Convert(fn func(T) T) (_ Basic[T]) {
 	if !b.ok {
 		return
