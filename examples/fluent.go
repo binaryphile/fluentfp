@@ -19,7 +19,8 @@ import (
 // https://en.wikipedia.org/wiki/Map_(higher-order_function)
 // https://en.wikipedia.org/wiki/Filter_(higher-order_function)
 //
-// Whenever this example refers to "map", I'm referring to the functional programming concept, not the Go built-in type.
+// Whenever this example refers to "map", I'm referring to the functional programming concept,
+// not the Go built-in type.
 //
 // Also, method expressions are very useful with fluent slices.
 // See https://go.dev/ref/spec#Method_expressions for details.
@@ -29,8 +30,8 @@ func main() {
 	// get some posts from the REST endpoint
 	resp, _ := http.Get("https://jsonplaceholder.typicode.com/posts")
 
-	// A fluent slice is a _named type_ with an _underlying type_ of a regular slice,
-	// so it usable in all the same ways as a regular slice.
+	// A fluent slice is a named type with an underlying type of slice,
+	// so it usable in all the same ways as slice.
 	// Its definition is `type SliceOf[T comparable] []T`.
 	// The slice is also automatically converted between a regular slice and fluent slice
 	// as you assign it to a variable of one type or the other.
@@ -138,8 +139,8 @@ func main() {
 
 // Post represents a post from the JSONPlaceholder API.
 type Post struct {
-	ID    int    `json:"id"`
-	Title string `json:"title"`
+	ID    int
+	Title string
 }
 
 // GetTitle returns the post's title.
