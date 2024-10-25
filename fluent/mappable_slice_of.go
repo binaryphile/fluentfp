@@ -37,6 +37,11 @@ func (ts MappableSliceOf[T, R]) KeepIf(fn func(T) bool) MappableSliceOf[T, R] {
 	return results
 }
 
+// Len returns the length of the slice.
+func (ts MappableSliceOf[T, R]) Len() int {
+	return len(ts)
+}
+
 // MapWith applies the provided function to each element of the slice, mapping it to a RawSlice of type R.
 func (ts MappableSliceOf[T, R]) MapWith(fn func(T) R) RawSliceOf[R] {
 	return Map(ts, fn)
@@ -63,7 +68,7 @@ func (ts MappableSliceOf[T, R]) TakeFirst(n int) MappableSliceOf[T, R] {
 }
 
 // ToAnysWith applies the provided function to each element of the slice, mapping it to a slice of `any` type.
-func (ts MappableSliceOf[T, R]) ToAnysWith(fn func(T) any) MappableRawSlice[any, R] {
+func (ts MappableSliceOf[T, R]) ToAnysWith(fn func(T) any) MappableRawSliceOf[any, R] {
 	return Map(ts, fn)
 }
 
@@ -78,7 +83,7 @@ func (ts MappableSliceOf[T, R]) ToBytesWith(fn func(T) byte) MappableSliceOf[byt
 }
 
 // ToErrorsWith applies the provided function to each element of the slice, mapping it to a slice of errors.
-func (ts MappableSliceOf[T, R]) ToErrorsWith(fn func(T) error) MappableRawSlice[error, R] {
+func (ts MappableSliceOf[T, R]) ToErrorsWith(fn func(T) error) MappableRawSliceOf[error, R] {
 	return Map(ts, fn)
 }
 
@@ -273,96 +278,96 @@ func (ts MappableSliceOf[T, R]) ToErrorOptionsWith(fn func(T) option.Error) Mapp
 }
 
 // ToStringSlicesWith applies the provided function to each element of the slice, mapping it to a slice of string slices.
-func (ts MappableSliceOf[T, R]) ToStringSlicesWith(fn func(T) []string) MappableRawSlice[[]string, R] {
+func (ts MappableSliceOf[T, R]) ToStringSlicesWith(fn func(T) []string) MappableRawSliceOf[[]string, R] {
 	return Map(ts, fn)
 }
 
 // ToBoolSlicesWith applies the provided function to each element of the slice, mapping it to a slice of bool slices.
-func (ts MappableSliceOf[T, R]) ToBoolSlicesWith(fn func(T) []bool) MappableRawSlice[[]bool, R] {
+func (ts MappableSliceOf[T, R]) ToBoolSlicesWith(fn func(T) []bool) MappableRawSliceOf[[]bool, R] {
 	return Map(ts, fn)
 }
 
 // ToIntSlicesWith applies the provided function to each element of the slice, mapping it to a slice of int slices.
-func (ts MappableSliceOf[T, R]) ToIntSlicesWith(fn func(T) []int) MappableRawSlice[[]int, R] {
+func (ts MappableSliceOf[T, R]) ToIntSlicesWith(fn func(T) []int) MappableRawSliceOf[[]int, R] {
 	return Map(ts, fn)
 }
 
 // ToInt8SlicesWith applies the provided function to each element of the slice, mapping it to a slice of int8 slices.
-func (ts MappableSliceOf[T, R]) ToInt8SlicesWith(fn func(T) []int8) MappableRawSlice[[]int8, R] {
+func (ts MappableSliceOf[T, R]) ToInt8SlicesWith(fn func(T) []int8) MappableRawSliceOf[[]int8, R] {
 	return Map(ts, fn)
 }
 
 // ToInt16SlicesWith applies the provided function to each element of the slice, mapping it to a slice of int16 slices.
-func (ts MappableSliceOf[T, R]) ToInt16SlicesWith(fn func(T) []int16) MappableRawSlice[[]int16, R] {
+func (ts MappableSliceOf[T, R]) ToInt16SlicesWith(fn func(T) []int16) MappableRawSliceOf[[]int16, R] {
 	return Map(ts, fn)
 }
 
 // ToInt32SlicesWith applies the provided function to each element of the slice, mapping it to a slice of int32 slices.
-func (ts MappableSliceOf[T, R]) ToInt32SlicesWith(fn func(T) []int32) MappableRawSlice[[]int32, R] {
+func (ts MappableSliceOf[T, R]) ToInt32SlicesWith(fn func(T) []int32) MappableRawSliceOf[[]int32, R] {
 	return Map(ts, fn)
 }
 
 // ToInt64SlicesWith applies the provided function to each element of the slice, mapping it to a slice of int64 slices.
-func (ts MappableSliceOf[T, R]) ToInt64SlicesWith(fn func(T) []int64) MappableRawSlice[[]int64, R] {
+func (ts MappableSliceOf[T, R]) ToInt64SlicesWith(fn func(T) []int64) MappableRawSliceOf[[]int64, R] {
 	return Map(ts, fn)
 }
 
 // ToUintSlicesWith applies the provided function to each element of the slice, mapping it to a slice of uint slices.
-func (ts MappableSliceOf[T, R]) ToUintSlicesWith(fn func(T) []uint) MappableRawSlice[[]uint, R] {
+func (ts MappableSliceOf[T, R]) ToUintSlicesWith(fn func(T) []uint) MappableRawSliceOf[[]uint, R] {
 	return Map(ts, fn)
 }
 
 // ToUint8SlicesWith applies the provided function to each element of the slice, mapping it to a slice of uint8 slices.
-func (ts MappableSliceOf[T, R]) ToUint8SlicesWith(fn func(T) []uint8) MappableRawSlice[[]uint8, R] {
+func (ts MappableSliceOf[T, R]) ToUint8SlicesWith(fn func(T) []uint8) MappableRawSliceOf[[]uint8, R] {
 	return Map(ts, fn)
 }
 
 // ToUint16SlicesWith applies the provided function to each element of the slice, mapping it to a slice of uint16 slices.
-func (ts MappableSliceOf[T, R]) ToUint16SlicesWith(fn func(T) []uint16) MappableRawSlice[[]uint16, R] {
+func (ts MappableSliceOf[T, R]) ToUint16SlicesWith(fn func(T) []uint16) MappableRawSliceOf[[]uint16, R] {
 	return Map(ts, fn)
 }
 
 // ToUint32SlicesWith applies the provided function to each element of the slice, mapping it to a slice of uint32 slices.
-func (ts MappableSliceOf[T, R]) ToUint32SlicesWith(fn func(T) []uint32) MappableRawSlice[[]uint32, R] {
+func (ts MappableSliceOf[T, R]) ToUint32SlicesWith(fn func(T) []uint32) MappableRawSliceOf[[]uint32, R] {
 	return Map(ts, fn)
 }
 
 // ToUint64SlicesWith applies the provided function to each element of the slice, mapping it to a slice of uint64 slices.
-func (ts MappableSliceOf[T, R]) ToUint64SlicesWith(fn func(T) []uint64) MappableRawSlice[[]uint64, R] {
+func (ts MappableSliceOf[T, R]) ToUint64SlicesWith(fn func(T) []uint64) MappableRawSliceOf[[]uint64, R] {
 	return Map(ts, fn)
 }
 
 // ToUintptrSlicesWith applies the provided function to each element of the slice, mapping it to a slice of uintptr slices.
-func (ts MappableSliceOf[T, R]) ToUintptrSlicesWith(fn func(T) []uintptr) MappableRawSlice[[]uintptr, R] {
+func (ts MappableSliceOf[T, R]) ToUintptrSlicesWith(fn func(T) []uintptr) MappableRawSliceOf[[]uintptr, R] {
 	return Map(ts, fn)
 }
 
 // ToFloat32SlicesWith applies the provided function to each element of the slice, mapping it to a slice of float32 slices.
-func (ts MappableSliceOf[T, R]) ToFloat32SlicesWith(fn func(T) []float32) MappableRawSlice[[]float32, R] {
+func (ts MappableSliceOf[T, R]) ToFloat32SlicesWith(fn func(T) []float32) MappableRawSliceOf[[]float32, R] {
 	return Map(ts, fn)
 }
 
 // ToFloat64SlicesWith applies the provided function to each element of the slice, mapping it to a slice of float64 slices.
-func (ts MappableSliceOf[T, R]) ToFloat64SlicesWith(fn func(T) []float64) MappableRawSlice[[]float64, R] {
+func (ts MappableSliceOf[T, R]) ToFloat64SlicesWith(fn func(T) []float64) MappableRawSliceOf[[]float64, R] {
 	return Map(ts, fn)
 }
 
 // ToComplex64SlicesWith applies the provided function to each element of the slice, mapping it to a slice of complex64 slices.
-func (ts MappableSliceOf[T, R]) ToComplex64SlicesWith(fn func(T) []complex64) MappableRawSlice[[]complex64, R] {
+func (ts MappableSliceOf[T, R]) ToComplex64SlicesWith(fn func(T) []complex64) MappableRawSliceOf[[]complex64, R] {
 	return Map(ts, fn)
 }
 
 // ToComplex128SlicesWith applies the provided function to each element of the slice, mapping it to a slice of complex128 slices.
-func (ts MappableSliceOf[T, R]) ToComplex128SlicesWith(fn func(T) []complex128) MappableRawSlice[[]complex128, R] {
+func (ts MappableSliceOf[T, R]) ToComplex128SlicesWith(fn func(T) []complex128) MappableRawSliceOf[[]complex128, R] {
 	return Map(ts, fn)
 }
 
 // ToByteSlicesWith applies the provided function to each element of the slice, mapping it to a slice of byte slices.
-func (ts MappableSliceOf[T, R]) ToByteSlicesWith(fn func(T) []byte) MappableRawSlice[[]byte, R] {
+func (ts MappableSliceOf[T, R]) ToByteSlicesWith(fn func(T) []byte) MappableRawSliceOf[[]byte, R] {
 	return Map(ts, fn)
 }
 
 // ToRuneSlicesWith applies the provided function to each element of the slice, mapping it to a slice of rune slices.
-func (ts MappableSliceOf[T, R]) ToRuneSlicesWith(fn func(T) []rune) MappableRawSlice[[]rune, R] {
+func (ts MappableSliceOf[T, R]) ToRuneSlicesWith(fn func(T) []rune) MappableRawSliceOf[[]rune, R] {
 	return Map(ts, fn)
 }

@@ -9,3 +9,11 @@ func Getenv(key string) String {
 
 	return IfProvided(result)
 }
+
+func Map[T, U any](b Basic[T], TToU func(T) U) (_ Basic[U]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(TToU(b.t))
+}
