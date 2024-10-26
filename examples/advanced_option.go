@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -10,8 +12,8 @@ import (
 // Advanced options expose methods corresponding to the value type's methods that do the right thing based on ok status.
 // Advanced option usage as described here requires more code and has more limited use cases than basic options.
 // The benefit, however, is that these options can significantly lower the complexity of code that manipulates
-// many option instances in one place (i.e. in one central function),
-// at least when the stored value types are needed for their methods.
+// many option instances in one place (i.e. in one central function)
+// when the stored value types are needed for their methods as opposed to their fields.
 // That's because the difference between a basic and advanced option
 // is the presence of option-aware versions of those methods.
 //
