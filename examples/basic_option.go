@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -169,6 +171,4 @@ func (p Post) String() string {
 	return fmt.Sprint("Post ID: ", p.ID, ", Title: ", p.Title)
 }
 
-func eat[T any](_ ...T) {
-	return
-}
+func eat[T any](_ ...T) {}

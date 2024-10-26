@@ -1,93 +1,53 @@
-## fluentfp -- Functional programming in Go with an emphasis on fluent interfaces
+# FluentFP: Functional Programming in Go
 
-practicalfp is a collection of small packages for Go, inspired by functional programming
-principles.
+**FluentFP** brings a functional programming approach to Go, providing tools and patterns like options, fluent slices, iterators, and other higher-order constructs to improve code readability and reduce boilerplate in complex Go applications. Each module introduces functional patterns to address specific programming needs, making Go code more expressive and maintainable.
 
-Why another Go fp package?  
+## Installation
 
-[valor]: https://github.com/phelmkamp/valor
-[fp-go]: https://github.com/repeale/fp-go
+To use FluentFP, install it via `go get`:
 
-Valor has 
+    go get github.com/binaryphile/fluentfp
 
-It includes the following packages:
+Then, import the required packages as needed in your Go files. For example:
 
-- **fluent** -- fluent implements versions of the *map* and *filter* collection methods
-  for slices in a fluent style, along with conventional methods like *contains*
-- **iterator** -- an iterator function, where calling the function returns the next value
-  and whether it is valid, following go's usual comma-ok idiom (if not ok, the iterator is 
-  done)
-- **must** -- functions that turn errors into panics, making some fluent approaches possible
-- **option** -- a basic option package to serve as the foundation for bespoke option types
-- **ternary** -- a ternary implemented in a fluent style, i.e. If(cond).Then(alt1).Else(alt2)
+    import "github.com/binaryphile/fluentfp/option"
 
-#### Package fluent
+## Modules
 
-`fluent` is the central package of fluentfp.  It offers slice-derived types that provide methods for mapping and filtering slices.  It takes advantage of Go's generics support starting from Go 1.18.
+### 1. `option`
 
-`SliceOf` is the starting point, although the quirks of Go's type system require some other variations on it.  Nevertheless, so long as you are mapping to builtin types, `SliceOf` usually has you covered.  Start with `SliceOf` when you aren't sure.  Here's a simple example:
+The `option` package introduces an option type, which encapsulates optional values 
+(similar to `Maybe` or `Optional` types in other languages). It provides:
 
-```go
-package main
+-   **Basic Options**: `option.Basic` handles values that may or may not be present with methods familiar from fp.
+-   **Advanced Options**: for scenarios where the optional value is used for its methods rather than just values, useful for things like managing the lifecycle of dependencies.
 
-import (
-	"fmt"
-	"github.com/binaryphile/fluentfp/examples/db"
-	"github.com/binaryphile/fluentfp/fluent"
-)
+**Example**: `advanced_option.go` shows a CLI tool using advanced options to concisely open and close dependencies in various combinations based on the needs of a particular run of the tool.
 
-func main() {
-	var users fluent.SliceOf[db.User]
-	users = db.GetUsers()
+### 2. `fluent`
 
-	// print the users' names
-	names := users.ToStringsWith(db.User.GetName)
-	fmt.Println("users:")
-	names.Each(Println)
-}
+The `fluent` package offers fluent slices -- Go slices with additional fp methods such as `MapWith` (map), `KeepIf` (filter), and `Each` (foreach). Fluent slices support streamlined, chainable operations on collections, improving readability and reducing boilerplate for list transformations.
 
-// Println prints s to stdout.
-func Println(s string) {
-	fmt.Println(s)
-}
-```
+**Example**: In `fluent.go`, `fluent` wraps API data and transforms it through map, filter, and other functional methods. See how operations are simplified when working with collections of API data. 
 
-A fluent slice is usable most places a regular slice is, because it's derived from a regular slice. Just supply the element type, as shown with `fluent.SliceOf[db.User]`.
+### 3. `iterator`
 
-Even though `db.GetUsers` has a return type of a regular slice, the result can be stored in a fluent slice because Go automatically type-converts it to the derived type.
+The `iterator` package provides simple iterators, allowing you to access collection elements sequentially. This is useful for concise code where the focus is on element processing rather than indexing.
 
-Each builtin type has a `To[Type]sWith` method (plural). This is the same as map, just with a specified return type.
+**Example**: `iterator.go` demonstrates iterating over a slice with `iterator`, simplifying loops with an iterator pattern.
 
-When structs have methods that return a builtin type, such as `GetName`, you can use them as the single-argument functions required by map. Just use the method name dotted directly onto the type, e.g. `db.User.GetName`. This is a method expression in Go, which turns the method into a single-argument function, the argument being the method's usual receiver such as `db.User`. Here, `ToStringsWith` feeds each user to the `db.User.GetName` method expression.
+### 4. `must`
 
-Sometimes a simple wrapper function like `Println` is required to give a function argument with the proper signature, such as with `Each` here.  `fmt.Println` has a variadic `any` argument signature, which doesn't translate directly to the single-argument string signature required here.
+`must` offers utilities to handle operations that "must" succeed, such as environment variable access or file I/O, by panicking on failure. This can be used to enforce non-optional behavior in essential parts of your program.
 
-The types available in `fluent` include:
+**Example**: In `must.go`, see how environment variables and file access are handled succinctly by the `must` functions, panicking if an operation fails to meet expectations.
 
-- SliceOf[T comparable]
-- RawSliceOf[T any]
-- MappableSliceOf[T comparable, R any]
-- MappableRawSliceOf[T, R any]
+### 5. `ternary`
 
-###### SliceOf[T comparable]
+The `ternary` package provides a basic ternary operator equivalent, enabling conditional expressions for concise if-else alternatives. It supports in-line expressions for easy defaulting and simplifies conditional assignments in Go.
 
-The method list of `fluent.SliceOf[T comparable]` is rather long because of all of the map methods that generate builtin types.  Leaving those out, this is what the method list looks like:
+**Example**: `ternary.go` demonstrates using `ternary.If` to streamline basic conditionals, making them clearer and more concise.
 
-| Method Signature            | Purpose                                                                        |
-| --------------------------- | ------------------------------------------------------------------------------ |
-| `Contains(t T) bool`        | whether `t` is in the slice                                                    |
-| `Convert(fn func(T) T)`     | return the result of `fn` applied to each item, known as map                   |
-| `Each(fn func(T))`          | apply `fn` to each item for its side effects, known as foreach                 |
-| `IndexOf(t T) int`          | the slice index of `t`, if present, otherwise -1                               |
-| `KeepIf(fn func(T) bool)`   | return items for which `fn` returns true when applied to each, known as filter |
-| `RemoveIf(fn func(T) bool)` | return items for which `fn` returns false, the complement of `KeepIf`          |
-| `TakeFirst(n int)`          | return the first `n` items in the slice                                        |
-As mentioned, `SliceOf` includes map methods to each of the primitive builtin types.  `ToStringsWith` and `ToIntsWith` are two examples.  Methods for two interface types are also provided: `ToAnysWith` and `ToErrorsWith`.
+## Getting Started
 
-In addition, `To` methods are provided for two variations of each of those types:
-- slices of those types, such as `ToStringSlicesWith`
-- types from fluentfp's `option` package, such as `ToStringOptionWith`
-
-
-
-[fluent interface]: https://en.wikipedia.org/wiki/Fluent_interface
+Explore the examples provided in the [examples directory](https://github.com/binaryphile/fluentfp/tree/dev/examples) to see detailed usage and integration in Go applications.
