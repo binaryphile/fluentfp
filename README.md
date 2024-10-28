@@ -96,7 +96,7 @@ The `ternary` package provides a basic ternary operator equivalent, enabling con
 expressions for concise if-else alternatives. It supports in-line expressions for easy
 defaulting and simplifies conditional assignments in Go.
 
-```go
+``` go
 If := ternary.If[string]
 one := If(true).Then("one").Else("two")
 two := If(false).Then("one").Else("two")
