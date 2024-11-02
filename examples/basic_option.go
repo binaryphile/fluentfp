@@ -86,9 +86,9 @@ func main() {
 	notOkStringOption = option.NotOkString // but there are more readable package variables to create not-oks
 
 	// Sometimes in Go you encounter a pointer being used as a pseudo-option where nil means not-ok.
-	// The OfPointee method creates a formal option of the pointed-to value.
-	postsOption := option.OfPointee(&posts) // this gives the same result as option.Of(posts)
-	pseudoOption := postsOption.ToPointer() // the ToPointer method gets the pointer pseudo-option back
+	// The FromOpt method creates a formal option of the pointed-to value.
+	postsOption := option.FromOpt(&posts) // this gives the same result as option.Of(posts)
+	pseudoOption := postsOption.ToOpt()   // the ToOpt method gets the pointer pseudo-option back
 
 	// New dynamically creates an option when you have a value and an ok bool
 	theAnswer := 42 // to the question of Life, the Universe and Everything

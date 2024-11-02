@@ -7,17 +7,17 @@ type Basic[T any] struct {
 
 // factories
 
-func New[T any](t T, ok bool) (_ Basic[T]) {
-	if !ok {
+func IfProvided[T comparable](t T) (_ Basic[T]) {
+	var zero T
+	if t == zero {
 		return
 	}
 
 	return Of(t)
 }
 
-func IfProvided[T comparable](t T) (_ Basic[T]) {
-	var zero T
-	if t == zero {
+func New[T any](t T, ok bool) (_ Basic[T]) {
+	if !ok {
 		return
 	}
 
@@ -31,7 +31,10 @@ func Of[T any](t T) Basic[T] {
 	}
 }
 
-func OfPointee[T any](t *T) (_ Basic[T]) {
+// FromOpt returns an option of what the pointer points to, and a not-ok if it is nil.
+// It uses the shortened name "opt" for the method of using a pointer as a pseudo-option,
+// as opposed to the full Basic option type.
+func FromOpt[T any](t *T) (_ Basic[T]) {
 	if t == nil {
 		return
 	}
@@ -104,80 +107,8 @@ func (b Basic[T]) ToByteWith(fn func(T) byte) (_ Basic[byte]) {
 	return Of(fn(b.t))
 }
 
-// ToComplex128With converts the option to a complex128 option using the provided function.
-func (b Basic[T]) ToComplex128With(fn func(T) complex128) (_ Basic[complex128]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToComplex64With converts the option to a complex64 option using the provided function.
-func (b Basic[T]) ToComplex64With(fn func(T) complex64) (_ Basic[complex64]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
 // ToErrorWith converts the option to an error option using the provided function.
 func (b Basic[T]) ToErrorWith(fn func(T) error) (_ Basic[error]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToFloat32With converts the option to a float32 option using the provided function.
-func (b Basic[T]) ToFloat32With(fn func(T) float32) (_ Basic[float32]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToFloat64With converts the option to a float64 option using the provided function.
-func (b Basic[T]) ToFloat64With(fn func(T) float64) (_ Basic[float64]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToInt16With converts the option to an int16 option using the provided function.
-func (b Basic[T]) ToInt16With(fn func(T) int16) (_ Basic[int16]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToInt32With converts the option to an int32 option using the provided function.
-func (b Basic[T]) ToInt32With(fn func(T) int32) (_ Basic[int32]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToInt64With converts the option to an int64 option using the provided function.
-func (b Basic[T]) ToInt64With(fn func(T) int64) (_ Basic[int64]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToInt8With converts the option to an int8 option using the provided function.
-func (b Basic[T]) ToInt8With(fn func(T) int8) (_ Basic[int8]) {
 	if !b.ok {
 		return
 	}
@@ -205,51 +136,6 @@ func (b Basic[T]) ToRuneWith(fn func(T) rune) (_ Basic[rune]) {
 
 // ToStringWith converts the option to a string option using the provided function.
 func (b Basic[T]) ToStringWith(fn func(T) string) (_ Basic[string]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUint16With converts the option to a uint16 option using the provided function.
-func (b Basic[T]) ToUint16With(fn func(T) uint16) (_ Basic[uint16]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUint32With converts the option to a uint32 option using the provided function.
-func (b Basic[T]) ToUint32With(fn func(T) uint32) (_ Basic[uint32]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUint64With converts the option to a uint64 option using the provided function.
-func (b Basic[T]) ToUint64With(fn func(T) uint64) (_ Basic[uint64]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUint8With converts the option to a uint8 option using the provided function.
-func (b Basic[T]) ToUint8With(fn func(T) uint8) (_ Basic[uint8]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUintWith converts the option to a uint option using the provided function.
-func (b Basic[T]) ToUintWith(fn func(T) uint) (_ Basic[uint]) {
 	if !b.ok {
 		return
 	}
@@ -313,7 +199,7 @@ func (b Basic[T]) ToNotOkIf(fn func(T) bool) (_ Basic[T]) {
 	return b
 }
 
-func (b Basic[T]) ToPointer() (_ *T) {
+func (b Basic[T]) ToOpt() (_ *T) {
 	if !b.ok {
 		return
 	}
