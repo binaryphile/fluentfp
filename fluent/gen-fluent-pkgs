@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# gen-fluent-pkgs creates packages for fluent slices from a template.
+# Each package defines a fluent slice with its own return type from the Map method.
+# The return type is the type named by the package name.
+
+# main generates the packages.
+main() {
+  # copy and update each template file from the template directory
+  for filepath in template/*; do
+    # make a package for each type
+    for type in ${Types[@]}; do
+      filename=$(basename $filepath)  # filename without the path
+      package=to"$type"met
+      mkdir -p $package # make the directory just in case
+
+      # substitute the actual type name into the files while copying
+      sed \
+        -e "s|{Type}|${type^}|g"        \
+        -e "s|{type}|$type|g"           \
+        -e "s|{package}|$package|g"     \
+        <$filepath >$package/$filename
+    done
+  done
+}
+
+# Types is a list of the builtin types we care about.
+declare Types=(
+  any
+  bool
+  byte
+  complex128
+  complex64
+  error
+  float32
+  float64
+  int
+  int16
+  int32
+  int64
+  int8
+  rune
+  string
+  uint
+  uint16
+  uint32
+  uint64
+  uint8
+  uintptr
+)
+
+
+set -eu     # exit on error or unset variable
+IFS=$'\n'   # no word splitting on space
+
+# rock and roll
+main
