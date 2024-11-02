@@ -1,12 +1,10 @@
-//go:build ignore
-
 package main
 
 import (
 	"cmp"
 	"encoding/json"
 	"fmt"
-	"github.com/binaryphile/fluentfp/fluent"
+	"github.com/binaryphile/fluentfp/fluent/stringmthd"
 	"github.com/binaryphile/fluentfp/hof"
 	"net/http"
 	"slices"
@@ -14,7 +12,8 @@ import (
 	"strings"
 )
 
-// This example assumes you are familiar with the standard map and filter functions from functional programming.
+// This example assumes you are familiar with the standard map and filter functions
+// from functional programming.
 // If not, you may want to read up on them now:
 // https://en.wikipedia.org/wiki/Map_(higher-order_function)
 // https://en.wikipedia.org/wiki/Filter_(higher-order_function)
@@ -43,50 +42,58 @@ func main() {
 
 	// > A value x of type V is assignable to a variable of type T ("x is assignable to T")
 	// > if [...] V and T have identical underlying types [...] and at least one of V or T is not a named type.
-	// [Ed: slices are built-in and so are not named types and are defined to have themselves as their underlying type]
+	//
+	// Slices are built-in and so are not named types
+	// and are defined to have themselves as their underlying type.
+	// So as long as the conversion is between the built-in slice type and fluent type,
+	// it's automatic.
 
 	// https://go.dev/ref/spec#Types
 	// https://go.dev/ref/spec#Underlying_types
 	// https://go.dev/ref/spec#Assignability
 
-	// create a fluent slice and decode the response into it
-	var posts fluent.SliceOf[Post]            // supply the element type in the declaration
-	json.NewDecoder(resp.Body).Decode(&posts) // Decode takes an `any` argument that happens to work with fluent slices
+	// Create a fluent slice and decode the response into it.
+	// The package name is always fluent, but it comes from a different subpackage based on type.
+	// The type dictates which To[Type]s method is available and what that type is.
+	// e.g. github.com/binaryphile/fluentfp/fluent/string
+	var posts stringmthd.SliceOf[Post]        // supply the element type in the declaration
+	json.NewDecoder(resp.Body).Decode(&posts) // Decode takes an `any` argument, but it works too
 
-	// There are three names for the map-related methods:
+	// There are two kinds of map-related method:
 	//
-	//  - `To[Type]sWith` for returning built-in types such as string or int
+	//  - `To[Type]s` for returning built-in types such as string or int
 	//  - `Convert` for returning a slice of the same type as the original
-	//  - `MapWith` for returning a slice of a named type, usually structs
 	//
 	// Shown here is `Convert` since we're making posts from posts.
 
-	// Frequently a data source that is managed by others requires input validation and/or normalization.
+	// Frequently a data source that is managed by others
+	// requires input validation and/or normalization.
 	// You can do this easily with fluent slices.
 	// Here we filter out invalid posts and normalize the titles of the rest.
 	posts = posts.
 		KeepIf(Post.IsValid). // KeepIf is a filter implementation
 		Convert(Post.ToFriendlyPost)
-	// Post.ToFriendlyPost takes the usual method receiver (a post in this case) as its first regular argument instead.
+	// The expression "Post.ToFriendlyPost" takes the usual method receiver (a post in this case)
+	// as its first regular argument instead.
 	// See https://go.dev/ref/spec#Method_expressions.
 
 	// for comparison to above:
 	//
-	//     friendlyPosts := make([]Post, 0, len(posts)) // do you make this correctly every time?  I don't.
-	//     for _, post := range posts {                 // which form of this do you need, single or double assignment?
-	//         if post.IsValid() {                      // do you need the index?  I have to think about it every time.
-	//             friendlyPosts = append(friendlyPosts, post)
-	//         }
+	// friendlyPosts := make([]Post, 0, len(posts)) // do you make this correctly every time?  I don't.
+	// for _, post := range posts {                 // which form of this do you need, single or double assignment?
+	//     if post.IsValid() {                      // do you need the index?  I have to think about it every time.
+	//         friendlyPosts = append(friendlyPosts, post)
 	//     }
-	//     posts = friendlyPosts  // now friendlyPosts is just hanging around, stinking up the namespace
+	// }
+	// posts = friendlyPosts  // now friendlyPosts is just hanging around, stinking up the namespace
 
 	// print the first three posts
 	fmt.Println("the first three posts:")
 
 	posts.
-		TakeFirst(3).               // TakeFirst returns a slice of the first n elements
-		ToStringsWith(Post.String). // ToStringsWith is map to a built-in type, string in this case
-		Each(hof.Println)           // Each applies the named function to each element for its side effects
+		TakeFirst(3).           // TakeFirst returns a slice of the first n elements
+		ToStrings(Post.String). // ToStrings is map to a built-in type, string in this case
+		Each(hof.Println)       // Each applies the named function to each element for its side effects
 	// for comparison to above:
 	//
 	//     for i, post := range posts { // again, which form of this? notice it's different this time.
@@ -99,7 +106,7 @@ func main() {
 	// print the longest post title
 	fmt.Println("\nthe longest post title in words:")
 
-	titles := posts.ToStringsWith(Post.GetTitle)
+	titles := posts.ToStrings(Post.GetTitle)
 	// for comparison to above:
 	//
 	//     titles := make([]string, len(posts))
@@ -111,27 +118,26 @@ func main() {
 	longestTitle := slices.MaxFunc(titles, CompareWordCounts) // fluent slices don't have Max or MaxFunc methods
 	fmt.Println(longestTitle)
 
-	// MapWith requires a return type to map to, so SliceOf[T] doesn't have enough type parameters to support it.
+	// Map requires a return type to map to, so SliceOf[T] doesn't have enough type parameters to support it.
 	// For this reason, there's an additional type, MappableSliceOf.
 	// Rather than go through creating a new type to demonstrate, we'll just specify string as the target type,
 	// but it could be any type of your own.
 	// Imagine your own type as the return type in this example.
 
 	// first, type-convert our existing slice to a MappableSliceOf
-	var mappablePosts fluent.MappableSliceOf[Post, string]
+	var mappablePosts stringmthd.MappableSliceOf[Post, int]
 	mappablePosts = []Post(posts)
 
-	// now use MapWith to convert to strings
+	// now convert to strings
 	fmt.Println("\nthe title lengths of the first three posts:")
 	first3Titles := mappablePosts.
 		TakeFirst(3).
-		MapWith(Post.GetTitle) // imagine your return type here
+		ToStrings(Post.GetTitle)
 
 	// finish printing
-	first3Titles.
-		ToIntsWith(hof.StringLen).   // package hof has a few functions useful as arguments to higher-order functions
-		ToStringsWith(strconv.Itoa). // some standard library functions are useful too, if they don't need to return an error
-		Each(hof.Println)
+	first3Titles.(hof.StringLen). // package hof has a few functions useful as arguments to higher-order functions
+					Map(strconv.Itoa). // some standard library functions are useful too, if they don't need to return an error
+					Each(hof.Println)
 }
 
 // Post type definition
