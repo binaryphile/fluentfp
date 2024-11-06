@@ -1,7 +1,7 @@
 package fluent
 
-// SliceOf derives from slice.
-// It is usable anywhere a slice is, but provides additional fluent fp methods.
+// SliceOf is a fluent slice usable anywhere a regular slice is, but provides additional fluent fp methods.
+// It's underlying type is []T.
 type SliceOf[T any] []T
 
 // Each applies fn to each member of ts.
