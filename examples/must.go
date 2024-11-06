@@ -47,7 +47,7 @@ func main() {
 	var ids fluent.SliceToNamed[int, *http.Response] = []int{1, 2}
 	ids.
 		ToStrings(urlFromID).
-		Map(must.Of(http.Get)).
+		ToNamed(must.Of(http.Get)).
 		ToString(must.Of(stringFromResponseBody)).
 		Each(hof.Println)
 

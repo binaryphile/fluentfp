@@ -15,18 +15,18 @@ func _() {
 	_ = SliceOf[bool]{}.ToRune
 	_ = SliceOf[bool]{}.ToString
 
-	_ = SliceToNamed[bool, bool]{}.Convert
+	_ = SliceToNamed[bool, bool]{}.ToSame
 	_ = SliceToNamed[bool, bool]{}.Each
 	_ = SliceToNamed[bool, bool]{}.KeepIf
 	_ = SliceToNamed[bool, bool]{}.Len
-	_ = SliceToNamed[bool, bool]{}.Map
+	_ = SliceToNamed[bool, bool]{}.ToNamed
 	_ = SliceToNamed[bool, bool]{}.RemoveIf
 	_ = SliceToNamed[bool, bool]{}.TakeFirst
-	_ = SliceToNamed[bool, bool]{}.ToAnys
-	_ = SliceToNamed[bool, bool]{}.ToBools
-	_ = SliceToNamed[bool, bool]{}.ToBytes
-	_ = SliceToNamed[bool, bool]{}.ToErrors
-	_ = SliceToNamed[bool, bool]{}.ToInts
-	_ = SliceToNamed[bool, bool]{}.ToRunes
-	_ = SliceToNamed[bool, bool]{}.ToStrings
+	_ = SliceToNamed[bool, bool]{}.ToAny
+	_ = SliceToNamed[bool, bool]{}.ToBool
+	_ = SliceToNamed[bool, bool]{}.ToByte
+	_ = SliceToNamed[bool, bool]{}.ToError
+	_ = SliceToNamed[bool, bool]{}.ToInt
+	_ = SliceToNamed[bool, bool]{}.ToRune
+	_ = SliceToNamed[bool, bool]{}.ToString
 }

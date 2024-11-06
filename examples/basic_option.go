@@ -1,5 +1,3 @@
-//go:build ignore
-
 package main
 
 import (
@@ -28,14 +26,14 @@ func main() {
 	getPosts := func(ids ...int) []Post {
 		posts := make([]Post, len(ids))
 		for i, id := range ids {
-			resp, _ := http.Get("https://jsonplaceholder.typicode.com/posts/" + strconv.Itoa(id))
+			resp, _ := http.Get(fmt.Sprintf("https://jsonplaceholder.typicode.com/posts/%d", id))
 
 			// Decode the response into a post.
 			// This may error on individual requests, in which case,
 			// we want the zero value for the post to know that it's invalid.
 			err := json.NewDecoder(resp.Body).Decode(&posts[i])
 			if err != nil {
-				posts[i] = Post{} // Decode doesn't guarantee &posts[i] is unchanged
+				posts[i] = Post{} // Decode doesn't guarantee posts[i] is unchanged
 			}
 		}
 
@@ -71,7 +69,7 @@ func main() {
 	// since the last post is not-ok, it won't be printed
 	for i, postOption := range postOptions {
 		if post, ok := postOption.Get(); ok { // Get gets the option's value using Go's comma-ok idiom
-			fmt.Print("\n", post.String(), "\n")
+			fmt.Printf("\n%s\n", post.String())
 			fmt.Println("My notes:", myNotesOnPosts[i])
 		}
 	}
@@ -97,42 +95,48 @@ func main() {
 
 	fortyTwo := okIntOption.MustGet()   // MustGet gets the value from an option you know is ok or else panics
 	sixtyEight := notOkIntOption.Or(68) // Or gets the value from an ok option or else the supplied alternative
-	zero := notOkIntOption.OrZero()     // OrZero gets the zero value of the type as the alternative
+	zero := notOkIntOption.OrZero()     // OrZero gets the zero value of the option value's type
 
 	// OrZero is generic and works for strings and bools, but there are more readable versions for them
 	empty := option.NotOkString.OrEmpty()
 	False := option.NotOkBool.OrFalse()
 
 	// if the alternative value for Or requires computation, there is OrCall
-	zero = notOkIntOption.OrCall(func() int { return 0 })
+	returnZero := func() int {
+		return 0
+	}
+	zero = notOkIntOption.OrCall(returnZero)
 
 	// IsOk checks if an option is ok
 	if okIntOption.IsOk() {
 		fmt.Println("Int option is ok")
 	}
 
-	// Convert returns an option of either not-ok if the original is also not-ok,
-	// or ok with the result of applying the function to the value.
-	// The value type must be the same as the original.
-	okDoubledIntOption := okIntOption.Convert(func(i int) int { return 2 * i })
+	// ToSame is a map implementation that returns the result of applying a function to the option's value,
+	// provided that the option is ok, or not-ok otherwise.
+	// For ToSame, the function returns the same type as the value.
+	doubleInt := func(i int) int {
+		return 2 * i
+	}
+	okDoubledIntOption := okIntOption.ToSame(doubleInt)
 
-	// there are To[Type]With methods for the built-in types
-	okStringOption := okIntOption.ToStringWith(strconv.Itoa)
+	// there are To[Type] mapping methods for the built-in types to change the option value's type.
+	okStringOption := okIntOption.ToString(strconv.Itoa) // okStringOption holds the result of strconv.Itoa
 
-	// But no method for map to a named type.
+	// But there's no method for map to a named type.
 	// Use option.Map instead, it is the generic map function.
 	IntToPost := func(i int) Post {
 		return Post{
 			ID:    i,
-			Title: "Post #" + strconv.Itoa(i),
+			Title: fmt.Sprintf("Post #%d", i),
 		}
 	}
 	okPostOption := option.Map(okIntOption, IntToPost)
 
+	// filter is implemented with two complementary methods
 	intIs42 := func(i int) bool {
 		return i == 42
 	}
-	// filter is implemented with two complementary methods
 	stillOkIntOption := okIntOption.KeepOkIf(intIs42)
 	nowNotOkIntOption := okIntOption.ToNotOkIf(intIs42)
 
@@ -170,5 +174,8 @@ func (p Post) IsValid() bool {
 func (p Post) String() string {
 	return fmt.Sprint("Post ID: ", p.ID, ", Title: ", p.Title)
 }
+
+// Helpers
+//////////
 
 func eat[T any](_ ...T) {}

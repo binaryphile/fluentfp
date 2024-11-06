@@ -43,7 +43,8 @@ func main() {
 
 	// > A value x of type V is assignable to a variable of type T ("x is assignable to T")
 	// > if [...] V and T have identical underlying types [...] and at least one of V or T is not a named type.
-	// [Ed: slices are built-in and so are not named types and are defined to have themselves as their underlying type]
+
+	// [Ed: slices are defined to have themselves as their underlying type]
 
 	// https://go.dev/ref/spec#Types
 	// https://go.dev/ref/spec#Underlying_types
@@ -55,20 +56,20 @@ func main() {
 
 	// There are three names for the map-related methods:
 	//
-	//  - Convert for returning a slice of the same type as the original
+	//  - ToSame for returning a slice of the same type as the original
 	//  - To[Type]s for returning slices of basic built-in types, such as string or int (caveat: not all built-ins are covered)
-	//  - Map for returning a slice of a named type or a built-in not covered by To[Type]s
+	//  - ToNamed for returning a slice of a named type or a built-in not covered by To[Type]s
 	//
-	// Shown here is Convert since we're making posts from posts.
+	// Shown here is ToSame since we're making posts from posts.
 
-	// Frequently a data source that is managed by others requires input validation and/or normalization.
+	// Frequently, a data source that is managed by others requires input validation and/or normalization.
 	// You can do this easily with fluent slices.
 	// Here we filter out invalid posts and normalize the titles of the rest.
 	posts = posts.
 		KeepIf(Post.IsValid). // KeepIf is a filter implementation
 		ToSame(Post.ToFriendlyPost)
 	// Post.ToFriendlyPost takes the usual method receiver (a post in this case)
-	// as its first regular argument instead.
+	// as its first (and only) regular argument instead.
 	// See https://go.dev/ref/spec#Method_expressions.
 
 	// for comparison to above:
@@ -79,15 +80,15 @@ func main() {
 	//         friendlyPosts = append(friendlyPosts, post)
 	//     }
 	// }
-	// posts = friendlyPosts  // now friendlyPosts is just hanging around, stinking up the namespace
+	// posts = friendlyPosts  // now friendlyPosts is just hanging around, an unnecessary artifact
 
 	// print the first three posts
 	fmt.Println("the first three posts:")
 
 	posts.
 		TakeFirst(3).          // TakeFirst returns a slice of the first n elements
-		ToString(Post.String). // ToStrings is map to a built-in type, string in this case
-		Each(hof.Println)      // Each applies the named function to each element for its side effects
+		ToString(Post.String). // ToString is map to the string built-in type
+		Each(hof.Println)      // Each applies its argument, a function, to each element for its side effects
 	// for comparison to above:
 	//
 	// for i, post := range posts { // again, which form of this? notice it's different this time.
@@ -114,7 +115,7 @@ func main() {
 	fmt.Println(longestTitle)
 
 	// we'll use this function in our next example
-	postToTitle := func(post Post) Title {
+	titleFromPost := func(post Post) Title {
 		return Title(post.Title)
 	}
 
@@ -128,7 +129,7 @@ func main() {
 	// now map to Title
 	first3Titles := mappablePosts.
 		TakeFirst(3).
-		Map(postToTitle)
+		ToNamed(titleFromPost)
 
 	// we could have done this next bit printing by chaining to the methods above,
 	// but stopping and naming things every few operations is better for clarity
