@@ -33,3 +33,14 @@ func Getenv(key string) string {
 
 	return result
 }
+
+// Of returns the "must" version of fn.
+// fn must be a single-argument function.
+func Of[T, R any](fn func(T) (R, error)) func(T) R {
+	return func(t T) R {
+		result, err := fn(t)
+		BeNil(err)
+
+		return result
+	}
+}

@@ -1,9 +1,21 @@
 package option
 
-type Any = Basic[any]
-type Bool = Basic[bool]
-type Byte = Basic[byte]
-type Error = Basic[error]
-type Int = Basic[int]
-type Rune = Basic[rune]
-type String = Basic[string]
+type (
+	Any    = Basic[any]
+	Bool   = Basic[bool]
+	Byte   = Basic[byte]
+	Error  = Basic[error]
+	Int    = Basic[int]
+	Rune   = Basic[rune]
+	String = Basic[string]
+)
+
+var (
+	NotOkAny    = Basic[any]{}
+	NotOkBool   = Basic[bool]{}
+	NotOkByte   = Basic[byte]{}
+	NotOkError  = Basic[error]{}
+	NotOkInt    = Basic[int]{}
+	NotOkRune   = Basic[rune]{}
+	NotOkString = Basic[string]{}
+)
