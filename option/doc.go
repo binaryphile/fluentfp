@@ -12,10 +12,17 @@ func _() {
 	_ = (Basic[bool]{}).OrFalse
 	_ = (Basic[bool]{}).OrZero
 	_ = (Basic[bool]{}).ToOpt
+	_ = FromOpt[bool]
 	_ = Getenv("")
 	_ = IfProvided[bool]
 	_ = Map(Basic[bool]{}, func(bool) bool { return true })
 	_ = New[bool]
-	_ = FromOpt[bool]
+	_ = NotOkAny
+	_ = NotOkBool
+	_ = NotOkByte
+	_ = NotOkError
+	_ = NotOkInt
+	_ = NotOkRune
+	_ = NotOkString
 	_ = Of[bool]
 }

@@ -66,7 +66,7 @@ func main() {
 	// Here we filter out invalid posts and normalize the titles of the rest.
 	posts = posts.
 		KeepIf(Post.IsValid). // KeepIf is a filter implementation
-		Convert(Post.ToFriendlyPost)
+		ToSame(Post.ToFriendlyPost)
 	// Post.ToFriendlyPost takes the usual method receiver (a post in this case)
 	// as its first regular argument instead.
 	// See https://go.dev/ref/spec#Method_expressions.
@@ -85,9 +85,9 @@ func main() {
 	fmt.Println("the first three posts:")
 
 	posts.
-		TakeFirst(3).           // TakeFirst returns a slice of the first n elements
-		ToStrings(Post.String). // ToStrings is map to a built-in type, string in this case
-		Each(hof.Println)       // Each applies the named function to each element for its side effects
+		TakeFirst(3).          // TakeFirst returns a slice of the first n elements
+		ToString(Post.String). // ToStrings is map to a built-in type, string in this case
+		Each(hof.Println)      // Each applies the named function to each element for its side effects
 	// for comparison to above:
 	//
 	// for i, post := range posts { // again, which form of this? notice it's different this time.
@@ -100,7 +100,7 @@ func main() {
 	// print the longest post title in words
 	fmt.Println("\nthe longest post title in words:")
 
-	titles := posts.ToStrings(Post.GetTitle)
+	titles := posts.ToString(Post.GetTitle)
 	// for comparison to above:
 	//
 	// titles := make([]string, len(posts))
@@ -120,9 +120,9 @@ func main() {
 
 	// A general form of Map must specify the return type as a parameter,
 	// so SliceOf[T] doesn't have enough type parameters to support it.
-	// For this reason, there's an additional type, MappableSliceOf.
-	// First, let's change posts to MappableSliceOf.
-	type SliceOfPosts = fluent.MappableSliceOf[Post, Title] // alias for readability
+	// For this reason, there's an additional type, SliceToNamed.
+	// First, let's change posts to SliceToNamed.
+	type SliceOfPosts = fluent.SliceToNamed[Post, Title] // alias for readability
 	mappablePosts := SliceOfPosts(posts)
 
 	// now map to Title
@@ -134,8 +134,8 @@ func main() {
 	// but stopping and naming things every few operations is better for clarity
 	fmt.Println("\ntitle lengths in characters of the first three posts:")
 	first3Titles.
-		ToInts(Title.Len).
-		ToStrings(strconv.Itoa).
+		ToInt(Title.Len).
+		ToString(strconv.Itoa).
 		Each(hof.Println) // type issues prevent using fmt.Println directly
 }
 

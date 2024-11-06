@@ -20,9 +20,10 @@ Then, import the required packages as needed in your Go files. For example:
 
 ### 1. `fluent`
 
-The `fluent` package offers fluent slices – Go slices with additional fp methods such as
-`MapWith` (map), `KeepIf` (filter), and `Each` (foreach). Fluent slices support streamlined,
-chainable operations on collections, improving readability and reducing boilerplate for list
+The `fluent` package offers fluent slices -- Go slices with additional fp methods such as
+`ToString` (map to string), `KeepIf` (filter), and `Each`. Fluent slices support 
+streamlined, chainable
+operations on collections, improving readability and reducing boilerplate for slice
 transformations.
 
 ``` go
@@ -34,34 +35,35 @@ users = users.
     Convert(User.ToNormalizedUser)  // Convert is a special case of map
 ```
 
+Because there isn't a way to write generic methods in Go, there is no generic map method
+on a regular fluent slice.  However, there is an analogous type to `fluent.SliceOf` that
+takes a type parameter for the return type of its `ToNamed` method.  That is the type
+`fluent.SliceToNamed`.
+
 **Example**: In
 [`fluent.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/fluent.go),
 `fluent` wraps API data and transforms it through map, filter, and other functional methods.
 See how operations are simplified when working with collections of API data.
 
-### 2. `iterator`
+### 2. `must`
 
-The `iterator` package provides simple iterators, allowing you to access collection elements
-sequentially. This is useful for concise code where the focus is on element processing
-rather than indexing.
-
-**Example**:
-[`iterator.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/iterator.go)
-demonstrates iterating over a slice with `iterator`, simplifying loops with an iterator
-pattern.
-
-### 3. `must`
-
-`must` offers utilities to handle operations that “must” succeed, such as environment
+`must` offers utilities to handle operations that "must" succeed, such as environment
 variable access or file I/O, by panicking on failure. This can be used to enforce
 non-optional behavior in essential parts of your program.
+
+In the context of functional programming in Go, `must` also has a particular use.
+Higher-order functions don't work with functions that return errors along with values.
+`must.Get` converts the result of such fallible functions into a single value.  It does
+this by panicking if an error is returned.  In places in your code where this is acceptable,
+`must.Get` makes a fallible function consumable with a higher-order function such as `Map`.
 
 **Example**: In
 [`must.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/must.go), see how
 environment variables and file access are handled succinctly by the `must` functions,
-panicking if an operation fails to meet expectations.
+panicking if an operation fails to meet expectations.  Also, see how to consume fallible
+functions with higher-order functions using `must.Of`.
 
-### 4. `option`
+### 3. `option`
 
 The `option` package introduces an option type, which encapsulates optional values (similar
 to `Maybe` or `Optional` types in other languages). It provides:
@@ -90,7 +92,7 @@ shows various uses for basic options.
 shows a CLI tool using advanced options to concisely open and close dependencies in various
 combinations based on the needs of a particular run of the tool.
 
-### 5. `ternary`
+### 4. `ternary`
 
 The `ternary` package provides a basic ternary operator equivalent, enabling conditional
 expressions for concise if-else alternatives. It supports in-line expressions for easy
