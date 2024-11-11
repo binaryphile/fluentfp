@@ -1,12 +1,92 @@
 # FluentFP: Functional Programming in Go
 
-**FluentFP** brings a functional programming approach to Go, providing tools and patterns
-like options, fluent slices, iterators, and other higher-order constructs to improve code
-readability and reduce boilerplate in complex Go applications. Each module introduces
-functional patterns to address specific programming needs, making Go code more expressive
-and maintainable.
+**FluentFP** is a minimal collection of modules that employ functional programming 
+techniques for working with slices and optional values.  FluentFP de-obfuscates code, 
+revealing the developer's intent with remarkable concision and clarity.
+
+FluentFP is minimal.  While it takes inspiration from the number of good fp libraries out
+there already, it doesn't compete on completeness or theoretical approach.  FluentFP only
+solves problems encountered while developing code solving real-world problems.  It eschews
+theory for readability, preferring uncommon method names that provide intuition, rather than
+hewing to fp canon. The proof is in reading work-product code with a Go developer's eyes.
+
+## Features
+
+### Fluent
+
+FluentFP draws inspiration from existing Go fp libraries, but stands apart in its
+readability and usability. Most collection-oriented fp libraries offer functions that
+operate on slices.  FluentFP offers functional slice and option types, many of the
+methods of which return the type itself, enabling them to chain method calls with
+clarity.
+
+When creating FluentFP, we compared the nine most popular libraries we could find.
+While there are many excellent libraries, they all suffer from Go's rough edges around the
+type system.  Some focus on the stream abstraction, which requires extra steps compared
+to working directly on slices.  Others rely on interfaces and reflection, which lose the
+benefit of type safety and require type assertions.
+
+Let's make an example with which you can compare for yourself.  Here's a simple slice of
+`User`s:
+
+```go
+users := []User{
+    {
+        ID:     1,
+        Name:   "Ren",
+        Active: true,
+    },
+}
+```
+
+Let's print the active users with FluentFP:
+
+```go
+// We need to type-convert to a fluent slice first.
+var fluentUsers fluent.SliceOf[User] = users
+fluentUsers.
+    KeepIf(User.IsActive).
+    ToString(User.GetName).
+    Each(func(name string) { // would prefer Each(fmt.Println) but it does not have the right signature
+        fmt.Println(name)
+    })
+```
+
+Now let's compare:
+
+<table>
+    <tr>
+        <td>
+            <pre><code>
+fluentUsers.
+    KeepIf(User.IsActive).
+    ToString(User.GetName).
+    Each(func(name string) {
+        fmt.Println(name)
+    })
+            </code></pre>
+        </td>
+        <td>
+            <pre><code>
+activeUsers := fp.Filter(User.IsActive)(users)
+names := fp.Map(User.GetName)(activeUsers)
+for _, name := range names {
+        fmt.Println(name)
+}
+            </code></pre>
+        </td>
+    </tr>
+</table>
+
+Notice three things:
+
+- lines are shorter and easier to read
+- the intent is clear without intermediate variables, leaving the namespace unpolluted
+- an `Each` function is not always available in other libraries
 
 ## Installation
+
+Requires Go 1.18 or higher.
 
 To use FluentFP, install it via `go get`:
 
@@ -15,6 +95,9 @@ To use FluentFP, install it via `go get`:
 Then, import the required packages as needed in your Go files. For example:
 
     import "github.com/binaryphile/fluentfp/option"
+
+## Features
+
 
 ## Modules
 
