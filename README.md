@@ -27,7 +27,7 @@ to working directly on slices.  Others rely on interfaces and reflection, which 
 benefit of type safety and require type assertions.
 
 Let's make an example with which you can compare for yourself.  Here's a simple slice of
-`User`s:
+users:
 
 ```go
 users := []User{
@@ -39,7 +39,7 @@ users := []User{
 }
 ```
 
-Let's print the active users with FluentFP:
+Now print the active users with FluentFP:
 
 ```go
 // We need to type-convert to a fluent slice first.
@@ -47,42 +47,40 @@ var fluentUsers fluent.SliceOf[User] = users
 fluentUsers.
     KeepIf(User.IsActive).
     ToString(User.GetName).
-    Each(func(name string) { // would prefer Each(fmt.Println) but it does not have the right signature
+    Each(func(name string) {
         fmt.Println(name)
     })
 ```
 
-Now let's compare:
+Compare with `github.com/repeale/fp-go`:
 
-<table>
-    <tr>
-        <td>
-            <pre><code>
+
+<table><tr><td><pre><code>
+
+```go
+// github.com/repeale/fp-go
+activeUsers := fp.Filter(User.IsActive)(users)
+names := fp.Map(User.GetName)(activeUsers)
+for _, name := range names {
+    fmt.Println(name)
+}
+```
+
+</code></pre></td><td><pre><code>
+
+```go
+// github.com/binaryphile/fluentfp/fluent
 fluentUsers.
     KeepIf(User.IsActive).
     ToString(User.GetName).
     Each(func(name string) {
         fmt.Println(name)
     })
-            </code></pre>
-        </td>
-        <td>
-            <pre><code>
-activeUsers := fp.Filter(User.IsActive)(users)
-names := fp.Map(User.GetName)(activeUsers)
-for _, name := range names {
-        fmt.Println(name)
-}
-            </code></pre>
-        </td>
-    </tr>
-</table>
+```
 
-Notice three things:
+</code></pre></td></tr></table>
 
-- lines are shorter and easier to read
-- the intent is clear without intermediate variables, leaving the namespace unpolluted
-- an `Each` function is not always available in other libraries
+With `github.com/TeaEntityLab/fpGo/v2`:
 
 ## Installation
 
