@@ -1,148 +1,102 @@
+
 # FluentFP: Pragmatic Functional Programming in Go
 
-**FluentFP** is a Go library designed to make functional programming more intuitive and expressive. Unlike other FP libraries, FluentFP offers a slice-derived type that supports method chaining, enabling you to write cleaner, more efficient, and type-safe code.
+**FluentFP** is a collection of Go packages designed to bring functional programming concepts to Go in a pragmatic, type-safe way. The library is structured into several focused submodules, each addressing specific needs such as fluent interfaces, optional values, iterators, and more.
 
 ## Key Features
+- **Modular Design**: Each package is designed to be independent, allowing you to use only what you need.
+- **Fluent Method Chaining**: Improve code readability and maintainability by reducing nesting.
+- **Type-Safe Generics**: Leverage Go's generics (Go 1.18+) for compile-time type safety.
+- **Interoperable with Native Go**: Designed to extend native Go types and operations without compromising performance.
 
-- **Interoperable**: Extend Go slices with functional methods while preserving native slice operations. No type conversions are needed when passing fluent slices to standard Go functions.
-- **Simple Function Arguments**: FluentFP methods take existing functions as arguments without special signatures, avoiding the need to wrap functions.
-- **Fluent Method Chaining**: Improve code readability by avoiding nested function calls and excessive intermediate variables.
-- **Type-Safe**: Leveraging Go generics (1.18+), FluentFP avoids `any` interfaces and reflection, ensuring compile-time type safety.
+## Modules Overview
 
----
+### 1. [Fluent](./fluent/README.md)
+A package providing a fluent interface for common slice operations like filtering, mapping, and more.
 
-## Comparison with Other Libraries
-
-Below is a comparison of FluentFP with other popular FP libraries in Go. See [examples/comparison/main.go](examples/comparison/main.go) for details.
-
-| Library                                                     | Interchangeable With Slice | Proper Return Value | Simple Function Arguments | Fluent | Type-Safe |
-| ----------------------------------------------------------- | -------------------------- | ------------------- | ------------------------- | ------ | --------- |
-| **FluentFP**                                                | ✅                          | ✅                   | ✅                         | ✅      | ✅         |
-| [`rjNemo/underscore`](https://github.com/rjNemo/underscore) | ❌                          | ✅                   | ✅                         | ❌      | ✅         |
-| [`repeale/fp-go`](https://github.com/repeale/fp-go)         | ❌                          | ✅                   | ✅                         | ❌      | ❌         |
-| [`thoas/go-funk`](https://github.com/thoas/go-funk)         | ❌                          | ❌                   | ✅                         | ❌      | ❌         |
-| [`ahmetb/go-linq`](https://github.com/ahmetb/go-linq)       | ❌                          | ❌                   | ❌                         | ✅      | ❌         |
-| [`seborama/fuego`](https://github.com/seborama/fuego)       | ❌                          | ❌                   | ❌                         | ✅      | ❌         |
-| [`samber/lo`](https://github.com/samber/lo)                 | ❌                          | ✅                   | ❌                         | ❌      | ✅         |
-
----
-
-## Why FluentFP?
-
-### 1. Interchangeable with Slice
-
-FluentFP defines its fluent slice type as:
-
-```go
-type SliceOf[T any] []T
-```
-
-This allows you to:
-
-- Use fluent slices directly with native Go functions.
-- Leverage slice operations like indexing, slicing, and ranging.
+**Highlights**:
+- Fluent method chaining for slices
+- Interchangeable with native slices
+- Simplified function arguments without special signatures
 
 **Example**:
-
-```go
-messages := []string{"Hello", "World"}
-fluentMessages := fluent.SliceOfStrings(messages)
-fmt.Println(strings.Join(fluentMessages, " ")) // Output: HELLO WORLD
-```
-
-### 2. Simple Function Arguments
-
-Unlike libraries that require you to adapt existing functions to the library's required signature, FluentFP operations accept single-argument functions, enabling you to use method expressions: 
-
-```go
-actives := users.KeepIf(User.IsActive)
-```
-
-Method expressions turn methods into single argument functions referenced by the type.  For example, the following calls are the same:
-
-```go
-user := User{}
-user.IsActive()
-User.IsActive(user)
-```
-
-### 3. Fluent Method Chaining
-
-FluentFP has a readable method-chaining style that eliminates nesting:
-
 ```go
 fluent.SliceOf(users).
     KeepIf(User.IsActive).
-    ToString(User.GetName).
-    Each(printName)
+    MapToString(User.GetName).
+    Each(fmt.Println)
 ```
 
-### 4. Type-Safe
+### 2. [Option](./option/README.md)
+A package to handle optional values, reducing the need for `nil` checks and enhancing code safety.
 
-By using Go generics, FluentFP maintains type safety without relying on `any` interfaces or reflection, catching type errors at compile time.
+**Highlights**:
+- Provides `option.String`, `option.Int`, etc.
+- Methods like `Map`, `OrElse`, and `FlatMap` for handling optional values fluently
 
----
-
-## Comparison: Filtering and Mapping
-
-Given the following slice:
-
+**Example**:
 ```go
-users := []User{{Name: "Ren", Active: true}}
+opt := option.OfString("value")
+opt.Map(strings.ToUpper).OrElse("default")
 ```
 
-**Plain Go**:
+### 3. [Iterator](./iterator/README.md)
+A package for working with iterators using the Go idiomatic comma-ok pattern.
 
+**Highlights**:
+- Create iterators over slices or custom data sources
+- Functional methods like `Map` and `Filter` available for iterators
+
+**Example**:
 ```go
-for _, user := range users {
-    if user.Active {
-        fmt.Println(user.Name)
-    }
+it := iterator.New([]int{1, 2, 3})
+for val, ok := it.Next(); ok; val, ok = it.Next() {
+    fmt.Println(val)
 }
 ```
 
-**Using FluentFP**:
+### 4. [Must](./must/README.md)
+A package that helps convert functions that return `(T, error)` into functions that panic on error, making them easier to use in fluent chains.
 
+**Highlights**:
+- Simplifies error handling in fluent expressions
+- Use with caution for scenarios where panics are acceptable
+
+**Example**:
 ```go
-fluent.SliceOf[User](users).
-    KeepIf(User.IsActive).
-    ToString(User.GetName).
-    Each(hof.Println) // helper function
+must.String(os.ReadFile("config.json")) // Panics if file read fails
 ```
 
-**Using `rjNemo/underscore`**:
+### 5. [Ternary](./ternary/README.md)
+A package that provides a fluent ternary conditional operator for Go.
 
+**Highlights**:
+- Readable and concise conditional expressions
+- Uses fluent method chaining for readability
+
+**Example**:
 ```go
-activeUsers := u.Filter(users, User.IsActive)
-names := u.Map(activeUsers, User.GetName)
-u.Each(names, fmt.Println)
+result := ternary.If(condition).Then("true").Else("false")
 ```
 
----
+## Installation
 
-## Getting Started
-
-Install FluentFP:
+To get started with **FluentFP**:
 
 ```bash
 go get github.com/binaryphile/fluentfp
 ```
 
-Import the package:
+Then import the desired modules:
 
 ```go
-import "github.com/binaryphile/fluentfp/fluent"
+import "github.com/binaryphile/practicalfp/fluent"
+import "github.com/binaryphile/practicalfp/option"
 ```
-
-For detailed documentation and examples, see the [project page](https://github.com/binaryphile/fluentfp).
-
----
 
 ## Contributing
 
 Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
 
 ## License
 
