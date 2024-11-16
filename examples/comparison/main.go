@@ -14,6 +14,7 @@ import (
 	"github.com/seborama/fuego/v12"
 	"github.com/thoas/go-funk"
 	"slices"
+	"strings"
 )
 
 func main() {
@@ -21,8 +22,7 @@ func main() {
 
 	fmt.Print("github.com/binaryphile/fluentfp/fluent\n")
 	// assign or type-convert the existing slice to a fluent slice and the methods become available
-	var fluentUsers fluent.SliceOf[User] = users
-	fluentUsers.
+	fluent.SliceOf[User](users).
 		KeepIf(User.IsActive).
 		ToString(User.GetName).
 		Each(hof.Println) // helper to convert string argument to `any` required by fmt.Println
@@ -47,20 +47,23 @@ func main() {
 	funk.ForEach(names, hof.Println)
 
 	fmt.Print("\ngithub.com/ahmetb/go-linq/v3\n")
-	activeUserQuery := linq.From(users).Where(func(user any) bool {
+	userIsActive := func(user any) bool {
 		return user.(User).IsActive()
-	})
-	nameQuery := activeUserQuery.Select(func(user any) any {
+	}
+	userGetName := func(user any) any {
 		return user.(User).GetName()
-	})
-	nameQuery.ForEach(func(name any) {
-		fmt.Println(name)
-	})
+	}
+	linq.From(users).
+		Where(userIsActive).
+		Select(userGetName).
+		ForEach(func(name any) {
+			fmt.Println(name)
+		})
 
 	fmt.Print("\ngithub.com/seborama/fuego/v12\n")
 	// fuego operates on streams, so a stream is created from the slice.
 	// It is fluent but requires wrapping some functions to return `fuego.Any`.
-	userGetName := func(u User) fuego.Any {
+	userGetNameFuego := func(u User) fuego.Any {
 		return u.GetName()
 	}
 	printName := func(name fuego.Any) {
@@ -68,7 +71,7 @@ func main() {
 	}
 	fuego.NewStreamFromSlice(users, 1).
 		Filter(User.IsActive). // Filter is an exception to wrapping since it expects bool
-		Map(userGetName).
+		Map(userGetNameFuego).
 		ForEach(printName)
 
 	fmt.Print("\ngithub.com/samber/lo\n")
@@ -123,6 +126,20 @@ func main() {
 	for _, name := range namesAny {
 		fmt.Println(name)
 	}
+
+	messages := fluent.SliceOfStrings([]string{"Hello", "World"})
+	loudMessages := messages.ToString(strings.ToUpper)
+	fmt.Println(loudMessages[0])
+	fmt.Println(strings.Join(loudMessages, " "))
+
+	activeStream := fuego.
+		NewStreamFromSlice(users, 1).
+		Filter(User.IsActive)
+	toUserSlice := fuego.ToSlice[User]()
+	actives = fuego.Collect(activeStream, toUserSlice)
+
+	type sliceOf = fluent.SliceOf[User]
+	users
 }
 
 // User definition
