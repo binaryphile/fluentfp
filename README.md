@@ -4,54 +4,87 @@ FluentFP is a Go library that focuses on making functional programming more intu
 
 ### Key Features
 
-- **Slice Type**: FluentFP's slice type implements FP operations as methods, while allowing the usual slice operations as well.  They are automatically converted to and from native slices when assigned, passed or returned, so they work with existing libraries.
-- **Method Chaining**: Enables a fluent, readable style that avoids nested function calls and over-reliance on intermediate variables.
-- **Type Safety**: FluentFP relies on Go 1.18+ generics, avoiding `any` interfaces and reflection.
-- **Sensible Argument Types**: Higher-order operations like map and filter specify the signature of the functions they accept.  FluentFP uses simple signatures that don't require wrapping existing functions just to create the proper signature.
+- **Interoperable**:  FluentFP's slice type improves on regular slices with methods for FP without losing the ability to use the slice natively.  Indexing and slicing work without type conversion.  Functions that accept or return slices work with fluent slices, with Go automatically handling type conversion.
+
+- **Friendly Function Arguments**:  With many libraries, existing functions are hard to use as arguments to map or filter.  There are multiple reasons; it can be the requirement to use `any` interfaces or because they are expected to accept an index as an argument, for example.  FluentFP expects function arguments to accept the current value and nothing else, making it easy to use existing functions and method expressions as arguments.
+
+- **Fluent**: Method chaining is a readable style that avoids nested function calls or over-reliance on intermediate variables.
+
+- **Type Safe**: FluentFP relies on Go 1.18+ generics, avoiding `any` interfaces and reflection.
 
 ---
 
 ### Comparison with Other Functional Programming Libraries
 
-Here's a quick comparison with popular Go FP libraries:
+Here's a summary of a detailed comparison with other Go FP libraries.  See [examples/comparison/main.go] for examples of ten libraries in all including FluentFP.
 
-| Import                                                                       | Slice Type | Slice-oriented | Sensible Args | Fluent | Type-safe |
-| ---------------------------------------------------------------------------- | ---------- | -------------- | ------------- | ------ | --------- |
-| [`github.com/binaryphile/fluentfp`](https://github.com/binaryphile/fluentfp) | ✅          | ✅              | ✅             | ✅      | ✅         |
-| [`github.com/rjNemo/underscore`](https://github.com/rjNemo/underscore)       | ❌          | ✅              | ✅             | ❌      | ✅         |
-| [`github.com/repeale/fp-go`](https://github.com/repeale/fp-go)               | ❌          | ✅              | ✅             | ❌      | ❌         |
-| [`github.com/thoas/go-funk`](https://github.com/thoas/go-funk)               | ❌          | ✅              | ✅             | ❌      | ❌         |
-| [`github.com/ahmetb/go-linq/v3`](https://github.com/ahmetb/go-linq)          | ❌          | ❌              | ❌             | ✅      | ❌         |
-| [`github.com/seborama/fuego/v12`](https://github.com/seborama/fuego)         | ❌          | ❌              | ❌             | ✅      | ❌         |
-| [`github.com/samber/lo`](https://github.com/samber/lo)                       | ❌          | ✅              | ❌             | ❌      | ✅         |
+| Import                                                                       | Inter-operable | Slice Return Values | Friendly Function Arguments | Fluent | Type Safe |
+| ---------------------------------------------------------------------------- | -------------- | ------------------- | --------------------------- | ------ | --------- |
+| [`github.com/binaryphile/fluentfp`](https://github.com/binaryphile/fluentfp) | ✅              | ✅                   | ✅                           | ✅      | ✅         |
+| [`github.com/rjNemo/underscore`](https://github.com/rjNemo/underscore)       | ❌              | ✅                   | ✅                           | ❌      | ✅         |
+| [`github.com/repeale/fp-go`](https://github.com/repeale/fp-go)               | ❌              | ✅                   | ✅                           | ❌      | ❌         |
+| [`github.com/thoas/go-funk`](https://github.com/thoas/go-funk)               | ❌              | ✅                   | ✅                           | ❌      | ❌         |
+| [`github.com/ahmetb/go-linq/v3`](https://github.com/ahmetb/go-linq)          | ❌              | ❌                   | ❌                           | ✅      | ❌         |
+| [`github.com/seborama/fuego/v12`](https://github.com/seborama/fuego)         | ❌              | ❌                   | ❌                           | ✅      | ❌         |
+| [`github.com/samber/lo`](https://github.com/samber/lo)                       | ❌              | ✅                   | ❌                           | ❌      | ✅         |
 
 ### Why They Matter
 
-#### Slice Type
+#### Interoperable
 
-FluentFP bases its fluent type on slice, defined as `type SliceOf[T any] []T`. This allows you to use the usual slice idioms without converting to another type, enabling indexing, slicing, and applying functions that expect slices.
+FluentFP bases its fluent type on slice, defining it as `type SliceOf[T any] []T`. This allows you to use the usual slice idioms without converting to another type.  Functions that accept or return slices work with fluent slices thanks to Go auto-converting types.
 
-This approach allows you to wade into FP using as much or as little as you want, since you can still work with the slice form in an imperative style wherever you're less familiar with the FP operations.
+This approach allows you to wade into FP at your own pace, since you can work with fluent slices in an imperative style wherever you want, without paying a type conversion.
 
 ```go
-messages := []string{"Hello", "World"}
-loudMessages := fluent.SliceOf(users).ToString(strings.ToUpper)
+messages := fluent.SliceOfStrings([]string{"Hello", "World"})
+loudMessages := messages.ToString(strings.ToUpper)
 fmt.Println(loudMessages[0]) // "HELLO"
 fmt.Println(strings.Join(loudMessages, " ")) // "HELLO WORLD"
+// iterate with range, etc.
 ```
 
-#### Unwrapped Args
+#### Friendly Function Arguments
 
-The library allows existing functions to be passed as arguments to higher-order functions (like `Map` and `Filter`) without requiring additional wrappers. For example, `seborama/fuego` needs functions:
+Some libraries don't allow most existing functions to be passed as arguments to higher-order functions (like `Map` and `Filter`) without requiring additional wrappers. For example, `samber/lo` is less friendly because it needs functions that accept an index argument, and so needs to wrap a method call in a function:
 
+```go
+actives = lo.Filter(users, func(u User, _ int) bool {
+	return u.IsActive()
+})
+```
 
+Because of indexing, `Filter` couldn't be called with `User.IsActive`, the useful and readable method expression form.  FluentFP is geared to use method expressions:
+
+```go
+actives := users.KeepIf(User.IsActive)
+```
+
+#### Slice Return Values
+
+Many libraries implement map and filter as functions, rather than methods on a type.  Such libraries use slices for arguments as well as return values.  Since slice is the workhorse of Go, there is a simplicity advantage to staying in the slice domain that reduces friction.
+
+Other libraries implement higher abstractions such as streams or iterators.  The price to pay there is a type conversion to get into the domain, usually followed by a collection step to get back out into slice.
+
+```go
+activeStream := fuego.
+	NewStreamFromSlice(users, 1). // buffering :P
+	Filter(User.IsActive)
+toUserSlice := fuego.ToSlice[User]()
+actives := fuego.Collect(activeStream, toUserSlice)
+```
+
+FluentFP splits the difference by requiring a type conversion to create a fluent slice, which is some friction, but avoids it on the return side by being interoperable as a slice already.  Compared to stream collecting, it is simpler:
+
+```go
+users := []User{{Name: "Ren", Active: true}})
+actives := fluent.SliceOf[User](users).
+	KeepIf(User.IsActive)
+```
 
 #### Fluent
-Supports method chaining using a fluent interface. This avoids deeply nested function calls and improves code readability.
 
-#### Slice-oriented
-
-Works directly with slices instead of introducing other abstractions like streams or iterators. Libraries that use other abstractions, such as iterators or streams, require extra steps converting to and from slices.
+The library supports method chaining using a fluent interface. This avoids deeply nested function calls and improves code readability.
 
 #### Type-safe
 
@@ -74,9 +107,11 @@ This allows you to:
   
 **Example:**
 ```go
-users := []User{{Name: "Ren", Active: true}}
-fluentUsers := fluent.SliceOf(users)
-fluentUsers.KeepIf(User.IsActive).ToString(User.GetName).Each(fmt.Println)
+users := []User{{Name: "Ren", Active: true}})
+fluent.SliceOf[User](users).
+	KeepIf(User.IsActive).
+	ToString(User.GetName).
+	Each(hof.Println)
 ```
 
 #### 2. Method Chaining for Readability
