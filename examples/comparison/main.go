@@ -127,8 +127,10 @@ func main() {
 		fmt.Println(name)
 	}
 
-	messages := fluent.SliceOfStrings([]string{"Hello", "World"})
-	loudMessages := messages.ToString(strings.ToUpper)
+	messages := []string{"Hello", "World"}
+	loudMessages := fluent.
+		SliceOfStrings(messages).
+		ToString(strings.ToUpper)
 	fmt.Println(loudMessages[0])
 	fmt.Println(strings.Join(loudMessages, " "))
 
