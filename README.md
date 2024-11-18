@@ -1,9 +1,10 @@
 
 # FluentFP: Pragmatic Functional Programming in Go
 
-**FluentFP** is a collection of Go packages designed to bring functional programming concepts to Go in a pragmatic, type-safe way. The library is structured into several focused submodules, each addressing specific needs such as fluent interfaces, optional values, iterators, and more.
+**FluentFP** is a collection of Go packages designed to bring functional programming concepts to Go in a pragmatic, type-safe way. The library is structured into several focused modules, each addressing specific needs such as fluent slices, optional values, and more.
 
 ## Key Features
+
 - **Modular Design**: Each package is designed to be independent, allowing you to use only what you need.
 - **Fluent Method Chaining**: Improve code readability and maintainability by reducing nesting.
 - **Type-Safe Generics**: Leverage Go's generics (Go 1.18+) for compile-time type safety.

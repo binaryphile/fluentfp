@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/BooleanCat/go-functional/v2/it"
-	"github.com/TeaEntityLab/fpGo/v2"
+	fpgo "github.com/TeaEntityLab/fpGo/v2"
 	"github.com/ahmetb/go-linq/v3"
 	"github.com/binaryphile/fluentfp/fluent"
 	"github.com/binaryphile/fluentfp/hof"
@@ -14,134 +14,248 @@ import (
 	"github.com/seborama/fuego/v12"
 	"github.com/thoas/go-funk"
 	"slices"
-	"strings"
 )
 
 func main() {
-	users := []User{{Name: "Ren", Active: true}}
+	users := []User{
+		{
+			Name:   "Ren",
+			Active: true,
+		},
+		{
+			Name:   "Stimpy",
+			Active: false,
+		},
+	}
+
+	// Each example prints the user's name if they are active.
+	// Examples return a native slice of names to show interoperability with code that expects slices.
 
 	fmt.Print("github.com/binaryphile/fluentfp/fluent\n")
-	// assign or type-convert the existing slice to a fluent slice and the methods become available
-	fluent.SliceOf[User](users).
-		KeepIf(User.IsActive).
-		ToString(User.GetName).
-		Each(hof.Println) // helper to convert string argument to `any` required by fmt.Println
+	// fluentfp is the most concise library.
+	// It is type-safe, which aligns with functional principles.
+	// It is fluent, meaning you can chain operations.
+	// It works with method expressions.
+	{
+		printActiveNames := func(users fluent.SliceOf[User]) []string { // signature automatically converts types
+			names := users.
+				KeepIf(User.IsActive).
+				ToString(User.GetName)
+			names.Each(hof.Println) // helper function from fluentfp/hof
+			return names            // signature converts `names fluent.SliceOf[string]` to []string
+		}
 
-	fmt.Print("\ngithub.com/rjNemo/underscore\n")
-	actives := u.Filter(users, User.IsActive)
-	names := u.Map(actives, User.GetName)
-	u.Each(names, hof.Println)
+		_ = printActiveNames(users) // signature converts `users []string` to fluent.SliceOf[User]
+	}
 
-	fmt.Print("\ngithub.com/repeale/fp-go\n")
-	// fp-go offers Map and Filter factories that return their respective operations closed over the factory's argument.
-	// The resulting functions are then called with the slice.
-	actives = fp.Filter(User.IsActive)(users)
-	names = fp.Map(User.GetName)(actives)
-	for _, name := range names { // there's no each in fp-go, so loop instead
-		fmt.Println(name)
+	fmt.Print("\ngithub.com/samber/lo\n")
+	// lo is the most popular library with over 17k GitHub stars.
+	// lo is not concise because it requires function arguments to accept an index, which is painful.
+	// It is type-safe.
+	// It is not fluent.
+	// It does not work with method expressions.
+	{
+		printActiveNames := func(users []User) []string {
+			userIsActive := func(u User, _ int) bool {
+				return u.IsActive()
+			}
+			getName := func(u User, _ int) string {
+				return u.GetName()
+			}
+			printLn := func(s string, _ int) {
+				fmt.Println(s)
+			}
+			actives := lo.Filter(users, userIsActive)
+			names := lo.Map(actives, getName)
+			lo.ForEach(names, printLn)
+			return names
+		}
+
+		_ = printActiveNames(users)
 	}
 
 	fmt.Print("\ngithub.com/thoas/go-funk\n")
-	actives = funk.Filter(users, User.IsActive).([]User)
-	names = funk.Map(actives, User.GetName).([]string)
-	funk.ForEach(names, hof.Println)
+	// go-funk is the second most popular library with over 4k GitHub stars.
+	// go-funk is nearly as concise as fluentfp, requiring extra syntax for type assertions.
+	// It is not type-safe, which does not align with functional principles.
+	// It is not fluent.
+	// It works with method expressions.
+	{
+		printActiveNames := func(users []User) []string {
+			actives := funk.Filter(users, User.IsActive).([]User)
+			names := funk.Map(actives, User.GetName).([]string)
+			funk.ForEach(names, hof.Println)
+			return names
+		}
+
+		_ = printActiveNames(users)
+	}
 
 	fmt.Print("\ngithub.com/ahmetb/go-linq/v3\n")
-	userIsActive := func(user any) bool {
-		return user.(User).IsActive()
-	}
-	userGetName := func(user any) any {
-		return user.(User).GetName()
-	}
-	linq.From(users).
-		Where(userIsActive).
-		Select(userGetName).
-		ForEach(func(name any) {
-			fmt.Println(name)
-		})
+	// go-linq is the third most popular library with over 3k GitHub stars.
+	// go-linq is not concise and relies on Query objects, which are painful to get back to a slice.
+	// It is not type-safe.
+	// It is fluent.
+	// It does not work with method expressions.
+	{
+		printActiveNames := func(users []User) []string {
+			userIsActive := func(user any) bool {
+				return user.(User).IsActive()
+			}
+			name := func(user any) any {
+				return user.(User).GetName()
+			}
+			printLn := func(a any) {
+				fmt.Println(a)
+			}
+			nameQuery := linq.From(users).
+				Where(userIsActive).
+				Select(name)
+			nameQuery.ForEach(printLn)
 
-	fmt.Print("\ngithub.com/seborama/fuego/v12\n")
-	// fuego operates on streams, so a stream is created from the slice.
-	// It is fluent but requires wrapping some functions to return `fuego.Any`.
-	userGetNameFuego := func(u User) fuego.Any {
-		return u.GetName()
-	}
-	printName := func(name fuego.Any) {
-		fmt.Println(name)
-	}
-	fuego.NewStreamFromSlice(users, 1).
-		Filter(User.IsActive). // Filter is an exception to wrapping since it expects bool
-		Map(userGetNameFuego).
-		ForEach(printName)
+			var anys []any
+			nameQuery.ToSlice(&anys)
+			names := make([]string, len(anys))
+			for i, a := range anys {
+				names[i] = a.(string)
+			}
+			return names
+		}
 
-	fmt.Print("\ngithub.com/samber/lo\n")
-	// lo requires function arguments to accept an index, so existing functions must be wrapped.
-	userIsActiveIdx := func(u User, _ int) bool {
-		return u.IsActive()
+		_ = printActiveNames(users)
 	}
-	userGetNameIdx := func(u User, _ int) string {
-		return u.GetName()
+
+	// None of the rest of the libraries have over 500 stars.
+
+	fmt.Print("\ngithub.com/rjNemo/underscore\n")
+	// underscore is the best alternative to fluentfp.
+	// It is type-safe.
+	// It is not quite as concise as fluentfp due to not being fluent.
+	// It works with method expressions.
+	{
+		printActiveNames := func(users []User) []string {
+			actives := u.Filter(users, User.IsActive)
+			names := u.Map(actives, User.GetName)
+			u.Each(names, hof.Println)
+			return names
+		}
+
+		_ = printActiveNames(users)
 	}
-	printlnIdx := func(s string, _ int) {
-		fmt.Println(s)
+
+	fmt.Print("\ngithub.com/repeale/fp-go\n")
+	// fp-go is not as concise, lacking Each.
+	// It is type-safe.
+	// It is not fluent.
+	// It works with method expressions.
+	{
+		printActiveNames := func(users []User) []string {
+			actives := fp.Filter(User.IsActive)(users) // Filter returns a function that is called with a slice
+			names := fp.Map(User.GetName)(actives)     // same for Map
+			for _, name := range names {
+				fmt.Println(name)
+			}
+			return names
+		}
+
+		_ = printActiveNames(users)
 	}
-	actives = lo.Filter(users, userIsActiveIdx)
-	names = lo.Map(actives, userGetNameIdx)
-	lo.ForEach(names, printlnIdx)
 
 	fmt.Print("\ngithub.com/BooleanCat/go-functional/v2/it\n")
-	// go-functional generates iterators that you loop over.
-	// It is for go 1.23 and on.
-	userIter := slices.Values(users)
-	activeUserIter := it.Filter(userIter, User.IsActive)
-	namesIter := it.Map(activeUserIter, User.GetName)
-	for name := range namesIter {
-		fmt.Println(name)
+	// go-functional is not as concise and relies on Go 1.23+ iterators.
+	// Converting back to slice is slightly awkward.
+	// It is type-safe.
+	// It is not fluent.
+	// It works with method expressions.
+	{
+		printActiveNames := func(users []User) []string {
+			userSeq := slices.Values(users)
+			activeSeq := it.Filter(userSeq, User.IsActive)
+			nameSeq := it.Map(activeSeq, User.GetName)
+			for name := range nameSeq {
+				fmt.Println(name)
+			}
+			names := slices.Collect(nameSeq)
+			return names
+		}
+
+		_ = printActiveNames(users)
 	}
 
 	fmt.Print("\ngithub.com/TeaEntityLab/fpGo/v2\n")
-	// fpgo offers Map and Filter functions for slices.
-	// Indexing is required, so existing functions must be wrapped.
-	userIsActiveIdx = func(u User, _ int) bool {
-		return u.IsActive()
+	// fpGo is not as concise and requires variadic arguments, which is slightly awkward.
+	// It lacks Each.
+	// It is type-safe.
+	// It is not fluent.
+	// Some functions work with method expressions, others do not.
+	{
+		printActiveNames := func(users []User) []string {
+			userIsActive := func(u User, _ int) bool {
+				return u.IsActive()
+			}
+			actives := fpgo.Filter(userIsActive, users...)
+			names := fpgo.Map(User.GetName, actives...)
+			for _, name := range names {
+				fmt.Println(name)
+			}
+			return names
+		}
+
+		_ = printActiveNames(users)
 	}
-	actives = fpgo.Filter(userIsActiveIdx, users...) // variadic arguments are required
-	names = fpgo.Map(User.GetName, users...)
-	for _, name := range names { // there's no each
-		fmt.Println(name)
+
+	fmt.Print("\ngithub.com/seborama/fuego/v12\n")
+	// fuego is not concise and relies on a stream implementation.  Converting back to a slice is painful.
+	// It is not type-safe.
+	// It is fluent.
+	// It does not work with method expressions, requiring function arguments to return fuego.Any.
+	{
+		getName := func(u User) fuego.Any {
+			return u.GetName()
+		}
+		printLn := func(a fuego.Any) {
+			fmt.Println(a)
+		}
+		nameStream := fuego.NewStreamFromSlice(users, 1).
+			Filter(User.IsActive).
+			Map(getName)
+		nameStream.ForEach(printLn)
+
+		toSlice := fuego.ToSlice[fuego.Any]()
+		anys := fuego.Collect(nameStream, toSlice)
+		names := make([]string, len(anys))
+		for i, a := range anys {
+			names[i] = a.(string)
+		}
 	}
 
 	fmt.Print("\ngithub.com/rbrahul/gofp\n")
-	// gofp requires wrapping function arguments but also requires slices of `any`.
-	// Converting a slice to `any` is done with a helper function just for this example.
-	usersAny := AnySliceOf(users)
-	userIsActiveAny := func(_ int, a any) bool {
-		return a.(User).IsActive()
-	}
-	userGetNameAny := func(_ int, a any) any {
-		return a.(User).GetName()
-	}
-	activesAny := gofp.Filter(usersAny, userIsActiveAny)
-	namesAny := gofp.Map(activesAny, userGetNameAny)
-	for _, name := range namesAny {
-		fmt.Println(name)
-	}
+	// gofp is not concise and relies heavily on `any` types, which is painful.
+	// It is not type-safe.
+	// It is not fluent.
+	// It does not work with method expressions.
+	{
+		anyUsers := make([]any, len(users))
+		for i, user := range users {
+			anyUsers[i] = user
+		}
+		userIsActive := func(_ int, a any) bool {
+			return a.(User).IsActive()
+		}
+		getName := func(_ int, a any) any {
+			return a.(User).GetName()
+		}
+		anyActives := gofp.Filter(anyUsers, userIsActive)
+		anyNames := gofp.Map(anyActives, getName)
+		for _, anyName := range anyNames {
+			fmt.Println(anyName.(string))
+		}
 
-	messages := []string{"Hello", "World"}
-	loudMessages := fluent.
-		SliceOfStrings(messages).
-		ToString(strings.ToUpper)
-	fmt.Println(loudMessages[0])
-	fmt.Println(strings.Join(loudMessages, " "))
-
-	activeStream := fuego.
-		NewStreamFromSlice(users, 1).
-		Filter(User.IsActive)
-	toUserSlice := fuego.ToSlice[User]()
-	actives = fuego.Collect(activeStream, toUserSlice)
-
-	type sliceOf = fluent.SliceOf[User]
-	users
+		names := make([]string, len(anyNames))
+		for i, a := range anyNames {
+			names[i] = a.(string)
+		}
+	}
 }
 
 // User definition
@@ -157,16 +271,4 @@ func (u User) GetName() string {
 
 func (u User) IsActive() bool {
 	return u.Active
-}
-
-// helpers
-
-func AnySliceOf[T any](ts []T) []any {
-	result := make([]any, len(ts))
-
-	for i, t := range ts {
-		result[i] = t
-	}
-
-	return result
 }
