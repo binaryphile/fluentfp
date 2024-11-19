@@ -40,17 +40,17 @@ func main() {
 		printActiveNames := func(users fluent.SliceOf[User]) []string { // signature automatically converts types
 			names := users.
 				KeepIf(User.IsActive).
-				ToString(User.GetName)
+				ToString(User.GetName) // returns fluent.SliceOf[string]
 			names.Each(hof.Println) // helper function from fluentfp/hof
-			return names            // signature converts `names fluent.SliceOf[string]` to []string
+			return names            // signature converts fluent.SliceOf[string] to []string
 		}
 
-		_ = printActiveNames(users) // signature converts `users []string` to fluent.SliceOf[User]
+		_ = printActiveNames(users) // signature converts []User to fluent.SliceOf[User]
 	}
 
 	fmt.Print("\ngithub.com/samber/lo\n")
 	// lo is the most popular library with over 17k GitHub stars.
-	// lo is not concise because it requires function arguments to accept an index, which is painful.
+	// lo is not concise because it requires function arguments to accept an index, which are painful to wrap.
 	// It is type-safe.
 	// It is not fluent.
 	// It does not work with method expressions.
@@ -76,7 +76,7 @@ func main() {
 
 	fmt.Print("\ngithub.com/thoas/go-funk\n")
 	// go-funk is the second most popular library with over 4k GitHub stars.
-	// go-funk is nearly as concise as fluentfp, requiring extra syntax for type assertions.
+	// go-funk is nearly as concise as fluentfp, but requires type assertions.
 	// It is not type-safe, which does not align with functional principles.
 	// It is not fluent.
 	// It works with method expressions.
@@ -108,7 +108,8 @@ func main() {
 			printLn := func(a any) {
 				fmt.Println(a)
 			}
-			nameQuery := linq.From(users).
+			nameQuery := linq.
+				From(users).
 				Where(userIsActive).
 				Select(name)
 			nameQuery.ForEach(printLn)
@@ -187,7 +188,7 @@ func main() {
 	// It lacks Each.
 	// It is type-safe.
 	// It is not fluent.
-	// Some functions work with method expressions, others do not.
+	// Map works with method expressions, but Filter does not.
 	{
 		printActiveNames := func(users []User) []string {
 			userIsActive := func(u User, _ int) bool {
@@ -209,24 +210,30 @@ func main() {
 	// It is not type-safe.
 	// It is fluent.
 	// It does not work with method expressions, requiring function arguments to return fuego.Any.
+	// Its collectors require manufacturing, which adds to the complexity of returning a slice.
 	{
-		getName := func(u User) fuego.Any {
-			return u.GetName()
-		}
-		printLn := func(a fuego.Any) {
-			fmt.Println(a)
-		}
-		nameStream := fuego.NewStreamFromSlice(users, 1).
-			Filter(User.IsActive).
-			Map(getName)
-		nameStream.ForEach(printLn)
+		printActiveNames := func(users []User) []string {
+			getName := func(u User) fuego.Any {
+				return u.GetName()
+			}
+			printLn := func(a fuego.Any) {
+				fmt.Println(a)
+			}
+			nameStream := fuego.NewStreamFromSlice(users, 1).
+				Filter(User.IsActive).
+				Map(getName)
+			nameStream.ForEach(printLn)
 
-		toSlice := fuego.ToSlice[fuego.Any]()
-		anys := fuego.Collect(nameStream, toSlice)
-		names := make([]string, len(anys))
-		for i, a := range anys {
-			names[i] = a.(string)
+			toSlice := fuego.ToSlice[fuego.Any]()
+			anys := fuego.Collect(nameStream, toSlice)
+			names := make([]string, len(anys))
+			for i, a := range anys {
+				names[i] = a.(string)
+			}
+			return names
 		}
+
+		_ = printActiveNames(users)
 	}
 
 	fmt.Print("\ngithub.com/rbrahul/gofp\n")
@@ -235,26 +242,31 @@ func main() {
 	// It is not fluent.
 	// It does not work with method expressions.
 	{
-		anyUsers := make([]any, len(users))
-		for i, user := range users {
-			anyUsers[i] = user
-		}
-		userIsActive := func(_ int, a any) bool {
-			return a.(User).IsActive()
-		}
-		getName := func(_ int, a any) any {
-			return a.(User).GetName()
-		}
-		anyActives := gofp.Filter(anyUsers, userIsActive)
-		anyNames := gofp.Map(anyActives, getName)
-		for _, anyName := range anyNames {
-			fmt.Println(anyName.(string))
+		printActiveNames := func(users []User) []string {
+			anyUsers := make([]any, len(users))
+			for i, user := range users {
+				anyUsers[i] = user
+			}
+			userIsActive := func(_ int, a any) bool {
+				return a.(User).IsActive()
+			}
+			getName := func(_ int, a any) any {
+				return a.(User).GetName()
+			}
+			anyActives := gofp.Filter(anyUsers, userIsActive)
+			anyNames := gofp.Map(anyActives, getName)
+			for _, anyName := range anyNames {
+				fmt.Println(anyName.(string))
+			}
+
+			names := make([]string, len(anyNames))
+			for i, a := range anyNames {
+				names[i] = a.(string)
+			}
+			return names
 		}
 
-		names := make([]string, len(anyNames))
-		for i, a := range anyNames {
-			names[i] = a.(string)
-		}
+		_ = printActiveNames(users)
 	}
 }
 
