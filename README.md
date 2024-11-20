@@ -1,113 +1,111 @@
-# FluentFP: Functional Programming in Go
 
-**FluentFP** brings a functional programming approach to Go, providing tools and patterns
-like options, fluent slices, iterators, and other higher-order constructs to improve code
-readability and reduce boilerplate in complex Go applications. Each module introduces
-functional patterns to address specific programming needs, making Go code more expressive
-and maintainable.
+# FluentFP: Pragmatic Functional Programming in Go
+
+**FluentFP** is a collection of Go packages designed to bring functional programming concepts to Go in a pragmatic, type-safe way. The library is structured into several modules:
+
+- `fluent`: fluent slices that offer collection methods that chain.
+-  `option`: option types that handle optional values to enforce validity checking, enhancing code safety.
+- `must`: functions to consume the error portion of another function's return value, making it friendly to use with collection methods. Other functions relating to panics.
+- `ternary`: a simple, fluent type that implements if-then-else as a method chain, which can significantly contribute to conciseness when used appropriately.
+
+## Key Features
+
+- **Modular Design**: Each package is designed to be independent, allowing you to use only what you need.
+- **Fluent Method Chaining**: Improve code readability and maintainability by reducing nesting.
+- **Type-Safe Generics**: Leverage Go's generics (Go 1.18+) for compile-time type safety.
+- **Interoperable with Go's idioms**: while functionally-oriented, FluentFP is also made to be used with common Go idioms such as comma-ok option unwrapping and ranging over fluent slices.
+
+For details on each package, follow the header link to see the package's README.
 
 ## Installation
 
-To use FluentFP, install it via `go get`:
+To get started with **FluentFP**:
 
-    go get github.com/binaryphile/fluentfp
-
-Then, import the required packages as needed in your Go files. For example:
-
-    import "github.com/binaryphile/fluentfp/option"
-
-## Modules
-
-### 1. `fluent`
-
-The `fluent` package offers fluent slices – Go slices with additional fp methods such as
-`MapWith` (map), `KeepIf` (filter), and `Each` (foreach). Fluent slices support streamlined,
-chainable operations on collections, improving readability and reducing boilerplate for list
-transformations.
-
-``` go
-// validate and normalize responses using existing methods of User
-var users fluent.SliceOf[User]
-users = externalAPI.ListUsers()     // ListUsers returns []User, auto-converted to fluent.SliceOf
-users = users.
-    KeepIf(User.IsValid).           // KeepIf and RemoveIf do filtering
-    Convert(User.ToNormalizedUser)  // Convert is a special case of map
+```bash
+go get github.com/binaryphile/fluentfp
 ```
 
-**Example**: In
-[`fluent.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/fluent.go),
-`fluent` wraps API data and transforms it through map, filter, and other functional methods.
-See how operations are simplified when working with collections of API data.
+Then import the desired modules:
 
-### 2. `iterator`
+```go
+import "github.com/binaryphile/practicalfp/fluent"
+import "github.com/binaryphile/practicalfp/option"
+```
 
-The `iterator` package provides simple iterators, allowing you to access collection elements
-sequentially. This is useful for concise code where the focus is on element processing
-rather than indexing.
+## Modules Overview
 
-**Example**:
-[`iterator.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/iterator.go)
-demonstrates iterating over a slice with `iterator`, simplifying loops with an iterator
-pattern.
+### 1. [`fluent`](fluent/README.md)
 
-### 3. `must`
+A package providing a fluent interface for common slice operations like filtering, mapping, and more.
 
-`must` offers utilities to handle operations that “must” succeed, such as environment
-variable access or file I/O, by panicking on failure. This can be used to enforce
-non-optional behavior in essential parts of your program.
+**Highlights**:
 
-**Example**: In
-[`must.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/must.go), see how
-environment variables and file access are handled succinctly by the `must` functions,
-panicking if an operation fails to meet expectations.
-
-### 4. `option`
-
-The `option` package introduces an option type, which encapsulates optional values (similar
-to `Maybe` or `Optional` types in other languages). It provides:
-
--   **Basic Options**: `option.Basic` handles values that may or may not be present with
-    methods familiar from fp.
-
-    ``` go
-    okStringOption := option.Of("my string value")
-    myStringValue := okStringOption.Or("alternative value")
-
-    notOkStringOption := option.NotOkString
-    alternativeValue := notOkStringOption.Or("alternative value")
-    ```
+- Fluent method chaining for slices
+- Interchangeable with native slices
+- Simple function arguments without special signatures
 
 **Example**:
-[`basic_option.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/basic_option.go)
-shows various uses for basic options.
 
--   **Advanced Options**: an approach, rather than a type, for scenarios where the optional
-    value is used for its methods rather than just values, useful for things like managing
-    the lifecycle of dependencies.
+```go
+words := fluent.SliceOfStrings([]string{"Hello", "", "World"})
+isEmpty := func(s string) bool { return s == "" }
+words.
+    RemoveIf(isEmpty).
+    Each(hof.Println) // prints Hello\nWorld
+```
+
+### 2. [`option`](option/README.md)
+
+A package to handle optional values, reducing the need for `nil` checks and enhancing code safety.
+
+**Highlights**:
+
+- Provides options types for the built-ins such as `option.String`, `option.Int`, etc.
+- Methods like `To[Type]` for mapping and `Or` for extracting a value or alternative.
 
 **Example**:
-[`advanced_option.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/advanced_option.go)
-shows a CLI tool using advanced options to concisely open and close dependencies in various
-combinations based on the needs of a particular run of the tool.
 
-### 5. `ternary`
+```go
+var okString option.String = option.Of("value")
+var Value string = okString.ToString(strings.ToTitle).Or("Default")
+var Default string = option.NotOkString.Or("Default") // predefined not-ok value
+```
 
-The `ternary` package provides a basic ternary operator equivalent, enabling conditional
-expressions for concise if-else alternatives. It supports in-line expressions for easy
-defaulting and simplifies conditional assignments in Go.
+### 3. [`must`](must/README.md)
+
+A package that helps convert functions that return `(T, error)` into functions that panic on error, making them easier to use in fluent chains.
+
+**Highlights**:
+
+- Simplifies error handling in fluent expressions
+- Use with caution for scenarios where panics are acceptable
+
+**Example**:
+
+```go
+must.String(os.ReadFile("config.json")) // Panics if file read fails
+```
+
+### 4. [`ternary`](ternary/README.md)
+
+A package that provides a fluent ternary conditional operation for Go.
+
+**Highlights**:
+
+- Readable and concise conditional expressions
+- Uses fluent method chaining for readability
+
+**Example**:
 
 ```go
 If := ternary.If[string]
-one := If(true).Then("one").Else("two")
-two := If(false).Then("one").Else("two")
+var True string = If(condition).Then("true").Else("false")
 ```
 
-**Example**:
-[`ternary.go`](https://github.com/binaryphile/fluentfp/blob/main/examples/ternary.go)
-demonstrates using `ternary.If` to streamline basic conditionals, making them clearer and
-more concise.
+## Contributing
 
-## Getting Started
+Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-Explore the examples provided in the [examples
-directory](https://github.com/binaryphile/fluentfp/tree/dev/examples) to see detailed usage.
+## License
+
+FluentFP is licensed under the MIT License. See [LICENSE](LICENSE) for more details.

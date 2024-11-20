@@ -1,5 +1,6 @@
 package option
 
+// Basic represents an optional value of type T.
 type Basic[T any] struct {
 	ok bool
 	t  T
@@ -7,14 +8,7 @@ type Basic[T any] struct {
 
 // factories
 
-func New[T any](t T, ok bool) (_ Basic[T]) {
-	if !ok {
-		return
-	}
-
-	return Of(t)
-}
-
+// IfProvided returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
 func IfProvided[T comparable](t T) (_ Basic[T]) {
 	var zero T
 	if t == zero {
@@ -24,6 +18,16 @@ func IfProvided[T comparable](t T) (_ Basic[T]) {
 	return Of(t)
 }
 
+// New returns an ok option of t provided that ok is true, or not-ok otherwise.
+func New[T any](t T, ok bool) (_ Basic[T]) {
+	if !ok {
+		return
+	}
+
+	return Of(t)
+}
+
+// Of returns an ok option of t, independent of t's value.
 func Of[T any](t T) Basic[T] {
 	return Basic[T]{
 		ok: true,
@@ -31,7 +35,11 @@ func Of[T any](t T) Basic[T] {
 	}
 }
 
-func OfPointee[T any](t *T) (_ Basic[T]) {
+// FromOpt returns an ok option of *what t points at* provided that t is not nil, or not-ok otherwise.
+// It is useful to convert a pseudo-option based on pointers into a formal option.
+// By convention, in consuming code, we suffix a pseudo-option's variable name with an "Opt" suffix to clarify intent,
+// hence "FromOpt".
+func FromOpt[T any](t *T) (_ Basic[T]) {
 	if t == nil {
 		return
 	}
@@ -41,6 +49,7 @@ func OfPointee[T any](t *T) (_ Basic[T]) {
 
 // methods
 
+// Call applies fn to the option's value provided that the option is ok.
 func (b Basic[T]) Call(fn func(T)) {
 	if !b.ok {
 		return
@@ -49,214 +58,41 @@ func (b Basic[T]) Call(fn func(T)) {
 	fn(b.t)
 }
 
-func (b Basic[T]) Convert(fn func(T) T) (_ Basic[T]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
+// Get returns the option's value and a boolean indicating the option's status.
+// It unpacks the option's fields into Go's comma-ok idiom,
+// making it useful in the usual Go conditional constructs.
+// When used in this manner,
+// myVal doesn't stick around in the namespace when you're done with it:
+//
+//	if myVal, ok := o.Get; ok {
+//	  do some stuff
+//	}
 func (b Basic[T]) Get() (_ T, _ bool) {
-	if !b.ok {
-		return
-	}
-
-	return b.t, true
+	return b.t, b.ok
 }
 
+// IsOk returns true if the option is ok.
 func (b Basic[T]) IsOk() bool {
 	return b.ok
 }
 
+// KeepOkIf returns b provided that applying fn to an ok option's value returns true, or the original option otherwise.
+// It is the filter operation.
+// Since Go doesn't offer a convenient lambda syntax for constructing the negation of a function's output,
+// there is a ToNotOkIf method as well.
 func (b Basic[T]) KeepOkIf(fn func(T) bool) (_ Basic[T]) {
-	if !b.ok || !fn(b.t) {
+	if !b.ok {
+		return b
+	}
+
+	if !fn(b.t) {
 		return
 	}
 
 	return b
 }
 
-// ToAnyWith converts the option to an `any` option using the provided function.
-func (b Basic[T]) ToAnyWith(fn func(T) any) (_ Basic[interface{}]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToBoolWith converts the option to a bool option using the provided function.
-func (b Basic[T]) ToBoolWith(fn func(T) bool) (_ Basic[bool]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToByteWith converts the option to a byte option using the provided function.
-func (b Basic[T]) ToByteWith(fn func(T) byte) (_ Basic[byte]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToComplex128With converts the option to a complex128 option using the provided function.
-func (b Basic[T]) ToComplex128With(fn func(T) complex128) (_ Basic[complex128]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToComplex64With converts the option to a complex64 option using the provided function.
-func (b Basic[T]) ToComplex64With(fn func(T) complex64) (_ Basic[complex64]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToErrorWith converts the option to an error option using the provided function.
-func (b Basic[T]) ToErrorWith(fn func(T) error) (_ Basic[error]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToFloat32With converts the option to a float32 option using the provided function.
-func (b Basic[T]) ToFloat32With(fn func(T) float32) (_ Basic[float32]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToFloat64With converts the option to a float64 option using the provided function.
-func (b Basic[T]) ToFloat64With(fn func(T) float64) (_ Basic[float64]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToInt16With converts the option to an int16 option using the provided function.
-func (b Basic[T]) ToInt16With(fn func(T) int16) (_ Basic[int16]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToInt32With converts the option to an int32 option using the provided function.
-func (b Basic[T]) ToInt32With(fn func(T) int32) (_ Basic[int32]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToInt64With converts the option to an int64 option using the provided function.
-func (b Basic[T]) ToInt64With(fn func(T) int64) (_ Basic[int64]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToInt8With converts the option to an int8 option using the provided function.
-func (b Basic[T]) ToInt8With(fn func(T) int8) (_ Basic[int8]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToIntWith converts the option to an int option using the provided function.
-func (b Basic[T]) ToIntWith(fn func(T) int) (_ Basic[int]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToRuneWith converts the option to a rune option using the provided function.
-func (b Basic[T]) ToRuneWith(fn func(T) rune) (_ Basic[rune]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToStringWith converts the option to a string option using the provided function.
-func (b Basic[T]) ToStringWith(fn func(T) string) (_ Basic[string]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUint16With converts the option to a uint16 option using the provided function.
-func (b Basic[T]) ToUint16With(fn func(T) uint16) (_ Basic[uint16]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUint32With converts the option to a uint32 option using the provided function.
-func (b Basic[T]) ToUint32With(fn func(T) uint32) (_ Basic[uint32]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUint64With converts the option to a uint64 option using the provided function.
-func (b Basic[T]) ToUint64With(fn func(T) uint64) (_ Basic[uint64]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUint8With converts the option to a uint8 option using the provided function.
-func (b Basic[T]) ToUint8With(fn func(T) uint8) (_ Basic[uint8]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
-// ToUintWith converts the option to a uint option using the provided function.
-func (b Basic[T]) ToUintWith(fn func(T) uint) (_ Basic[uint]) {
-	if !b.ok {
-		return
-	}
-
-	return Of(fn(b.t))
-}
-
+// MustGet returns the option's value or panics if the option is not ok.
 func (b Basic[T]) MustGet() T {
 	if !b.ok {
 		panic("option: not ok")
@@ -265,6 +101,7 @@ func (b Basic[T]) MustGet() T {
 	return b.t
 }
 
+// Or returns the option's value provided that the option is ok, otherwise t.
 func (b Basic[T]) Or(t T) T {
 	if !b.ok {
 		return t
@@ -273,6 +110,7 @@ func (b Basic[T]) Or(t T) T {
 	return b.t
 }
 
+// OrCall returns the option's value provided that it is ok, otherwise the result of applying fn to the option's value.
 func (b Basic[T]) OrCall(fn func() T) (_ T) {
 	if !b.ok {
 		return fn()
@@ -281,6 +119,8 @@ func (b Basic[T]) OrCall(fn func() T) (_ T) {
 	return b.t
 }
 
+// OrEmpty returns the option's value provided that it is ok, otherwise the zero value for T.
+// It is a more readable alias for OrZero when T is string.
 func (b Basic[T]) OrEmpty() (_ T) {
 	if !b.ok {
 		return
@@ -289,6 +129,8 @@ func (b Basic[T]) OrEmpty() (_ T) {
 	return b.t
 }
 
+// OrFalse returns the option's value provided that it is ok, otherwise the zero value for T.
+// It is a more readable alias for OrZero when T is bool.
 func (b Basic[T]) OrFalse() (_ T) {
 	if !b.ok {
 		return
@@ -297,6 +139,8 @@ func (b Basic[T]) OrFalse() (_ T) {
 	return b.t
 }
 
+// OrZero returns the option's value provided that it is ok, otherwise the zero value for T.
+// See OrEmpty and OrFalse for more readable aliases of OrZero when T is string or bool.
 func (b Basic[T]) OrZero() (_ T) {
 	if !b.ok {
 		return
@@ -305,18 +149,101 @@ func (b Basic[T]) OrZero() (_ T) {
 	return b.t
 }
 
+// ToAny returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) ToAny(fn func(T) any) (_ Basic[any]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(fn(b.t))
+}
+
+// ToBool returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) ToBool(fn func(T) bool) (_ Basic[bool]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(fn(b.t))
+}
+
+// ToByte returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) ToByte(fn func(T) byte) (_ Basic[byte]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(fn(b.t))
+}
+
+// ToError returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) ToError(fn func(T) error) (_ Basic[error]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(fn(b.t))
+}
+
+// ToInt returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) ToInt(fn func(T) int) (_ Basic[int]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(fn(b.t))
+}
+
+// ToNotOkIf returns a not-ok option provided that applying fn to an ok option's value returns true, or the original option otherwise.
+// It is the filter operation with negation.
+// Since Go doesn't offer a convenient lambda syntax for constructing the negation of a function's output,
+// having negation built-in is both a convenience and keeps consuming code readable.
 func (b Basic[T]) ToNotOkIf(fn func(T) bool) (_ Basic[T]) {
-	if !b.ok || !fn(b.t) {
+	if !b.ok {
+		return b
+	}
+
+	if fn(b.t) {
 		return
 	}
 
 	return b
 }
 
-func (b Basic[T]) ToPointer() (_ *T) {
+// ToRune returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) ToRune(fn func(T) rune) (_ Basic[rune]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(fn(b.t))
+}
+
+// ToString returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) ToString(fn func(T) string) (_ Basic[string]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(fn(b.t))
+}
+
+// ToOpt returns a pointer-based pseudo-option of the pointed-at value provided that the option is ok, or not-ok otherwise.
+// By convention, in consuming code, we suffix a pseudo-option's variable name with an "Opt" suffix
+// to clarify the pointer's meaning and use, hence "ToOpt".
+func (b Basic[T]) ToOpt() (_ *T) {
 	if !b.ok {
 		return
 	}
 
 	return &b.t
+}
+
+// ToSame returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) ToSame(fn func(T) T) (_ Basic[T]) {
+	if !b.ok {
+		return
+	}
+
+	return Of(fn(b.t))
 }
