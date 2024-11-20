@@ -43,7 +43,8 @@ func main() {
 
 	// > A value x of type V is assignable to a variable of type T ("x is assignable to T")
 	// > if [...] V and T have identical underlying types [...] and at least one of V or T is not a named type.
-	// [Ed: slices are built-in and so are not named types and are defined to have themselves as their underlying type]
+
+	// [Ed: slices are defined to have themselves as their underlying type]
 
 	// https://go.dev/ref/spec#Types
 	// https://go.dev/ref/spec#Underlying_types
@@ -55,83 +56,96 @@ func main() {
 
 	// There are three names for the map-related methods:
 	//
-	//  - `To[Type]sWith` for returning built-in types such as string or int
-	//  - `Convert` for returning a slice of the same type as the original
-	//  - `MapWith` for returning a slice of a named type, usually structs
+	//  - ToSame for returning a slice of the same type as the original
+	//  - To[Type]s for returning slices of basic built-in types, such as string or int (caveat: not all built-ins are covered)
+	//  - ToNamed for returning a slice of a named type or a built-in not covered by To[Type]s
 	//
-	// Shown here is `Convert` since we're making posts from posts.
+	// Shown here is ToSame since we're making posts from posts.
 
-	// Frequently a data source that is managed by others requires input validation and/or normalization.
+	// Frequently, a data source that is managed by others requires input validation and/or normalization.
 	// You can do this easily with fluent slices.
 	// Here we filter out invalid posts and normalize the titles of the rest.
 	posts = posts.
 		KeepIf(Post.IsValid). // KeepIf is a filter implementation
-		Convert(Post.ToFriendlyPost)
-	// Post.ToFriendlyPost takes the usual method receiver (a post in this case) as its first regular argument instead.
+		ToSame(Post.ToFriendlyPost)
+	// Post.ToFriendlyPost takes the usual method receiver (a post in this case)
+	// as its first (and only) regular argument instead.
 	// See https://go.dev/ref/spec#Method_expressions.
 
 	// for comparison to above:
 	//
-	//     friendlyPosts := make([]Post, 0, len(posts)) // do you make this correctly every time?  I don't.
-	//     for _, post := range posts {                 // which form of this do you need, single or double assignment?
-	//         if post.IsValid() {                      // do you need the index?  I have to think about it every time.
-	//             friendlyPosts = append(friendlyPosts, post)
-	//         }
+	// friendlyPosts := make([]Post, 0, len(posts)) // do you make this correctly every time?  I don't.
+	// for _, post := range posts {                 // which form of this do you need, single or double assignment?
+	//     if post.IsValid() {                      // do you need the index?  I have to think about it every time.
+	//         friendlyPosts = append(friendlyPosts, post)
 	//     }
-	//     posts = friendlyPosts  // now friendlyPosts is just hanging around, stinking up the namespace
+	// }
+	// posts = friendlyPosts  // now friendlyPosts is just hanging around, an unnecessary artifact
 
 	// print the first three posts
 	fmt.Println("the first three posts:")
 
 	posts.
-		TakeFirst(3).               // TakeFirst returns a slice of the first n elements
-		ToStringsWith(Post.String). // ToStringsWith is map to a built-in type, string in this case
-		Each(hof.Println)           // Each applies the named function to each element for its side effects
+		TakeFirst(3).          // TakeFirst returns a slice of the first n elements
+		ToString(Post.String). // ToString is map to the string built-in type
+		Each(hof.Println)      // Each applies its argument, a function, to each element for its side effects
 	// for comparison to above:
 	//
-	//     for i, post := range posts { // again, which form of this? notice it's different this time.
-	//         if i == 3 {              // three lines of code just to break, but simpler than a C-style for loop
-	//            break
-	//         }
-	//         fmt.Println(post.String())
+	// for i, post := range posts { // again, which form of this? notice it's different this time.
+	//     if i == 3 {              // three lines of code just to break, but simpler than a C-style for loop
+	//        break
 	//     }
+	//     fmt.Println(post.String())
+	// }
 
-	// print the longest post title
+	// print the longest post title in words
 	fmt.Println("\nthe longest post title in words:")
 
-	titles := posts.ToStringsWith(Post.GetTitle)
+	titles := posts.ToString(Post.GetTitle)
 	// for comparison to above:
 	//
-	//     titles := make([]string, len(posts))
-	//     for i, post := range posts {
-	//         titles[i] = post.Title
-	//     }
+	// titles := make([]string, len(posts))
+	// for i, post := range posts {
+	//     titles[i] = post.Title
+	// }
 
-	// use titles as a regular slice argument
-	longestTitle := slices.MaxFunc(titles, CompareWordCounts) // fluent slices don't have Max or MaxFunc methods
+	// fluent slices don't have a method like MaxFunc,
+	// so use the slices package
+	longestTitle := slices.MaxFunc(titles, CompareWordCounts) // fluent slices can be regular slice arguments
 	fmt.Println(longestTitle)
 
-	// MapWith requires a return type to map to, so SliceOf[T] doesn't have enough type parameters to support it.
-	// For this reason, there's an additional type, MappableSliceOf.
-	// Rather than go through creating a new type to demonstrate, we'll just specify string as the target type,
-	// but it could be any type of your own.
-	// Imagine your own type as the return type in this example.
+	// we'll use this function in our next example
+	titleFromPost := func(post Post) Title {
+		return Title(post.Title)
+	}
 
-	// first, type-convert our existing slice to a MappableSliceOf
-	var mappablePosts fluent.MappableSliceOf[Post, string]
-	mappablePosts = []Post(posts)
+	// A general form of Map must specify the return type as a parameter,
+	// so SliceOf[T] doesn't have enough type parameters to support it.
+	// For this reason, there's an additional type, SliceToNamed.
+	// First, let's change posts to SliceToNamed.
+	type SliceOfPosts = fluent.SliceToNamed[Post, Title] // alias for readability
+	mappablePosts := SliceOfPosts(posts)
 
-	// now use MapWith to convert to strings
-	fmt.Println("\nthe title lengths of the first three posts:")
+	// now map to Title
 	first3Titles := mappablePosts.
 		TakeFirst(3).
-		MapWith(Post.GetTitle) // imagine your return type here
+		ToNamed(titleFromPost)
 
-	// finish printing
+	// we could have done this next bit printing by chaining to the methods above,
+	// but stopping and naming things every few operations is better for clarity
+	fmt.Println("\ntitle lengths in characters of the first three posts:")
 	first3Titles.
-		ToIntsWith(hof.StringLen).   // package hof has a few functions useful as arguments to higher-order functions
-		ToStringsWith(strconv.Itoa). // some standard library functions are useful too, if they don't need to return an error
-		Each(hof.Println)
+		ToInt(Title.Len).
+		ToString(strconv.Itoa).
+		Each(hof.Println) // type issues prevent using fmt.Println directly
+}
+
+// Title type definition
+
+type Title string
+
+func (t Title) Len() int {
+	return len(t)
 }
 
 // Post type definition
