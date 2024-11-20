@@ -54,7 +54,7 @@ page](https://github.com/binaryphile/fluentfp).
 
 ## Comparison with Other Libraries
 
-Below is a comparison of fluent with the collection operations of other popular FP libraries in Go. See [../examples/comparison/main.go](../examples/comparison/main.go) for details.
+Below is a comparison of fluent with the collection operations of other popular FP libraries in Go. See [../examples/comparison/main.go](../examples/comparison/main.go) for examples with nine other libraries.
 
 | Library                                                     | Github Stars\* | Type-Safe | Concise | Method Exprs | Fluent |
 | ----------------------------------------------------------- | -------------- | --------- | ------- | ------------ | ------ |
