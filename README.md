@@ -16,80 +16,6 @@
 - **Interoperable with Go's idioms**: while functionally-oriented, FluentFP is also made to be used with common Go idioms such as comma-ok option unwrapping and ranging over fluent slices.
 
 For details on each package, follow the header link to see the package's README.
-## Modules Overview
-
-### 1. [`fluent`](fluent/README.md)
-
-A package providing a fluent interface for common slice operations like filtering, mapping, and more.
-
-**Highlights**:
-
-- Fluent method chaining for slices
-- Interchangeable with native slices
-- Simple function arguments without special signatures
-
-**Example**:
-```go
-// users is a fluent slice
-users.
-    KeepIf(User.IsActive).
-    MapToString(User.GetName).
-    Each(func(s string) { fmt.Println(s) })
-```
-
-### 2. [`option`](option/README.md)
-
-A package to handle optional values, reducing the need for `nil` checks and enhancing code safety.
-
-**Highlights**:
-- Provides options types for the built-ins such as `option.String`, `option.Int`, etc.
-- Methods like `To[Type]` for mapping and `Or` for extracting a value or alternative.
-
-**Example**:
-```go
-var option okString := option.Of("value")
-var string Value = okString.ToString(strings.ToTitle).Or("Default")
-var string Default = option.NotOkString.Or("Default")
-```
-
-### 3. [Iterator](./iterator/README.md)
-A package for working with iterators using the Go idiomatic comma-ok pattern.
-
-**Highlights**:
-- Create iterators over slices or custom data sources
-- Functional methods like `Map` and `Filter` available for iterators
-
-**Example**:
-```go
-it := iterator.New([]int{1, 2, 3})
-for val, ok := it.Next(); ok; val, ok = it.Next() {
-    fmt.Println(val)
-}
-```
-
-### 4. [Must](./must/README.md)
-A package that helps convert functions that return `(T, error)` into functions that panic on error, making them easier to use in fluent chains.
-
-**Highlights**:
-- Simplifies error handling in fluent expressions
-- Use with caution for scenarios where panics are acceptable
-
-**Example**:
-```go
-must.String(os.ReadFile("config.json")) // Panics if file read fails
-```
-
-### 5. [Ternary](./ternary/README.md)
-A package that provides a fluent ternary conditional operator for Go.
-
-**Highlights**:
-- Readable and concise conditional expressions
-- Uses fluent method chaining for readability
-
-**Example**:
-```go
-result := ternary.If(condition).Then("true").Else("false")
-```
 
 ## Installation
 
@@ -104,6 +30,76 @@ Then import the desired modules:
 ```go
 import "github.com/binaryphile/practicalfp/fluent"
 import "github.com/binaryphile/practicalfp/option"
+```
+
+## Modules Overview
+
+### 1. [`fluent`](fluent/README.md)
+
+A package providing a fluent interface for common slice operations like filtering, mapping, and more.
+
+**Highlights**:
+
+- Fluent method chaining for slices
+- Interchangeable with native slices
+- Simple function arguments without special signatures
+
+**Example**:
+
+```go
+words := fluent.SliceOfStrings([]string{"Hello", "", "World"})
+isEmpty := func(s string) bool { return s == "" }
+words.
+    RemoveIf(isEmpty).
+    Each(hof.Println) // prints Hello\nWorld
+```
+
+### 2. [`option`](option/README.md)
+
+A package to handle optional values, reducing the need for `nil` checks and enhancing code safety.
+
+**Highlights**:
+
+- Provides options types for the built-ins such as `option.String`, `option.Int`, etc.
+- Methods like `To[Type]` for mapping and `Or` for extracting a value or alternative.
+
+**Example**:
+
+```go
+var okString option.String = option.Of("value")
+var Value string = okString.ToString(strings.ToTitle).Or("Default")
+var Default string = option.NotOkString.Or("Default") // predefined not-ok value
+```
+
+### 3. [`must`](must/README.md)
+
+A package that helps convert functions that return `(T, error)` into functions that panic on error, making them easier to use in fluent chains.
+
+**Highlights**:
+
+- Simplifies error handling in fluent expressions
+- Use with caution for scenarios where panics are acceptable
+
+**Example**:
+
+```go
+must.String(os.ReadFile("config.json")) // Panics if file read fails
+```
+
+### 4. [`ternary`](ternary/README.md)
+
+A package that provides a fluent ternary conditional operation for Go.
+
+**Highlights**:
+
+- Readable and concise conditional expressions
+- Uses fluent method chaining for readability
+
+**Example**:
+
+```go
+If := ternary.If[string]
+var True string = If(condition).Then("true").Else("false")
 ```
 
 ## Contributing

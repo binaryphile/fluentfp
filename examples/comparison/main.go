@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -7,7 +9,6 @@ import (
 	"github.com/ahmetb/go-linq/v3"
 	"github.com/binaryphile/fluentfp/fluent"
 	"github.com/binaryphile/fluentfp/hof"
-	"github.com/binaryphile/fluentfp/option"
 	"github.com/rbrahul/gofp"
 	"github.com/repeale/fp-go"
 	u "github.com/rjNemo/underscore"
@@ -15,7 +16,6 @@ import (
 	"github.com/seborama/fuego/v12"
 	"github.com/thoas/go-funk"
 	"slices"
-	"strings"
 )
 
 func main() {
@@ -270,10 +270,6 @@ func main() {
 
 		_ = printActiveNames(users)
 	}
-
-	var option.String okOption := option.Of("value")
-	opt.ToString(strings.ToTitle).Or("Default")
-	option.NotOkString.Or("Default")
 }
 
 // User definition
