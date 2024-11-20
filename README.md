@@ -1,44 +1,55 @@
 
 # FluentFP: Pragmatic Functional Programming in Go
 
-**FluentFP** is a collection of Go packages designed to bring functional programming concepts to Go in a pragmatic, type-safe way. The library is structured into several focused modules, each addressing specific needs such as fluent slices, optional values, and more.
+**FluentFP** is a collection of Go packages designed to bring functional programming concepts to Go in a pragmatic, type-safe way. The library is structured into several modules:
+
+- `fluent`: fluent slices that offer collection methods that chain.
+-  `option`: option types that handle optional values to enforce validity checking, enhancing code safety.
+- `must`: functions to consume the error portion of another function's return value, making it friendly to use with collection methods. Other functions relating to panics.
+- `ternary`: a simple, fluent type that implements if-then-else as a method chain, which can significantly contribute to conciseness when used appropriately.
 
 ## Key Features
 
 - **Modular Design**: Each package is designed to be independent, allowing you to use only what you need.
 - **Fluent Method Chaining**: Improve code readability and maintainability by reducing nesting.
 - **Type-Safe Generics**: Leverage Go's generics (Go 1.18+) for compile-time type safety.
-- **Interoperable with Native Go**: Designed to extend native Go types and operations without compromising performance.
+- **Interoperable with Go's idioms**: while functionally-oriented, FluentFP is also made to be used with common Go idioms such as comma-ok option unwrapping and ranging over fluent slices.
 
+For details on each package, follow the header link to see the package's README.
 ## Modules Overview
 
-### 1. [Fluent](./fluent/README.md)
+### 1. [`fluent`](fluent/README.md)
+
 A package providing a fluent interface for common slice operations like filtering, mapping, and more.
 
 **Highlights**:
+
 - Fluent method chaining for slices
 - Interchangeable with native slices
-- Simplified function arguments without special signatures
+- Simple function arguments without special signatures
 
 **Example**:
 ```go
-fluent.SliceOf(users).
+// users is a fluent slice
+users.
     KeepIf(User.IsActive).
     MapToString(User.GetName).
-    Each(fmt.Println)
+    Each(func(s string) { fmt.Println(s) })
 ```
 
-### 2. [Option](./option/README.md)
+### 2. [`option`](option/README.md)
+
 A package to handle optional values, reducing the need for `nil` checks and enhancing code safety.
 
 **Highlights**:
-- Provides `option.String`, `option.Int`, etc.
-- Methods like `Map`, `OrElse`, and `FlatMap` for handling optional values fluently
+- Provides options types for the built-ins such as `option.String`, `option.Int`, etc.
+- Methods like `To[Type]` for mapping and `Or` for extracting a value or alternative.
 
 **Example**:
 ```go
-opt := option.OfString("value")
-opt.Map(strings.ToUpper).OrElse("default")
+var option okString := option.Of("value")
+var string Value = okString.ToString(strings.ToTitle).Or("Default")
+var string Default = option.NotOkString.Or("Default")
 ```
 
 ### 3. [Iterator](./iterator/README.md)
