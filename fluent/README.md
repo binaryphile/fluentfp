@@ -25,10 +25,10 @@
 -   **Expressive**: Careful method naming, fluency and compatibility with *method
     expressions* make for beautiful code:
 
-    ```go
-	titles := posts.
-		KeepIf(Post.IsValid).
-		ToString(Post.Title)
+    ``` go
+    titles := posts.
+        KeepIf(Post.IsValid).
+        ToString(Post.Title)
     ```
 
     Both `IsValid` and `Title` are methods on type `Post`.
@@ -36,7 +36,7 @@
 -   **Learnable**: Because fluent slices can be used the same way as native slices, they
     support ranging by `for` loops and other imperative idioms. It is easy to mix imperative
     with functional style, either to learn incrementally or to use “just enough” FP and
-    leave the rest. 
+    leave the rest.
 
 #### Method Expressions
 
@@ -80,19 +80,14 @@ in Go. See [../examples/comparison/main.go](../examples/comparison/main.go) for 
 with nine other libraries.
 
 | Library                                                     | Github Stars\* | Type-Safe | Concise | Method Exprs | Fluent |
-|-------------------------------------------------------------|-------------|---------|-------|-----------|------|
+|--------------------------------------------------|------------|---------|-------|----------|------|
 | binaryphile/fluentfp                                        | 1              | ✅        | ✅      | ✅           | ✅     |
-| [`samber/lo`]                                               | 17.9k          | ✅        | ❌      | ❌           | ❌     |
-| [`thoas/go-funk`]         | 4.8k           | ❌        | ✅      | ✅           | ❌     |
-| [`ahmetb/go-linq`]       | 3.5k           | ❌        | ❌      | ❌           | ✅     |
-| [`rjNemo/underscore`] | 109            | ✅        | ✅      | ✅           | ❌     |
+| [`samber/lo`](https://github.com/samber/lo)                 | 17.9k          | ✅        | ❌      | ❌           | ❌     |
+| [`thoas/go-funk`](https://github.com/thoas/go-funk)         | 4.8k           | ❌        | ✅      | ✅           | ❌     |
+| [`ahmetb/go-linq`](https://github.com/ahmetb/go-linq)       | 3.5k           | ❌        | ❌      | ❌           | ✅     |
+| [`rjNemo/underscore`](https://github.com/rjNemo/underscore) | 109            | ✅        | ✅      | ✅           | ❌     |
 
 *\* as of 11/17/24*
-
-[`samber/lo`]: https://github.com/samber/lo
-[`thoas/go-funk`]: https://github.com/thoas/go-funk
-[`ahmetb/go-linq`]: https://github.com/ahmetb/go-linq
-[`rjNemo/underscore`]: https://github.com/rjNemo/underscore
 
 --------------------------------------------------------------------------------------------
 
