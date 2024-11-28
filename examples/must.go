@@ -5,7 +5,7 @@ package main
 import (
 	"fmt"
 	"github.com/binaryphile/fluentfp/fluent"
-	"github.com/binaryphile/fluentfp/hof"
+	"github.com/binaryphile/fluentfp/lof"
 	"github.com/binaryphile/fluentfp/must"
 	"io"
 	"net/http"
@@ -49,7 +49,7 @@ func main() {
 		ToStrings(urlFromID).
 		ToNamed(must.Of(http.Get)).
 		ToString(must.Of(stringFromResponseBody)).
-		Each(hof.Println)
+		Each(lof.Println)
 
 	// show a panic
 	must.BeNil(fmt.Errorf("this will panic"))

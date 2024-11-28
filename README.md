@@ -1,52 +1,61 @@
-
 # FluentFP: Pragmatic Functional Programming in Go
 
-**FluentFP** is a collection of Go packages designed to bring functional programming concepts to Go in a pragmatic, type-safe way. The library is structured into several modules:
+**FluentFP** is a collection of Go packages designed to bring functional programming
+concepts to Go in a pragmatic, type-safe way. The library is structured into several
+modules:
 
-- `fluent`: fluent slices that offer collection methods that chain.
--  `option`: option types that handle optional values to enforce validity checking, enhancing code safety.
-- `must`: functions to consume the error portion of another function's return value, making it friendly to use with collection methods. Other functions relating to panics.
-- `ternary`: a simple, fluent type that implements if-then-else as a method chain, which can significantly contribute to conciseness when used appropriately.
+-   `fluent`: fluent slices that offer collection methods that chain.
+-   `option`: option types that handle optional values to enforce validity checking,
+    enhancing code safety.
+-   `must`: functions to consume the error portion of another function’s return value,
+    making it friendly to use with collection methods. Other functions relating to panics.
+-   `ternary`: a simple, fluent type that implements if-then-else as a method chain, which
+    can significantly contribute to conciseness when used appropriately.
 
 ## Key Features
 
-- **Modular Design**: Each package is designed to be independent, allowing you to use only what you need.
-- **Fluent Method Chaining**: Improve code readability and maintainability by reducing nesting.
-- **Type-Safe Generics**: Leverage Go's generics (Go 1.18+) for compile-time type safety.
-- **Interoperable with Go's idioms**: while functionally-oriented, FluentFP is also made to be used with common Go idioms such as comma-ok option unwrapping and ranging over fluent slices.
+-   **Modular Design**: Each package is designed to be independent, allowing you to use only
+    what you need.
+-   **Fluent Method Chaining**: Improve code readability and maintainability by reducing
+    nesting.
+-   **Type-Safe Generics**: Leverage Go’s generics (Go 1.18+) for compile-time type safety.
+-   **Interoperable with Go’s idioms**: while functionally-oriented, FluentFP is also made
+    to be used with common Go idioms such as comma-ok option unwrapping and ranging over
+    fluent slices.
 
-For details on each package, follow the header link to see the package's README.
+For details on each package, follow the header link to see the package’s README.
 
 ## Installation
 
 To get started with **FluentFP**:
 
-```bash
+``` bash
 go get github.com/binaryphile/fluentfp
 ```
 
 Then import the desired modules:
 
-```go
-import "github.com/binaryphile/practicalfp/fluent"
-import "github.com/binaryphile/practicalfp/option"
+``` go
+import "github.com/binaryphile/fluentfp/fluent"
+import "github.com/binaryphile/fluentfp/option"
 ```
 
 ## Modules Overview
 
 ### 1. [`fluent`](fluent/README.md)
 
-A package providing a fluent interface for common slice operations like filtering, mapping, and more.
+A package providing a fluent interface for common slice operations like filtering, mapping,
+and more.
 
 **Highlights**:
 
-- Fluent method chaining for slices
-- Interchangeable with native slices
-- Simple function arguments without special signatures
+-   Fluent method chaining for slices
+-   Interchangeable with native slices
+-   Simple function arguments without special signatures
 
 **Example**:
 
-```go
+``` go
 words := fluent.SliceOfStrings([]string{"Hello", "", "World"})
 isEmpty := func(s string) bool { return s == "" }
 words.
@@ -56,16 +65,17 @@ words.
 
 ### 2. [`option`](option/README.md)
 
-A package to handle optional values, reducing the need for `nil` checks and enhancing code safety.
+A package to handle optional values, reducing the need for `nil` checks and enhancing code
+safety.
 
 **Highlights**:
 
-- Provides options types for the built-ins such as `option.String`, `option.Int`, etc.
-- Methods like `To[Type]` for mapping and `Or` for extracting a value or alternative.
+-   Provides options types for the built-ins such as `option.String`, `option.Int`, etc.
+-   Methods like `To[Type]` for mapping and `Or` for extracting a value or alternative.
 
 **Example**:
 
-```go
+``` go
 var okString option.String = option.Of("value")
 var Value string = okString.ToString(strings.ToTitle).Or("Default")
 var Default string = option.NotOkString.Or("Default") // predefined not-ok value
@@ -73,16 +83,17 @@ var Default string = option.NotOkString.Or("Default") // predefined not-ok value
 
 ### 3. [`must`](must/README.md)
 
-A package that helps convert functions that return `(T, error)` into functions that panic on error, making them easier to use in fluent chains.
+A package that helps convert functions that return `(T, error)` into functions that panic on
+error, making them easier to use in fluent chains.
 
 **Highlights**:
 
-- Simplifies error handling in fluent expressions
-- Use with caution for scenarios where panics are acceptable
+-   Simplifies error handling in fluent expressions
+-   Use with caution for scenarios where panics are acceptable
 
 **Example**:
 
-```go
+``` go
 must.String(os.ReadFile("config.json")) // Panics if file read fails
 ```
 
@@ -92,14 +103,14 @@ A package that provides a fluent ternary conditional operation for Go.
 
 **Highlights**:
 
-- Readable and concise conditional expressions
-- Uses fluent method chaining for readability
+-   Readable and concise conditional expressions
+-   Uses fluent method chaining for readability
 
 **Example**:
 
-```go
+``` go
 If := ternary.If[string]
-var True string = If(condition).Then("true").Else("false")
+var True string = If(true).Then("true").Else("false")
 ```
 
 ## Contributing
