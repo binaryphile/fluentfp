@@ -88,4 +88,4 @@ func MyFunc() {
 }
 ```
 
-That's pretty much it.
+That's about all there is to it.  `ternary` is a simple tool that can greatly enhance the conciseness and readability of routine code.

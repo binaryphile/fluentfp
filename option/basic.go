@@ -110,7 +110,7 @@ func (b Basic[T]) Or(t T) T {
 	return b.t
 }
 
-// OrCall returns the option's value provided that it is ok, otherwise the result of applying fn to the option's value.
+// OrCall returns the option's value provided that it is ok, otherwise the result of calling fn.
 func (b Basic[T]) OrCall(fn func() T) (_ T) {
 	if !b.ok {
 		return fn()
