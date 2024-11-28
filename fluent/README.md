@@ -120,7 +120,7 @@ here, Go also forces you to waste syntax by discarding a value.
 users.
     KeepIf(User.IsActive).
     ToString(User.Name).
-    Each(hof.Println) // helper from fluentfp/hof
+    Each(lof.Println) // helper from fluentfp/lof
 ```
 
 This is powerful, concise and readable. It reveals intention by relying on clarity and
@@ -128,7 +128,7 @@ simplicity. It is concerned more with stating what things are doing (functional)
 the computer implements them (imperative).
 
 Unfortunately, a rough edge of Go’s type system prevents using `fmt.Println` directly as an
-argument to `Each`, so we’ve substituted a function from the `hof` helper package. It is an
+argument to `Each`, so we’ve substituted a function from the `lof` helper package. It is an
 annoyance that there are such cases with functions that employ variadic arguments or `any`,
 but the end result is still compelling.
 
