@@ -1,4 +1,4 @@
-package hof
+package lof
 
 func _() {
 	_ = Len[int]

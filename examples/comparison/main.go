@@ -8,7 +8,7 @@ import (
 	fpgo "github.com/TeaEntityLab/fpGo/v2"
 	"github.com/ahmetb/go-linq/v3"
 	"github.com/binaryphile/fluentfp/fluent"
-	"github.com/binaryphile/fluentfp/hof"
+	"github.com/binaryphile/fluentfp/lof"
 	"github.com/rbrahul/gofp"
 	"github.com/repeale/fp-go"
 	u "github.com/rjNemo/underscore"
@@ -43,7 +43,7 @@ func main() {
 			names := users.
 				KeepIf(User.IsActive).
 				ToString(User.GetName) // returns fluent.SliceOf[string]
-			names.Each(hof.Println) // helper function from fluentfp/hof
+			names.Each(lof.Println) // helper function from fluentfp/hof
 			return names            // signature converts fluent.SliceOf[string] to []string
 		}
 
@@ -86,7 +86,7 @@ func main() {
 		printActiveNames := func(users []User) []string {
 			actives := funk.Filter(users, User.IsActive).([]User)
 			names := funk.Map(actives, User.GetName).([]string)
-			funk.ForEach(names, hof.Println)
+			funk.ForEach(names, lof.Println)
 			return names
 		}
 
@@ -139,7 +139,7 @@ func main() {
 		printActiveNames := func(users []User) []string {
 			actives := u.Filter(users, User.IsActive)
 			names := u.Map(actives, User.GetName)
-			u.Each(names, hof.Println)
+			u.Each(names, lof.Println)
 			return names
 		}
 

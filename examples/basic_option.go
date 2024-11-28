@@ -1,5 +1,3 @@
-//go:build ignore
-
 package main
 
 import (
@@ -12,7 +10,7 @@ import (
 
 // This is a usage example for option.Basic.
 // Options are containers that either hold a value (ok) or don't (not-ok).
-// option.Basic offers a variety of methods familiar from functional programming, such as map (MapWith).
+// option.Basic offers a variety of operations familiar from functional programming, such as map.
 // While option.Basic is useful on its own, as the name implies,
 // there is a more advanced use case.
 // See advanced_option.go as well.

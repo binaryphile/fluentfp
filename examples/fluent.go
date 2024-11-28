@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/binaryphile/fluentfp/fluent"
-	"github.com/binaryphile/fluentfp/hof"
+	"github.com/binaryphile/fluentfp/lof"
 	"net/http"
 	"slices"
 	"strconv"
@@ -88,7 +88,7 @@ func main() {
 	posts.
 		TakeFirst(3).          // TakeFirst returns a slice of the first n elements
 		ToString(Post.String). // ToString is map to the string built-in type
-		Each(hof.Println)      // Each applies its argument, a function, to each element for its side effects
+		Each(lof.Println)      // Each applies its argument, a function, to each element for its side effects
 	// for comparison to above:
 	//
 	// for i, post := range posts { // again, which form of this? notice it's different this time.
@@ -137,7 +137,7 @@ func main() {
 	first3Titles.
 		ToInt(Title.Len).
 		ToString(strconv.Itoa).
-		Each(hof.Println) // type issues prevent using fmt.Println directly
+		Each(lof.Println) // type issues prevent using fmt.Println directly
 }
 
 // Title type definition
