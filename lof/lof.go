@@ -1,5 +1,5 @@
-// Package hof provides functions usable as arguments to higher-order functions
-package hof
+// Package lof provides lower-order functions for use by higher-order functions.
+package lof
 
 import (
 	"fmt"
