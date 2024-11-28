@@ -57,10 +57,10 @@ and more.
 
 ``` go
 words := fluent.SliceOfStrings([]string{"Hello", "", "World"})
-isEmpty := func(s string) bool { return s == "" }
+stringIsEmpty := func(s string) bool { return s == "" }
 words.
-    RemoveIf(isEmpty).
-    Each(hof.Println) // prints Hello\nWorld
+    RemoveIf(stringIsEmpty).
+    Each(lof.Println) // prints Hello\nWorld
 ```
 
 ### 2. [`option`](option/README.md)
@@ -71,14 +71,14 @@ safety.
 **Highlights**:
 
 -   Provides options types for the built-ins such as `option.String`, `option.Int`, etc.
--   Methods like `To[Type]` for mapping and `Or` for extracting a value or alternative.
+-   Methods of `To[Type]` for mapping and `Or` for extracting a value or alternative.
 
 **Example**:
 
 ``` go
-var okString option.String = option.Of("value")
-var Value string = okString.ToString(strings.ToTitle).Or("Default")
-var Default string = option.NotOkString.Or("Default") // predefined not-ok value
+okStringOption := option.Of("value")
+Value := okStringOption.ToString(strings.ToTitle).Or("Default") // titleize to "Value"
+Default := option.NotOkString.Or("Default") // NotOkString is not-ok instance
 ```
 
 ### 3. [`must`](must/README.md)
@@ -112,10 +112,6 @@ A package that provides a fluent ternary conditional operation for Go.
 If := ternary.If[string]
 var True string = If(true).Then("true").Else("false")
 ```
-
-## Contributing
-
-Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
