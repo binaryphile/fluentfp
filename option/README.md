@@ -150,8 +150,8 @@ value := myOption.MustGet()
 Apply a function to the value (if ok) for its side effect:
 
 ```go
-option.Of("hello world").Call(hof.Println) // print "hello world"
-option.NotOkString.Call(hof.Println) // not called
+option.Of("hello world").Call(lof.Println) // print "hello world"
+option.NotOkString.Call(lof.Println) // not called
 ```
 
 If you have an alternative value such as a default, you can get the value, or the alternative if the value is not-ok:

@@ -10,7 +10,7 @@ func Getenv(key string) String {
 	return IfProvided(result)
 }
 
-func Map[T, U any](b Basic[T], fn func(T) U) (_ Basic[U]) {
+func Map[T, R any](b Basic[T], fn func(T) R) (_ Basic[R]) {
 	if !b.ok {
 		return
 	}

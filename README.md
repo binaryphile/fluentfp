@@ -60,7 +60,7 @@ words := fluent.SliceOfStrings([]string{"Hello", "", "World"})
 isEmpty := func(s string) bool { return s == "" }
 words.
     RemoveIf(isEmpty).
-    Each(hof.Println) // prints Hello\nWorld
+    Each(lof.Println) // prints Hello\nWorld
 ```
 
 ### 2. [`option`](option/README.md)
