@@ -65,7 +65,7 @@ words.
 
 ### 2. [`option`](option/README.md)
 
-A package to handle optional values, reducing the need for `nil` checks and enhancing code
+A package to handle optional values,  enforcing validation before access and thus enhancing code
 safety.
 
 **Highlights**:
@@ -89,12 +89,16 @@ error, making them easier to use in fluent chains.
 **Highlights**:
 
 -   Simplifies error handling in fluent expressions
--   Use with caution for scenarios where panics are acceptable
+-   Use where panics are the correct failure mode
 
 **Example**:
 
 ``` go
-must.String(os.ReadFile("config.json")) // Panics if file read fails
+contents := must.Get(os.ReadFile("config.json")) // Panics if file read fails
+
+// see package fluent
+numbers := fluent.SliceOfStrings([]string{"1", "2"})
+ints := numbers.ToInt(must.Of(strconv.Atoi))
 ```
 
 ### 4. [`ternary`](ternary/README.md)
@@ -110,7 +114,7 @@ A package that provides a fluent ternary conditional operation for Go.
 
 ``` go
 If := ternary.If[string]
-var True string = If(true).Then("true").Else("false")
+True := If(true).Then("true").Else("false")
 ```
 
 ## License
