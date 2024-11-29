@@ -16,9 +16,8 @@ the function you want returns an error along with a value. `must.Of` converts a 
 that returns a value and an error into one that only returns a value:
 
 ``` go
-fluent.SliceOfStrings([]string{"1", "2"}).
-    ToInt(must.Of(strconv.Atoi)).
-    Each(lof.Println)
+symbols := fluent.SliceOfStrings([]string{"1", "2"})
+integers := symbols.ToInt(must.Of(strconv.Atoi))
 ```
 
 `err != nil` checking is verbose. If the correct response to an error is to panic, then
