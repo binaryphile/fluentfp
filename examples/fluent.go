@@ -121,15 +121,15 @@ func main() {
 
 	// A general form of Map must specify the return type as a parameter,
 	// so SliceOf[T] doesn't have enough type parameters to support it.
-	// For this reason, there's an additional type, SliceToNamed.
-	// First, let's change posts to SliceToNamed.
-	type SliceOfPosts = fluent.SliceToNamed[Post, Title] // alias for readability
+	// For this reason, there's an additional type, Mapper.
+	// First, let's change posts to Mapper.
+	type SliceOfPosts = fluent.Mapper[Post, Title] // alias for readability
 	mappablePosts := SliceOfPosts(posts)
 
 	// now map to Title
 	first3Titles := mappablePosts.
 		TakeFirst(3).
-		ToNamed(titleFromPost)
+		ToOther(titleFromPost)
 
 	// we could have done this next bit printing by chaining to the methods above,
 	// but stopping and naming things every few operations is better for clarity

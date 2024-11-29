@@ -49,26 +49,6 @@ func (ts SliceOf[T]) TakeFirst(n int) SliceOf[T] {
 	return ts[:n]
 }
 
-// ToAny returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToAny(fn func(T) any) SliceOf[any] {
-	results := make([]any, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
-// ToAnySlice returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToAnySlice(fn func(T) []any) SliceOf[[]any] {
-	results := make([][]any, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
 // ToBool returns a slice of the results of applying fn to ts.
 func (ts SliceOf[T]) ToBool(fn func(T) bool) SliceOf[bool] {
 	results := make([]bool, len(ts))
@@ -109,26 +89,6 @@ func (ts SliceOf[T]) ToByteSlice(fn func(T) []byte) SliceOf[[]byte] {
 	return results
 }
 
-// ToError returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToError(fn func(T) error) SliceOf[error] {
-	results := make([]error, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
-// ToErrorSlice returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToErrorSlice(fn func(T) []error) SliceOf[[]error] {
-	results := make([][]error, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
 // ToInt returns a slice of the results of applying fn to ts.
 func (ts SliceOf[T]) ToInt(fn func(T) int) SliceOf[int] {
 	results := make([]int, len(ts))
@@ -139,29 +99,9 @@ func (ts SliceOf[T]) ToInt(fn func(T) int) SliceOf[int] {
 	return results
 }
 
-// ToIntSlice returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToIntSlice(fn func(T) []int) SliceOf[[]int] {
-	results := make([][]int, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
 // ToRune returns a slice of the results of applying fn to ts.
 func (ts SliceOf[T]) ToRune(fn func(T) rune) SliceOf[rune] {
 	results := make([]rune, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
-// ToRuneSlice returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToRuneSlice(fn func(T) []rune) SliceOf[[]rune] {
-	results := make([][]rune, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
 	}
@@ -182,16 +122,6 @@ func (ts SliceOf[T]) ToSame(fn func(T) T) SliceOf[T] {
 // ToString returns a slice of the results of applying fn to ts.
 func (ts SliceOf[T]) ToString(fn func(T) string) SliceOf[string] {
 	results := make([]string, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
-// ToStringSlice returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToStringSlice(fn func(T) []string) SliceOf[[]string] {
-	results := make([][]string, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
 	}

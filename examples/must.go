@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// print some posts
-	var ids fluent.SliceToNamed[int, *http.Response] = []int{1, 2}
+	var ids fluent.Mapper[int, *http.Response] = []int{1, 2}
 	ids.
 		ToStrings(urlFromID).
 		ToNamed(must.Of(http.Get)).
