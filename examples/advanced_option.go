@@ -54,12 +54,10 @@ import (
 func main() {
 	// the data in the two databases
 	sourceData := `[{
-	"id": 1,
 	"email": "user1@example.com"
 }]`
 
 	destData := `[{
-	"id": 2,
 	"email": "user2@example.com"
 }]`
 
