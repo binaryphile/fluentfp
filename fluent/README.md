@@ -104,8 +104,7 @@ users := []User{{name: "Ren", active: true}}
 ``` go
 for _, user := range users {
     if user.IsActive() {
-        name := user.Name()
-        fmt.Println(name)
+        fmt.Println(user.Name())
     }
 }
 ```
@@ -162,13 +161,3 @@ in functions that accept indexes, just to discard them.
 ## Usage
 
 --------------------------------------------------------------------------------------------
-
-## Contributing
-
-Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
---------------------------------------------------------------------------------------------
-
-## License
-
-FluentFP is licensed under the MIT License. See [LICENSE](LICENSE) for more details.

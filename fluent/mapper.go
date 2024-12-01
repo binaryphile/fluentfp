@@ -1,8 +1,8 @@
 package fluent
 
-// Mapper is a fluent slice with an additional ToOther method that returns a fluent slice of type R.
-// If you don't need the ToOther method, use fluent.SliceOf instead.
-type Mapper[T any, R any] []T
+// Mapper is a fluent slice with one additional method, ToOther, for mapping to a specified type R.
+// If you don't need to map to an arbitrary type, use SliceOf instead.
+type Mapper[T, R any] []T
 
 // Each applies fn to each member of ts.
 func (ts Mapper[T, R]) Each(fn func(T)) {
@@ -49,7 +49,7 @@ func (ts Mapper[T, R]) TakeFirst(n int) Mapper[T, R] {
 	return ts[:n]
 }
 
-// ToBool returns the results of applying fn to each element of ts.
+// ToBool returns the result of applying fn to each member of ts.
 func (ts Mapper[T, R]) ToBool(fn func(T) bool) Mapper[bool, R] {
 	results := make([]bool, len(ts))
 	for i, t := range ts {
@@ -59,7 +59,7 @@ func (ts Mapper[T, R]) ToBool(fn func(T) bool) Mapper[bool, R] {
 	return results
 }
 
-// ToByte returns the results of applying fn to each element of ts.
+// ToByte returns the result of applying fn to each member of ts.
 func (ts Mapper[T, R]) ToByte(fn func(T) byte) Mapper[byte, R] {
 	results := make([]byte, len(ts))
 	for i, t := range ts {
@@ -69,7 +69,7 @@ func (ts Mapper[T, R]) ToByte(fn func(T) byte) Mapper[byte, R] {
 	return results
 }
 
-// ToError returns the results of applying fn to each element of ts.
+// ToError returns the result of applying fn to each member of ts.
 func (ts Mapper[T, R]) ToError(fn func(T) error) Mapper[error, R] {
 	results := make([]error, len(ts))
 	for i, t := range ts {
@@ -79,7 +79,7 @@ func (ts Mapper[T, R]) ToError(fn func(T) error) Mapper[error, R] {
 	return results
 }
 
-// ToInt returns the results of applying fn to each element of ts.
+// ToInt returns the result of applying fn to each member of ts.
 func (ts Mapper[T, R]) ToInt(fn func(T) int) Mapper[int, R] {
 	results := make([]int, len(ts))
 	for i, t := range ts {
@@ -89,7 +89,7 @@ func (ts Mapper[T, R]) ToInt(fn func(T) int) Mapper[int, R] {
 	return results
 }
 
-// ToOther returns the results of applying fn to each element of ts.
+// ToOther returns the result of applying fn to each member of ts.
 func (ts Mapper[T, R]) ToOther(fn func(T) R) SliceOf[R] {
 	results := make([]R, len(ts))
 	for i, t := range ts {
@@ -99,7 +99,7 @@ func (ts Mapper[T, R]) ToOther(fn func(T) R) SliceOf[R] {
 	return results
 }
 
-// ToRune returns the results of applying fn to each element of ts.
+// ToRune returns the result of applying fn to each member of ts.
 func (ts Mapper[T, R]) ToRune(fn func(T) rune) Mapper[rune, R] {
 	results := make([]rune, len(ts))
 	for i, t := range ts {
@@ -109,7 +109,7 @@ func (ts Mapper[T, R]) ToRune(fn func(T) rune) Mapper[rune, R] {
 	return results
 }
 
-// ToSame returns the results of applying fn to each element of ts.
+// ToSame returns the result of applying fn to each member of ts.
 func (ts Mapper[T, R]) ToSame(fn func(T) T) Mapper[T, R] {
 	results := make([]T, len(ts))
 	for i, t := range ts {
@@ -119,7 +119,7 @@ func (ts Mapper[T, R]) ToSame(fn func(T) T) Mapper[T, R] {
 	return results
 }
 
-// ToString returns the results of applying fn to each element of ts.
+// ToString returns the result of applying fn to each member of ts.
 func (ts Mapper[T, R]) ToString(fn func(T) string) Mapper[string, R] {
 	results := make([]string, len(ts))
 	for i, t := range ts {
