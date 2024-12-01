@@ -59,16 +59,6 @@ func (ts SliceOf[T]) ToBool(fn func(T) bool) SliceOf[bool] {
 	return results
 }
 
-// ToBoolSlice returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToBoolSlice(fn func(T) []bool) SliceOf[[]bool] {
-	results := make([][]bool, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
 // ToByte returns a slice of the results of applying fn to ts.
 func (ts SliceOf[T]) ToByte(fn func(T) byte) SliceOf[byte] {
 	results := make([]byte, len(ts))
@@ -79,9 +69,9 @@ func (ts SliceOf[T]) ToByte(fn func(T) byte) SliceOf[byte] {
 	return results
 }
 
-// ToByteSlice returns a slice of the results of applying fn to ts.
-func (ts SliceOf[T]) ToByteSlice(fn func(T) []byte) SliceOf[[]byte] {
-	results := make([][]byte, len(ts))
+// ToError returns a slice of the results of applying fn to ts.
+func (ts SliceOf[T]) ToError(fn func(T) error) SliceOf[error] {
+	results := make([]error, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
 	}
