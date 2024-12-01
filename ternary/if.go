@@ -27,43 +27,43 @@ func If[R any](condition bool) Ternary[R] {
 }
 
 // Then assigns the value returned by Else or ElseCall when condition is true.
-func (e Ternary[R]) Then(thenValue R) Ternary[R] {
+func (i Ternary[R]) Then(t R) Ternary[R] {
 	return Ternary[R]{
-		condition: e.condition,
-		thenValue: thenValue,
+		condition: i.condition,
+		thenValue: t,
 	}
 }
 
 // ThenCall assigns the value returned by Else or ElseCall when condition is true but defers execution.
-func (e Ternary[R]) ThenCall(thenFunc func() R) Ternary[R] {
+func (i Ternary[R]) ThenCall(thenFunc func() R) Ternary[R] {
 	return Ternary[R]{
-		condition: e.condition,
+		condition: i.condition,
 		thenFunc:  thenFunc,
 	}
 }
 
 // Else returns the then value if condition is true, otherwise elseValue.
-func (e Ternary[R]) Else(elseValue R) R {
-	if e.condition {
-		switch e.thenFunc {
+func (i Ternary[R]) Else(e R) R {
+	if i.condition {
+		switch i.thenFunc {
 		case nil:
-			return e.thenValue
+			return i.thenValue
 		default:
-			return e.thenFunc()
+			return i.thenFunc()
 		}
 	}
 
-	return elseValue
+	return e
 }
 
 // ElseCall returns the then value if condition is true, otherwise elseFunc().
-func (e Ternary[R]) ElseCall(elseFunc func() R) R {
-	if e.condition {
-		switch e.thenFunc {
+func (i Ternary[R]) ElseCall(elseFunc func() R) R {
+	if i.condition {
+		switch i.thenFunc {
 		case nil:
-			return e.thenValue
+			return i.thenValue
 		default:
-			return e.thenFunc()
+			return i.thenFunc()
 		}
 	}
 

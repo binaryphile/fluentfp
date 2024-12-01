@@ -1,5 +1,4 @@
-//go:build ignore
-
+// Package option provides types and functions to work with optional values.
 package option
 
 func _() {
