@@ -21,12 +21,12 @@ import (
 func main() {
 	users := []User{
 		{
-			Name:   "Ren",
-			Active: true,
+			name:   "Ren",
+			active: true,
 		},
 		{
-			Name:   "Stimpy",
-			Active: false,
+			name:   "Stimpy",
+			active: false,
 		},
 	}
 
@@ -42,7 +42,7 @@ func main() {
 		printActiveNames := func(users fluent.SliceOf[User]) []string { // signature automatically converts types
 			names := users.
 				KeepIf(User.IsActive).
-				ToString(User.GetName) // returns fluent.SliceOf[string]
+				ToString(User.Name) // returns fluent.SliceOf[string]
 			names.Each(lof.Println) // helper function from fluentfp/hof
 			return names            // signature converts fluent.SliceOf[string] to []string
 		}
@@ -62,7 +62,7 @@ func main() {
 				return u.IsActive()
 			}
 			getName := func(u User, _ int) string {
-				return u.GetName()
+				return u.Name()
 			}
 			printLn := func(s string, _ int) {
 				fmt.Println(s)
@@ -85,7 +85,7 @@ func main() {
 	{
 		printActiveNames := func(users []User) []string {
 			actives := funk.Filter(users, User.IsActive).([]User)
-			names := funk.Map(actives, User.GetName).([]string)
+			names := funk.Map(actives, User.Name).([]string)
 			funk.ForEach(names, lof.Println)
 			return names
 		}
@@ -105,7 +105,7 @@ func main() {
 				return user.(User).IsActive()
 			}
 			name := func(user any) any {
-				return user.(User).GetName()
+				return user.(User).Name()
 			}
 			printLn := func(a any) {
 				fmt.Println(a)
@@ -138,7 +138,7 @@ func main() {
 	{
 		printActiveNames := func(users []User) []string {
 			actives := u.Filter(users, User.IsActive)
-			names := u.Map(actives, User.GetName)
+			names := u.Map(actives, User.Name)
 			u.Each(names, lof.Println)
 			return names
 		}
@@ -154,7 +154,7 @@ func main() {
 	{
 		printActiveNames := func(users []User) []string {
 			actives := fp.Filter(User.IsActive)(users) // Filter returns a function that is called with a slice
-			names := fp.Map(User.GetName)(actives)     // same for Map
+			names := fp.Map(User.Name)(actives)        // same for Map
 			for _, name := range names {
 				fmt.Println(name)
 			}
@@ -174,7 +174,7 @@ func main() {
 		printActiveNames := func(users []User) []string {
 			userSeq := slices.Values(users)
 			activeSeq := it.Filter(userSeq, User.IsActive)
-			nameSeq := it.Map(activeSeq, User.GetName)
+			nameSeq := it.Map(activeSeq, User.Name)
 			for name := range nameSeq {
 				fmt.Println(name)
 			}
@@ -197,7 +197,7 @@ func main() {
 				return u.IsActive()
 			}
 			actives := fpgo.Filter(userIsActive, users...)
-			names := fpgo.Map(User.GetName, actives...)
+			names := fpgo.Map(User.Name, actives...)
 			for _, name := range names {
 				fmt.Println(name)
 			}
@@ -216,7 +216,7 @@ func main() {
 	{
 		printActiveNames := func(users []User) []string {
 			getName := func(u User) fuego.Any {
-				return u.GetName()
+				return u.Name()
 			}
 			printLn := func(a fuego.Any) {
 				fmt.Println(a)
@@ -253,7 +253,7 @@ func main() {
 				return a.(User).IsActive()
 			}
 			getName := func(_ int, a any) any {
-				return a.(User).GetName()
+				return a.(User).Name()
 			}
 			anyActives := gofp.Filter(anyUsers, userIsActive)
 			anyNames := gofp.Map(anyActives, getName)
@@ -275,14 +275,14 @@ func main() {
 // User definition
 
 type User struct {
-	Active bool
-	Name   string
+	active bool
+	name   string
 }
 
-func (u User) GetName() string {
-	return u.Name
+func (u User) Name() string {
+	return u.name
 }
 
 func (u User) IsActive() bool {
-	return u.Active
+	return u.active
 }

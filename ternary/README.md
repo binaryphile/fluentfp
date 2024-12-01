@@ -96,7 +96,7 @@ func MyFunc() {
 
     first := If(true).Then("first").Else("second") // Else is always required
 }
-ure```
+```
 
 Here we've instantiated the factory with the type `string` and saved it to the variable `If`, which has the added benefit of shortening the name.  Since we are using it for expressiveness in close-quarters, it's important for it to read naturally.
 
