@@ -46,8 +46,8 @@ func main() {
 	// print some posts
 	var ids fluent.Mapper[int, *http.Response] = []int{1, 2}
 	ids.
-		ToStrings(urlFromID).
-		ToNamed(must.Of(http.Get)).
+		ToString(urlFromID).
+		ToOther(must.Of(http.Get)).
 		ToString(must.Of(stringFromResponseBody)).
 		Each(lof.Println)
 
