@@ -68,9 +68,6 @@ Import the package:
 import "github.com/binaryphile/fluentfp/fluent"
 ```
 
-For detailed documentation and examples, see the [project
-page](https://github.com/binaryphile/fluentfp).
-
 --------------------------------------------------------------------------------------------
 
 ## Comparison with Other Libraries
@@ -104,8 +101,7 @@ users := []User{{name: "Ren", active: true}}
 ``` go
 for _, user := range users {
     if user.IsActive() {
-        name := user.Name()
-        fmt.Println(name)
+        fmt.Println(user.Name())
     }
 }
 ```
@@ -135,7 +131,7 @@ but the end result is still compelling.
 **Using `samber/lo`**:
 
 `lo` is the most popular library, with over 17,000 GitHub stars. It is type-safe, but not
-fluent, and doesn’t work with method expressions:
+fluent, and doesn't work with method expressions:
 
 ``` go
 userIsActive := func(u User, _ int) bool {
@@ -161,14 +157,132 @@ in functions that accept indexes, just to discard them.
 
 ## Usage
 
+There are two slice types, `SliceOf[T]` and `Mapper[T, R]`.  If you are only mapping to
+one or more of the built-in types, `SliceOf` is the right choice.
+
+`Mapper[T, R]` is for mapping to any type, usually either your own named type or one from a
+library (a named type is one created with the `type` keyword).  It is the same as `SliceOf`
+but with an additional method, `ToOther`.  `ToOther` maps to R, the return type.
+
+### Creating Fluent Slices of Built-in Types
+
+`fluent.SliceOf[T]` is the primary fluent slice type.  For many of the built-in types, you
+can use a predefined type alias to create a fluent slice:
+
+``` go
+words := fluent.SliceOfStrings([]string{"two", "words"})
+```
+
+These aliases are predefined:
+
+- `SliceOfBools`
+- `SliceOfBytes`
+- `SliceOfErrors`
+- `SliceOfInts`
+- `SliceOfRunes`
+- `SliceOfStrings`
+
+They are type aliases for `fluent.SliceOf[Type]`.
+
+### Creating Fluent Slices of Named Types
+
+Creating a fluent slice of a named type is similar, but there is no predefined type alias:
+
+``` go
+points := fluent.SliceOf[Point]([]Point{{1, 2}, {3, 4}})
+```
+
+When the right-hand-side of the assignment gets harder to read like this, it can be
+helpful to make the declaration explicit instead of a type conversion, since it moves
+some noise to the left of the equals sign:
+
+``` go
+var points fluent.SliceOf[Point] = []Point{{1, 2}, {3, 4}}
+```
+
+Another tack is to create your own type alias, which is useful if you'll be using it
+more than once:
+
+```go
+type SliceOfPoints = fluent.SliceOf[Point]
+points := SliceOfPoints([]Point{{1, 2}, {3, 4}})
+```
+
+### Filtering
+
+`KeepIf` and `RemoveIf` are the filtering methods.  They take a function that returns a
+bool:
+
+``` go
+actives := users.KeepIf(User.IsActive)
+inactives := users.RemoveIf(User.IsActive)
+```
+
+They come as a complementary pair to avoid the need for negation in the function argument:
+
+```go
+compost := fruits.KeepIf(func(f Fruit) bool { return !f.IsEdible() })
+```
+
+### Mapping to Built-in Types
+
+`SliceOf` has methods for mapping to built-in types.  They are named `To[Type]`:
+
+``` go
+names := users.ToString(User.Name)
+```
+
+The following methods are available for mapping to built-in types.  They are available
+on both `SliceOf` and `Mapper`:
+
+- `ToBool`
+- `ToByte`
+- `ToError`
+- `ToInt`
+- `ToRune`
+- `ToString`
+
+If you need a built-in type not listed here, you can use `ToOther` on `Mapper` to map to
+an arbitrary type.
+
+There is also a method for a special case:
+
+- `ToSame`
+
+`ToSame` maps to the same type as the original slice.  It is useful when you are
+transforming members of a slice.
+
+As mentioned, method expressions are very useful.  Any no-argument method on the slice's
+member type that returns a single value can be used for mapping.
+
+### Mapping to Named Types
+
+`Mapper[T, R]` is used for mapping to named types.  It has the same methods as `SliceOf`,
+plus `ToOther`:
+
+``` go
+type DriverMapper = fluent.Mapper[Car, Driver]
+drivers := DriverMapper(cars).ToOther(Car.Driver)
+```
+
+### Iterating for Side Effects
+
+`Each` is the method for iterating over a slice for side effects.  It takes a function that
+returns nothing.  Again, method expressions are useful here, this time ones that don't
+return a value:
+
+``` go
+users.Each(User.Notify)
+```
+
+### Other Methods
+
+`SliceOf` and `Mapper` have a few other methods:
+
+- `Len` -- returns the length of the slice
+- `Empty` -- returns true if the slice is empty
+- `First` -- returns the first element of the slice
+- `Last` -- returns the last element of the slice
+
+
 --------------------------------------------------------------------------------------------
-
-## Contributing
-
-Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
---------------------------------------------------------------------------------------------
-
-## License
-
-FluentFP is licensed under the MIT License. See [LICENSE](LICENSE) for more details.
