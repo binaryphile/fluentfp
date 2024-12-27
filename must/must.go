@@ -22,6 +22,16 @@ func Get[T any](t T, err error) T {
 	return t
 }
 
+// Get2 returns the value of a (value, value, error) set of arguments unless error is non-nil.
+// In that case, it panics.
+func Get2[T, T2 any](t T, t2 T2, err error) (T, T2) {
+	if err != nil {
+		panic(err)
+	}
+
+	return t, t2
+}
+
 // Getenv returns the value in the environment variable named by key.
 // It panics if the environment variable doesn't exist or is empty.
 func Getenv(key string) string {
