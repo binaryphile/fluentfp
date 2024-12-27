@@ -59,6 +59,16 @@ func (ts MapperTo[R, T]) TakeFirst(n int) MapperTo[R, T] {
 	return ts[:n]
 }
 
+// ToAny returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) ToAny(fn func(T) any) MapperTo[R, any] {
+	results := make([]any, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
 // ToBool returns the result of applying fn to each member of ts.
 func (ts MapperTo[R, T]) ToBool(fn func(T) bool) MapperTo[R, bool] {
 	results := make([]bool, len(ts))

@@ -7,8 +7,8 @@ import (
 	"github.com/BooleanCat/go-functional/v2/it"
 	fpgo "github.com/TeaEntityLab/fpGo/v2"
 	"github.com/ahmetb/go-linq/v3"
-	"github.com/binaryphile/fluentfp/fluent"
 	"github.com/binaryphile/fluentfp/lof"
+	"github.com/binaryphile/fluentfp/slice"
 	"github.com/rbrahul/gofp"
 	"github.com/repeale/fp-go"
 	u "github.com/rjNemo/underscore"
@@ -33,21 +33,21 @@ func main() {
 	// Each example prints the user's name if they are active.
 	// Examples return a native slice of names to show interoperability with code that expects slices.
 
-	fmt.Print("github.com/binaryphile/fluentfp/fluent\n")
+	fmt.Print("github.com/binaryphile/fluentfp/slice\n")
 	// fluentfp is the most concise library.
 	// It is type-safe, which aligns with functional principles.
 	// It is fluent, meaning you can chain operations.
 	// It works with method expressions.
 	{
-		printActiveNames := func(users fluent.SliceOf[User]) []string { // signature automatically converts types
+		printActiveNames := func(users slice.Mapper[User]) []string { // signature automatically converts types
 			names := users.
 				KeepIf(User.IsActive).
-				ToString(User.Name) // returns fluent.SliceOf[string]
-			names.Each(lof.Println) // helper function from fluentfp/hof
-			return names            // signature converts fluent.SliceOf[string] to []string
+				ToString(User.Name) // returns slice.Mapper[string]
+			names.Each(lof.Println) // from lower-order function helper package lof
+			return names            // signature converts slice.Mapper[string] to []string
 		}
 
-		_ = printActiveNames(users) // signature converts []User to fluent.SliceOf[User]
+		_ = printActiveNames(users) // signature converts []User to slice.Mapper[User]
 	}
 
 	fmt.Print("\ngithub.com/samber/lo\n")
