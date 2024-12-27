@@ -6,8 +6,8 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
-	"github.com/binaryphile/fluentfp/fluent"
 	"github.com/binaryphile/fluentfp/lof"
+	"github.com/binaryphile/fluentfp/slice"
 	"net/http"
 	"slices"
 	"strconv"
@@ -51,23 +51,23 @@ func main() {
 	// https://go.dev/ref/spec#Assignability
 
 	// create a fluent slice and decode the response into it
-	var posts fluent.SliceOf[Post]            // supply the element type in the declaration
+	var posts slice.Mapper[Post]              // supply the element type in the declaration
 	json.NewDecoder(resp.Body).Decode(&posts) // Decode takes an `any` argument that happens to work with fluent slices
 
 	// There are three names for the map-related methods:
 	//
-	//  - ToSame for returning a slice of the same type as the original
+	//  - Convert for returning a slice of the same type as the original
 	//  - To[Type]s for returning slices of basic built-in types, such as string or int (caveat: not all built-ins are covered)
 	//  - ToNamed for returning a slice of a named type or a built-in not covered by To[Type]s
 	//
-	// Shown here is ToSame since we're making posts from posts.
+	// Shown here is Convert since we're making posts from posts.
 
 	// Frequently, a data source that is managed by others requires input validation and/or normalization.
 	// You can do this easily with fluent slices.
 	// Here we filter out invalid posts and normalize the titles of the rest.
 	posts = posts.
 		KeepIf(Post.IsValid). // KeepIf is a filter implementation
-		ToSame(Post.ToFriendlyPost)
+		Convert(Post.ToFriendlyPost)
 	// Post.ToFriendlyPost takes the usual method receiver (a post in this case)
 	// as its first (and only) regular argument instead.
 	// See https://go.dev/ref/spec#Method_expressions.
@@ -101,7 +101,7 @@ func main() {
 	// print the longest post title in words
 	fmt.Println("\nthe longest post title in words:")
 
-	titles := posts.ToString(Post.GetTitle)
+	titles := posts.ToString(Post.Title)
 	// for comparison to above:
 	//
 	// titles := make([]string, len(posts))
@@ -116,20 +116,20 @@ func main() {
 
 	// we'll use this function in our next example
 	titleFromPost := func(post Post) Title {
-		return Title(post.Title)
+		return Title(post.title)
 	}
 
 	// A general form of Map must specify the return type as a parameter,
 	// so SliceOf[T] doesn't have enough type parameters to support it.
 	// For this reason, there's an additional type, Mapper.
 	// First, let's change posts to Mapper.
-	type SliceOfPosts = fluent.Mapper[Post, Title] // alias for readability
-	mappablePosts := SliceOfPosts(posts)
+	type SliceOf = slice.MapperTo[Title, Post] // alias for readability
+	mappablePosts := SliceOf(posts)
 
 	// now map to Title
 	first3Titles := mappablePosts.
 		TakeFirst(3).
-		ToOther(titleFromPost)
+		To(titleFromPost)
 
 	// we could have done this next bit printing by chaining to the methods above,
 	// but stopping and naming things every few operations is better for clarity
@@ -153,18 +153,18 @@ func (t Title) Len() int {
 
 // Post represents a post from the JSONPlaceholder API.
 type Post struct {
-	ID    int
-	Title string
+	id    int
+	title string
 }
 
-// GetTitle returns the post's title.
-func (p Post) GetTitle() string {
-	return p.Title
+// title returns the post's title.
+func (p Post) Title() string {
+	return p.title
 }
 
-// IsValid returns whether the post ID is positive.
+// IsValid returns whether the post id is positive.
 func (p Post) IsValid() bool {
-	return p.ID > 0
+	return p.id > 0
 }
 
 // String generates a friendly, string version of p suitable for printing to stdout.
@@ -172,13 +172,13 @@ func (p Post) IsValid() bool {
 //
 //	Post ID: 1, Title: sunt aut facere repellat provident
 func (p Post) String() string {
-	return fmt.Sprint("Post ID: ", p.ID, ", Title: ", p.Title)
+	return fmt.Sprint("Post ID: ", p.id, ", Title: ", p.title)
 }
 
 // ToFriendlyPost returns p with title "No title" if its title is blank.
 func (p Post) ToFriendlyPost() Post {
-	if p.Title == "" {
-		p.Title = "No title"
+	if p.title == "" {
+		p.title = "No title"
 	}
 
 	return p

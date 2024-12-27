@@ -1,20 +1,20 @@
 package db
 
-func GetUsers() []User {
+func Users() []User {
 	return []User{
 		{
-			Name: "User One",
+			name: "User One",
 		},
 		{
-			Name: "User Two",
+			name: "User Two",
 		},
 	}
 }
 
 type User struct {
-	Name string
+	name string
 }
 
-func (u User) GetName() string {
-	return u.Name
+func (u User) Name() string {
+	return u.name
 }

@@ -129,8 +129,8 @@ func main() {
 	// Use option.Map instead, it is the generic map function.
 	IntToPost := func(i int) Post {
 		return Post{
-			ID:    i,
-			Title: fmt.Sprintf("Post #%d", i),
+			id:    i,
+			title: fmt.Sprintf("Post #%d", i),
 		}
 	}
 	okPostOption := option.Map(okIntOption, IntToPost)
@@ -160,13 +160,13 @@ func main() {
 
 // Post represents a post from the JSONPlaceholder API.
 type Post struct {
-	ID    int
-	Title string
+	id    int
+	title string
 }
 
-// IsValid returns whether the post ID is positive.
+// IsValid returns whether the post id is positive.
 func (p Post) IsValid() bool {
-	return p.ID > 0
+	return p.id > 0
 }
 
 // String generates a friendly, string version of p suitable for printing to stdout.
@@ -174,10 +174,10 @@ func (p Post) IsValid() bool {
 //
 //	Post ID: 1, Title: sunt aut facere repellat provident
 func (p Post) String() string {
-	return fmt.Sprint("Post ID: ", p.ID, ", Title: ", p.Title)
+	return fmt.Sprint("Post ID: ", p.id, ", Title: ", p.title)
 }
 
 // Helpers
 //////////
 
-func eat[T any](_ ...T) {}
+func eat[T any](...T) {}
