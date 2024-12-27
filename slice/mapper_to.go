@@ -1,11 +1,21 @@
-package fluent
+package slice
 
-// Mapper is a fluent slice with one additional method, ToOther, for mapping to a specified type R.
-// If you don't need to map to an arbitrary type, use SliceOf instead.
-type Mapper[T, R any] []T
+// MapperTo is a fluent slice with one additional method, To, for mapping to a specified type R.
+// If you don't need to map to an arbitrary type, use Mapper instead.
+type MapperTo[R, T any] []T
+
+// Convert returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) Convert(fn func(T) T) MapperTo[R, T] {
+	results := make([]T, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
 
 // Each applies fn to each member of ts.
-func (ts Mapper[T, R]) Each(fn func(T)) {
+func (ts MapperTo[R, T]) Each(fn func(T)) {
 	for _, t := range ts {
 		fn(t)
 	}
@@ -13,7 +23,7 @@ func (ts Mapper[T, R]) Each(fn func(T)) {
 
 // KeepIf returns a new slice containing the members of ts for which fn returns true.
 // It is the complement of RemoveIf.
-func (ts Mapper[T, R]) KeepIf(fn func(T) bool) Mapper[T, R] {
+func (ts MapperTo[R, T]) KeepIf(fn func(T) bool) MapperTo[R, T] {
 	results := make([]T, 0, len(ts))
 	for _, t := range ts {
 		if fn(t) {
@@ -24,13 +34,13 @@ func (ts Mapper[T, R]) KeepIf(fn func(T) bool) Mapper[T, R] {
 }
 
 // Len returns the length of the slice.
-func (ts Mapper[T, R]) Len() int {
+func (ts MapperTo[T, R]) Len() int {
 	return len(ts)
 }
 
 // RemoveIf returns a new slice containing members for which fn returns false.
 // It is the complement of KeepIf.
-func (ts Mapper[T, R]) RemoveIf(fn func(T) bool) Mapper[T, R] {
+func (ts MapperTo[R, T]) RemoveIf(fn func(T) bool) MapperTo[R, T] {
 	results := make([]T, 0, len(ts))
 	for _, t := range ts {
 		if !fn(t) {
@@ -41,7 +51,7 @@ func (ts Mapper[T, R]) RemoveIf(fn func(T) bool) Mapper[T, R] {
 }
 
 // TakeFirst returns the first n members of ts.
-func (ts Mapper[T, R]) TakeFirst(n int) Mapper[T, R] {
+func (ts MapperTo[R, T]) TakeFirst(n int) MapperTo[R, T] {
 	if n > len(ts) {
 		n = len(ts)
 	}
@@ -49,8 +59,18 @@ func (ts Mapper[T, R]) TakeFirst(n int) Mapper[T, R] {
 	return ts[:n]
 }
 
+// ToAny returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) ToAny(fn func(T) any) MapperTo[R, any] {
+	results := make([]any, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
 // ToBool returns the result of applying fn to each member of ts.
-func (ts Mapper[T, R]) ToBool(fn func(T) bool) Mapper[bool, R] {
+func (ts MapperTo[R, T]) ToBool(fn func(T) bool) MapperTo[R, bool] {
 	results := make([]bool, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
@@ -60,7 +80,7 @@ func (ts Mapper[T, R]) ToBool(fn func(T) bool) Mapper[bool, R] {
 }
 
 // ToByte returns the result of applying fn to each member of ts.
-func (ts Mapper[T, R]) ToByte(fn func(T) byte) Mapper[byte, R] {
+func (ts MapperTo[R, T]) ToByte(fn func(T) byte) MapperTo[R, byte] {
 	results := make([]byte, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
@@ -70,7 +90,7 @@ func (ts Mapper[T, R]) ToByte(fn func(T) byte) Mapper[byte, R] {
 }
 
 // ToError returns the result of applying fn to each member of ts.
-func (ts Mapper[T, R]) ToError(fn func(T) error) Mapper[error, R] {
+func (ts MapperTo[R, T]) ToError(fn func(T) error) MapperTo[R, error] {
 	results := make([]error, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
@@ -80,7 +100,7 @@ func (ts Mapper[T, R]) ToError(fn func(T) error) Mapper[error, R] {
 }
 
 // ToInt returns the result of applying fn to each member of ts.
-func (ts Mapper[T, R]) ToInt(fn func(T) int) Mapper[int, R] {
+func (ts MapperTo[R, T]) ToInt(fn func(T) int) MapperTo[R, int] {
 	results := make([]int, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
@@ -89,8 +109,8 @@ func (ts Mapper[T, R]) ToInt(fn func(T) int) Mapper[int, R] {
 	return results
 }
 
-// ToOther returns the result of applying fn to each member of ts.
-func (ts Mapper[T, R]) ToOther(fn func(T) R) SliceOf[R] {
+// To returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) To(fn func(T) R) Mapper[R] {
 	results := make([]R, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
@@ -100,7 +120,7 @@ func (ts Mapper[T, R]) ToOther(fn func(T) R) SliceOf[R] {
 }
 
 // ToRune returns the result of applying fn to each member of ts.
-func (ts Mapper[T, R]) ToRune(fn func(T) rune) Mapper[rune, R] {
+func (ts MapperTo[R, T]) ToRune(fn func(T) rune) MapperTo[R, rune] {
 	results := make([]rune, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
@@ -109,18 +129,8 @@ func (ts Mapper[T, R]) ToRune(fn func(T) rune) Mapper[rune, R] {
 	return results
 }
 
-// ToSame returns the result of applying fn to each member of ts.
-func (ts Mapper[T, R]) ToSame(fn func(T) T) Mapper[T, R] {
-	results := make([]T, len(ts))
-	for i, t := range ts {
-		results[i] = fn(t)
-	}
-
-	return results
-}
-
 // ToString returns the result of applying fn to each member of ts.
-func (ts Mapper[T, R]) ToString(fn func(T) string) Mapper[string, R] {
+func (ts MapperTo[R, T]) ToString(fn func(T) string) MapperTo[R, string] {
 	results := make([]string, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
