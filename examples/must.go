@@ -4,9 +4,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/binaryphile/fluentfp/fluent"
 	"github.com/binaryphile/fluentfp/lof"
 	"github.com/binaryphile/fluentfp/must"
+	"github.com/binaryphile/fluentfp/slice"
 	"io"
 	"net/http"
 	"os"
@@ -44,10 +44,10 @@ func main() {
 	}
 
 	// print some posts
-	var ids fluent.Mapper[int, *http.Response] = []int{1, 2}
+	var ids slice.MapperTo[*http.Response, int] = []int{1, 2}
 	ids.
 		ToString(urlFromID).
-		ToOther(must.Of(http.Get)).
+		To(must.Of(http.Get)).
 		ToString(must.Of(stringFromResponseBody)).
 		Each(lof.Println)
 

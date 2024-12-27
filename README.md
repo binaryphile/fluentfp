@@ -4,7 +4,7 @@
 concepts to Go in a pragmatic, type-safe way. The library is structured into several
 modules:
 
--   `fluent`: fluent slices that offer collection methods that chain.
+-   `slice`: fluent slices that offer collection methods that chain.
 -   `option`: option types that handle optional values to enforce validity checking,
     enhancing code safety.
 -   `must`: functions to consume the error portion of another function’s return value,
@@ -36,13 +36,13 @@ go get github.com/binaryphile/fluentfp
 Then import the desired modules:
 
 ``` go
-import "github.com/binaryphile/fluentfp/fluent"
 import "github.com/binaryphile/fluentfp/option"
+import "github.com/binaryphile/fluentfp/slice"
 ```
 
 ## Modules Overview
 
-### 1. [`fluent`](fluent/README.md)
+### 1. [`slice`](slice/README.md)
 
 A package providing a fluent interface for common slice operations like filtering, mapping,
 and more.
@@ -56,7 +56,7 @@ and more.
 **Example**:
 
 ``` go
-words := fluent.SliceOfStrings([]string{"Hello", "", "World"})
+words := slice.Of([]string{"Hello", "", "World"})
 stringIsEmpty := func(s string) bool { return s == "" }
 words.
     RemoveIf(stringIsEmpty).
@@ -70,7 +70,7 @@ safety.
 
 **Highlights**:
 
--   Provides options types for the built-ins such as `option.String`, `option.Int`, etc.
+-   Provides option types for the built-ins such as `option.String`, `option.Int`, etc.
 -   Methods of `To[Type]` for mapping and `Or` for extracting a value or alternative.
 
 **Example**:
@@ -96,8 +96,8 @@ error, making them easier to use in fluent chains.
 ``` go
 contents := must.Get(os.ReadFile("config.json")) // Panics if file read fails
 
-// see package fluent
-numbers := fluent.SliceOfStrings([]string{"1", "2"})
+// see package slice
+numbers := slice.Of([]string{"1", "2"})
 ints := numbers.ToInt(must.Of(strconv.Atoi))
 ```
 
