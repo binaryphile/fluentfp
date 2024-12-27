@@ -70,6 +70,56 @@ import "github.com/binaryphile/fluentfp/fluent"
 
 --------------------------------------------------------------------------------------------
 
+## A Real-World Example
+
+Here is an example of code to convert a `Rows` result from the standard library `sql` package into a slice of rows, where a row is type `[]any`.
+
+```sql
+func SliceFromSQLRows(rows *sql.Rows) (_ [][]any, err error) {
+	// get columns to know how many values to scan
+	columns, err := rows.Columns()
+	if err != nil {
+		return    // returns err because (_ [][]any , err error) defined above
+	}
+
+	// results is the final return value
+	var results [][]any
+	
+	// make a reusable slice to hold current row values, use length from columns
+	// fluent.AnySlice has []any underlaid, so make can create it directly
+	row := make(fluent.AnySlice, len(columns))
+
+	// make a slice of pointers to the values in the first slice by
+	// mapping over row with a function that makes pointers for each element,
+	// but where the type of the resulting slice is []any, not []*any.
+	toPointerAsAnyFromAny := func(a any) any { return &a }
+	pointerRow := row.Convert(toPointerAsAnyFromAny)    // Convert maps to the same type
+
+	// iterate over rows, scanning and copying the resulting values
+	for rows.Next() {
+	    // feed pointer row to Scan as variadic args
+		err = rows.Scan(pointerRow...)
+		if err != nil {
+			return
+		}
+
+		// copy the values out of the reusable slice.
+		// use row, not pointerRow, because the values are scanned there.
+		// the second append creates a []any copy of row.
+		results = append(results, append([]any{}, row...))
+	}
+	
+	// check for errors in the iteration
+	if err = rows.Err(); err != nil {
+		return
+	}
+
+	return results, nil
+}
+```
+
+---
+
 ## Comparison with Other Libraries
 
 Below is a comparison of fluent with the collection operations of other popular FP libraries
@@ -77,12 +127,12 @@ in Go. See [../examples/comparison/main.go](../examples/comparison/main.go) for 
 with nine other libraries.
 
 | Library                                                     | Github Stars\* | Type-Safe | Concise | Method Exprs | Fluent |
-|-----------------------------------------------|------------|----------|--------|-----------|-------|
-| binaryphile/fluentfp                                        | 1              | ✅        | ✅      | ✅           | ✅     |
-| [`samber/lo`](https://github.com/samber/lo)                 | 17.9k          | ✅        | ❌      | ❌           | ❌     |
-| [`thoas/go-funk`](https://github.com/thoas/go-funk)         | 4.8k           | ❌        | ✅      | ✅           | ❌     |
-| [`ahmetb/go-linq`](https://github.com/ahmetb/go-linq)       | 3.5k           | ❌        | ❌      | ❌           | ✅     |
-| [`rjNemo/underscore`](https://github.com/rjNemo/underscore) | 109            | ✅        | ✅      | ✅           | ❌     |
+| ----------------------------------------------------------- | -------------- | --------- | ------- | ------------ | ------ |
+| binaryphile/fluentfp                                        | 1              | ✅         | ✅       | ✅            | ✅      |
+| [`samber/lo`](https://github.com/samber/lo)                 | 17.9k          | ✅         | ❌       | ❌            | ❌      |
+| [`thoas/go-funk`](https://github.com/thoas/go-funk)         | 4.8k           | ❌         | ✅       | ✅            | ❌      |
+| [`ahmetb/go-linq`](https://github.com/ahmetb/go-linq)       | 3.5k           | ❌         | ❌       | ❌            | ✅      |
+| [`rjNemo/underscore`](https://github.com/rjNemo/underscore) | 109            | ✅         | ✅       | ✅            | ❌      |
 
 *\* as of 11/17/24*
 
