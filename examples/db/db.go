@@ -2,12 +2,8 @@ package db
 
 func Users() []User {
 	return []User{
-		{
-			name: "User One",
-		},
-		{
-			name: "User Two",
-		},
+		{name: "User One"},
+		{name: "User Two"},
 	}
 }
 
