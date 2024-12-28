@@ -39,8 +39,8 @@ func main() {
 	// It is fluent, meaning you can chain operations.
 	// It works with method expressions.
 	{
-		printActiveNames := func(users slice.Mapper[User]) []string { // signature automatically converts types
-			names := users.
+		printActiveNames := func(users []User) []string { // signature automatically converts types
+			names := slice.Of(users).
 				KeepIf(User.IsActive).
 				ToString(User.Name) // returns slice.Mapper[string]
 			names.Each(lof.Println) // from lower-order function helper package lof

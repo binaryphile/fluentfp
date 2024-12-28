@@ -72,49 +72,48 @@ import "github.com/binaryphile/fluentfp/fluent"
 
 ## A Real-World Example
 
-Here is an example of code to convert a `Rows` result from the standard library `sql` package into a slice of rows, where a row is type `[]any`.
+Here is an example of code to convert a `*sql.Rows` result from the standard library `sql` 
+package into a slice of `Row`s, where a `Row` is a type alias for `[]any`.
 
-```sql
-func SliceFromSQLRows(rows *sql.Rows) (_ [][]any, err error) {
+```go
+type Row = []any
+
+func RowsFromSQLRows(sqlRows *sql.Rows) (_ []Row, err error) {
 	// get columns to know how many values to scan
-	columns, err := rows.Columns()
+	columns, err := sqlRows.Columns()
 	if err != nil {
-		return    // returns err because (_ [][]any , err error) defined above
+		return    // returns err because (_ []Row, err error) defined above
 	}
 
-	// results is the final return value
-	var results [][]any
-	
-	// make a reusable slice to hold current row values, use length from columns
-	// fluent.AnySlice has []any underlaid, so make can create it directly
-	row := make(fluent.AnySlice, len(columns))
+	// rows is the final return value
+	var rows []Row
 
-	// make a slice of pointers to the values in the first slice by
-	// mapping over row with a function that makes pointers for each element,
-	// but where the type of the resulting slice is []any, not []*any.
-	toPointerAsAnyFromAny := func(a any) any { return &a }
-	pointerRow := row.Convert(toPointerAsAnyFromAny)    // Convert maps to the same type
+	// make a reusable slice to hold current row values, use length from columns
+	// slice.Any has []any underneath, so make can create it directly
+	row := make(slice.Any, len(columns)) // reusable slice to hold current row values
+	pointerRow := make([]any, len(columns)) // pointers as a slice of anys so we can pass to Scan
+
+	// make a slice of pointers to the values in the first slice
+	for i := range row {
+		pointerRow[i] = &row[i]
+	}
 
 	// iterate over rows, scanning and copying the resulting values
-	for rows.Next() {
+	for sqlRows.Next() {
 	    // feed pointer row to Scan as variadic args
 		err = rows.Scan(pointerRow...)
 		if err != nil {
 			return
 		}
 
-		// copy the values out of the reusable slice.
-		// use row, not pointerRow, because the values are scanned there.
-		// the second append creates a []any copy of row.
-		results = append(results, append([]any{}, row...))
+		rows = append(rows, append([]any{}, row...)) // append a copy of row to rows
 	}
-	
 	// check for errors in the iteration
-	if err = rows.Err(); err != nil {
+	if err = sqlRows.Err(); err != nil {
 		return
 	}
 
-	return results, nil
+	return rows, nil
 }
 ```
 
@@ -162,8 +161,10 @@ here, Go also forces you to waste syntax by discarding a value.
 
 **Using FluentFP**:
 
+`users` is a regular slice:
+
 ``` go
-users.
+slice.Of(users).
     KeepIf(User.IsActive).
     ToString(User.Name).
     Each(lof.Println) // helper from fluentfp/lof
@@ -201,61 +202,66 @@ lo.ForEach(names, printLn)
 As you can see, `lo` is not concise, requiring many more lines of code. The non-fluent style
 requires employing intermediate variables to keep things readable. `Map` and `Filter` pass
 indexes to their argument, meaning that you have to wrap the `IsActive` and `Name` methods
-in functions that accept indexes, just to discard them.
+in functions that accept indexes, just to discard those indexes.
 
 --------------------------------------------------------------------------------------------
 
 ## Usage
 
-There are two slice types, `SliceOf[T]` and `Mapper[T, R]`.  If you are only mapping to
-one or more of the built-in types, `SliceOf` is the right choice.
+There are two slice types, `Mapper[T any]` and `MapperTo[R, T any]`.  If you are only
+mapping to one or more of the built-in types, `Mapper` is the right choice.
 
-`Mapper[T, R]` is for mapping to any type, usually either your own named type or one from a
-library (a named type is one created with the `type` keyword).  It is the same as `SliceOf`
-but with an additional method, `ToOther`.  `ToOther` maps to R, the return type.
+`MapperTo[R, T]` is for mapping to any type, usually either your own named type or one from
+a library (a named type is one created with the `type` keyword).  It is the same as `Mapper`
+but with an additional method, `To`.  `To` maps to R, the return type.
 
 ### Creating Fluent Slices of Built-in Types
 
-`fluent.SliceOf[T]` is the primary fluent slice type.  For many of the built-in types, you
-can use a predefined type alias to create a fluent slice:
+`Mapper[T]` is the primary fluent slice type.  You can use the `slice.Of` function to
+create a fluent slice:
 
 ``` go
-words := fluent.SliceOfStrings([]string{"two", "words"})
+words := slice.Of([]string{"two", "words"})
 ```
 
-These aliases are predefined:
-
-- `SliceOfBools`
-- `SliceOfBytes`
-- `SliceOfErrors`
-- `SliceOfInts`
-- `SliceOfRunes`
-- `SliceOfStrings`
-
-They are type aliases for `fluent.SliceOf[Type]`.
-
-### Creating Fluent Slices of Named Types
-
-Creating a fluent slice of a named type is similar, but there is no predefined type alias:
+To allocate a slice of defined size, `make` accepts a fluent slice type:
 
 ``` go
-points := fluent.SliceOf[Point]([]Point{{1, 2}, {3, 4}})
+words := make(slice.String, 0, 10)
 ```
 
-When the right-hand-side of the assignment gets harder to read like this, it can be
-helpful to make the declaration explicit instead of a type conversion, since it moves
-some noise to the left of the equals sign:
+You could have used `slice.Mapper[string]` rather than `slice.String` above, but
+there are several predefined type aliases for built-in types to keep the basic ones
+readable:
 
-``` go
-var points fluent.SliceOf[Point] = []Point{{1, 2}, {3, 4}}
-```
+- `slice.Any`
+- `slice.Bool`
+- `slice.Byte`
+- `slice.Error`
+- `slice.Int`
+- `slice.Rune`
+- `slice.String`
 
-Another tack is to create your own type alias, which is useful if you'll be using it
-more than once:
+To create a slice mappable to an arbitrary type, use the function `slice.MapsTo[R]`, rather
+than `slice.Of`.  For example, to create a slice of strings mappable to a `User` type:
 
 ```go
-type SliceOfPoints = fluent.SliceOf[Point]
-points := SliceOfPoints([]Point{{1, 2}, {3, 4}})
+emails := []string{"user1@example.com", "user2@example.com"}
+users := slice.MapsTo[User](emails).To(UserFromEmail) // UserFromEmail not shown
+```
+
+### Creating Fluent Slices of Arbitrary Types
+
+Creating a fluent slice of an arbitrary type is similar:
+
+``` go
+points := slice.Of([]Point{{1, 2}, {3, 4}})
+```
+
+But there are no predefined aliases to use with `make`:
+
+```go
+points := make(slice.Mapper[Point], 0, 10)
 ```
 
 ### Filtering
@@ -268,23 +274,26 @@ actives := users.KeepIf(User.IsActive)
 inactives := users.RemoveIf(User.IsActive)
 ```
 
-They come as a complementary pair to avoid the need for negation in the function argument:
+They come as a complementary pair to avoid the need for negation in the lower-order
+function, otherwise the formerly-short `inactives` assignment above would have to look like
+this:
 
 ```go
-compost := fruits.KeepIf(func(f Fruit) bool { return !f.IsEdible() })
+inactives := users.KeepIf(func(u User) bool { return !u.IsActive() })
 ```
 
 ### Mapping to Built-in Types
 
-`SliceOf` has methods for mapping to built-in types.  They are named `To[Type]`:
+`Mapper` has methods for mapping to built-in types.  They are named `To[Type]`:
 
 ``` go
 names := users.ToString(User.Name)
 ```
 
 The following methods are available for mapping to built-in types.  They are available
-on both `SliceOf` and `Mapper`:
+on both `Mapper` and `MapperTo`:
 
+- `ToAny`
 - `ToBool`
 - `ToByte`
 - `ToError`
@@ -292,27 +301,22 @@ on both `SliceOf` and `Mapper`:
 - `ToRune`
 - `ToString`
 
-If you need a built-in type not listed here, you can use `ToOther` on `Mapper` to map to
-an arbitrary type.
+There is also a method for a special case, `Convert`. It maps to the same type as the
+original slice.
 
-There is also a method for a special case:
-
-- `ToSame`
-
-`ToSame` maps to the same type as the original slice.  It is useful when you are
-transforming members of a slice.
+If you need a built-in type not listed here, you can use the `To` method on `MapperTo` to
+map to an arbitrary type.
 
 As mentioned, method expressions are very useful.  Any no-argument method on the slice's
 member type that returns a single value can be used for mapping.
 
 ### Mapping to Named Types
 
-`Mapper[T, R]` is used for mapping to named types.  It has the same methods as `SliceOf`,
-plus `ToOther`:
+`MapperTo[R, T]` is used for mapping to named types.  It has the same methods as `Mapper`,
+plus a `To` method:
 
 ``` go
-type DriverMapper = fluent.Mapper[Car, Driver]
-drivers := DriverMapper(cars).ToOther(Car.Driver)
+drivers := slice.MapsTo[Driver](cars).To(Car.Driver)
 ```
 
 ### Iterating for Side Effects
@@ -324,15 +328,3 @@ return a value:
 ``` go
 users.Each(User.Notify)
 ```
-
-### Other Methods
-
-`SliceOf` and `Mapper` have a few other methods:
-
-- `Len` -- returns the length of the slice
-- `Empty` -- returns true if the slice is empty
-- `First` -- returns the first element of the slice
-- `Last` -- returns the last element of the slice
-
-
---------------------------------------------------------------------------------------------
