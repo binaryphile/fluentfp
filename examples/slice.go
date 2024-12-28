@@ -32,7 +32,7 @@ func main() {
 
 	// A fluent slice is a named type with an underlying type of slice,
 	// so it usable in all the same ways as slice.
-	// Its definition is `type SliceOf[T comparable] []T`.
+	// Its definition is `type Mapper[T any] []T`.
 	// The slice is also automatically converted between a regular slice and fluent slice
 	// as you assign it to a variable of one type or the other.
 	// That includes supplying them as arguments to function calls.
@@ -58,7 +58,7 @@ func main() {
 	//
 	//  - Convert for returning a slice of the same type as the original
 	//  - To[Type]s for returning slices of basic built-in types, such as string or int (caveat: not all built-ins are covered)
-	//  - ToNamed for returning a slice of a named type or a built-in not covered by To[Type]s
+	//  - To for returning a slice of a named type or a built-in not covered by To[Type]s
 	//
 	// Shown here is Convert since we're making posts from posts.
 
@@ -101,7 +101,7 @@ func main() {
 	// print the longest post title in words
 	fmt.Println("\nthe longest post title in words:")
 
-	titles := posts.ToString(Post.Title)
+	titles := posts.ToString(Post.GetTitle)
 	// for comparison to above:
 	//
 	// titles := make([]string, len(posts))
@@ -116,23 +116,16 @@ func main() {
 
 	// we'll use this function in our next example
 	titleFromPost := func(post Post) Title {
-		return Title(post.title)
+		return Title(post.Title)
 	}
 
-	// A general form of Map must specify the return type as a parameter,
-	// so SliceOf[T] doesn't have enough type parameters to support it.
-	// For this reason, there's an additional type, Mapper.
-	// First, let's change posts to Mapper.
-	type SliceOf = slice.MapperTo[Title, Post] // alias for readability
-	mappablePosts := SliceOf(posts)
-
-	// now map to Title
-	first3Titles := mappablePosts.
+	// A Mapper[T] only has one type parameter, the type of the elements, so it can't map to an arbitrary type.
+	// For this reason, there's an additional type, MapperTo[R, T], where R is the return type of the method To.
+	// The MapsTo function creates a MapperTo from a slice.
+	first3Titles := slice.MapsTo[Title](posts).
 		TakeFirst(3).
 		To(titleFromPost)
 
-	// we could have done this next bit printing by chaining to the methods above,
-	// but stopping and naming things every few operations is better for clarity
 	fmt.Println("\ntitle lengths in characters of the first three posts:")
 	first3Titles.
 		ToInt(Title.Len).
@@ -153,18 +146,18 @@ func (t Title) Len() int {
 
 // Post represents a post from the JSONPlaceholder API.
 type Post struct {
-	id    int
-	title string
+	ID    int
+	Title string
 }
 
-// title returns the post's title.
-func (p Post) Title() string {
-	return p.title
+// GetTitle returns the post's title.
+func (p Post) GetTitle() string {
+	return p.Title
 }
 
 // IsValid returns whether the post id is positive.
 func (p Post) IsValid() bool {
-	return p.id > 0
+	return p.ID > 0
 }
 
 // String generates a friendly, string version of p suitable for printing to stdout.
@@ -172,13 +165,13 @@ func (p Post) IsValid() bool {
 //
 //	Post ID: 1, Title: sunt aut facere repellat provident
 func (p Post) String() string {
-	return fmt.Sprint("Post ID: ", p.id, ", Title: ", p.title)
+	return fmt.Sprint("Post ID: ", p.ID, ", Title: ", p.Title)
 }
 
 // ToFriendlyPost returns p with title "No title" if its title is blank.
 func (p Post) ToFriendlyPost() Post {
-	if p.title == "" {
-		p.title = "No title"
+	if p.Title == "" {
+		p.Title = "No title"
 	}
 
 	return p
