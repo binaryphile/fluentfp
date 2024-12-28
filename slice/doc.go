@@ -2,7 +2,7 @@
 //
 // Mapper[T] is a fluent slice that can chain operations like ToString (map), KeepIf (filter), etc.
 //
-// MapperTo[T, R] is a fluent slice with one additional method, To, for mapping to a specified type R.
+// MapperTo[T, R] is a fluent slice with one additional method, MapsTo, for mapping to a specified type R.
 // If you don't need to map to an arbitrary type, use Mapper instead.
 package slice
 
