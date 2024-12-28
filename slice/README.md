@@ -70,55 +70,6 @@ import "github.com/binaryphile/fluentfp/fluent"
 
 --------------------------------------------------------------------------------------------
 
-## A Real-World Example
-
-Here is an example of code to convert a `*sql.Rows` result from the standard library `sql` 
-package into a slice of `Row`s, where a `Row` is a type alias for `[]any`.
-
-```go
-type Row = []any
-
-func RowsFromSQLRows(sqlRows *sql.Rows) (_ []Row, err error) {
-	// get columns to know how many values to scan
-	columns, err := sqlRows.Columns()
-	if err != nil {
-		return    // returns err because (_ []Row, err error) defined above
-	}
-
-	// rows is the final return value
-	var rows []Row
-
-	// make a reusable slice to hold current row values, use length from columns
-	// slice.Any has []any underneath, so make can create it directly
-	row := make(slice.Any, len(columns)) // reusable slice to hold current row values
-	pointerRow := make([]any, len(columns)) // pointers as a slice of anys so we can pass to Scan
-
-	// make a slice of pointers to the values in the first slice
-	for i := range row {
-		pointerRow[i] = &row[i]
-	}
-
-	// iterate over rows, scanning and copying the resulting values
-	for sqlRows.Next() {
-	    // feed pointer row to Scan as variadic args
-		err = rows.Scan(pointerRow...)
-		if err != nil {
-			return
-		}
-
-		rows = append(rows, append([]any{}, row...)) // append a copy of row to rows
-	}
-	// check for errors in the iteration
-	if err = sqlRows.Err(); err != nil {
-		return
-	}
-
-	return rows, nil
-}
-```
-
----
-
 ## Comparison with Other Libraries
 
 Below is a comparison of fluent with the collection operations of other popular FP libraries
