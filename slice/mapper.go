@@ -4,7 +4,7 @@ package slice
 // Its underlying type is []T.
 type Mapper[T any] []T
 
-func Of[T any](ts []T) Mapper[T] {
+func From[T any](ts []T) Mapper[T] {
 	return ts
 }
 

@@ -2,15 +2,15 @@
 package option
 
 func _() {
-	_ = (Basic[bool]{}).Get
-	_ = (Basic[bool]{}).IsOk
-	_ = (Basic[bool]{}).MustGet
-	_ = (Basic[bool]{}).Or
-	_ = (Basic[bool]{}).OrCall
-	_ = (Basic[bool]{}).OrEmpty
-	_ = (Basic[bool]{}).OrFalse
-	_ = (Basic[bool]{}).OrZero
-	_ = (Basic[bool]{}).ToOpt
+	_ = Basic[int].Get
+	_ = Basic[int].IsOk
+	_ = Basic[int].MustGet
+	_ = Basic[int].Or
+	_ = Basic[int].OrCall
+	_ = Basic[int].OrEmpty
+	_ = Basic[int].OrFalse
+	_ = Basic[int].OrZero
+	_ = Basic[int].ToOpt
 
 	type _ = Any
 	type _ = Bool
@@ -20,12 +20,12 @@ func _() {
 	type _ = Rune
 	type _ = String
 
-	_ = FromOpt[bool]
+	_ = FromOpt[int]
 	_ = Getenv("")
-	_ = IfProvided[bool]
-	_ = Map(Basic[bool]{}, func(bool) bool { return true })
-	_ = New[bool]
-	_ = Of[bool]
+	_ = IfProvided[int]
+	_ = Map(Basic[int]{}, func(int) int { return 0 })
+	_ = New[int]
+	_ = Of[int]
 
 	_ = NotOkAny
 	_ = NotOkBool

@@ -1,5 +1,6 @@
 package pair
 
 func _() {
-	_ = New[int, int]
+	_ = Of[int, int]
+	_ = Zip[int, int]
 }
