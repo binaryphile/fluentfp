@@ -7,6 +7,8 @@
 package slice
 
 func _() {
+	_ = From[int]
+
 	_ = Mapper[int].Each
 	_ = Mapper[int].KeepIf
 	_ = Mapper[int].Len
