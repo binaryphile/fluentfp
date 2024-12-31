@@ -113,7 +113,7 @@ func (ts MapperTo[R, T]) ToInt(fn func(T) int) MapperTo[R, int] {
 	return results
 }
 
-// MapTo returns the result of applying fn to each member of ts.
+// To returns the result of applying fn to each member of ts.
 func (ts MapperTo[R, T]) To(fn func(T) R) Mapper[R] {
 	results := make([]R, len(ts))
 	for i, t := range ts {
