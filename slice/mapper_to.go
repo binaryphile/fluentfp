@@ -1,10 +1,10 @@
 package slice
 
-// MapperTo is a fluent slice with one additional method, MapsTo, for mapping to a specified type R.
+// MapperTo is a fluent slice with one additional method, MapTo, for mapping to a specified type R.
 // If you don't need to map to an arbitrary type, use Mapper instead.
 type MapperTo[R, T any] []T
 
-func MapsTo[R, T any](ts []T) MapperTo[R, T] {
+func MapTo[R, T any](ts []T) MapperTo[R, T] {
 	return ts
 }
 
@@ -113,7 +113,7 @@ func (ts MapperTo[R, T]) ToInt(fn func(T) int) MapperTo[R, int] {
 	return results
 }
 
-// MapsTo returns the result of applying fn to each member of ts.
+// MapTo returns the result of applying fn to each member of ts.
 func (ts MapperTo[R, T]) To(fn func(T) R) Mapper[R] {
 	results := make([]R, len(ts))
 	for i, t := range ts {

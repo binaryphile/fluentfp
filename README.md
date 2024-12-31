@@ -54,17 +54,35 @@ and more.
 
 **Highlights**:
 
--   Fluent method chaining
+-   Fluent method chaining with `Mapper[T any]` type
 -   Interchangeable with native slices
--   Methods `To[Type]` for mapping
+-   Methods of the form `ToType` for mapping to many built-in types
 -   Methods `KeepIf` and `RemoveIf` for filtering
+-   Create with the factory function `slice.Of`
 
 ``` go
 ints := []int{0,1}
-strings := slice.Of(ints).  // convert to a fluent slice
+strings := slice.Of(ints).  // convert to Mapper[int]
     ToString(strconv.Itoa)  // then convert each integer to its string
 
-zero := strings[0] // fluent slices are still slices
+isNonzero := func(i int) bool { return i > 0 }
+nonzeros := slice.Of(ints).KeepIf(isNonzero)
+
+one := nonzeros[0] // fluent slices are still slices
+```
+
+-    Map to arbitrary types with the `MapperTo[R, T any]` type, which have a method `To` that returns type `R`
+-    Create with the factory function `slice.MapTo[R any]`
+
+```go
+type User struct {} // an arbitrary type
+
+func UserFromId(userId int) User {
+	// fetch from database
+}
+
+userIds := []int{0,1}
+users := slice.MapTo[User](userIds).To(UserFromId)
 ```
 
 ### 2. [`option`](option/README.md)
