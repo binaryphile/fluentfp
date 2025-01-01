@@ -58,21 +58,21 @@ and more.
 -   Interchangeable with native slices
 -   Methods of the form `ToType` for mapping to many built-in types
 -   Methods `KeepIf` and `RemoveIf` for filtering
--   Create with the factory function `slice.Of`
+-   Create with the factory function `slice.From`
 
 ``` go
 ints := []int{0,1}
-strings := slice.Of(ints).  // convert to Mapper[int]
-    ToString(strconv.Itoa)  // then convert each integer to its string
+strings := slice.From(ints).  // convert to Mapper[int]
+    ToString(strconv.Itoa)    // then convert each integer to its string
 
 isNonzero := func(i int) bool { return i > 0 }
-nonzeros := slice.Of(ints).KeepIf(isNonzero)
+nonzeros := slice.From(ints).KeepIf(isNonzero)
 
 one := nonzeros[0] // fluent slices are still slices
 ```
 
 -    Map to arbitrary types with the `MapperTo[R, T any]` type, which have a method `To` that returns type `R`
--    Create with the factory function `slice.MapTo[R any]`
+-    Create with the factory function `slice.To[R any]`
 
 ```go
 type User struct {} // an arbitrary type
@@ -82,7 +82,7 @@ func UserFromId(userId int) User {
 }
 
 userIds := []int{0,1}
-users := slice.MapTo[User](userIds).To(UserFromId)
+users := slice.To[User](userIds).To(UserFromId)
 ```
 
 ### 2. [`option`](option/README.md)
@@ -109,7 +109,7 @@ if zero, ok := okOption.Get(); ok {
 ### 3. [`must`](must/README.md)
 
 A package to convert functions that might return an error into ones that don’t, allowing use
-with other fluentfp modules. And other functions related to error handling.
+with other fluentfp modules. Other functions related to error handling as well.
 
 **Highlights**:
 
@@ -121,11 +121,14 @@ with other fluentfp modules. And other functions related to error handling.
 ``` go
 strings := []string{"1","2"}
 atoi := must.Of(strconv.Atoi)          // create a "must" version of Atoi
-ints := slice.Of(strings).ToInt(atoi)  // convert to ints, panic if error
+ints := slice.From(strings).ToInt(atoi)  // convert to ints, panic if error
 
 // other functions
 err := file.Close()
 must.BeNil(err)  // shorten if err != nil { panic(err) } checks
+
+errors := []error{nil, nil}
+errors.Each(must.BeNil) // check all errors
 
 contents := must.Get(os.ReadFile("config.json"))  // panic if file read fails
 home := must.Getenv("HOME")  // panic if $HOME is empty or unset
@@ -142,8 +145,9 @@ A package that provides a fluent ternary conditional operation for Go.
 **Example**:
 
 ``` go
-If := ternary.If[string]
-True := If(true).Then("true").Else("false")
+import t "github.com/binaryphile/fluentfp/ternary"
+
+True := t.If[string](true).Then("true").Else("false")
 ```
 
 ## License
