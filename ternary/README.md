@@ -91,26 +91,20 @@ value with `Then` and its "if false" value with `Else`. `Else` returns the appro
 based on the condition:
 
 ``` go
-func MyFunc() {
-    If := ternary.If[string] // return a string
+import t "github.com/binaryphile/fluentfp/ternary"
 
-    first := If(true).Then("first").Else("second") // Else is always required
-}
+var first = t.If[string](true).Then("first").Else("second") // Else is always required
 ```
-
-Here we've instantiated the factory with the type `string` and saved it to the variable `If`, which has the added benefit of shortening the name.  Since we are using it for expressiveness in close-quarters, it's important for it to read naturally.
 
 Notice that the method chain is always fully executed, which is a difference from the short-circuiting behavior of the traditional `if-then-else` statement.  With an `if` statement, the branch of code not selected is simply ignored.  Here, whatever arguments are given to `Then` and `Else` are analogous to the branches, but since they are parameters to a method call, they are both always evaluated before being passed into the method.
 
-That means if it is expensive to calculate one or both of the alternative values, you want to defer that execution and not do it all if the condition doesn't call for it.  For this purpose, there are `Call` versions of the `Then` and `Else` methods, i.e. `ThenCall` and `ElseCall`. When triggered by the condition, `...Call` calls the no-argument function that it was given to produce a value.  If not triggered by the condition, the function is never called and so short-circuits execution.
+That means if it is expensive to calculate one or both of the alternative values, you want to defer that execution and not do it all if the condition doesn't call for it.  For this purpose, there are `Call` versions of the `Then` and `Else` methods, i.e. `ThenCall` and `ElseCall`. When triggered by the condition, each `Call` calls the no-argument function that it was given to produce a value.  If not triggered by the condition, the function is never called and so short-circuits execution.
 
 ```go
-func MyFunc() {
-    If := ternary.If[string]
+import t "github.com/binaryphile/fluentfp/ternary"
 
-    // ExpensiveNo isn't called
-    yes := If(true).Then("yes").ElseCall(ExpensiveNo)
-}
+// ExpensiveNo isn't called
+var yes = t.If[string](true).Then("yes").ElseCall(ExpensiveNo)
 ```
 
 That’s about all there is to it. `ternary` is a simple tool that can greatly enhance the
