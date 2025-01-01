@@ -17,3 +17,7 @@ func Map[T, R any](b Basic[T], fn func(T) R) (_ Basic[R]) {
 
 	return Of(fn(b.t))
 }
+
+func NotOk[T any]() (_ Basic[T]) {
+	return
+}

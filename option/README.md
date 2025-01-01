@@ -8,7 +8,7 @@ purposes:
 
 ## Pointers as Pseudo-Options
 
-You’ve probably seen pointer types in Go used to indicate the presence of a valid value. For
+You’ve likely seen pointer types in Go used to indicate the presence of a valid value. For
 example, you may conditionally have a string value that can be anything, including the empty
 string. Since you can’t use the empty string to represent an invalid value, you need
 something else. You can use a string pointer as a pseudo-option, where `nil` means that the
@@ -32,33 +32,25 @@ option is considered *ok* if it contains a value and *not-ok* if it doesn’t.
 The zero value is automatically not-ok:
 
 ``` go
-notOkStringOption := option.Basic[string]{}
+notOkOption := option.Basic[string]{}
 ```
 
-For most of Go’s built-in types, there are package variables of not-ok instances for
-readability. Options of comparable types are themselves comparable:
-
-``` go
-if myOption == option.NotOkString {
-    fmt.Println("not ok!")
-}
-```
-
+For most of Go’s built-in types, there are pre-made package variables of not-ok instances.
 The variables are:
 
--   `NotOkAny`
--   `NotOkBool`
--   `NotOkByte`
--   `NotOkError`
--   `NotOkInt`
--   `NotOkRune`
--   `NotOkString`
+-   `option.NotOkAny`
+-   `option.NotOkBool`
+-   `option.NotOkByte`
+-   `option.NotOkError`
+-   `option.NotOkInt`
+-   `option.NotOkRune`
+-   `option.NotOkString`
 
 For those not included or for your own types, you may want to define a not-ok variable of
-your own:
+your own, which can be done as a zero value above, or using the `NotOk[T]` factory:
 
 ``` go
-var notOkFloat32 = option.Basic[float32]{}
+myOption := option.NotOk[string]()
 ```
 
 To make an ok option, use `option.Of`:
@@ -70,13 +62,13 @@ okOption := option.Of("hello world")
 To make an option whose validity is dynamic, use `option.New`:
 
 ``` go
-myOption := option.New(myString, ok) // option is "ok" if ok is
+myOption := option.New(myString, ok) // option is "ok" if ok is true
 ```
 
-A not-ok option never has a value, so if ok is false, any value for myString is discarded.
+A not-ok option never has a value, so if ok is false, the value for myString is discarded.
 
-For comparable types, you may want to make an ok option if a value is provided. Since Go
-initializes variables to a zero value, let’s say you know the option should be not-ok if the
+For comparable types, you may want to make an ok option only if a value has been provided. Since
+Go initializes variables to a zero value, let’s say you know the option should be not-ok if the
 variable has the zero value, since it hasn’t been assigned a value since initialization:
 
 ``` go
@@ -110,39 +102,40 @@ true.
 These only make sense to use on options that might be ok.
 
 ``` go
-func stringIsNotEmpty(s string) bool {
+func IsNotEmpty(s string) bool {
     return s != ""
 }
-okOption := option.Of("hello").KeepOkIf(stringIsNotEmpty)
-notOkOption := option.Of("hello").ToNotOkIf(stringIsNotEmpty)
+
+okOption := option.Of("hello").KeepOkIf(IsNotEmpty)
+notOkOption := option.Of("hello").ToNotOkIf(IsNotEmpty)
 ```
 
 ### Mapping
 
-There are `To[Type]` methods for mapping a contained value to most of the built-in types,
+There are `To[Type]` methods for mapping a contained value to the basic built-in types,
 which return an option of the type named in the method:
 
 ``` go
-okStringOption := option.Of(3).ToString(strconv.Itoa)
+stringOption := option.Of(3).ToString(strconv.Itoa)
 ```
 
-The types are the same as for the package variables, plus `ToSame` to map to the same type
-as the existing value:
+The types on the methods are the same as for the package variables, plus `Convert` to map to the
+same type as the existing value:
 
+-   `Convert`
 -   `ToAny`
 -   `ToBool`
 -   `ToByte`
 -   `ToError`
 -   `ToInt`
 -   `ToRune`
--   `ToSame`
 -   `ToString`
 
-Since methods are not generic, there is no general `Map` method. To map to one of the other
-built-in types or a named type, there is a `Map` package function instead:
+Since methods cannot be generic in Go, there is no general `Map` method. To map to one of the
+other built-in types or a named type, there is a generic `Map` function instead:
 
 ``` go
-okStringOption := option.Map(option.Of(3), strconv.Itoa)
+stringOption := option.Map(option.Of(3), strconv.Itoa)
 ```
 
 ### Working with the Value
@@ -158,9 +151,6 @@ if value, ok := myOption.Get(); ok {
 
 While many things can be accomplished without unpacking the option, this is the easiest way
 to get started with options if you’re not familiar with FP.
-
-As a side-benefit, the value variable doesn’t pollute the namespace of the rest of the
-function.
 
 It’s also possible to test for the presence of value:
 
