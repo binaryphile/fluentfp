@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+main() {
+  for file in *.go; do
+    if ! go build -o /dev/null $file; then
+      echo "error: $file did not compile" >&2
+    fi
+  done
+}
+
+set -eu
+IFS=$'\n'
+
+main "$@"

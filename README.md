@@ -1,29 +1,34 @@
 # FluentFP: Pragmatic Functional Programming in Go
 
-**FluentFP** is a collection of Go packages designed to bring functional programming
-concepts to Go in a pragmatic, type-safe way. The library is structured into several
-modules:
+**FluentFP** is a collection of Go packages designed to bring a handful of functional
+programming concepts to Go from a Go practitioner’s standpoint. It is entirely focused on
+writing clear, economical Go code.
 
--   `slice`: fluent slices that offer collection methods that chain.
--   `option`: option types that handle optional values to enforce validity checking,
-    enhancing code safety.
--   `must`: functions to consume the error portion of another function’s return value,
-    making it friendly to use with collection methods. Other functions relating to panics.
--   `ternary`: a simple, fluent type that implements if-then-else as a method chain, which
-    can significantly contribute to conciseness when used appropriately.
+Each package makes small but tangible readability improvements in some area of Go.  Taken
+together, they harmonize into something more, dramatically enhancing readability.
+
+The library is structured into several modules:
+
+-   `slice`: use collection operations like map and filter on slices, [chaining method
+    calls](https://en.wikipedia.org/wiki/Method_chaining) in a fluent style
+-   `option`: enforce checking for the existence of a value before being able to access it
+    using this container type
+-   `must`: modify fallible functions so they no longer return `err`, allowing them to be
+    used with slice collection methods
+-   `ternary`: write if-then-else conditionals on a single line, similar to the
+    `cond ? a : b` ternary operator in other languages
 
 ## Key Features
 
--   **Modular Design**: Each package is designed to be independent, allowing you to use only
-    what you need.
--   **Fluent Method Chaining**: Improve code readability and maintainability by reducing
+-   **Fluent Method Chaining**: Code readability is improved by clear intention and reduced
     nesting.
--   **Type-Safe Generics**: Leverage Go’s generics (Go 1.18+) for compile-time type safety.
--   **Interoperable with Go’s idioms**: while functionally-oriented, FluentFP is also made
-    to be used with common Go idioms such as comma-ok option unwrapping and ranging over
-    fluent slices.
+-   **Type-Safe Generics**: Generics in Go 1.18+ enable type-agnostic containers while
+    ensuring type safety.
+-   **Interoperable with Go’s idioms**: Common Go idioms are supported, such as using range
+    to iterate over a fluent slice or comma-ok conditional assignment for unwrapping values
+    from options
 
-For details on each package, follow the header link to see the package’s README.
+See the individual package READMEs for details by clicking the headings below.
 
 ## Installation
 
@@ -49,56 +54,81 @@ and more.
 
 **Highlights**:
 
--   Fluent method chaining for slices
+-   Fluent method chaining with `Mapper[T any]` type
 -   Interchangeable with native slices
--   Simple function arguments without special signatures
-
-**Example**:
+-   Methods of the form `ToType` for mapping to many built-in types
+-   Methods `KeepIf` and `RemoveIf` for filtering
+-   Create with the factory function `slice.Of`
 
 ``` go
-words := slice.Of([]string{"Hello", "", "World"})
-stringIsEmpty := func(s string) bool { return s == "" }
-words.
-    RemoveIf(stringIsEmpty).
-    Each(lof.Println) // prints Hello\nWorld
+ints := []int{0,1}
+strings := slice.Of(ints).  // convert to Mapper[int]
+    ToString(strconv.Itoa)  // then convert each integer to its string
+
+isNonzero := func(i int) bool { return i > 0 }
+nonzeros := slice.Of(ints).KeepIf(isNonzero)
+
+one := nonzeros[0] // fluent slices are still slices
+```
+
+-    Map to arbitrary types with the `MapperTo[R, T any]` type, which have a method `To` that returns type `R`
+-    Create with the factory function `slice.MapTo[R any]`
+
+```go
+type User struct {} // an arbitrary type
+
+func UserFromId(userId int) User {
+	// fetch from database
+}
+
+userIds := []int{0,1}
+users := slice.MapTo[User](userIds).To(UserFromId)
 ```
 
 ### 2. [`option`](option/README.md)
 
-A package to handle optional values,  enforcing validation before access and thus enhancing code
+A package to handle optional values by enforcing validation before access, enhancing code
 safety.
 
 **Highlights**:
 
 -   Provides option types for the built-ins such as `option.String`, `option.Int`, etc.
--   Methods of `To[Type]` for mapping and `Or` for extracting a value or alternative.
+-   Methods `To[Type]` for mapping
+-   Method `Or` for extracting a value or alternative
 
 **Example**:
 
 ``` go
-okStringOption := option.Of("value")
-Value := okStringOption.ToString(strings.ToTitle).Or("Default") // titleize to "Value"
-Default := option.NotOkString.Or("Default") // NotOkString is not-ok instance
+okOption := option.Of(0)  // put 0 in the container and make it "ok"
+zero := okOption.Or(1)    // return the value if ok, otherwise return 1
+if zero, ok := okOption.Get(); ok {
+    // work with the value
+}
 ```
 
 ### 3. [`must`](must/README.md)
 
-A package that helps convert functions that return `(T, error)` into functions that panic on
-error, making them easier to use in fluent chains.
+A package to convert functions that might return an error into ones that don’t, allowing use
+with other fluentfp modules. And other functions related to error handling.
 
 **Highlights**:
 
--   Simplifies error handling in fluent expressions
--   Use where panics are the correct failure mode
+-   Avoid error handling in fluent expressions
+-   Usable where panics are the correct failure mode
 
 **Example**:
 
 ``` go
-contents := must.Get(os.ReadFile("config.json")) // Panics if file read fails
+strings := []string{"1","2"}
+atoi := must.Of(strconv.Atoi)          // create a "must" version of Atoi
+ints := slice.Of(strings).ToInt(atoi)  // convert to ints, panic if error
 
-// see package slice
-numbers := slice.Of([]string{"1", "2"})
-ints := numbers.ToInt(must.Of(strconv.Atoi))
+// other functions
+err := file.Close()
+must.BeNil(err)  // shorten if err != nil { panic(err) } checks
+
+contents := must.Get(os.ReadFile("config.json"))  // panic if file read fails
+home := must.Getenv("HOME")  // panic if $HOME is empty or unset
 ```
 
 ### 4. [`ternary`](ternary/README.md)
@@ -108,7 +138,6 @@ A package that provides a fluent ternary conditional operation for Go.
 **Highlights**:
 
 -   Readable and concise conditional expressions
--   Uses fluent method chaining for readability
 
 **Example**:
 

@@ -2,7 +2,7 @@
 
 package main
 
-import "github.com/binaryphile/fluentfp/ternary"
+import t "github.com/binaryphile/fluentfp/ternary"
 
 // main demonstrates ternary.If.
 func main() {
@@ -15,13 +15,9 @@ func main() {
 	//
 	// You can simulate a ternary with a fluent struct that offers a handful of methods.
 	// The ternary is generic and can't infer type from its arguments,
-	// so it needs a concrete type.
-	// The most readable thing is to declare a function variable to hold the instance.
-	If := ternary.If[string] // string is the return type of the Else method
-
-	// now it can be consumed as a fluent if-then-else
-	one := If(true).Then("one").Else("two")
-	two := If(false).Then("one").Else("two")
+	// so it needs to know the concrete type that will be returned.
+	one := t.If[string](true).Then("one").Else("two")
+	two := t.If[string](false).Then("one").Else("two")
 
 	// prep for the next example
 	carIsGoing88MPH := true
@@ -32,7 +28,7 @@ func main() {
 	// expressions that can be evaluated in-line in the struct literal give economy of expression
 	// and enhance readability
 	backInTime := BackInTime{
-		fluxCapacitorGigawatts: If(carIsGoing88MPH).Then("1.21").Else("none"),
+		fluxCapacitorGigawatts: t.If[string](carIsGoing88MPH).Then("1.21").Else("none"),
 	}
 
 	// For comparison, I'll show the typical Go syntax.
@@ -69,7 +65,7 @@ func main() {
 	expensiveNo := expensiveYes
 
 	// you can use the Call version on either or both alternatives
-	resultOfOnlyCallingExpensiveYes := If(true).ThenCall(expensiveYes).ElseCall(expensiveNo)
+	resultOfOnlyCallingExpensiveYes := t.If[string](true).ThenCall(expensiveYes).ElseCall(expensiveNo)
 
 	// ignore -- to keep Go happy
 	eat[string](one, two, resultOfOnlyCallingExpensiveYes)

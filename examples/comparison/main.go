@@ -39,15 +39,15 @@ func main() {
 	// It is fluent, meaning you can chain operations.
 	// It works with method expressions.
 	{
-		printActiveNames := func(users []User) []string { // signature automatically converts types
-			names := slice.Of(users).
+		printActiveNames := func(users []User) []string { // signature automatically converts return type
+			names := slice.From(users).
 				KeepIf(User.IsActive).
 				ToString(User.Name) // returns slice.Mapper[string]
 			names.Each(lof.Println) // from lower-order function helper package lof
 			return names            // signature converts slice.Mapper[string] to []string
 		}
 
-		_ = printActiveNames(users) // signature converts []User to slice.Mapper[User]
+		_ = printActiveNames(users)
 	}
 
 	fmt.Print("\ngithub.com/samber/lo\n")
@@ -257,14 +257,13 @@ func main() {
 			}
 			anyActives := gofp.Filter(anyUsers, userIsActive)
 			anyNames := gofp.Map(anyActives, getName)
-			for _, anyName := range anyNames {
-				fmt.Println(anyName.(string))
-			}
 
 			names := make([]string, len(anyNames))
 			for i, a := range anyNames {
 				names[i] = a.(string)
+                fmt.Println(names[i])
 			}
+
 			return names
 		}
 

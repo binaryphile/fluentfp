@@ -115,7 +115,7 @@ here, Go also forces you to waste syntax by discarding a value.
 `users` is a regular slice:
 
 ``` go
-slice.Of(users).
+slice.From(users).
     KeepIf(User.IsActive).
     ToString(User.Name).
     Each(lof.Println) // helper from fluentfp/lof
@@ -168,11 +168,11 @@ but with an additional method, `To`.  `To` maps to R, the return type.
 
 ### Creating Fluent Slices of Built-in Types
 
-`Mapper[T]` is the primary fluent slice type.  You can use the `slice.Of` function to
+`Mapper[T]` is the primary fluent slice type.  You can use the `slice.From` function to
 create a fluent slice:
 
 ``` go
-words := slice.Of([]string{"two", "words"})
+words := slice.From([]string{"two", "words"})
 ```
 
 To allocate a slice of defined size, `make` accepts a fluent slice type:
@@ -193,12 +193,12 @@ readable:
 - `slice.Rune`
 - `slice.String`
 
-To create a slice mappable to an arbitrary type, use the function `slice.MapsTo[R]`, rather
-than `slice.Of`.  For example, to create a slice of strings mappable to a `User` type:
+To create a slice mappable to an arbitrary type, use the function `slice.To[R]`, rather
+than `slice.From`.  For example, to create a slice of strings mappable to a `User` type:
 
 ```go
 emails := []string{"user1@example.com", "user2@example.com"}
-users := slice.MapsTo[User](emails).To(UserFromEmail) // UserFromEmail not shown
+users := slice.To[User](emails).To(UserFromEmail) // UserFromEmail not shown
 ```
 
 ### Creating Fluent Slices of Arbitrary Types
@@ -206,7 +206,7 @@ users := slice.MapsTo[User](emails).To(UserFromEmail) // UserFromEmail not shown
 Creating a fluent slice of an arbitrary type is similar:
 
 ``` go
-points := slice.Of([]Point{{1, 2}, {3, 4}})
+points := slice.From([]Point{{1, 2}, {3, 4}})
 ```
 
 But there are no predefined aliases to use with `make`:
@@ -235,7 +235,7 @@ inactives := users.KeepIf(func(u User) bool { return !u.IsActive() })
 
 ### Mapping to Built-in Types
 
-`Mapper` has methods for mapping to built-in types.  They are named `To[Type]`:
+`Mapper` has methods for mapping to the basic built-in types.  They are named `To[Type]`:
 
 ``` go
 names := users.ToString(User.Name)
@@ -255,19 +255,22 @@ on both `Mapper` and `MapperTo`:
 There is also a method for a special case, `Convert`. It maps to the same type as the
 original slice.
 
-If you need a built-in type not listed here, you can use the `To` method on `MapperTo` to
-map to an arbitrary type.
+If you need a type not listed here, you can use the `To` method on `MapperTo` to map to an arbitrary
+type.
 
-As mentioned, method expressions are very useful.  Any no-argument method on the slice's
-member type that returns a single value can be used for mapping.
+As mentioned, method expressions are very useful.  Any method of the following form on the slice's member type can be used for mapping, i.e. one with no arguments and only one return value:
+
+```go
+func (t MemberType) MethodName() (singleReturnValue int) {} // no arguments
+```
 
 ### Mapping to Named Types
 
 `MapperTo[R, T]` is used for mapping to named types.  It has the same methods as `Mapper`,
-plus a `To` method:
+plus a `To` method.  Create one from a regular slice with `slice.To`:
 
 ``` go
-drivers := slice.MapsTo[Driver](cars).To(Car.Driver)
+drivers := slice.To[Driver](cars).To(Car.Driver)
 ```
 
 ### Iterating for Side Effects
