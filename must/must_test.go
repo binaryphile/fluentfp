@@ -30,11 +30,11 @@ func TestBeNil(t *testing.T) {
 				switch r := recover(); r {
 				case nil:
 					if tt.wantPanic {
-						t.Errorf("BeNil() did not panic")
+						t.Error("BeNil() did not panic")
 					}
 				default:
 					if !tt.wantPanic {
-						t.Errorf("BeNil() panicked")
+						t.Error("BeNil() panicked")
 					}
 				}
 
@@ -75,7 +75,7 @@ func TestGet(t *testing.T) {
 				case nil:
 				default:
 					if !tt.wantPanic {
-						t.Errorf("Get() panicked")
+						t.Error("Get() panicked")
 					}
 				}
 			}()
@@ -119,11 +119,11 @@ func TestGet2(t *testing.T) {
 				switch r := recover(); r {
 				case nil:
 					if tt.wantPanic {
-						t.Errorf("Get2() did not panic")
+						t.Error("Get2() did not panic")
 					}
 				default:
 					if !tt.wantPanic {
-						t.Errorf("Get2() panicked")
+						t.Error("Get2() panicked")
 					}
 				}
 			}()
@@ -143,26 +143,26 @@ func TestGetenv(t *testing.T) {
 	tests := []struct {
 		name      string
 		key       string
-		value     string
+		valueOpt  *string
 		want      string
 		wantPanic bool
 	}{
 		{
 			name:      "panic on non-existent key",
-			key:       "NON_EXISTENT_KEY",
+			key:       "TEST_GETENV_KEY",
 			wantPanic: true,
 		},
 		{
 			name:      "panic on empty value",
-			key:       "EMPTY_VALUE",
-			value:     "",
+			key:       "TEST_GETENV_KEY",
+			valueOpt:  OptOf(""),
 			wantPanic: true,
 		},
 		{
-			name:  "return value on extant key",
-			key:   "EXTANT_KEY",
-			value: "value",
-			want:  "value",
+			name:     "return value on extant key",
+			key:      "TEST_GETENV_KEY",
+			valueOpt: OptOf("value"),
+			want:     "value",
 		},
 	}
 	for _, tt := range tests {
@@ -171,27 +171,27 @@ func TestGetenv(t *testing.T) {
 				switch r := recover(); r {
 				case nil:
 					if tt.wantPanic {
-						t.Errorf("Getenv() did not panic")
+						t.Error("Getenv() did not panic")
 					}
 				default:
 					if !tt.wantPanic {
-						t.Errorf("Getenv() panicked")
+						t.Error("Getenv() panicked")
 					}
 				}
 			}()
 
-			switch tt.value {
-			case "":
+			switch tt.valueOpt {
+			case nil:
 				if err := os.Unsetenv(tt.key); err != nil {
 					t.Fatal("couldn't unset environment variable")
 				}
 			default:
-				if err := os.Setenv(tt.key, tt.value); err != nil {
+				if err := os.Setenv(tt.key, *tt.valueOpt); err != nil {
 					t.Fatal("couldn't set environment variable")
 				}
 				defer func() {
 					if err := os.Unsetenv(tt.key); err != nil {
-						t.Fatal("couldn't unset environment variable")
+						t.Log("couldn't unset environment variable")
 					}
 				}()
 			}
@@ -231,11 +231,11 @@ func TestOf(t *testing.T) {
 				switch r := recover(); r {
 				case nil:
 					if tt.wantPanic {
-						t.Errorf("Of() did not panic")
+						t.Error("Of() did not panic")
 					}
 				default:
 					if !tt.wantPanic {
-						t.Errorf("Of() panicked")
+						t.Error("Of() panicked")
 					}
 				}
 			}()
@@ -245,4 +245,8 @@ func TestOf(t *testing.T) {
 			}
 		})
 	}
+}
+
+func OptOf(s string) *string {
+	return &s
 }
