@@ -16,9 +16,19 @@ the function you want returns an error along with a value. `must.Of` converts a 
 that returns a value and an error into one that only returns a value:
 
 ``` go
-symbols := fluent.SliceOfStrings([]string{"1", "2"})
+symbols := slice.From([]string{"1", "2"})
 integers := symbols.ToInt(must.Of(strconv.Atoi))
 ```
+
+**Naming convention:** When storing a must-wrapped function in a variable, prefix the name with
+`must` to signal that it will panic on error:
+
+``` go
+mustAtoi := must.Of(strconv.Atoi)
+ints := slice.From(strings).ToInt(mustAtoi)
+```
+
+This makes the panic behavior visible at the call site.
 
 `err != nil` checking is verbose. If the correct response to an error is to panic, then
 `must.BeNil` is the abbreviated version of panicking on an error:

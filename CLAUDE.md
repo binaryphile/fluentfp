@@ -133,7 +133,7 @@ devices = append(devices, must.Get(store.GetDevices(chunk))...)
 // Time parsing
 timestamp := must.Get(time.Parse("2006-01-02 15:04:05", s.ScannedAt))
 
-// With slice operations
+// With slice operations (prefix with "must" to signal panic behavior)
 mustAtoi := must.Of(strconv.Atoi)
 ints := slice.From(strings).ToInt(mustAtoi)
 ```
