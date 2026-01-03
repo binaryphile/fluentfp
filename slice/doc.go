@@ -37,4 +37,9 @@ func _() {
 	_ = MapperTo[int, int].ToRune
 	_ = MapperTo[int, int].Convert
 	_ = MapperTo[int, int].ToString
+
+	_ = Fold[int, int]
+	_ = Unzip2[int, int, int]
+	_ = Unzip3[int, int, int, int]
+	_ = Unzip4[int, int, int, int, int]
 }
