@@ -59,11 +59,11 @@ so `User.Method` requires a value receiver:
 ``` go
 // Works - value receiver matches slice element type
 func (u User) IsActive() bool { return u.Active }
-slice.From(users).KeepIf(User.IsActive)  // ✓
+slice.From(users).KeepIf(User.IsActive)  // ✓ User.IsActive is func(User) bool
 
-// Doesn't work - pointer receiver expects *User, not User
+// Doesn't work - pointer receiver creates wrong signature
 func (u *User) IsActive() bool { return u.Active }
-slice.From(users).KeepIf(User.IsActive)  // ✗ compile error
+slice.From(users).KeepIf(User.IsActive)  // ✗ User.IsActive is func(*User) bool, not func(User) bool
 ```
 
 **Design rule:** Value receivers by default, pointer receivers only when mutating. This:
