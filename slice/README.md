@@ -52,6 +52,25 @@ This means any no-argument method can be used as the single-argument function ex
 collection methods, simply by referencing it through its type name instead of an
 instantiated variable.
 
+**Critical: Use value receivers for read-only methods.** Method expressions only work when
+the receiver type matches the slice element type. `slice.From(users)` creates `Mapper[User]`,
+so `User.Method` requires a value receiver:
+
+``` go
+// Works - value receiver matches slice element type
+func (u User) IsActive() bool { return u.Active }
+slice.From(users).KeepIf(User.IsActive)  // ✓
+
+// Doesn't work - pointer receiver expects *User, not User
+func (u *User) IsActive() bool { return u.Active }
+slice.From(users).KeepIf(User.IsActive)  // ✗ compile error
+```
+
+**Design rule:** Value receivers by default, pointer receivers only when mutating. This:
+- Enables method expressions with FluentFP
+- Eliminates nil receiver panics (the "billion dollar mistake")
+- Makes value semantics explicit
+
 --------------------------------------------------------------------------------------------
 
 ## Getting Started
