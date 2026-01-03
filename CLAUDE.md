@@ -91,6 +91,21 @@ option.FromOpt(ptr *T) Basic[T]        // From pointer (nil = not-ok)
 option.String, option.Int, option.Bool, option.Error
 ```
 
+### option Patterns
+
+```go
+// Nullable database field
+func (r Record) GetHost() option.String {
+    return option.IfProvided(r.NullableHost.String)
+}
+
+// Tri-state boolean (true/false/unknown)
+type Result struct {
+    IsConnected option.Bool  // OrFalse() gives default
+}
+connected := result.IsConnected.OrFalse()
+```
+
 ### must Package
 
 ```go
@@ -102,6 +117,27 @@ must.Getenv(key string) string         // Env var or panic
 must.Of(fn func(T) (R, error)) func(T) R  // Wrap fallible func
 ```
 
+### must Patterns
+
+```go
+// Initialization sequences
+db := must.Get(sql.Open("postgres", dsn))
+must.BeNil(db.Ping())
+
+// Validation-only (discard result, just validate)
+_ = must.Get(strconv.Atoi(configID))
+
+// Inline in expressions
+devices = append(devices, must.Get(store.GetDevices(chunk))...)
+
+// Time parsing
+timestamp := must.Get(time.Parse("2006-01-02 15:04:05", s.ScannedAt))
+
+// With slice operations
+mustAtoi := must.Of(strconv.Atoi)
+ints := slice.From(strings).ToInt(mustAtoi)
+```
+
 ### ternary Package
 
 ```go
@@ -109,6 +145,14 @@ import "github.com/binaryphile/fluentfp/ternary"
 
 ternary.If[R](cond bool).Then(t R).Else(e R) R
 ternary.If[R](cond bool).ThenCall(fn).ElseCall(fn) R  // Lazy
+```
+
+### ternary Patterns
+
+```go
+// Factory alias for repeated use
+If := ternary.If[string]
+status := If(done).Then("complete").Else("pending")
 ```
 
 ### lof Package (Lower-Order Functions)
@@ -125,10 +169,52 @@ lof.Len(ts []T) int        // Wraps len
 ```go
 import "github.com/binaryphile/fluentfp/tuple/pair"
 
+// Pair type
 pair.X[V1, V2]             // Struct with V1, V2 fields
+
+// Creating pairs
 pair.Of(v1, v2) X[V1,V2]   // Construct a pair
-pair.Zip(as, bs) []X[A,B]           // Combine into pairs
-pair.ZipWith(as, bs, fn) []R        // Combine and transform
+
+// Zipping slices
+pair.Zip(as, bs) []X[A,B]           // Combine into pairs (panics if unequal length)
+pair.ZipWith(as, bs, fn) []R        // Combine and transform (panics if unequal length)
+```
+
+### pair Patterns
+
+```go
+// Parallel slice iteration
+pairs := pair.Zip(names, ages)
+for _, p := range pairs {
+    fmt.Printf("%s is %d\n", p.V1, p.V2)
+}
+
+// Direct transformation without intermediate pairs
+users := pair.ZipWith(names, ages, NewUserFromNameAge)
+
+// Chain with slice.From for filtering
+adults := slice.From(pair.Zip(names, ages)).KeepIf(NameAgePairIsAdult)
+```
+
+### Fold and Unzip (v0.6.0)
+
+```go
+// Fold - reduce slice to single value
+total := slice.Fold(amounts, 0.0, func(acc, x float64) float64 { return acc + x })
+
+// Build map from slice
+byMAC := slice.Fold(devices, make(map[string]Device), func(m map[string]Device, d Device) map[string]Device {
+    m[d.MAC] = d
+    return m
+})
+
+// Unzip - extract multiple fields in one pass (avoids N iterations)
+leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
+    func(h HistoryPoint) float64 { return h.LeadTimeAvg },
+    func(h HistoryPoint) float64 { return h.DeployFrequency },
+    func(h HistoryPoint) float64 { return h.MTTR },
+    func(h HistoryPoint) float64 { return h.ChangeFailRate },
+)
 ```
 
 ### Named vs Inline Functions
@@ -200,6 +286,30 @@ actives := users.KeepIf(isRecentlyActive)
 sumFloat64 := func(acc, x float64) float64 { return acc + x }
 total := slice.Fold(amounts, 0.0, sumFloat64)
 ```
+
+### Why Always Prefer FluentFP Over Loops
+
+**Concrete example - field extraction:**
+
+```go
+// FluentFP: one expression stating intent
+return slice.From(f.History).ToFloat64(func(s FeverSnapshot) float64 { return s.PercentUsed })
+
+// Loop: four concepts interleaved
+var result []float64                           // 1. variable declaration
+for _, s := range f.History {                  // 2. iteration mechanics (discarded _)
+    result = append(result, s.PercentUsed)     // 3. append mechanics
+}
+return result                                  // 4. return
+```
+
+The loop forces you to think about *how* (declare, iterate, append, return). FluentFP expresses *what* (extract PercentUsed as float64s).
+
+**General principles:**
+- Loops have multiple forms → mental load
+- Loops force wasted syntax (discarded `_` values)
+- Loops nest; FluentFP chains
+- Loops describe *how*; FluentFP describes *what*
 
 ### When Loops Are Still Necessary
 
