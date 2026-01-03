@@ -352,22 +352,100 @@ for _, u := range users {
 
 --------------------------------------------------------------------------------------------
 
-## When Loops Are Still Necessary
+## Standalone Functions
 
-While FluentFP handles most slice operations elegantly, some patterns still require traditional loops:
+In addition to methods on `Mapper` and `MapperTo`, the slice package provides standalone functions for operations that return multiple values or different types.
 
-### Index Correlation Across Parallel Slices
+### Fold
 
-When you need to access multiple slices at the same index:
+`Fold` reduces a slice to a single value by applying a function to each element, processing left-to-right:
 
 ```go
-for i, mac := range macs {
-    device := devices[i]  // correlating by index
-    // process mac + device together
+// sumFloat64 adds two float64 values.
+sumFloat64 := func(acc, x float64) float64 { return acc + x }
+
+// indexByMAC adds a device to the map keyed by its MAC address.
+indexByMAC := func(m map[string]Device, d Device) map[string]Device {
+    m[d.MAC] = d
+    return m
 }
+
+// maxInt returns the larger of two integers.
+maxInt := func(max, x int) int {
+    if x > max {
+        return x
+    }
+    return max
+}
+
+total := slice.Fold(amounts, 0.0, sumFloat64)
+byMAC := slice.Fold(devices, make(map[string]Device), indexByMAC)
+max := slice.Fold(values, values[0], maxInt)
 ```
 
-*Future: `pair.Zip` could address this.*
+### Unzip2, Unzip3, Unzip4
+
+Extract multiple fields from a slice in a single pass. More efficient than calling separate `ToX` methods when you need multiple fields:
+
+```go
+// Instead of 4 iterations:
+//   leadTimes := slice.From(history).ToFloat64(Record.GetLeadTime)
+//   deployFreqs := slice.From(history).ToFloat64(Record.GetDeployFreq)
+//   ...
+
+// One iteration:
+leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
+    Record.GetLeadTime,
+    Record.GetDeployFreq,
+    Record.GetMTTR,
+    Record.GetChangeFailRate,
+)
+```
+
+### Zip and ZipWith (pair package)
+
+The `pair` package provides functions for combining two slices element-by-element. Import separately:
+
+```go
+import "github.com/binaryphile/fluentfp/tuple/pair"
+```
+
+**Zip** creates pairs from corresponding elements:
+
+```go
+names := []string{"Alice", "Bob", "Carol"}
+scores := []int{95, 87, 92}
+
+// Create slice of pairs
+pairs := pair.Zip(names, scores)
+// Result: []pair.X[string, int]{{V1: "Alice", V2: 95}, {V1: "Bob", V2: 87}, {V1: "Carol", V2: 92}}
+
+// printPair prints a name-score pair to stdout.
+printPair := func(p pair.X[string, int]) {
+    fmt.Printf("%s: %d\n", p.V1, p.V2)
+}
+slice.From(pairs).Each(printPair)
+```
+
+**ZipWith** applies a function to corresponding elements:
+
+```go
+// formatScore combines a name and score into a display string.
+formatScore := func(name string, score int) string {
+    return fmt.Sprintf("%s: %d", name, score)
+}
+
+results := pair.ZipWith(names, scores, formatScore)
+// Result: []string{"Alice: 95", "Bob: 87", "Carol: 92"}
+```
+
+Both functions panic if slices have different lengths (fail-fast behavior).
+
+--------------------------------------------------------------------------------------------
+
+## When Loops Are Still Necessary
+
+FluentFP handles most slice operations, but these patterns still require traditional loops:
 
 ### Channel Consumption
 
@@ -378,19 +456,6 @@ for result := range resultsChan {
     // process each result
 }
 ```
-
-### Reduce/Accumulate Operations
-
-Building maps or running sums requires state accumulation:
-
-```go
-bagOfDevices := make(map[string]Device)
-for _, d := range devices {
-    bagOfDevices[d.MAC] = d
-}
-```
-
-*Future: A `Fold` or `Reduce` method could address this.*
 
 ### Complex Control Flow
 
