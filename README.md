@@ -65,6 +65,7 @@ ints := []int{0,1}
 strings := slice.From(ints).  // convert to Mapper[int]
     ToString(strconv.Itoa)    // then convert each integer to its string
 
+// isNonzero returns true if the integer is greater than zero.
 isNonzero := func(i int) bool { return i > 0 }
 nonzeros := slice.From(ints).KeepIf(isNonzero)
 
@@ -154,9 +155,10 @@ True := t.If[string](true).Then("true").Else("false")
 
 Planned additions to make FluentFP more comprehensive:
 
-- [ ] `ToFloat64` and `ToFloat32` methods for slice package
+- [x] `ToFloat64` and `ToFloat32` methods for slice package (v0.5.0)
+- [x] `Fold`/`Reduce` for accumulating operations (v0.6.0)
+- [x] `Unzip2`/`Unzip3`/`Unzip4` for extracting multiple fields in one pass (v0.6.0)
 - [ ] `Zip` function for parallel slice iteration
-- [ ] `Fold`/`Reduce` for accumulating operations
 
 ## License
 
