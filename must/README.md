@@ -36,3 +36,51 @@ library function:
 ``` go
 home := must.Getenv("HOME") // panic if HOME is unset or empty
 ```
+
+## Patterns
+
+These patterns demonstrate idiomatic usage drawn from production code.
+
+### Initialization Sequences
+
+Use `must.Get` and `must.BeNil` together for init/setup code where errors are fatal:
+
+```go
+func OpenDatabase(cfg Config) *Database {
+    db := must.Get(sql.Open("postgres", cfg.DSN))
+    must.BeNil(db.Ping())
+
+    db.SetMaxIdleConns(cfg.IdleConns)
+    db.SetMaxOpenConns(cfg.OpenConns)
+
+    return &Database{db: db}
+}
+```
+
+This is cleaner than nested error checks when failure means the program cannot continue.
+
+### Config Loading
+
+Combine with config parsing where missing config is a fatal error:
+
+```go
+func LoadConfig() Config {
+    var config Config
+    must.BeNil(viper.ReadInConfig())
+    must.BeNil(viper.Unmarshal(&config))
+    return config
+}
+```
+
+### Embedding Files
+
+Use with `embed.FS` when embedded files must exist:
+
+```go
+//go:embed README.md
+var files embed.FS
+
+func GetReadme() string {
+    return string(must.Get(files.ReadFile("README.md")))
+}
+```

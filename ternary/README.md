@@ -107,5 +107,41 @@ import t "github.com/binaryphile/fluentfp/ternary"
 var yes = t.If[string](true).Then("yes").ElseCall(ExpensiveNo)
 ```
 
-That’s about all there is to it. `ternary` is a simple tool that can greatly enhance the
+That's about all there is to it. `ternary` is a simple tool that can greatly enhance the
 conciseness and readability of routine code.
+
+## Patterns
+
+### Status Strings
+
+Convert boolean state to human-readable strings:
+
+```go
+status := ternary.If[string](task.IsDone()).Then("complete").Else("in progress")
+```
+
+### Default Values with Conditions
+
+Set defaults based on conditions in a single expression:
+
+```go
+timeout := ternary.If[int](config.Timeout > 0).Then(config.Timeout).Else(30)
+```
+
+### Factory Alias for Repeated Use
+
+When using the same return type multiple times, alias the factory:
+
+```go
+func FormatReport(items []Item) string {
+    If := ternary.If[string]
+
+    var lines []string
+    for _, item := range items {
+        lines = append(lines,
+            If(item.IsUrgent()).Then("🔴 ").Else("   ") + item.Name,
+        )
+    }
+    return strings.Join(lines, "\n")
+}
+```
