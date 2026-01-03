@@ -103,6 +103,26 @@ func (ts MapperTo[R, T]) ToError(fn func(T) error) MapperTo[R, error] {
 	return results
 }
 
+// ToFloat32 returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) ToFloat32(fn func(T) float32) MapperTo[R, float32] {
+	results := make([]float32, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
+// ToFloat64 returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) ToFloat64(fn func(T) float64) MapperTo[R, float64] {
+	results := make([]float64, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
 // ToInt returns the result of applying fn to each member of ts.
 func (ts MapperTo[R, T]) ToInt(fn func(T) int) MapperTo[R, int] {
 	results := make([]int, len(ts))
