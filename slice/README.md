@@ -349,3 +349,49 @@ for _, u := range users {
     }
 }
 ```
+
+--------------------------------------------------------------------------------------------
+
+## When Loops Are Still Necessary
+
+While FluentFP handles most slice operations elegantly, some patterns still require traditional loops:
+
+### Index Correlation Across Parallel Slices
+
+When you need to access multiple slices at the same index:
+
+```go
+for i, mac := range macs {
+    device := devices[i]  // correlating by index
+    // process mac + device together
+}
+```
+
+*Future: `pair.Zip` could address this.*
+
+### Channel Consumption
+
+Ranging over channels has no FP equivalent:
+
+```go
+for result := range resultsChan {
+    // process each result
+}
+```
+
+### Reduce/Accumulate Operations
+
+Building maps or running sums requires state accumulation:
+
+```go
+bagOfDevices := make(map[string]Device)
+for _, d := range devices {
+    bagOfDevices[d.MAC] = d
+}
+```
+
+*Future: A `Fold` or `Reduce` method could address this.*
+
+### Complex Control Flow
+
+When you need `break`, `continue`, or early `return` within the loop body.
