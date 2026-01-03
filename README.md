@@ -150,6 +150,14 @@ import t "github.com/binaryphile/fluentfp/ternary"
 True := t.If[string](true).Then("true").Else("false")
 ```
 
+## Future Enhancements
+
+Planned additions to make FluentFP more comprehensive:
+
+- [ ] `ToFloat64` and `ToFloat32` methods for slice package
+- [ ] `Zip` function for parallel slice iteration
+- [ ] `Fold`/`Reduce` for accumulating operations
+
 ## License
 
 FluentFP is licensed under the MIT License. See [LICENSE](LICENSE) for more details.

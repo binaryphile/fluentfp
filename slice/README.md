@@ -282,3 +282,116 @@ return a value:
 ``` go
 users.Each(User.Notify)
 ```
+
+--------------------------------------------------------------------------------------------
+
+## Patterns
+
+These patterns demonstrate idiomatic usage drawn from production code.
+
+### Type Alias for Domain Slices
+
+Define a type alias to enable fluent methods directly on your domain slice types:
+
+```go
+type SliceOfUsers = slice.Mapper[User]
+
+// Now you can declare and chain directly:
+var users SliceOfUsers = fetchUsers()
+actives := users.KeepIf(User.IsActive)
+```
+
+This avoids repeated `slice.From()` calls when working with the same slice type multiple times.
+
+### Method Expression Chaining
+
+Chain method expressions for transform-then-filter pipelines:
+
+```go
+// Normalize data, then filter invalid entries
+devices := slice.From(rawDevices).
+    Convert(Device.Normalize).
+    KeepIf(Device.IsValid)
+```
+
+The method expressions `Device.Normalize` and `Device.IsValid` read as declarative descriptions of the pipeline.
+
+### Field Extraction with ToStrings
+
+Extract a single field from structs into a string slice:
+
+```go
+macs := devices.ToStrings(Device.GetMAC)
+```
+
+This replaces the common pattern:
+```go
+macs := make([]string, len(devices))
+for i, d := range devices {
+    macs[i] = d.GetMAC()
+}
+```
+
+### Counting with KeepIf + Len
+
+Count matching elements without intermediate allocation:
+
+```go
+activeCount := slice.From(users).KeepIf(User.IsActive).Len()
+```
+
+This replaces:
+```go
+count := 0
+for _, u := range users {
+    if u.IsActive() {
+        count++
+    }
+}
+```
+
+--------------------------------------------------------------------------------------------
+
+## When Loops Are Still Necessary
+
+While FluentFP handles most slice operations elegantly, some patterns still require traditional loops:
+
+### Index Correlation Across Parallel Slices
+
+When you need to access multiple slices at the same index:
+
+```go
+for i, mac := range macs {
+    device := devices[i]  // correlating by index
+    // process mac + device together
+}
+```
+
+*Future: `pair.Zip` could address this.*
+
+### Channel Consumption
+
+Ranging over channels has no FP equivalent:
+
+```go
+for result := range resultsChan {
+    // process each result
+}
+```
+
+### Reduce/Accumulate Operations
+
+Building maps or running sums requires state accumulation:
+
+```go
+bagOfDevices := make(map[string]Device)
+for _, d := range devices {
+    bagOfDevices[d.MAC] = d
+}
+```
+
+*Future: A `Fold` or `Reduce` method could address this.*
+
+### Complex Control Flow
+
+When you need `break`, `continue`, or early `return` within the loop body.

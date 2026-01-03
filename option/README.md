@@ -195,4 +195,68 @@ Produce an expensive-to-compute alternative:
 expensiveValue := option.NotOkInt.OrCall(ExpensiveCalculation)
 ```
 
-You’re ready to use options!
+You're ready to use options!
+
+## Patterns
+
+These patterns demonstrate idiomatic usage drawn from production code.
+
+### Domain Option Types
+
+Embed `option.Basic` in a custom struct for domain-specific option types:
+
+```go
+type UserOption struct {
+    option.Basic[User]
+}
+
+func UserOptionOf(u User) UserOption {
+    return UserOption{Basic: option.Of(u)}
+}
+```
+
+This allows adding domain-specific methods that work on the contained value.
+
+### Delegating Methods with Ok-Check
+
+When you have a domain option type, add methods that delegate to the contained value:
+
+```go
+func (o UserOption) IsActive() option.Bool {
+    user, ok := o.Get()
+    if !ok {
+        return option.NotOkBool
+    }
+    return option.BoolOf(user.IsActive())
+}
+```
+
+This propagates "not-ok" through the call chain - if the user doesn't exist, the result is also not-ok.
+
+### Tri-State with option.Bool
+
+Use `option.Bool` when you need true/false/unknown semantics:
+
+```go
+type ScanResult struct {
+    IsConnected option.Bool  // true, false, or unknown (not-ok)
+    IsMigrated  option.Bool
+}
+
+// Usage with default:
+connected := result.IsConnected.OrFalse()  // unknown becomes false
+```
+
+### IfProvided for Nullable Database Fields
+
+Convert nullable strings to options cleanly:
+
+```go
+type Record struct {
+    NullableHost sql.NullString `db:"host"`
+}
+
+func (r Record) GetHost() option.String {
+    return option.IfProvided(r.NullableHost.String)
+}
+```
