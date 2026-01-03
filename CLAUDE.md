@@ -148,7 +148,41 @@ pair.ZipWith(as, bs, fn) []R        // Combine and transform
 | Stored for later use | |
 | Captures outer variables | |
 
+**Why name functions (beyond the rules above):**
+
+Anonymous functions and higher-order functions require mental effort to parse. Named functions **reduce this cognitive load** by making code read like English:
+
+```go
+// Inline: reader must parse lambda syntax and infer meaning
+slice.From(tickets).KeepIf(func(t Ticket) bool { return t.CompletedTick >= cutoff }).Len()
+
+// Named: reads as intent - "keep if completed after cutoff"
+slice.From(tickets).KeepIf(completedAfterCutoff).Len()
+```
+
+Named functions aren't ceremony—they're **documentation at the right boundary**. If logic is simple enough to consider inlining, it's simple enough to name and document. The godoc comment is there when you need to dig deeper—consistent with Go practices everywhere else.
+
 **Locality:** Define named functions close to first usage, not at package level.
+
+#### Method Expressions (preferred)
+
+When a type has a method matching the required signature, use it directly:
+```go
+// Best: method expression
+actives := users.KeepIf(User.IsActive)
+names := users.ToString(User.Name)
+```
+
+#### Named Functions (when method expressions don't apply)
+
+When you need custom logic or the type lacks an appropriate method. **Include godoc-style comments**:
+```go
+// isRecentlyActive returns true if user is active and was seen after cutoff.
+isRecentlyActive := func(u User) bool {
+    return u.IsActive() && u.LastSeen.After(cutoff)
+}
+actives := users.KeepIf(isRecentlyActive)
+```
 
 #### Predicate Naming Patterns
 
