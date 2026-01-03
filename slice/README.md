@@ -507,17 +507,27 @@ The second version hides the mechanics. You see intent. If you need details, you
 
 ### Documentation at the Right Boundary
 
+**Single-expression predicates go on one line:**
 ```go
 // completedAfterCutoff returns true if ticket was completed after the cutoff tick.
-completedAfterCutoff := func(t Ticket) bool {
-    return t.CompletedTick >= cutoff
-}
+completedAfterCutoff := func(t Ticket) bool { return t.CompletedTick >= cutoff }
 ```
 
 This provides:
 - A semantic name communicating intent
 - A godoc comment explaining the predicate
 - A digestible unit of logic
+
+For multi-statement bodies, use standard formatting:
+```go
+// isActiveAdmin performs multiple validations.
+isActiveAdmin := func(u User) bool {
+    if u.IsDeleted() {
+        return false
+    }
+    return u.IsActive() && u.Role == "admin"
+}
+```
 
 This is consistent with Go's documentation practices—the comment is there when you need to dig deeper.
 
