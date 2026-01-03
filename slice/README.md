@@ -337,7 +337,9 @@ for i, d := range devices {
 Count matching elements without intermediate allocation:
 
 ```go
-activeCount := slice.From(users).KeepIf(User.IsActive).Len()
+activeCount := slice.From(users).
+    KeepIf(User.IsActive).
+    Len()
 ```
 
 This replaces:
@@ -349,6 +351,22 @@ for _, u := range users {
     }
 }
 ```
+
+### Chain Formatting
+
+**Single operation** - keep on one line:
+```go
+names := slice.From(users).ToString(User.Name)
+```
+
+**Two or more operations** - each operation on its own indented line, trailing dot:
+```go
+count := slice.From(tickets).
+    KeepIf(completedAfterCutoff).
+    Len()
+```
+
+The setup (`slice.From`, `slice.MapTo[R]`, etc.) doesn't count as an operation—it's scaffolding. Only the chained methods (KeepIf, ToString, Len, etc.) count. This keeps each conceptual operation visually distinct.
 
 --------------------------------------------------------------------------------------------
 
