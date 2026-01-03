@@ -65,7 +65,7 @@ go get github.com/binaryphile/fluentfp
 Import the package:
 
 ``` go
-import "github.com/binaryphile/fluentfp/fluent"
+import "github.com/binaryphile/fluentfp/slice"
 ```
 
 --------------------------------------------------------------------------------------------
@@ -316,12 +316,12 @@ devices := slice.From(rawDevices).
 
 The method expressions `Device.Normalize` and `Device.IsValid` read as declarative descriptions of the pipeline.
 
-### Field Extraction with ToStrings
+### Field Extraction with ToString
 
 Extract a single field from structs into a string slice:
 
 ```go
-macs := devices.ToStrings(Device.GetMAC)
+macs := devices.ToString(Device.GetMAC)
 ```
 
 This replaces the common pattern:

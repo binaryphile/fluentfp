@@ -123,7 +123,7 @@ func main() {
 
 	// A Mapper[T] only has one type parameter, the type of the elements, so it can't map to an arbitrary type.
 	// For this reason, there's an additional type, MapperTo[R, T], where R is the return type of the method To.
-	// The MapsTo function creates a MapperTo from a slice.
+	// The MapTo function creates a MapperTo from a slice.
 	first3Titles := slice.MapTo[Title](posts).
 		TakeFirst(3).
 		To(titleFromPost)
