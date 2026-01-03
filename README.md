@@ -30,6 +30,30 @@ The library is structured into several modules:
 
 See the individual package READMEs for details by clicking the headings below.
 
+## Why FluentFP
+
+**Method chaining abstracts iteration mechanics.** A loop interleaves 4 concerns—variable declaration, iteration syntax, append mechanics, and return. FluentFP collapses these into one expression:
+
+```go
+// FluentFP: what, not how
+return slice.From(history).ToFloat64(Record.GetLeadTime)
+
+// Loop: 4 interleaved concepts
+var result []float64
+for _, r := range history {
+    result = append(result, r.GetLeadTime())
+}
+return result
+```
+
+**Method expressions read like English.** When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no function body to parse—just intent.
+
+**Interoperability is frictionless.** FluentFP slices auto-convert to native slices and back. Pass them to standard library functions, range over them, index them.
+
+**Each package has a bounded API surface.** No FlatMap/GroupBy sprawl in slice, no monadic bind chains in option. The restraint is deliberate.
+
+See [analysis.md](analysis.md) for detailed design rationale.
+
 ## Installation
 
 To get started with **FluentFP**:
@@ -121,15 +145,15 @@ with other fluentfp modules. Other functions related to error handling as well.
 
 ``` go
 strings := []string{"1","2"}
-atoi := must.Of(strconv.Atoi)          // create a "must" version of Atoi
-ints := slice.From(strings).ToInt(atoi)  // convert to ints, panic if error
+mustAtoi := must.Of(strconv.Atoi)           // prefix signals panic behavior
+ints := slice.From(strings).ToInt(mustAtoi)  // convert to ints, panic if error
 
 // other functions
 err := file.Close()
 must.BeNil(err)  // shorten if err != nil { panic(err) } checks
 
-errors := []error{nil, nil}
-errors.Each(must.BeNil) // check all errors
+errs := []error{nil, nil}
+slice.From(errs).Each(must.BeNil)  // check all errors
 
 contents := must.Get(os.ReadFile("config.json"))  // panic if file read fails
 home := must.Getenv("HOME")  // panic if $HOME is empty or unset
@@ -149,6 +173,31 @@ A package that provides a fluent ternary conditional operation for Go.
 import t "github.com/binaryphile/fluentfp/ternary"
 
 True := t.If[string](true).Then("true").Else("false")
+```
+
+### 5. `pair` (in tuple/pair)
+
+A package for working with pairs of values and zipping slices.
+
+**Highlights**:
+
+-   Combine two slices element-by-element with `Zip` and `ZipWith`
+-   Type-safe pair type `pair.X[V1, V2]`
+
+**Example**:
+
+``` go
+import "github.com/binaryphile/fluentfp/tuple/pair"
+
+names := []string{"Alice", "Bob"}
+scores := []int{95, 87}
+
+// Named function - has domain meaning
+formatScore := func(name string, score int) string {
+    return fmt.Sprintf("%s: %d", name, score)
+}
+summaries := pair.ZipWith(names, scores, formatScore)
+// Result: []string{"Alice: 95", "Bob: 87"}
 ```
 
 ## Recent Additions
