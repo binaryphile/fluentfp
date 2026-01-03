@@ -151,14 +151,10 @@ import t "github.com/binaryphile/fluentfp/ternary"
 True := t.If[string](true).Then("true").Else("false")
 ```
 
-## Future Enhancements
+## Recent Additions
 
-Planned additions to make FluentFP more comprehensive:
-
-- [x] `ToFloat64` and `ToFloat32` methods for slice package (v0.5.0)
-- [x] `Fold`/`Reduce` for accumulating operations (v0.6.0)
-- [x] `Unzip2`/`Unzip3`/`Unzip4` for extracting multiple fields in one pass (v0.6.0)
-- [ ] `Zip` function for parallel slice iteration
+- **v0.6.0**: `Fold`, `Unzip2/3/4`, `Zip`/`ZipWith` (pair package)
+- **v0.5.0**: `ToFloat64`, `ToFloat32`
 
 ## License
 

@@ -460,3 +460,54 @@ for result := range resultsChan {
 ### Complex Control Flow
 
 When you need `break`, `continue`, or early `return` within the loop body.
+
+--------------------------------------------------------------------------------------------
+
+## Why Name Your Functions
+
+Anonymous functions and higher-order functions require mental effort to parse. When using FluentFP with custom predicates or reducers, **prefer named functions over inline anonymous functions**. This reduces cognitive load.
+
+### The Problem with Inline Lambdas
+
+Anonymous functions require readers to:
+1. Parse higher-order function concept (KeepIf takes a function)
+2. Parse anonymous function syntax
+3. Understand the predicate logic inline
+4. Track all this while following the chain
+
+### Named Functions Read Like English
+
+```go
+// Hard to parse: what does this filter mean?
+slice.From(tickets).KeepIf(func(t Ticket) bool { return t.CompletedTick >= cutoff }).Len()
+
+// Reads as intent: "keep if completed after cutoff, get length"
+slice.From(tickets).KeepIf(completedAfterCutoff).Len()
+```
+
+The second version hides the mechanics. You see intent. If you need details, you find a named function with a godoc comment. Naming also forces you to articulate intent—crystallizing your own understanding.
+
+### Documentation at the Right Boundary
+
+```go
+// completedAfterCutoff returns true if ticket was completed after the cutoff tick.
+completedAfterCutoff := func(t Ticket) bool {
+    return t.CompletedTick >= cutoff
+}
+```
+
+This provides:
+- A semantic name communicating intent
+- A godoc comment explaining the predicate
+- A digestible unit of logic
+
+This is consistent with Go's documentation practices—the comment is there when you need to dig deeper.
+
+### When to Name
+
+| Name when... | Inline when... |
+|--------------|----------------|
+| Captures outer variables | Trivial field access (`func(u User) string { return u.Name }`) |
+| Has domain meaning | Standard idiom (`t.Run`, `http.HandlerFunc`) |
+| Reused multiple times | |
+| Complex (multiple statements) | |

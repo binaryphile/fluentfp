@@ -6,12 +6,14 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
-	"github.com/binaryphile/fluentfp/lof"
-	"github.com/binaryphile/fluentfp/slice"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/binaryphile/fluentfp/lof"
+	"github.com/binaryphile/fluentfp/slice"
+	"github.com/binaryphile/fluentfp/tuple/pair"
 )
 
 // This example assumes you are familiar with the standard map and filter functions from functional programming.
@@ -114,7 +116,7 @@ func main() {
 	longestTitle := slices.MaxFunc(titles, CompareWordCounts) // fluent slices can be regular slice arguments
 	fmt.Println(longestTitle)
 
-	// we'll use this function in our next example
+	// titleFromPost extracts the title from a post as a Title type.
 	titleFromPost := func(post Post) Title {
 		return Title(post.Title)
 	}
@@ -131,6 +133,45 @@ func main() {
 		ToInt(Title.Len).
 		ToString(strconv.Itoa).
 		Each(lof.Println) // type issues prevent using fmt.Println directly
+
+	// v0.6.0 Features: Fold, Unzip, Zip, ToFloat64
+	// The following examples demonstrate new features and proper naming practices.
+
+	// Named predicate with godoc (has domain meaning - not trivial field access)
+	// postHasLongTitle returns true if the post title has more than 5 words.
+	postHasLongTitle := func(p Post) bool {
+		return len(strings.Fields(p.Title)) > 5
+	}
+	longTitlePosts := posts.KeepIf(postHasLongTitle)
+	fmt.Printf("\n%d posts have long titles\n", len(longTitlePosts))
+
+	// Named reducer with godoc (domain: accumulating values)
+	// sumPostIDs accumulates post IDs into a running total.
+	sumPostIDs := func(total int, p Post) int { return total + p.ID }
+	totalIDs := slice.Fold(posts, 0, sumPostIDs)
+	fmt.Println("\nsum of post IDs:", totalIDs)
+
+	// ToFloat64 - inline is fine here (trivial field extraction)
+	idsAsFloats := posts.ToFloat64(func(p Post) float64 { return float64(p.ID) })
+	fmt.Println("\npost IDs as floats:", idsAsFloats[:3])
+
+	// Unzip2 - inline extractors are fine (single field access each)
+	ids, postTitles := slice.Unzip2(posts,
+		func(p Post) int { return p.ID },
+		func(p Post) string { return p.Title },
+	)
+	fmt.Printf("\nextracted %d IDs and %d titles\n", len(ids), len(postTitles))
+
+	// Zip/ZipWith - named transformer (has domain meaning)
+	// formatPostRating creates a display string from a post and rating.
+	formatPostRating := func(p Post, rating int) string {
+		return fmt.Sprintf("Post %d: %d stars", p.ID, rating)
+	}
+	ratings := []int{5, 4, 3}
+	first3 := []Post(posts.TakeFirst(3)) // Convert Mapper to []Post for pair.ZipWith
+	summaries := pair.ZipWith(first3, ratings, formatPostRating)
+	fmt.Println("\npost ratings:")
+	slice.From(summaries).Each(lof.Println)
 }
 
 // Title type definition
