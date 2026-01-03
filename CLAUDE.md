@@ -187,11 +187,55 @@ users := pair.ZipWith(names, ages, NewUserFromNameAge)
 adults := slice.From(pair.Zip(names, ages)).KeepIf(NameAgePairIsAdult)
 ```
 
-### Predicate Naming Style
+### Named vs Inline Functions
 
-**Always name predicates** - never use inline anonymous functions for `KeepIf`/`RemoveIf`. Named predicates make code read like sentences.
+**Preference hierarchy** (best to worst):
+1. **Method expressions** - `User.IsActive`, `Device.GetMAC` (cleanest, no function body)
+2. **Named functions** - `isActive := func(u User) bool {...}` (readable, debuggable)
+3. **Inline anonymous** - `func(u User) bool {...}` (only when trivial)
 
-**Naming patterns:**
+**When to name (vs inline):**
+
+| Name when... | Inline when... |
+|--------------|----------------|
+| Reused (called 2+ times) | Trivial wrapper (single forwarding expression) |
+| Complex (multiple statements) | Standard idiom (t.Run, http.HandlerFunc) |
+| Has domain meaning | Context already explains intent |
+| Stored for later use | |
+| Captures outer variables | |
+
+**Locality:** Define named functions close to first usage, not at package level.
+
+#### Method Expressions (preferred)
+
+When a type has a method matching the required signature, use it directly:
+```go
+// Best: method expression
+actives := users.KeepIf(User.IsActive)
+names := users.ToString(User.Name)
+```
+
+#### Named Functions (when method expressions don't apply)
+
+When you need custom logic or the type lacks an appropriate method. **Include godoc-style comments** just like regular function definitions - the comment starts with the function name followed by a verb:
+```go
+// isRecentlyActive returns true if user is active and was seen after cutoff.
+isRecentlyActive := func(u User) bool {
+    return u.IsActive() && u.LastSeen.After(cutoff)
+}
+actives := users.KeepIf(isRecentlyActive)
+```
+
+#### Inline Anonymous (only when trivial)
+
+Reserve for trivial wrappers where context is already clear:
+```go
+// Acceptable: trivial wrapper in obvious context
+pool.Submit(func() { resultsChan <- task(r) })
+t.Run(name, func(t *testing.T) { ... })
+```
+
+#### Predicate Naming Patterns
 
 | Pattern | When to use | Example |
 |---------|-------------|---------|
@@ -200,17 +244,6 @@ adults := slice.From(pair.Zip(names, ages)).KeepIf(NameAgePairIsAdult)
 | `[Subject]Has[Condition](params)` | Parameterized predicate factory | `DeviceHasHWVersion("EX12")` |
 | `Type.Is[Condition]` | Method expression | `Device.IsActive` |
 | `Type.Has[Condition]` | Method expression | `Device.HasValidHost` |
-
-**Simple predicate:**
-```go
-func IsValidMAC(mac string) bool {
-    _, err := hex.DecodeString(mac)
-    return len(mac) == 12 && err == nil
-}
-
-// Reads like English: "keep if is valid MAC"
-macs := slice.From(inputs).KeepIf(IsValidMAC)
-```
 
 **Predicate factory** (when you need parameters):
 ```go
@@ -224,13 +257,29 @@ func DeviceHasHWVersion(versions ...string) func(Device) bool {
 devices = devices.RemoveIf(DeviceHasHWVersion("EX12", "EX15"))
 ```
 
-**Method expression:**
-```go
-// Method on type
-func (d Device) HasValidHost() bool { return d.Host != "" }
+#### Reducer Naming
 
-// Reads like: "keep if device has valid host"
-devices = devices.KeepIf(Device.HasValidHost)
+```go
+// sumFloat64 adds two float64 values.
+sumFloat64 := func(acc, x float64) float64 { return acc + x }
+total := slice.Fold(amounts, 0.0, sumFloat64)
+
+// indexByMAC adds a device to the map keyed by its MAC address.
+indexByMAC := func(m map[string]Device, d Device) map[string]Device {
+    m[d.MAC] = d
+    return m
+}
+byMAC := slice.Fold(devices, make(map[string]Device), indexByMAC)
+```
+
+#### Callback Naming
+
+```go
+// printScore prints a name-score pair to stdout.
+printScore := func(p pair.X[string, int]) {
+    fmt.Printf("%s: %d\n", p.V1, p.V2)
+}
+slice.From(pairs).Each(printScore)
 ```
 
 ### Why Always Prefer FluentFP Over Loops

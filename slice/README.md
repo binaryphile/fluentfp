@@ -361,28 +361,25 @@ In addition to methods on `Mapper` and `MapperTo`, the slice package provides st
 `Fold` reduces a slice to a single value by applying a function to each element, processing left-to-right:
 
 ```go
-// Define reducers as named functions
-func sumFloat64(acc, x float64) float64 { return acc + x }
+// sumFloat64 adds two float64 values.
+sumFloat64 := func(acc, x float64) float64 { return acc + x }
 
-func indexByMAC(m map[string]Device, d Device) map[string]Device {
+// indexByMAC adds a device to the map keyed by its MAC address.
+indexByMAC := func(m map[string]Device, d Device) map[string]Device {
     m[d.MAC] = d
     return m
 }
 
-func maxInt(max, x int) int {
+// maxInt returns the larger of two integers.
+maxInt := func(max, x int) int {
     if x > max {
         return x
     }
     return max
 }
 
-// Sum values
 total := slice.Fold(amounts, 0.0, sumFloat64)
-
-// Build a map
 byMAC := slice.Fold(devices, make(map[string]Device), indexByMAC)
-
-// Find maximum
 max := slice.Fold(values, values[0], maxInt)
 ```
 
@@ -423,21 +420,21 @@ scores := []int{95, 87, 92}
 pairs := pair.Zip(names, scores)
 // Result: []pair.X[string, int]{{V1: "Alice", V2: 95}, {V1: "Bob", V2: 87}, {V1: "Carol", V2: 92}}
 
-// Chain with slice operations
-slice.From(pairs).Each(func(p pair.X[string, int]) {
+// printPair prints a name-score pair to stdout.
+printPair := func(p pair.X[string, int]) {
     fmt.Printf("%s: %d\n", p.V1, p.V2)
-})
+}
+slice.From(pairs).Each(printPair)
 ```
 
 **ZipWith** applies a function to corresponding elements:
 
 ```go
-// Define the combiner function
-func formatScore(name string, score int) string {
+// formatScore combines a name and score into a display string.
+formatScore := func(name string, score int) string {
     return fmt.Sprintf("%s: %d", name, score)
 }
 
-// Apply to parallel slices
 results := pair.ZipWith(names, scores, formatScore)
 // Result: []string{"Alice: 95", "Bob: 87", "Carol: 92"}
 ```
