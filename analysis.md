@@ -180,6 +180,55 @@ for _, d := range durations {
 }
 ```
 
+## Correctness by Construction
+
+Line counts don't capture bugs avoided. These bugs are from production Go code—all compiled, all passed code review.
+
+| Bug Pattern | Why Subtle | FluentFP Eliminates? |
+|-------------|-----------|---------------------|
+| Index typo (`i+i` not `i+1`) | Looks intentional | ✓ No index |
+| Defer in loop | Defers pile up silently | ✓ No loop body |
+| Error shadowing (`:=` vs `=`) | Normal Go syntax | ✓ No local variables |
+| `&&` vs `||` in bounds | Always-false looks real | ✓ No manual conditions |
+| Input slice mutation | No hint function mutates | ✓ Returns new slice |
+
+**Always-false condition (`&&` vs `||`):**
+```go
+// BUG: nothing is both < 200 AND >= 300 — condition never true
+if code < 200 && code >= 300 {
+    return errors.New("bad status")  // never executes
+}
+
+// FIX: || checks "outside 200-299"
+if code < 200 || code >= 300 {
+    return errors.New("bad status")
+}
+```
+
+**Error shadowing (`:=` vs `=`):**
+```go
+// BUG: err is local to loop, outer err unchanged
+func ProcessItems(items []Item) {
+    for _, item := range items {
+        _, err := process(item)  // := shadows outer err
+        if err != nil { log.Print(err) }
+    }
+    // returns nil even if errors occurred
+}
+```
+
+**Defer in loop:**
+```go
+// BUG: all Close() calls wait until function returns
+for _, id := range ids {
+    conn, _ := client.OpenConnection(id)
+    defer conn.Close()  // N defers pile up
+}
+// N connections held until here
+```
+
+These bugs compile, pass review, and look correct. They don't exist in FluentFP code because the mechanics that contain them don't exist—no index to typo, no loop body to defer in, no local variable to shadow.
+
 ## Why Named Functions Matter
 
 Anonymous lambdas in chains force you to parse:
