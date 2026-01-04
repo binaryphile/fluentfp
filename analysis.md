@@ -9,6 +9,7 @@ Both approaches filter active users and extract their names. Compare how each re
 ```mermaid
 flowchart LR
     subgraph fluentfp["fluentfp: Data Pipeline"]
+        direction LR
         A["[]User"] --> B["KeepIf(IsActive)"]
         B --> C["ToString(Name)"]
         C --> D["[]string"]
