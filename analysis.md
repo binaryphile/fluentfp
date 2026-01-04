@@ -71,10 +71,12 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 ```mermaid
 flowchart LR
     subgraph fluentfp["fluentfp: intent"]
+        direction LR
         F1["What do I want?"] --> F2["How to express predicate?"]
     end
 
     subgraph Conventional["Conventional: syntax"]
+        direction LR
         C1["What accumulator?"] --> C2["Need index?"]
         C2 --> C3["Need value?"]
     end
