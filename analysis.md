@@ -61,7 +61,7 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 
 | Dimension | Conventional | fluentfp |
 |-----------|--------------|----------|
-| **Concepts to learn** | ~5 loop forms, index/value semantics, append mechanics | Method expressions, named functions, the API |
+| **Concepts to learn** | ~5 loop forms, index/value semantics, append mechanics | ~5 operations (KeepIf, ToX, Fold, Each, Convert) |
 | **Decisions per use** | 3 (loop form, index?, value?) | 1 (predicate form) |
 | **When concepts apply** | Must choose correct form each time | Learn once, apply uniformly |
 
@@ -91,7 +91,20 @@ flowchart LR
 
 Of 608 loops analyzed, ~200-250 (33-41%) are fluentfp-replaceable. The rest require complex control flow, I/O streaming, or are Go idioms (table-driven tests).
 
-Conventional loops require decisions about *mechanics* (loop form, index, value). fluentfp requires one decision about *expression* (how to reference the predicate).
+Conventional loops require decisions about *mechanics* (loop form, index, value). fluentfp requires one decision about *expression* (how to reference the predicate):
+
+```go
+// Conventional: 3 decisions (range, no index, yes value) + 4 lines boilerplate
+count := 0
+for _, u := range users {
+    if u.IsActive() {
+        count++
+    }
+}
+
+// fluentfp: 1 decision (method expression available?) + 0 lines boilerplate
+count := slice.From(users).KeepIf(User.IsActive).Len()
+```
 
 ## The Invisible Familiarity Discount
 
