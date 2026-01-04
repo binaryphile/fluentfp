@@ -62,13 +62,18 @@ for _, u := range users {
 ```mermaid
 flowchart LR
     subgraph fluentfp["fluentfp: 2-3 steps"]
-        F1["Operation?"] --> F2["Predicate?"]
-        F2 --> F3["Method expr?"]
+        F1["1. Operation?"] --> F2["2. Predicate?"]
+        F2 --> F3["3. Method expr?"]
     end
 
     subgraph Conventional["Conventional: 7 steps"]
-        C1["Range/C-style?"] --> C2["Which form?"] --> C3["Accumulating?"] --> C4["Initialize"]
-        C4 --> C5["Condition"] --> C6["Accumulate"] --> C7["Return"]
+        C1["1. Range or C-style?"] --> C2["2. Which form?"] --> C3["3. Accumulating?"]
+        C3 --> C4["4. Initialize"]
+        C3 --> C5["5. Condition"]
+        C3 --> C6["6. Accumulate"]
+        C4 --> C7["7. Return"]
+        C5 --> C7
+        C6 --> C7
     end
 
     style fluentfp fill:#c8e6c9
