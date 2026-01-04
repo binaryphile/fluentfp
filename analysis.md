@@ -42,7 +42,9 @@ A loop interleaves 4 concerns—variable declaration, iteration syntax (with dis
 
 ```go
 // FluentFP: what you want
-names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
+names := slice.From(users).
+    KeepIf(User.IsActive).
+    ToString(User.Name)
 
 // Conventional: how to get it
 var names []string
@@ -114,7 +116,9 @@ slice.From(history).ToFloat64(Record.GetLeadTime)
 // Good: named function documents intent
 // completedAfterCutoff returns true if ticket was completed after the cutoff tick.
 completedAfterCutoff := func(t Ticket) bool { return t.CompletedTick >= cutoff }
-slice.From(tickets).KeepIf(completedAfterCutoff).Len()
+slice.From(tickets).
+    KeepIf(completedAfterCutoff).
+    Len()
 ```
 
 When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no function body to parse—it reads like English.
@@ -135,7 +139,9 @@ When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no fun
 ### Filter + Count
 ```go
 // FluentFP
-openCount := slice.From(incidents).KeepIf(Incident.IsOpen).Len()
+openCount := slice.From(incidents).
+    KeepIf(Incident.IsOpen).
+    Len()
 
 // Conventional
 // Count open incidents
