@@ -125,9 +125,8 @@ for _, user := range users {
 }
 ```
 
-Plain Go is fine, but readability suffers from nesting. Recall that `for` loops have
-multiple forms, which reduces clarity, increasing mental load. In the form of loop shown
-here, Go also forces you to waste syntax by discarding a value.
+Plain Go is fine, but readability suffers from nesting. Recall that range-based `for` loops have
+multiple forms (`for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`)—each means something different, so you must identify which form before understanding what the loop does. In the form shown here, Go also forces you to waste syntax by discarding a value.
 
 **Using FluentFP**:
 
