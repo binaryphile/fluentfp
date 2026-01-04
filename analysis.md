@@ -57,9 +57,15 @@ for _, u := range users {
 
 ## Mental Load Comparison
 
-**Rule: If you have to think about it, it counts as a decision point.**
+Complexity has two dimensions: **concepts** (what you need to know) and **decisions** (choices you make each time you write code).
 
-We measured decision points and implementation burden across loop patterns in a real Go codebase (54 loops categorized by purpose). For patterns where fluentfp applies (33% of loops), here's what each approach requires:
+| Dimension | Conventional | fluentfp |
+|-----------|--------------|----------|
+| **Concepts to learn** | ~5 loop forms, index/value semantics, append mechanics | Method expressions, named functions, the API |
+| **Decisions per use** | 3 (loop form, index?, value?) | 1 (predicate form) |
+| **When concepts apply** | Must choose correct form each time | Learn once, apply uniformly |
+
+The key difference: conventional loop concepts must be *applied situationally* (which form do I need here?), while fluentfp concepts are *front-loaded* (learn the API, then just use it).
 
 ```mermaid
 flowchart LR
@@ -67,41 +73,25 @@ flowchart LR
         F1["Predicate form?"]
     end
 
-    subgraph Conventional["Conventional: 3 decisions + boilerplate"]
+    subgraph Conventional["Conventional: 3 decisions"]
         C1["Range or C-style?"] --> C2["Need index?"]
         C2 --> C3["Need value?"]
-        C3 --> C4["Write boilerplate"]
     end
 
     style fluentfp fill:#c8e6c9
     style Conventional fill:#ffcdd2
 ```
 
-**What you must think about:**
-
-| | Conventional | fluentfp |
-|---|---|---|
-| **Decisions** | Range or C-style? Need index? Need value? | Predicate form? |
-| **Boilerplate** | `var result`, `if`, `append`/`count++` | None |
-
-**Empirical results** (weighted by actual usage):
+**Empirical measurement** from a production Go codebase (608 loops):
 
 | Metric | Conventional | fluentfp | Reduction |
 |--------|--------------|----------|-----------|
-| Decisions | 3.0 | 1.0 | 67% fewer |
-| Implementation lines | 2.5 | 0.0 | 100% fewer |
+| Decisions per loop | 3.0 | 1.0 | 67% fewer |
+| Boilerplate lines | 2.5 | 0.0 | 100% fewer |
 
-The pattern-by-pattern breakdown:
+Of 608 loops analyzed, ~200-250 (33-41%) are fluentfp-replaceable. The rest require complex control flow, I/O streaming, or are Go idioms (table-driven tests).
 
-| Pattern | Weight | Conv decisions | Conv impl | FP decisions | FP impl |
-|---------|--------|----------------|-----------|--------------|---------|
-| Filter + collect | 22% | 3 | 4 | 1 | 0 |
-| Filter + count | 17% | 3 | 4 | 1 | 0 |
-| Transform | 17% | 3 | 2 | 1 | 0 |
-| Accumulate | 28% | 3 | 2 | 1 | 0 |
-| Side effect | 17% | 3 | 0 | 1 | 0 |
-
-Conventional loops require decisions about *mechanics* (loop form, index, value). fluentfp requires one decision about *expression* (how to reference the predicate). The mechanical decisions navigate syntax; the expression decision is about naming.
+Conventional loops require decisions about *mechanics* (loop form, index, value). fluentfp requires one decision about *expression* (how to reference the predicate).
 
 ## The Invisible Familiarity Discount
 
