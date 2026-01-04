@@ -149,10 +149,10 @@ The preference hierarchy: **method expressions → named functions → inline la
 slice.From(history).ToFloat64(Record.GetLeadTime)
 
 // Good: named function documents intent
-// completedAfterCutoff returns true if ticket was completed after the cutoff tick.
-completedAfterCutoff := func(t Ticket) bool { return t.CompletedTick >= cutoff }
-slice.From(tickets).
-    KeepIf(completedAfterCutoff).
+// isAdult returns true if user is 18+ and has an active account.
+isAdult := func(u User) bool { return u.Age >= 18 && u.IsActive() }
+slice.From(users).
+    KeepIf(isAdult).
     Len()
 
 // Avoid: inline lambda requires parsing function syntax mid-chain
