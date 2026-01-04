@@ -151,15 +151,12 @@ func main() {
 	totalIDs := slice.Fold(posts, 0, sumPostIDs)
 	fmt.Println("\nsum of post IDs:", totalIDs)
 
-	// ToFloat64 - inline is fine here (trivial field extraction)
-	idsAsFloats := posts.ToFloat64(func(p Post) float64 { return float64(p.ID) })
+	// ToFloat64 - use method expression
+	idsAsFloats := posts.ToFloat64(Post.GetIDAsFloat64)
 	fmt.Println("\npost IDs as floats:", idsAsFloats[:3])
 
-	// Unzip2 - inline extractors are fine (single field access each)
-	ids, postTitles := slice.Unzip2(posts,
-		func(p Post) int { return p.ID },
-		func(p Post) string { return p.Title },
-	)
+	// Unzip2 - use method expressions
+	ids, postTitles := slice.Unzip2(posts, Post.GetID, Post.GetTitle)
 	fmt.Printf("\nextracted %d IDs and %d titles\n", len(ids), len(postTitles))
 
 	// Zip/ZipWith - named transformer (has domain meaning)
@@ -191,10 +188,14 @@ type Post struct {
 	Title string
 }
 
+// GetID returns the post's ID.
+func (p Post) GetID() int { return p.ID }
+
+// GetIDAsFloat64 returns the post's ID as a float64.
+func (p Post) GetIDAsFloat64() float64 { return float64(p.ID) }
+
 // GetTitle returns the post's title.
-func (p Post) GetTitle() string {
-	return p.Title
-}
+func (p Post) GetTitle() string { return p.Title }
 
 // IsValid returns whether the post id is positive.
 func (p Post) IsValid() bool {
