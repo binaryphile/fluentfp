@@ -57,51 +57,51 @@ for _, u := range users {
 
 ## Mental Load Comparison
 
-Complexity has two dimensions: **choice complexity** (degrees of freedom—how many decisions with multiple valid options) and **correctness complexity** (bug surface—how many places you can write something wrong).
+**Rule: If you have to think about it, it counts as a decision point.**
+
+We measured decision points and implementation burden across loop patterns in a real Go codebase (54 loops categorized by purpose). For patterns where fluentfp applies (33% of loops), here's what each approach requires:
 
 ```mermaid
 flowchart LR
-    subgraph fluentfp["fluentfp"]
-        F1["What operation?"] --> F2["Method expr available?"]
+    subgraph fluentfp["fluentfp: 1 decision"]
+        F1["Predicate form?"]
     end
 
-    subgraph Conventional["Conventional"]
-        C1["Range or C-style?"] -->|"2 options"| C2["Which range form?"]
-        C2 -->|"4 options"| C3["Write initialization"]
-        C3 --> C4["Write condition"]
-        C4 --> C5["Write accumulation"]
+    subgraph Conventional["Conventional: 3 decisions + boilerplate"]
+        C1["Range or C-style?"] --> C2["Need index?"]
+        C2 --> C3["Need value?"]
+        C3 --> C4["Write boilerplate"]
     end
 
     style fluentfp fill:#c8e6c9
     style Conventional fill:#ffcdd2
 ```
 
-**Conventional loop** (count active users):
+**What you must think about:**
 
-| Step | Type | Notes |
-|------|------|-------|
-| 1. Range or C-style? | Choice (2 options) | Must decide |
-| 2. Which range form? | Choice (4 options) | `for i, x` / `for _, x` / `for i` / `for x := range ch` |
-| 3. Write initialization | Correctness | `count := 0` — determined by intent, but must write correctly |
-| 4. Write condition | Correctness | `if u.IsActive()` — determined by intent, but must write correctly |
-| 5. Write accumulation | Correctness | `count++` — determined by intent, but must write correctly |
+| | Conventional | fluentfp |
+|---|---|---|
+| **Decisions** | Range or C-style? Need index? Need value? | Predicate form? |
+| **Boilerplate** | `var result`, `if`, `append`/`count++` | None |
 
-- **Choice complexity**: 2 decisions × multiple options = 8 valid loop structures
-- **Correctness complexity**: 3 places to introduce bugs
+**Empirical results** (weighted by actual usage):
 
-**fluentfp**:
+| Metric | Conventional | fluentfp | Reduction |
+|--------|--------------|----------|-----------|
+| Decisions | 3.0 | 1.0 | 67% fewer |
+| Implementation lines | 2.5 | 0.0 | 100% fewer |
 
-| Step | Type | Notes |
-|------|------|-------|
-| 1. What operation? | Determined | `KeepIf` + `Len` — follows from "filter and count" |
-| 2. Method expression available? | Check | If `User.IsActive` exists with value receiver, use it; otherwise write named function |
+The pattern-by-pattern breakdown:
 
-- **Choice complexity**: 0 real choices (operation follows from intent; form follows from type)
-- **Correctness complexity**: 0 (mechanics handled by library)
+| Pattern | Weight | Conv decisions | Conv impl | FP decisions | FP impl |
+|---------|--------|----------------|-----------|--------------|---------|
+| Filter + collect | 22% | 3 | 4 | 1 | 0 |
+| Filter + count | 17% | 3 | 4 | 1 | 0 |
+| Transform | 17% | 3 | 2 | 1 | 0 |
+| Accumulate | 28% | 3 | 2 | 1 | 0 |
+| Side effect | 17% | 3 | 0 | 1 | 0 |
 
-Result: `slice.From(users).KeepIf(User.IsActive).Len()`
-
-The difference: conventional loops require decisions about *how* (loop form, range variant) and correctness in *implementation* (initialization, accumulation). fluentfp decisions are about *what* (which operation)—the implementation is factored into the library.
+Conventional loops require decisions about *mechanics* (loop form, index, value). fluentfp requires one decision about *expression* (how to reference the predicate). The mechanical decisions navigate syntax; the expression decision is about naming.
 
 ## The Invisible Familiarity Discount
 
@@ -159,12 +159,12 @@ When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no fun
 
 Line counts include comment lines where I consider them essential for clarity.
 
-| Pattern                | fluentfp | Conventional |
-| ---------------------- | -------- | ------------ |
-| Filter + Return        | 1 line   | 7 lines      |
-| Filter + Count         | 3 lines  | 7 lines      |
-| Field Extraction (Map) | 1 line   | 5 lines      |
-| Fold (Reduce)          | 3 lines  | 5 lines      |
+| Pattern                | fluentfp  | Conventional |
+| ---------------------- | --------- | ------------ |
+| Filter + Return        | 1 line    | 7 lines      |
+| Filter + Count         | 3 lines   | 7 lines      |
+| Field Extraction (Map) | 1-3 lines | 5 lines      |
+| Fold (Reduce)          | 3 lines   | 5 lines      |
 
 ## Real Patterns
 
