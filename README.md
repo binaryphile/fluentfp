@@ -52,6 +52,10 @@ return result
 
 **Each package has a bounded API surface.** No FlatMap/GroupBy sprawl in slice, no monadic bind chains in option. The restraint is deliberate.
 
+**The invisible familiarity discount.** A `for` loop you've seen 10,000 times feels instant to parse—but only because you've amortized the cognitive load through repetition. This doesn't mean FluentFP is always clearer (conventional loops win in many cases), but be aware of the discount when comparing. FluentFP expresses intent without mechanics to parse—the simplicity is inherent, not learned.
+
+**Concerns factored, not eliminated.** The library still does `make`, `range`, and `append`—just once, not at every call site. You specify only what varies: the predicate, the extractor, the reducer.
+
 See [analysis.md](analysis.md) for detailed design rationale.
 
 ## Installation

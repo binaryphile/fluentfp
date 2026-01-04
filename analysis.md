@@ -69,6 +69,37 @@ flowchart LR
     style Conventional fill:#ffcdd2
 ```
 
+## The Invisible Familiarity Discount
+
+A Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "sees" it instantly. But that's pattern recognition from thousands of repetitions, not inherent simplicity.
+
+**The tell:** Show that loop to a non-programmer, then show them `KeepIf(isActive).Len()`. Which one can they parse?
+
+**The real test:** Come back to your own code after 6 months. The loop requires re-simulation ("what is this accumulating? oh, it's counting matches"). The chain states intent directly.
+
+The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean FluentFP is always clearer—conventional loops win in many cases (see "When Not to Use FluentFP" below). But be aware of the discount when comparing. FluentFP expresses intent without mechanics to parse—the simplicity is inherent, not learned.
+
+## Concerns Factored, Not Eliminated
+
+FluentFP doesn't make iteration disappear—it moves it to one place.
+
+**Your call site:**
+```go
+return slice.From(history).ToFloat64(Record.GetValue)
+```
+
+**What the library does:**
+- `make([]float64, len(input))` — allocation
+- `for i, t := range input` — iteration with index
+- `results[i] = fn(t)` — transformation and assignment
+- `return results` — return
+
+The same four concerns exist. The difference: the library handles them once. You handle only what varies—the extraction function.
+
+**The trade-off:**
+- **Conventional**: Write mechanics at every call site
+- **FluentFP**: Library writes mechanics once; you write only what varies
+
 ## Method Expressions: The Cleanest Chains
 
 The preference hierarchy: **method expressions → named functions → inline lambdas**.
