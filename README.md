@@ -48,6 +48,8 @@ return result
 
 **Method expressions read like English.** When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no function body to parse—just intent.
 
+**Value receivers encouraged.** Pointer receivers are common in Go codebases, but they carry costs: nil receiver panics and mutation at a distance. At scale, these become maintenance burdens—defensive nil checks proliferate, and tracing where state changed requires following every call path. Value receivers handle these issues explicitly, providing guardrails to safer code—and enabling method expressions as a bonus. FluentFP works with pointer receivers—you just can't use method expressions with them.
+
 **Interoperability is frictionless.** FluentFP slices auto-convert to native slices and back. Pass them to standard library functions, range over them, index them.
 
 **Each package has a bounded API surface.** No FlatMap/GroupBy sprawl in slice, no monadic bind chains in option. The restraint is deliberate.

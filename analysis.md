@@ -119,7 +119,7 @@ slice.From(tickets).KeepIf(completedAfterCutoff).Len()
 
 When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no function body to parse—it reads like English.
 
-**Critical requirement:** Method expressions require value receivers. `slice.From(users)` creates `Mapper[User]`, so `User.IsActive` must have receiver type `User`, not `*User`.
+**Critical requirement:** Method expressions require value receivers. `slice.From(users)` creates `Mapper[User]`, so `User.IsActive` must have receiver type `User`, not `*User`. Pointer receivers are common in Go codebases, but FluentFP works with them—you just can't use method expressions with them.
 
 ## Quantified Benefits
 

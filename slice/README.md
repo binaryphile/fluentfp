@@ -71,6 +71,8 @@ slice.From(users).KeepIf(User.IsActive)  // ✗ User.IsActive is func(*User) boo
 - Eliminates nil receiver panics (the "billion dollar mistake")
 - Makes value semantics explicit
 
+Pointer receivers are common in Go codebases, but FluentFP works with them—you just can't use method expressions with them.
+
 --------------------------------------------------------------------------------------------
 
 ## Getting Started
