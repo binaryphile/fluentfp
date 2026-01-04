@@ -83,23 +83,25 @@ The invisible familiarity discount: a pattern you've seen 10,000 times *feels* s
 
 **Complexity is mental step count.** Compare the decisions required for "count active users":
 
-**Conventional loop (6 steps):**
-1. Range or C-style? → Range
-2. Which range form? → `for _, u := range` (value only, discard index)
-3. What am I accumulating? → Count
+**Conventional loop (7 steps):**
+1. Range or C-style? → Range (or `for i := 0; i < len; i++`?)
+2. Which range form? → `for _, u := range` (not `for i, u`, not `for i`)
+3. What am I accumulating? → Count (not slice, not sum, not single value)
 4. Initialize → `count := 0`
 5. Condition → `if u.IsActive()`
 6. Accumulate → `count++`
+7. Return → `return count`
 
-**fluentfp (2 steps):**
-1. What operation? → Filter + count
-2. What predicate? → `User.IsActive`
+**fluentfp (3 steps):**
+1. What operation? → Filter + count → `KeepIf` + `Len`
+2. What predicate? → `IsActive`
+3. Method expression or named function? → `User.IsActive` (method exists, value receiver)
 
 Result: `slice.From(users).KeepIf(User.IsActive).Len()`
 
-The loop requires choosing among forms (`for i, x`, `for _, x`, `for i`, `for x := range ch`, plus C-style variants), then wiring up initialization and accumulation. Each decision is a branch point where bugs can enter.
+Seven decisions vs three. Each decision is a branch point where bugs can enter—wrong loop form, forgotten initialization, off-by-one in C-style bounds, typo in accumulator.
 
-fluentfp methods have one form each—`KeepIf` always filters, `Len` always counts. The only decision is what predicate to apply.
+fluentfp methods have one form each—`KeepIf` always filters, `Len` always counts. The decisions that remain are about *what* (predicate logic), not *how* (iteration mechanics).
 
 ## Concerns Factored, Not Eliminated
 
