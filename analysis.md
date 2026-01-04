@@ -81,7 +81,31 @@ A Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "
 
 The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean fluentfp is always clearer—conventional loops win in many cases (see "When Not to Use fluentfp" below). But be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the simplicity is inherent, not learned.
 
-**Loop syntax variations add ambiguity.** Go's range-based `for` loop has multiple forms: `for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`. Each means something different. When reading a loop, you must first identify which form it is before you can understand what it does. (We haven't even mentioned C-style `for` loops.) fluentfp methods have one form each—`KeepIf` always filters, `ToFloat64` always extracts—no ambiguity to resolve.
+**Loop syntax variations add ambiguity.** Before writing a `for` loop, you must answer several questions:
+
+1. **Range or C-style?**
+   - Range: iterating over a collection
+   - C-style: need custom start, stop, or step
+
+2. **If range, which form?**
+   - `for i, x := range` — need both index and value
+   - `for _, x := range` — need value only (discard index)
+   - `for i := range` — need index only (discard value)
+   - `for x := range ch` — consuming a channel
+
+3. **If C-style, what are the bounds?**
+   - `for i := 0; i < len(s); i++` — standard forward
+   - `for i := len(s) - 1; i >= 0; i--` — reverse
+   - `for i := 0; i < len(s); i += 2` — skip elements
+   - `for i := start; i < end; i++` — slice of slice
+
+4. **What am I accumulating?**
+   - New slice? → `var result []T` + `append`
+   - Count? → `count := 0` + `count++`
+   - Sum? → `var total T` + `total +=`
+   - Single value? → `var found T` + `break`
+
+Each decision is a branch point where bugs can enter. fluentfp methods have one form each—`KeepIf` always filters, `ToFloat64` always extracts—no decisions to make, no ambiguity to resolve.
 
 ## Concerns Factored, Not Eliminated
 
