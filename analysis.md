@@ -137,7 +137,7 @@ user.IsActive()      // method call on instance
 User.IsActive(user)  // method expression - same result
 ```
 
-The difference: `User.IsActive` is a function value you can pass to higher-order functions like `KeepIf`.
+The difference: `User.IsActive` is a function value you can pass to higher-order functions like `KeepIf`. No extra syntax required—method expressions come free with every method you define.
 
 The preference hierarchy: **method expressions → named functions → inline lambdas**.
 
