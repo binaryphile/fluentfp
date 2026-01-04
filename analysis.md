@@ -99,7 +99,9 @@ for _, u := range users {
 }
 
 // fluentfp: intent decision, no boilerplate
-count := slice.From(users).KeepIf(User.IsActive).Len()
+count := slice.From(users).
+    KeepIf(User.IsActive).
+    Len()
 ```
 
 ## The Invisible Familiarity Discount
