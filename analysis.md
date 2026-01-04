@@ -61,7 +61,7 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 
 | Dimension | Conventional | fluentfp |
 |-----------|--------------|----------|
-| **Concepts** | 4 intertwined concerns | 5 operations, predicate forms |
+| **Concepts** | 4 intertwined concerns (above) | 5 operations, predicate forms (below) |
 | **Decisions per use** | 2-3 within concerns (accumulator, range form) | 1-2 (operation, predicate form) |
 | **Decision type** | Syntax: "which form gives me what I need?" | Intent: "what operation expresses my goal?" |
 
@@ -135,15 +135,17 @@ A method expression references a method through its type rather than an instance
 ```go
 user.IsActive()      // method call on instance
 User.IsActive(user)  // method expression - same result
+
+// The payoff: User.IsActive is a function value you can pass directly
+slice.From(users).KeepIf(User.IsActive)
 ```
 
-The difference: `User.IsActive` is a function value you can pass to higher-order functions like `KeepIf`. No extra syntax required—method expressions come free with every method you define.
+No extra syntax required—method expressions come free with every method you define.
 
 The preference hierarchy: **method expressions → named functions → inline lambdas**.
 
 ```go
 // Best: method expressions read as English
-slice.From(developers).KeepIf(Developer.IsIdle)
 slice.From(history).ToFloat64(Record.GetLeadTime)
 
 // Good: named function documents intent
