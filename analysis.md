@@ -61,20 +61,19 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 
 | Dimension | Conventional | fluentfp |
 |-----------|--------------|----------|
-| **Concepts** | Loop forms (`for i, x`, `for _, x`, `for i`, C-style), append pattern | Operations (KeepIf, ToX, Fold), method expressions |
-| **Decisions per use** | 3 (range/C-style?, index?, value?) | 1-2 (which operation, predicate form) |
-
-The difference: conventional loop decisions are about *syntax* (which form gives me what I need?). fluentfp decisions are about *intent* (what operation expresses my goal?).
+| **Concepts** | 4 loop forms, append/accumulator patterns | 5 operations, method expressions |
+| **Decisions per use** | 2-3 (index?, value?, accumulator type) | 1-2 (operation, predicate form) |
+| **Decision type** | Syntax: "which form gives me what I need?" | Intent: "what operation expresses my goal?" |
 
 ```mermaid
 flowchart LR
-    subgraph fluentfp["fluentfp"]
-        F1["Which operation?"] --> F2["Predicate form?"]
+    subgraph fluentfp["fluentfp: intent"]
+        F1["What do I want?"] --> F2["How to express predicate?"]
     end
 
-    subgraph Conventional["Conventional"]
-        C1["Range or C-style?"] --> C2["Need index?"]
-        C2 --> C3["Need value?"]
+    subgraph Conventional["Conventional: syntax"]
+        C1["Need index?"] --> C2["Need value?"]
+        C2 --> C3["What accumulator?"]
     end
 
     style fluentfp fill:#c8e6c9
@@ -86,7 +85,7 @@ flowchart LR
 **For replaceable patterns**, conventional loops require boilerplate (variable declaration, append/increment) while fluentfp requires none:
 
 ```go
-// Conventional: 3 syntax decisions + boilerplate
+// Conventional: syntax decisions + boilerplate
 count := 0
 for _, u := range users {
     if u.IsActive() {
@@ -94,7 +93,7 @@ for _, u := range users {
     }
 }
 
-// fluentfp: 1-2 intent decisions, no boilerplate
+// fluentfp: intent decision, no boilerplate
 count := slice.From(users).KeepIf(User.IsActive).Len()
 ```
 
