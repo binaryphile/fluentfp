@@ -7,6 +7,20 @@ fluentfp is a genuine readability improvement for Go. The core insight: **method
 Both approaches filter active users and extract their names. Compare how each represents the same operation:
 
 ```mermaid
+flowchart LR
+    subgraph fluentfp["fluentfp: Data Pipeline"]
+        A["[]User"] --> B["KeepIf(IsActive)"]
+        B --> C["ToString(Name)"]
+        C --> D["[]string"]
+    end
+
+    style A fill:#e1f5fe
+    style D fill:#c8e6c9
+    style B fill:#fff3e0
+    style C fill:#fff3e0
+```
+
+```mermaid
 flowchart TD
     subgraph Conventional["Conventional: Iteration Mechanics"]
         S([Start]) --> I["var result []string"]
@@ -24,20 +38,6 @@ flowchart TD
     style L fill:#ffcdd2
     style C fill:#ffcdd2
     style AP fill:#ffcdd2
-```
-
-```mermaid
-flowchart LR
-    subgraph fluentfp["fluentfp: Data Pipeline"]
-        A["[]User"] --> B["KeepIf(IsActive)"]
-        B --> C["ToString(Name)"]
-        C --> D["[]string"]
-    end
-
-    style A fill:#e1f5fe
-    style D fill:#c8e6c9
-    style B fill:#fff3e0
-    style C fill:#fff3e0
 ```
 
 A loop interleaves 4 concerns—variable declaration, iteration syntax, condition, and accumulation. fluentfp collapses these into one expression:
