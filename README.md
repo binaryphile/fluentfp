@@ -1,6 +1,6 @@
-# FluentFP: Pragmatic Functional Programming in Go
+# fluentfp: Pragmatic Functional Programming in Go
 
-**FluentFP** is a collection of Go packages designed to bring a handful of functional
+**fluentfp** is a collection of Go packages designed to bring a handful of functional
 programming concepts to Go from a Go practitioner’s standpoint. It is entirely focused on
 writing clear, economical Go code.
 
@@ -30,14 +30,14 @@ The library is structured into several modules:
 
 See the individual package READMEs for details by clicking the headings below.
 
-## Why FluentFP
+## Why fluentfp
 
-**Correctness by construction.** Bugs hide in loop mechanics. Index typos (`i+i` not `i+1`), defer in loops, error shadowing (`:=` vs `=`)—these bugs compile and pass review. They did in our codebase. They will in yours, if it's big enough. FluentFP has no index to typo, no loop body to defer in, no local variable to shadow. No mechanics, no bugs. See [analysis.md](analysis.md#correctness-by-construction) for examples.
+**Correctness by construction.** Bugs hide in loop mechanics. Index typos (`i+i` not `i+1`), defer in loops, error shadowing (`:=` vs `=`)—these bugs compile and pass review. They did in our codebase. They will in yours, if it's big enough. fluentfp has no index to typo, no loop body to defer in, no local variable to shadow. No mechanics, no bugs. See [analysis.md](analysis.md#correctness-by-construction) for examples.
 
-**Method chaining abstracts iteration mechanics.** A loop interleaves 4 concerns—variable declaration, iteration syntax, append mechanics, and return. FluentFP collapses these into one expression:
+**Method chaining abstracts iteration mechanics.** A loop interleaves 4 concerns—variable declaration, iteration syntax, append mechanics, and return. fluentfp collapses these into one expression:
 
 ```go
-// FluentFP: what, not how
+// fluentfp: what, not how
 return slice.From(history).ToFloat64(Record.GetLeadTime)
 
 // Loop: 4 interleaved concepts
@@ -50,15 +50,15 @@ return result
 
 **Method expressions read like English.** When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no function body to parse—just intent.
 
-**Value receivers encouraged.** Pointer receivers are common in Go codebases, but they carry costs: nil receiver panics and mutation at a distance. At scale, these become maintenance burdens—defensive nil checks proliferate, and tracing where state changed requires following every call path. Value receivers handle these issues explicitly, providing guardrails to safer code—and enabling method expressions as a bonus. FluentFP works with pointer receivers—you just can't use method expressions with them.
+**Value receivers encouraged.** Pointer receivers are common in Go codebases, but they carry costs: nil receiver panics and mutation at a distance. At scale, these become maintenance burdens—defensive nil checks proliferate, and tracing where state changed requires following every call path. Value receivers handle these issues explicitly, providing guardrails to safer code—and enabling method expressions as a bonus. fluentfp works with pointer receivers—you just can't use method expressions with them.
 
-**Interoperability is frictionless.** FluentFP slices auto-convert to native slices and back. Pass them to standard library functions, range over them, index them.
+**Interoperability is frictionless.** fluentfp slices auto-convert to native slices and back. Pass them to standard library functions, range over them, index them.
 
 **Each package has a bounded API surface.** No FlatMap/GroupBy sprawl in slice, no monadic bind chains in option. The restraint is deliberate.
 
-**The invisible familiarity discount.** A `for` loop you've seen 10,000 times feels instant to parse—but only because you've amortized the cognitive load through repetition. This doesn't mean FluentFP is always clearer (conventional loops win in many cases), but be aware of the discount when comparing. FluentFP expresses intent without mechanics to parse—the simplicity is inherent, not learned.
+**The invisible familiarity discount.** A `for` loop you've seen 10,000 times feels instant to parse—but only because you've amortized the cognitive load through repetition. This doesn't mean fluentfp is always clearer (conventional loops win in many cases), but be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the simplicity is inherent, not learned.
 
-**Loop syntax variations add ambiguity.** Range-based loops have multiple forms (`for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`)—each means something different. FluentFP methods have one form each.
+**Loop syntax variations add ambiguity.** Range-based loops have multiple forms (`for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`)—each means something different. fluentfp methods have one form each.
 
 **Concerns factored, not eliminated.** The library still does `make`, `range`, and `append`—just once, not at every call site. You specify only what varies: the predicate, the extractor, the reducer.
 
@@ -66,7 +66,7 @@ See [analysis.md](analysis.md) for detailed design rationale.
 
 ## Installation
 
-To get started with **FluentFP**:
+To get started with **fluentfp**:
 
 ``` bash
 go get github.com/binaryphile/fluentfp
@@ -217,4 +217,4 @@ summaries := pair.ZipWith(names, scores, formatScore)
 
 ## License
 
-FluentFP is licensed under the MIT License. See [LICENSE](LICENSE) for more details.
+fluentfp is licensed under the MIT License. See [LICENSE](LICENSE) for more details.

@@ -1,13 +1,13 @@
 @/home/ted/projects/share/tandem-protocol/tandem-protocol.md
 
-# FluentFP - Functional Programming Library for Go
+# fluentfp - Functional Programming Library for Go
 
 ## Development Environment
 
 - **Language**: Go
 - **Package Management**: Go modules
 
-## Code Style: FluentFP
+## Code Style: fluentfp
 
 ### slice Package - Complete API
 
@@ -230,7 +230,7 @@ leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
 1. **Method expressions** - `User.IsActive`, `Device.GetMAC` (cleanest, no function body)
 2. **Named functions** - `isActive := func(u User) bool {...}` (readable, debuggable)
 
-Avoid inline anonymous functions in FluentFP chains. If the logic is simple enough to inline, it's simple enough to name and document.
+Avoid inline anonymous functions in fluentfp chains. If the logic is simple enough to inline, it's simple enough to name and document.
 
 **When to name (vs inline):**
 
@@ -295,12 +295,12 @@ sumFloat64 := func(acc, x float64) float64 { return acc + x }
 total := slice.Fold(amounts, 0.0, sumFloat64)
 ```
 
-### Why Always Prefer FluentFP Over Loops
+### Why Always Prefer fluentfp Over Loops
 
 **Concrete example - field extraction:**
 
 ```go
-// FluentFP: one expression stating intent
+// fluentfp: one expression stating intent
 return slice.From(f.History).ToFloat64(FeverSnapshot.GetPercentUsed)
 
 // Loop: four concepts interleaved
@@ -312,13 +312,13 @@ for _, s := range f.History {                  // 2. iteration mechanics (discar
 return result                                  // 4. return
 ```
 
-The loop forces you to think about *how* (declare, iterate, append, return). FluentFP expresses *what* (extract PercentUsed as float64s).
+The loop forces you to think about *how* (declare, iterate, append, return). fluentfp expresses *what* (extract PercentUsed as float64s).
 
 **General principles:**
 - Loops have multiple forms → mental load
 - Loops force wasted syntax (discarded `_` values)
-- Loops nest; FluentFP chains
-- Loops describe *how*; FluentFP describes *what*
+- Loops nest; fluentfp chains
+- Loops describe *how*; fluentfp describes *what*
 
 ### When Loops Are Still Necessary
 
@@ -338,7 +338,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). Flu
 
 ### Domain/Algorithms: Unit Test Heavily
 
-**FluentFP-specific domain code:**
+**fluentfp-specific domain code:**
 - `slice.KeepIf`, `slice.RemoveIf` - conditional inclusion logic
 - `slice.TakeFirst` - boundary handling (`if n > len`)
 - `slice.Fold`, `slice.Unzip2/3/4` - accumulation and multi-output logic

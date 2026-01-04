@@ -1,12 +1,12 @@
-# FluentFP Analysis
+# fluentfp Analysis
 
-FluentFP is a genuine readability improvement for Go. The core insight: **method chaining abstracts iteration mechanics**, letting you read code as a sequence of transformations rather than machine instructions.
+fluentfp is a genuine readability improvement for Go. The core insight: **method chaining abstracts iteration mechanics**, letting you read code as a sequence of transformations rather than machine instructions.
 
 ## The Core Difference
 
 ```mermaid
 flowchart LR
-    subgraph FluentFP["FluentFP: Data Pipeline"]
+    subgraph fluentfp["fluentfp: Data Pipeline"]
         A["[]User"] --> B["KeepIf(IsActive)"]
         B --> C["ToString(Name)"]
         C --> D["[]string"]
@@ -38,10 +38,10 @@ flowchart TD
     style AP fill:#ffcdd2
 ```
 
-A loop interleaves 4 concerns—variable declaration, iteration syntax (with discarded `_`), append mechanics, and return. FluentFP collapses these into one expression:
+A loop interleaves 4 concerns—variable declaration, iteration syntax (with discarded `_`), append mechanics, and return. fluentfp collapses these into one expression:
 
 ```go
-// FluentFP: what you want
+// fluentfp: what you want
 names := slice.From(users).
     KeepIf(User.IsActive).
     ToString(User.Name)
@@ -59,7 +59,7 @@ for _, u := range users {
 
 ```mermaid
 flowchart LR
-    subgraph FluentFP["FluentFP: 2 Concepts"]
+    subgraph fluentfp["fluentfp: 2 Concepts"]
         F1["Filter active"] --> F2["Extract names"]
     end
 
@@ -67,7 +67,7 @@ flowchart LR
         C1["Declare result"] --> C2["Range loop"] --> C3["Check condition"] --> C4["Append"] --> C5["Return"]
     end
 
-    style FluentFP fill:#c8e6c9
+    style fluentfp fill:#c8e6c9
     style Conventional fill:#ffcdd2
 ```
 
@@ -79,13 +79,13 @@ A Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "
 
 **The real test:** Come back to your own code after 6 months. The loop requires re-simulation ("what is this accumulating? oh, it's counting matches"). The chain states intent directly.
 
-The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean FluentFP is always clearer—conventional loops win in many cases (see "When Not to Use FluentFP" below). But be aware of the discount when comparing. FluentFP expresses intent without mechanics to parse—the simplicity is inherent, not learned.
+The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean fluentfp is always clearer—conventional loops win in many cases (see "When Not to Use fluentfp" below). But be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the simplicity is inherent, not learned.
 
-**Loop syntax variations add ambiguity.** Go's range-based `for` loop has multiple forms: `for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`. Each means something different. When reading a loop, you must first identify which form it is before you can understand what it does. (We haven't even mentioned C-style `for` loops.) FluentFP methods have one form each—`KeepIf` always filters, `ToFloat64` always extracts—no ambiguity to resolve.
+**Loop syntax variations add ambiguity.** Go's range-based `for` loop has multiple forms: `for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`. Each means something different. When reading a loop, you must first identify which form it is before you can understand what it does. (We haven't even mentioned C-style `for` loops.) fluentfp methods have one form each—`KeepIf` always filters, `ToFloat64` always extracts—no ambiguity to resolve.
 
 ## Concerns Factored, Not Eliminated
 
-FluentFP doesn't make iteration disappear—it moves it to one place.
+fluentfp doesn't make iteration disappear—it moves it into the library.
 
 **Your call site:**
 ```go
@@ -98,11 +98,11 @@ return slice.From(history).ToFloat64(Record.GetValue)
 - `results[i] = fn(t)` — transformation and assignment
 - `return results` — return
 
-The same four concerns exist. The difference: the library handles them once. You handle only what varies—the extraction function.
+The same four concerns exist. The difference: the library handles them in one place, not every call site. You handle only what varies—the extraction function.
 
 **The trade-off:**
 - **Conventional**: Write mechanics at every call site
-- **FluentFP**: Library writes mechanics once; you write only what varies
+- **fluentfp**: Library writes mechanics once; you write only what varies
 
 ## Method Expressions: The Cleanest Chains
 
@@ -123,22 +123,24 @@ slice.From(tickets).
 
 When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no function body to parse—it reads like English.
 
-**Critical requirement:** Method expressions require value receivers. `slice.From(users)` creates `Mapper[User]`, so `User.IsActive` must have receiver type `User`, not `*User`. Pointer receivers are common in Go codebases, but FluentFP works with them—you just can't use method expressions with them.
+**Critical requirement:** Method expressions require value receivers. `slice.From(users)` creates `Mapper[User]`, so `User.IsActive` must have receiver type `User`, not `*User`. Pointer receivers are common in Go codebases, and fluentfp still works with them as well—you just have to write anonymous functions rather than use the English-like method expression.
 
 ## Quantified Benefits
 
-| Pattern | FluentFP | Conventional | Reduction |
-|---------|----------|--------------|-----------|
-| Filter + return | 1 line | 7 lines | 86% |
-| Filter + count | 3 lines | 7 lines | 57% |
-| Field extraction | 1 line | 5 lines | 80% |
-| Fold/reduce | 2 lines | 4 lines | 50% |
+Line counts include what I consider essential comments.
+
+| Pattern          | fluentfp | Conventional | Reduction |
+| ---------------- | -------- | ------------ | --------- |
+| Filter + return  | 3 lines  | 7 lines      | 57%       |
+| Filter + count   | 3 lines  | 7 lines      | 57%       |
+| Field extraction | 1 line   | 5 lines      | 80%       |
+| Fold/reduce      | 2 lines  | 4 lines      | 50%       |
 
 ## Real Patterns
 
 ### Filter + Count
 ```go
-// FluentFP
+// fluentfp
 openCount := slice.From(incidents).
     KeepIf(Incident.IsOpen).
     Len()
@@ -155,10 +157,10 @@ for _, inc := range incidents {
 
 ### Field Extraction (Map)
 ```go
-// FluentFP with method expression
+// fluentfp with method expression
 values := slice.From(history).ToFloat64(Snapshot.GetPercent)
 
-// FluentFP with named function (when no method exists)
+// fluentfp with named function (when no method exists)
 // getPercent extracts the Percent field from a Snapshot.
 getPercent := func(s Snapshot) float64 { return s.Percent }
 values := slice.From(history).ToFloat64(getPercent)
@@ -173,7 +175,7 @@ for i, s := range history {
 
 ### Fold (Reduce)
 ```go
-// FluentFP with named reducer
+// fluentfp with named reducer
 // sumDuration adds two durations.
 sumDuration := func(a, b time.Duration) time.Duration { return a + b }
 total := slice.Fold(durations, time.Duration(0), sumDuration)
@@ -190,7 +192,7 @@ for _, d := range durations {
 
 Line counts don't capture bugs avoided. These bugs are from production Go code—all compiled, all passed code review.
 
-| Bug Pattern | Why Subtle | FluentFP Eliminates? |
+| Bug Pattern | Why Subtle | fluentfp Eliminates? |
 |-------------|-----------|---------------------|
 | Index typo (`i+i` not `i+1`) | Looks intentional | ✓ No index |
 | Defer in loop | Defers pile up silently | ✓ No loop body |
@@ -233,7 +235,7 @@ for _, id := range ids {
 // N connections held until here
 ```
 
-These bugs compile, pass review, and look correct. They don't exist in FluentFP code because the mechanics that contain them don't exist—no index to typo, no loop body to defer in, no local variable to shadow.
+These bugs compile, pass review, and look correct. They don't exist in fluentfp code because the mechanics that contain them don't exist—no index to typo, no loop body to defer in, no local variable to shadow.
 
 ## Why Named Functions Matter
 
@@ -246,7 +248,7 @@ A named function like `completedAfterCutoff` lets you skip the first two and rea
 
 ## Design Decisions
 
-**Interoperability is frictionless.** FluentFP slices auto-convert to native slices and back. Pass them to standard library functions, range over them, index them. Use FluentFP for one transformation in an otherwise imperative function without ceremony.
+**Interoperability is frictionless.** fluentfp slices auto-convert to native slices and back. Pass them to standard library functions, range over them, index them. Use fluentfp for one transformation in an otherwise imperative function without ceremony.
 
 **Bounded API surface.** Each package solves specific patterns cleanly:
 - `slice`: KeepIf, RemoveIf, Convert, ToX, Each, Fold—no FlatMap/GroupBy sprawl
@@ -258,12 +260,12 @@ The restraint is deliberate: solve patterns cleanly without becoming a framework
 
 **Works with Go's type system.** Generics are used minimally—`Mapper[T]` and `MapperTo[R, T]` are the extent of it. No reflection, no `any` abuse, no code generation. Type safety is preserved throughout.
 
-## When Not to Use FluentFP
+## When Not to Use fluentfp
 
 ```mermaid
 flowchart TD
     Q{"What do you need?"}
-    Q -->|"Filter/Map/Fold"| FP["Use FluentFP"]
+    Q -->|"Filter/Map/Fold"| FP["Use fluentfp"]
     Q -->|"break/continue"| Loop["Use loop"]
     Q -->|"Channel range"| Loop
     Q -->|"Index-dependent logic"| Loop

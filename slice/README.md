@@ -67,17 +67,17 @@ slice.From(users).KeepIf(User.IsActive)  // ✗ User.IsActive is func(*User) boo
 ```
 
 **Design rule:** Value receivers by default, pointer receivers only when mutating. This:
-- Enables method expressions with FluentFP
+- Enables method expressions with fluentfp
 - Eliminates nil receiver panics (the "billion dollar mistake")
 - Makes value semantics explicit
 
-Pointer receivers are common in Go codebases, but FluentFP works with them—you just can't use method expressions with them.
+Pointer receivers are common in Go codebases, but fluentfp works with them—you just can't use method expressions with them.
 
 --------------------------------------------------------------------------------------------
 
 ## Getting Started
 
-Install FluentFP:
+Install fluentfp:
 
 ``` bash
 go get github.com/binaryphile/fluentfp
@@ -130,7 +130,7 @@ for _, user := range users {
 Plain Go is fine, but readability suffers from nesting. Recall that range-based `for` loops have
 multiple forms (`for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`)—each means something different, so you must identify which form before understanding what the loop does. In the form shown here, Go also forces you to waste syntax by discarding a value.
 
-**Using FluentFP**:
+**Using fluentfp**:
 
 `users` is a regular slice:
 
@@ -483,7 +483,7 @@ Both functions panic if slices have different lengths (fail-fast behavior).
 
 ## When Loops Are Still Necessary
 
-FluentFP handles most slice operations, but these patterns still require traditional loops:
+fluentfp handles most slice operations, but these patterns still require traditional loops:
 
 ### Channel Consumption
 
@@ -503,7 +503,7 @@ When you need `break`, `continue`, or early `return` within the loop body.
 
 ## Why Name Your Functions
 
-Anonymous functions and higher-order functions require mental effort to parse. When using FluentFP with custom predicates or reducers, **prefer named functions over inline anonymous functions**. This reduces cognitive load.
+Anonymous functions and higher-order functions require mental effort to parse. When using fluentfp with custom predicates or reducers, **prefer named functions over inline anonymous functions**. This reduces cognitive load.
 
 ### The Problem with Inline Lambdas
 
