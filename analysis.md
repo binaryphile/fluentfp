@@ -72,8 +72,8 @@ flowchart LR
     end
 
     subgraph Conventional["Conventional: syntax"]
-        C1["Need index?"] --> C2["Need value?"]
-        C2 --> C3["What accumulator?"]
+        C1["What accumulator?"] --> C2["Need index?"]
+        C2 --> C3["Need value?"]
     end
 
     style fluentfp fill:#c8e6c9
@@ -129,6 +129,15 @@ The same four concerns exist. The difference: the library handles them in one pl
 - **fluentfp**: Library writes mechanics once; you write only what varies
 
 ## [Method Expressions](https://go.dev/ref/spec#Method_expressions): The Cleanest Chains
+
+A method expression references a method through its type rather than an instance. These two statements are equivalent:
+
+```go
+user.IsActive()      // method call on instance
+User.IsActive(user)  // method expression - same result
+```
+
+The difference: `User.IsActive` is a function value you can pass to higher-order functions like `KeepIf`.
 
 The preference hierarchy: **method expressions → named functions → inline lambdas**.
 
