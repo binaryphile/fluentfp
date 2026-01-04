@@ -57,31 +57,23 @@ for _, u := range users {
 
 ## Mental Load Comparison
 
+**Complexity is mental step count.** Compare the decisions required for "count active users":
+
 ```mermaid
 flowchart LR
-    subgraph fluentfp["fluentfp: 2 Concepts"]
-        F1["Filter active"] --> F2["Extract names"]
+    subgraph fluentfp["fluentfp: 2-3 steps"]
+        F1["Operation?"] --> F2["Predicate?"]
+        F2 --> F3["Method expr?"]
     end
 
-    subgraph Conventional["Conventional: 5 Concepts"]
-        C1["Declare result"] --> C2["Range loop"] --> C3["Check condition"] --> C4["Append"] --> C5["Return"]
+    subgraph Conventional["Conventional: 7 steps"]
+        C1["Range/C-style?"] --> C2["Which form?"] --> C3["Accumulating?"] --> C4["Initialize"]
+        C4 --> C5["Condition"] --> C6["Accumulate"] --> C7["Return"]
     end
 
     style fluentfp fill:#c8e6c9
     style Conventional fill:#ffcdd2
 ```
-
-## The Invisible Familiarity Discount
-
-A Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "sees" it instantly. But that's pattern recognition from thousands of repetitions, not inherent simplicity.
-
-**The tell:** Show that loop to a non-programmer, then show them `KeepIf(isActive).Len()`. Which one can they parse?
-
-**The real test:** Come back to your own code after 6 months. The loop requires re-simulation ("what is this accumulating? oh, it's counting matches"). The chain states intent directly.
-
-The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean fluentfp is always clearer—conventional loops win in many cases (see "When Not to Use fluentfp" below). But be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the simplicity is inherent, not learned.
-
-**Complexity is mental step count.** Compare the decisions required for "count active users":
 
 **Conventional loop (7 steps):**
 1. Range or C-style? → Range (or `for i := 0; i < len; i++`?)
@@ -102,6 +94,16 @@ Result: `slice.From(users).KeepIf(User.IsActive).Len()`
 Seven steps vs two or three. Steps 4 and 6 in the loop are mechanically determined by step 3, but you must still write them—and write them correctly. fluentfp's step 3 is a check, not a choice: if the method exists with a value receiver, use it; otherwise write a named function.
 
 The difference: conventional loops require decisions about *how* (form, initialization, accumulation) that each introduce bug opportunities. fluentfp decisions are about *what* (which operation, which predicate)—the mechanics are handled once in the library.
+
+## The Invisible Familiarity Discount
+
+A Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "sees" it instantly. But that's pattern recognition from thousands of repetitions, not inherent simplicity.
+
+**The tell:** Show that loop to a non-programmer, then show them `KeepIf(isActive).Len()`. Which one can they parse?
+
+**The real test:** Come back to your own code after 6 months. The loop requires re-simulation ("what is this accumulating? oh, it's counting matches"). The chain states intent directly.
+
+The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean fluentfp is always clearer—conventional loops win in many cases (see "When Not to Use fluentfp" below). But be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the simplicity is inherent, not learned.
 
 ## Concerns Factored, Not Eliminated
 
