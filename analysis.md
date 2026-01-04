@@ -129,14 +129,29 @@ When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no fun
 
 Line counts include what I consider essential comments.
 
-| Pattern          | fluentfp | Conventional | Reduction |
-| ---------------- | -------- | ------------ | --------- |
-| Filter + return  | 3 lines  | 7 lines      | 57%       |
-| Filter + count   | 3 lines  | 7 lines      | 57%       |
-| Field extraction | 1 line   | 5 lines      | 80%       |
-| Fold/reduce      | 2 lines  | 4 lines      | 50%       |
+| Pattern                | fluentfp | Conventional |
+| ---------------------- | -------- | ------------ |
+| Filter + Return        | 1 line   | 7 lines      |
+| Filter + Count         | 3 lines  | 7 lines      |
+| Field Extraction (Map) | 1 line   | 5 lines      |
+| Fold (Reduce)          | 3 lines  | 5 lines      |
 
 ## Real Patterns
+
+### Filter + Return
+```go
+// fluentfp
+actives := slice.From(users).KeepIf(User.IsActive)
+
+// Conventional
+// Filter to active users
+var actives []User
+for _, u := range users {
+    if u.IsActive() {
+        actives = append(actives, u)
+    }
+}
+```
 
 ### Filter + Count
 ```go
