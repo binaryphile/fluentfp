@@ -61,7 +61,7 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 
 | Dimension | Conventional | fluentfp |
 |-----------|--------------|----------|
-| **Concepts** | 4 intertwined concerns (The Core Difference) | 5 operations, predicate forms (Method Expressions) |
+| **Concepts** | 4 intertwined concerns ([The Core Difference](#the-core-difference)) | 5 operations, predicate forms ([Method Expressions](#method-expressions-the-cleanest-chains)) |
 | **Decisions per use** | 2-3 within concerns (accumulator, range form) | 1-2 (operation, predicate form) |
 | **Decision type** | Syntax: "which form gives me what I need?" | Intent: "what operation expresses my goal?" |
 
@@ -156,8 +156,8 @@ slice.From(tickets).
     Len()
 
 // Avoid: inline lambda requires parsing function syntax mid-chain
-slice.From(tickets).
-    KeepIf(func(t Ticket) bool { return t.CompletedTick >= cutoff }).
+slice.From(users).
+    KeepIf(func(u User) bool { return u.Age >= 18 && u.IsActive() }).
     Len()
 ```
 
