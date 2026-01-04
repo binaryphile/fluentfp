@@ -38,7 +38,7 @@ flowchart TD
     style AP fill:#ffcdd2
 ```
 
-A loop interleaves 4 concerns—variable declaration, iteration syntax (with discarded `_`), append mechanics, and return. fluentfp collapses these into one expression:
+A loop interleaves 4 concerns—variable declaration, iteration syntax, condition, and accumulation. fluentfp collapses these into one expression:
 
 ```go
 // fluentfp: what you want
