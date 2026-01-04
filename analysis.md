@@ -61,7 +61,7 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 
 | Dimension | Conventional | fluentfp |
 |-----------|--------------|----------|
-| **Concepts** | 4 intertwined concerns (above) | 5 operations, predicate forms (below) |
+| **Concepts** | 4 intertwined concerns (The Core Difference) | 5 operations, predicate forms (Method Expressions) |
 | **Decisions per use** | 2-3 within concerns (accumulator, range form) | 1-2 (operation, predicate form) |
 | **Decision type** | Syntax: "which form gives me what I need?" | Intent: "what operation expresses my goal?" |
 
@@ -154,9 +154,12 @@ completedAfterCutoff := func(t Ticket) bool { return t.CompletedTick >= cutoff }
 slice.From(tickets).
     KeepIf(completedAfterCutoff).
     Len()
-```
 
-When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no function body to parse—it reads like English.
+// Avoid: inline lambda requires parsing function syntax mid-chain
+slice.From(tickets).
+    KeepIf(func(t Ticket) bool { return t.CompletedTick >= cutoff }).
+    Len()
+```
 
 **Method expression pre-req:** To use the better-reading method expressions, you must be using a struct with value receivers. `slice.From(users)` creates `Mapper[User]`, so `User.IsActive` must have a value-typed receiver.
 
