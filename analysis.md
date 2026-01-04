@@ -61,7 +61,7 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 
 | Dimension | Conventional | fluentfp |
 |-----------|--------------|----------|
-| **Concepts** | 4 loop forms, append/accumulator patterns | 5 operations, method expressions |
+| **Concepts** | 4 intertwined concerns | 5 operations, method expressions |
 | **Decisions per use** | 2-3 (index?, value?, accumulator type) | 1-2 (operation, predicate form) |
 | **Decision type** | Syntax: "which form gives me what I need?" | Intent: "what operation expresses my goal?" |
 
