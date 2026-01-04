@@ -57,23 +57,22 @@ for _, u := range users {
 
 ## Mental Load Comparison
 
-Complexity has two dimensions: **concepts** (what you need to know) and **decisions** (choices you make each time you write code).
+Complexity has two dimensions: **concepts** (what you need to know) and **decisions** (choices you make each time).
 
 | Dimension | Conventional | fluentfp |
 |-----------|--------------|----------|
-| **Concepts to learn** | ~5 loop forms + append mechanics | ~5 operations (KeepIf, ToX, Fold, Each, Convert) |
-| **Decisions per use** | 3 (loop form, index?, value?) | 1 (predicate form) |
-| **When concepts apply** | Must choose correct form each time | Learn once, apply uniformly |
+| **Concepts** | Loop forms (`for i, x`, `for _, x`, `for i`, C-style), append pattern | Operations (KeepIf, ToX, Fold), method expressions |
+| **Decisions per use** | 3 (range/C-style?, index?, value?) | 1-2 (which operation, predicate form) |
 
-The key difference: conventional loop concepts must be *applied situationally* (which form do I need here?), while fluentfp concepts are *front-loaded* (learn the API, then just use it).
+The difference: conventional loop decisions are about *syntax* (which form gives me what I need?). fluentfp decisions are about *intent* (what operation expresses my goal?).
 
 ```mermaid
 flowchart LR
-    subgraph fluentfp["fluentfp: 1 decision"]
-        F1["Predicate form?"]
+    subgraph fluentfp["fluentfp"]
+        F1["Which operation?"] --> F2["Predicate form?"]
     end
 
-    subgraph Conventional["Conventional: 3 decisions"]
+    subgraph Conventional["Conventional"]
         C1["Range or C-style?"] --> C2["Need index?"]
         C2 --> C3["Need value?"]
     end
@@ -82,19 +81,12 @@ flowchart LR
     style Conventional fill:#ffcdd2
 ```
 
-**Empirical measurement** from a production Go codebase (608 loops):
+**Applicability:** In a production codebase (608 loops), 33-41% were fluentfp-replaceable. The rest required complex control flow, I/O streaming, or were Go idioms (table-driven tests).
 
-| Metric | Conventional | fluentfp | Reduction |
-|--------|--------------|----------|-----------|
-| Decisions per loop | 3.0 | 1.0 | 67% fewer |
-| Boilerplate lines | 2.5 | 0.0 | 100% fewer |
-
-Of 608 loops analyzed, ~200-250 (33-41%) are fluentfp-replaceable. The rest require complex control flow, I/O streaming, or are Go idioms (table-driven tests).
-
-Conventional loops require decisions about *mechanics* (loop form, index, value). fluentfp requires one decision about *expression* (how to reference the predicate):
+**For replaceable patterns**, conventional loops require boilerplate (variable declaration, append/increment) while fluentfp requires none:
 
 ```go
-// Conventional: 3 decisions (range, no index, yes value) + boilerplate
+// Conventional: 3 syntax decisions + boilerplate
 count := 0
 for _, u := range users {
     if u.IsActive() {
@@ -102,7 +94,7 @@ for _, u := range users {
     }
 }
 
-// fluentfp: 1 decision (method expression available?)
+// fluentfp: 1-2 intent decisions, no boilerplate
 count := slice.From(users).KeepIf(User.IsActive).Len()
 ```
 
