@@ -128,7 +128,7 @@ The same four concerns exist. The difference: the library handles them in one pl
 - **Conventional**: Write mechanics at every call site
 - **fluentfp**: Library writes mechanics once; you write only what varies
 
-## Method Expressions: The Cleanest Chains
+## [Method Expressions](https://go.dev/ref/spec#Method_expressions): The Cleanest Chains
 
 The preference hierarchy: **method expressions → named functions → inline lambdas**.
 
