@@ -7,15 +7,15 @@ fluentfp is a genuine readability improvement for Go. The core insight: **method
 Both approaches filter active users and extract their names. Compare how each represents the same operation:
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph Conventional["Conventional: Iteration Mechanics"]
         S([Start]) --> I["var result []string"]
         I --> L{"for _, u := range users"}
         L -->|each| C{"u.IsActive()?"}
-        C -->|yes| AP["append(result, u.Name)"]
+        C -->|yes| AP["result = append(result, u.Name)"]
         C -->|no| L
         AP --> L
-        L -->|done| R["result"]
+        L -->|done| R["result is ready"]
     end
 
     style S fill:#e1f5fe
