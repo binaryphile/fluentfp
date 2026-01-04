@@ -238,6 +238,8 @@ for _, id := range ids {
 
 These bugs compile, pass review, and look correct. They don't exist in fluentfp code because the mechanics that contain them don't exist—no index to typo, no loop body to defer in, no local variable to shadow.
 
+**Note on linters:** Some of these bugs (like defer in loop) can be caught by static analysis tools. But linters require running, configuring, and acting on warnings. fluentfp is correctness by construction—the bug isn't caught, it's unwritable.
+
 ## Why Named Functions Matter
 
 Anonymous lambdas in chains force you to parse:
