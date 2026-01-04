@@ -192,7 +192,7 @@ import "github.com/binaryphile/fluentfp/tuple/pair"
 names := []string{"Alice", "Bob"}
 scores := []int{95, 87}
 
-// Named function - has domain meaning
+// formatScore combines a name and score into a display string.
 formatScore := func(name string, score int) string {
     return fmt.Sprintf("%s: %d", name, score)
 }

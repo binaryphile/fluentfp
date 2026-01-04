@@ -62,7 +62,9 @@ actives := slice.From(users).
     KeepIf(User.IsValid)
 
 // Fold - reduce slice to single value
-total := slice.Fold(amounts, 0.0, func(acc, x float64) float64 { return acc + x })
+// sumFloat64 adds two float64 values.
+sumFloat64 := func(acc, x float64) float64 { return acc + x }
+total := slice.Fold(amounts, 0.0, sumFloat64)
 
 // Unzip - extract multiple fields in one pass
 a, b, c, d := slice.Unzip4(items, Item.GetA, Item.GetB, Item.GetC, Item.GetD)
@@ -200,20 +202,25 @@ adults := slice.From(pair.Zip(names, ages)).KeepIf(NameAgePairIsAdult)
 
 ```go
 // Fold - reduce slice to single value
-total := slice.Fold(amounts, 0.0, func(acc, x float64) float64 { return acc + x })
+// sumFloat64 adds two float64 values.
+sumFloat64 := func(acc, x float64) float64 { return acc + x }
+total := slice.Fold(amounts, 0.0, sumFloat64)
 
 // Build map from slice
-byMAC := slice.Fold(devices, make(map[string]Device), func(m map[string]Device, d Device) map[string]Device {
+// indexByMAC adds a device to the map keyed by its MAC address.
+indexByMAC := func(m map[string]Device, d Device) map[string]Device {
     m[d.MAC] = d
     return m
-})
+}
+byMAC := slice.Fold(devices, make(map[string]Device), indexByMAC)
 
 // Unzip - extract multiple fields in one pass (avoids N iterations)
+// Use method expressions when types have appropriate getters
 leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
-    func(h HistoryPoint) float64 { return h.LeadTimeAvg },
-    func(h HistoryPoint) float64 { return h.DeployFrequency },
-    func(h HistoryPoint) float64 { return h.MTTR },
-    func(h HistoryPoint) float64 { return h.ChangeFailRate },
+    HistoryPoint.GetLeadTimeAvg,
+    HistoryPoint.GetDeployFrequency,
+    HistoryPoint.GetMTTR,
+    HistoryPoint.GetChangeFailRate,
 )
 ```
 
@@ -222,19 +229,20 @@ leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
 **Preference hierarchy** (best to worst):
 1. **Method expressions** - `User.IsActive`, `Device.GetMAC` (cleanest, no function body)
 2. **Named functions** - `isActive := func(u User) bool {...}` (readable, debuggable)
-3. **Inline anonymous** - `func(u User) bool {...}` (only when trivial)
+
+Avoid inline anonymous functions in FluentFP chains. If the logic is simple enough to inline, it's simple enough to name and document.
 
 **When to name (vs inline):**
 
 | Name when... | Inline when... |
 |--------------|----------------|
-| Reused (called 2+ times) | Trivial wrapper (single forwarding expression) |
-| Complex (multiple statements) | Standard idiom (t.Run, http.HandlerFunc) |
-| Has domain meaning | Context already explains intent |
+| Reused (called 2+ times) | Standard idiom (t.Run, http.HandlerFunc) |
+| Complex (multiple statements) | |
+| Has domain meaning | |
 | Stored for later use | |
 | Captures outer variables | |
 
-**Why name functions (beyond the rules above):**
+**Why name functions:**
 
 Anonymous functions and higher-order functions require mental effort to parse. Named functions **reduce this cognitive load** by making code read like English:
 
@@ -293,9 +301,10 @@ total := slice.Fold(amounts, 0.0, sumFloat64)
 
 ```go
 // FluentFP: one expression stating intent
-return slice.From(f.History).ToFloat64(func(s FeverSnapshot) float64 { return s.PercentUsed })
+return slice.From(f.History).ToFloat64(FeverSnapshot.GetPercentUsed)
 
 // Loop: four concepts interleaved
+// Extract percent used values from history
 var result []float64                           // 1. variable declaration
 for _, s := range f.History {                  // 2. iteration mechanics (discarded _)
     result = append(result, s.PercentUsed)     // 3. append mechanics
