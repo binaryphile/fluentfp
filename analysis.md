@@ -27,7 +27,7 @@ flowchart TD
         C -->|yes| AP["result = append(result, u.Name)"]
         C -->|no| L
         AP --> L
-        L -->|done| R["return result"]
+        L -->|done| R["result is ready"]
     end
 
     style S fill:#e1f5fe
@@ -57,58 +57,61 @@ for _, u := range users {
 
 ## Mental Load Comparison
 
-**Complexity is mental step count.** Compare the decisions required for "count active users":
+Complexity has two dimensions: **choice complexity** (degrees of freedom—how many decisions with multiple valid options) and **correctness complexity** (bug surface—how many places you can write something wrong).
 
 ```mermaid
 flowchart LR
-    subgraph fluentfp["fluentfp: 2-3 steps"]
-        F1["Operation?"] --> F2["Predicate?"]
-        F2 --> F3["Method expr?"]
+    subgraph fluentfp["fluentfp"]
+        F1["What operation?"] --> F2["Method expr available?"]
     end
 
-    subgraph Conventional["Conventional: 7 steps"]
-        C1["Range or C-style?"] --> C2["Which form?"] --> C3["Accumulating?"]
-        C3 --> C4["Initialize"]
-        C3 --> C5["Condition"]
-        C3 --> C6["Accumulate"]
-        C4 --> C7["Return"]
-        C5 --> C7
-        C6 --> C7
+    subgraph Conventional["Conventional"]
+        C1["Range or C-style?"] -->|"2 options"| C2["Which range form?"]
+        C2 -->|"4 options"| C3["Write initialization"]
+        C3 --> C4["Write condition"]
+        C4 --> C5["Write accumulation"]
     end
 
     style fluentfp fill:#c8e6c9
     style Conventional fill:#ffcdd2
 ```
 
-**Conventional loop (7 steps):**
-1. Range or C-style? → Range (or `for i := 0; i < len; i++`?)
-2. Which range form? → `for _, u := range` (not `for i, u`, not `for i`)
-3. What am I accumulating? → Count (not slice, not sum, not single value)
-4. Initialize → `count := 0` (determined by step 3, but must write correctly)
-5. Condition → `if u.IsActive()`
-6. Accumulate → `count++` (determined by step 3, but must write correctly)
-7. Return → `return count`
+**Conventional loop** (count active users):
 
-**fluentfp (2-3 steps):**
-1. What operation? → Filter + count → `KeepIf` + `Len`
-2. What predicate? → `IsActive`
-3. Method expression available? → Check: `User.IsActive` exists, value receiver ✓
+| Step | Type | Notes |
+|------|------|-------|
+| 1. Range or C-style? | Choice (2 options) | Must decide |
+| 2. Which range form? | Choice (4 options) | `for i, x` / `for _, x` / `for i` / `for x := range ch` |
+| 3. Write initialization | Correctness | `count := 0` — determined by intent, but must write correctly |
+| 4. Write condition | Correctness | `if u.IsActive()` — determined by intent, but must write correctly |
+| 5. Write accumulation | Correctness | `count++` — determined by intent, but must write correctly |
+
+- **Choice complexity**: 2 decisions × multiple options = 8 valid loop structures
+- **Correctness complexity**: 3 places to introduce bugs
+
+**fluentfp**:
+
+| Step | Type | Notes |
+|------|------|-------|
+| 1. What operation? | Determined | `KeepIf` + `Len` — follows from "filter and count" |
+| 2. Method expression available? | Check | If `User.IsActive` exists with value receiver, use it; otherwise write named function |
+
+- **Choice complexity**: 0 real choices (operation follows from intent; form follows from type)
+- **Correctness complexity**: 0 (mechanics handled by library)
 
 Result: `slice.From(users).KeepIf(User.IsActive).Len()`
 
-Seven steps vs two or three. Steps 4 and 6 in the loop are mechanically determined by step 3, but you must still write them—and write them correctly. fluentfp's step 3 is a check, not a choice: if the method exists with a value receiver, use it; otherwise write a named function.
-
-The difference: conventional loops require decisions about *how* (form, initialization, accumulation) that each introduce bug opportunities. fluentfp decisions are about *what* (which operation, which predicate)—the mechanics are handled once in the library.
+The difference: conventional loops require decisions about *how* (loop form, range variant) and correctness in *implementation* (initialization, accumulation). fluentfp decisions are about *what* (which operation)—the implementation is factored into the library.
 
 ## The Invisible Familiarity Discount
 
-A Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "sees" it instantly. But that's pattern recognition from thousands of repetitions, not inherent simplicity.
+An experienced Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "sees" it instantly. But that's pattern recognition from thousands of repetitions, not inherent simplicity.
 
 **The tell:** Show that loop to a non-programmer, then show them `KeepIf(isActive).Len()`. Which one can they parse?
 
-**The real test:** Come back to your own code after 6 months. The loop requires re-simulation ("what is this accumulating? oh, it's counting matches"). The chain states intent directly.
+**The real test:** Come back to your own code after 6 months. The loop requires re-simulation ("what is this accumulating? oh, it's counting matches"). The fluent method chain version states intent directly.
 
-The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean fluentfp is always clearer—conventional loops win in many cases (see "When Not to Use fluentfp" below). But be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the simplicity is inherent, not learned.
+The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean fluentfp is always clearer—conventional loops win in many cases (see "When Not to Use fluentfp" below). But be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the simplicity is inherent, not something only attained after familiarizing oneself with it.
 
 ## Concerns Factored, Not Eliminated
 
@@ -150,11 +153,11 @@ slice.From(tickets).
 
 When you write `users.KeepIf(User.IsActive).ToString(User.Name)`, there's no function body to parse—it reads like English.
 
-**Critical requirement:** Method expressions require value receivers. `slice.From(users)` creates `Mapper[User]`, so `User.IsActive` must have receiver type `User`, not `*User`. Pointer receivers are common in Go codebases, and fluentfp still works with them as well—you just have to write anonymous functions rather than use the English-like method expression.
+**Method expression pre-req:** To use the better-reading method expressions, you must be using a struct with value receivers. `slice.From(users)` creates `Mapper[User]`, so `User.IsActive` must have a value-typed receiver.
 
 ## Quantified Benefits
 
-Line counts include what I consider essential comments.
+Line counts include comment lines where I consider them essential for clarity.
 
 | Pattern                | fluentfp | Conventional |
 | ---------------------- | -------- | ------------ |
