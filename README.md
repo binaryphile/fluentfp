@@ -32,7 +32,7 @@ See the individual package READMEs for details by clicking the headings below.
 
 ## Why FluentFP
 
-**Correctness by construction.** Bugs live in mechanics you don't write. Index typos (`i+i` not `i+1`), defer in loops, error shadowing (`:=` vs `=`)—these production bugs compiled and passed review. FluentFP eliminates them: no index to typo, no loop body to defer in, no local variable to shadow. See [analysis.md](analysis.md#correctness-by-construction) for examples.
+**Correctness by construction.** Bugs hide in loop mechanics. Index typos (`i+i` not `i+1`), defer in loops, error shadowing (`:=` vs `=`)—these production bugs compiled and passed review. FluentFP has no index to typo, no loop body to defer in, no local variable to shadow. No mechanics, no bugs. See [analysis.md](analysis.md#correctness-by-construction) for examples.
 
 **Method chaining abstracts iteration mechanics.** A loop interleaves 4 concerns—variable declaration, iteration syntax, append mechanics, and return. FluentFP collapses these into one expression:
 
