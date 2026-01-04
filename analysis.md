@@ -87,21 +87,21 @@ The invisible familiarity discount: a pattern you've seen 10,000 times *feels* s
 1. Range or C-style? → Range (or `for i := 0; i < len; i++`?)
 2. Which range form? → `for _, u := range` (not `for i, u`, not `for i`)
 3. What am I accumulating? → Count (not slice, not sum, not single value)
-4. Initialize → `count := 0`
+4. Initialize → `count := 0` (determined by step 3, but must write correctly)
 5. Condition → `if u.IsActive()`
-6. Accumulate → `count++`
+6. Accumulate → `count++` (determined by step 3, but must write correctly)
 7. Return → `return count`
 
-**fluentfp (3 steps):**
+**fluentfp (2-3 steps):**
 1. What operation? → Filter + count → `KeepIf` + `Len`
 2. What predicate? → `IsActive`
-3. Method expression or named function? → `User.IsActive` (method exists, value receiver)
+3. Method expression available? → Check: `User.IsActive` exists, value receiver ✓
 
 Result: `slice.From(users).KeepIf(User.IsActive).Len()`
 
-Seven decisions vs three. Each decision is a branch point where bugs can enter—wrong loop form, forgotten initialization, off-by-one in C-style bounds, typo in accumulator.
+Seven steps vs two or three. Steps 4 and 6 in the loop are mechanically determined by step 3, but you must still write them—and write them correctly. fluentfp's step 3 is a check, not a choice: if the method exists with a value receiver, use it; otherwise write a named function.
 
-fluentfp methods have one form each—`KeepIf` always filters, `Len` always counts. The decisions that remain are about *what* (predicate logic), not *how* (iteration mechanics).
+The difference: conventional loops require decisions about *how* (form, initialization, accumulation) that each introduce bug opportunities. fluentfp decisions are about *what* (which operation, which predicate)—the mechanics are handled once in the library.
 
 ## Concerns Factored, Not Eliminated
 
