@@ -79,7 +79,7 @@ A Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "
 
 The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean FluentFP is always clearer—conventional loops win in many cases (see "When Not to Use FluentFP" below). But be aware of the discount when comparing. FluentFP expresses intent without mechanics to parse—the simplicity is inherent, not learned.
 
-**Loop syntax variations add ambiguity.** Go's `for` loop has multiple forms: `for i := 0; i < n; i++`, `for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`. Each means something different. When reading a loop, you must first identify which form it is before you can understand what it does. FluentFP methods have one form each—`KeepIf` always filters, `ToFloat64` always extracts—no ambiguity to resolve.
+**Loop syntax variations add ambiguity.** Go's `for` loop has multiple forms: `for i, x := range`, `for _, x := range`, `for i := range`, `for x := range ch`. Each means something different. When reading a loop, you must first identify which form it is before you can understand what it does. FluentFP methods have one form each—`KeepIf` always filters, `ToFloat64` always extracts—no ambiguity to resolve.
 
 ## Concerns Factored, Not Eliminated
 
