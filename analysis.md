@@ -207,26 +207,12 @@ for _, d := range durations {
 
 Line counts don't capture bugs avoided. These bugs are from production Go code—all compiled, all passed code review.
 
-| Bug Pattern | Why Subtle | fluentfp Eliminates? |
-|-------------|-----------|---------------------|
-| Index typo (`i+i` not `i+1`) | Looks intentional | ✓ No index |
-| Defer in loop | Defers pile up silently | ✓ No loop body |
-| Error shadowing (`:=` vs `=`) | Normal Go syntax | ✓ No local variables |
-| `&&` vs `||` in bounds | Always-false looks real | ✓ No manual conditions |
-| Input slice mutation | No hint function mutates | ✓ Returns new slice |
-
-**Always-false condition (`&&` vs `||`):**
-```go
-// BUG: nothing is both < 200 AND >= 300 — condition never true
-if code < 200 && code >= 300 {
-    return errors.New("bad status")  // never executes
-}
-
-// FIX: || checks "outside 200-299"
-if code < 200 || code >= 300 {
-    return errors.New("bad status")
-}
-```
+| Bug Pattern                   | Why Subtle               | fluentfp Eliminates?   |
+| ----------------------------- | ------------------------ | ---------------------- |
+| Index typo (`i+i` not `i+1`)  | Looks intentional        | ✓ No index           |
+| Defer in loop                 | Defers pile up silently  | ✓ No loop body       |
+| Error shadowing (`:=` vs `=`) | Normal Go syntax         | ✓ No local variables |
+| Input slice mutation          | No hint function mutates | ✓ Returns new slice  |
 
 **Error shadowing (`:=` vs `=`):**
 ```go
