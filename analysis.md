@@ -81,31 +81,25 @@ A Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "
 
 The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean fluentfp is always clearer—conventional loops win in many cases (see "When Not to Use fluentfp" below). But be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the simplicity is inherent, not learned.
 
-**Loop syntax variations add ambiguity.** Before writing a `for` loop, you must answer several questions:
+**Complexity is mental step count.** Compare the decisions required for "count active users":
 
-1. **Range or C-style?**
-   - Range: iterating over a collection
-   - C-style: need custom start, stop, or step
+**Conventional loop (6 steps):**
+1. Range or C-style? → Range
+2. Which range form? → `for _, u := range` (value only, discard index)
+3. What am I accumulating? → Count
+4. Initialize → `count := 0`
+5. Condition → `if u.IsActive()`
+6. Accumulate → `count++`
 
-2. **If range, which form?**
-   - `for i, x := range` — need both index and value
-   - `for _, x := range` — need value only (discard index)
-   - `for i := range` — need index only (discard value)
-   - `for x := range ch` — consuming a channel
+**fluentfp (2 steps):**
+1. What operation? → Filter + count
+2. What predicate? → `User.IsActive`
 
-3. **If C-style, what are the bounds?**
-   - `for i := 0; i < len(s); i++` — standard forward
-   - `for i := len(s) - 1; i >= 0; i--` — reverse
-   - `for i := 0; i < len(s); i += 2` — skip elements
-   - `for i := start; i < end; i++` — slice of slice
+Result: `slice.From(users).KeepIf(User.IsActive).Len()`
 
-4. **What am I accumulating?**
-   - New slice? → `var result []T` + `append`
-   - Count? → `count := 0` + `count++`
-   - Sum? → `var total T` + `total +=`
-   - Single value? → `var found T` + `break`
+The loop requires choosing among forms (`for i, x`, `for _, x`, `for i`, `for x := range ch`, plus C-style variants), then wiring up initialization and accumulation. Each decision is a branch point where bugs can enter.
 
-Each decision is a branch point where bugs can enter. fluentfp methods have one form each—`KeepIf` always filters, `ToFloat64` always extracts—no decisions to make, no ambiguity to resolve.
+fluentfp methods have one form each—`KeepIf` always filters, `Len` always counts. The only decision is what predicate to apply.
 
 ## Concerns Factored, Not Eliminated
 
