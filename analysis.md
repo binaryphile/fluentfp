@@ -276,9 +276,22 @@ Same semantic content. Half the lines. Double the density.
 
 **Result:** The line difference was about half what we expected, but 8/108 = 7.4%. A reasonable-sized enterprise Go project might run 500 kloc, for example.  Applied to a 500 kloc codebase: ~37 kloc saved. Thirty-seven thousand lines.
 
-**Why:** The 64% of code that *should* stay as loops (i.e. doesn't fall into a fluentfp pattern) is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.  This was an intentional part of the experimental design, to reflect real-world code effects.  36% was determined by analyzing a real codebase for fluentfp opportunities.
+**Why:** The 64% of code that *should* stay as loops (i.e. doesn't fall into a fluentfp pattern) is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.  This was an intentional part of the experimental design, to reflect real-world code effects.  We targeted the average case for fluentfp opportunities in an existing codebase, not a best-case scenario for fluentfp.
 
-**What this reveals:** fluentfp's value isn't about code shape—it's about error surface. We wish this one were a bigger win, perhaps, but it remains to be seen what more use with real codebases will tell on this metric.
+**What this reveals:** fluentfp's value is less about code shape—it's still about error surface. We wish this one were a bigger win, perhaps, but it remains to be seen what more use with real codebases will tell on this metric, and cases where fluentfp might shine.
+
+### Best Case: Data Pipeline Module
+
+What if a module is *entirely* data transformations? A report generator that only does filter/map/fold operations represents the ceiling for fluentfp's code shape impact.
+
+| Version | Lines | Reduction |
+|---------|-------|-----------|
+| Conventional | 328 | — |
+| fluentfp | 186 | 43% |
+
+*Source: [examples/code-shape/best-case-*](examples/code-shape)*
+
+The 43% reduction shows what's possible when all operations fit the functional pattern. Real codebases will fall somewhere between 7% (average mix) and 43% (pure data transformation), depending on the module's purpose.
 
 ### The Brace Tax
 
