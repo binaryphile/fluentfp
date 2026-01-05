@@ -300,7 +300,7 @@ What if a module is *entirely* data transformations? A report generator that onl
 
 *Source: [examples/code-shape/best-case-*](examples/code-shape)*
 
-The 51% code reduction shows what's possible when all operations fit the functional pattern. But the complexity drop—from 57 to 3—is striking. Loops with embedded conditionals have many branches; chains have almost none. Real codebases will fall between 12% (average mix) and 51% (pure pipelines), depending on the module's purpose.
+The 51% code reduction shows what's possible when all operations fit the functional pattern. But the complexity drop—from 57 to 3—is striking. The chain code has almost no branching; it lives in the predicates instead. And predicate methods like `IsActive` often already exist on your types—you're not adding testing overhead, just reusing what's there. Real codebases will fall between 12% (average mix) and 51% (pure pipelines), depending on the module's purpose.
 
 **A note on scale:** 12% may not feel compelling on a small project. But codebases grow. At 500 kloc, 12% is 60,000 lines. At that scale, small percentages start to matter—for build times, code review burden, and cognitive load. You may find fluentfp's value proposition changes as your codebase crosses certain thresholds.
 
