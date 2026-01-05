@@ -238,6 +238,8 @@ flowchart TD
 
 **Legend:** 🟩 Green = semantic (intent) | 🟥 Red = syntactic (mechanics)
 
+The fluent version reduces syntactic (red) lines from four to one.
+
 **Loop version** (6 lines):
 ```go
 count := 0                    // syntactic: setup
@@ -274,9 +276,9 @@ Same semantic content. Half the lines. Double the density.
 
 **Result:** The line difference was about half what we expected, but 8/108 = 7.4%. A reasonable-sized enterprise Go project might run 500 kloc, for example.  Applied to a 500 kloc codebase: ~37 kloc saved. Thirty-seven thousand lines.
 
-**Why:** The 64% of code that *should* stay as loops is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.
+**Why:** The 64% of code that *should* stay as loops (i.e. doesn't fall into a fluentfp pattern) is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.  This was an intentional part of the experimental design, to reflect real-world code effects.  36% was determined by analyzing a real codebase for fluentfp opportunities.
 
-**What this reveals:** fluentfp's value isn't about code shape—it's about error surface. The loop version of `getActiveUsers` has five steps: declare result, iterate, check condition, append, return. Each step is an opportunity for error. The fluentfp version has one concept: keep if active. Entire categories of bugs (forgotten initialization, wrong index, missed append) become structurally impossible.
+**What this reveals:** fluentfp's value isn't about code shape—it's about error surface. We wish this one were a bigger win, perhaps, but it remains to be seen what more use with real codebases will tell on this metric.
 
 ### The Brace Tax
 
