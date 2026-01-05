@@ -280,9 +280,9 @@ Same semantic content. Half the lines. Double the density.
 | fluentfp | 80 | 17 |
 | **Reduction** | **12%** | **26%** |
 
-*Measured with [scc](https://github.com/boyter/scc). Complexity approximates cyclomatic complexity by counting branch/loop tokens.*
+*Measured with [scc](https://github.com/boyter/scc), which does not include blank lines. Complexity approximates cyclomatic complexity by counting branch/loop tokens.*
 
-**Result:** The code reduction (12%) was lower than expected. Applied to a 500 kloc enterprise codebase: ~60 kloc saved. The complexity reduction (26%) reflects flatter control flow in the main code.
+**Result:** The code reduction (12%) was lower than expected. Applied to a 500 kloc (thousand lines of code) enterprise codebase: ~60 kloc saved. The complexity reduction (26%) reflects flatter control flow in the main code.
 
 **Why:** The 64% of code that *should* stay as loops (i.e. doesn't fall into a fluentfp pattern) is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.  This was an intentional part of the experimental design, to reflect real-world code effects.  We targeted the average case for fluentfp opportunities in an existing codebase, not a best-case scenario for fluentfp.
 
