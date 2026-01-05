@@ -66,7 +66,7 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 
 | Dimension | Conventional | fluentfp |
 |-----------|--------------|----------|
-| **Concepts** | 4 intertwined concerns ([The Core Difference](#the-core-difference)) | 5 operations, predicate forms ([Method Expressions](#method-expressions-the-cleanest-chains)) |
+| **Concepts** | 4 intertwined concerns ([The Core Difference](#the-core-difference)) | 5 operations, predicate forms ([Choice of Function Arguments](#choice-of-function-arguments-for-higher-order-functions)) |
 | **Decisions per use** | 2-3 within concerns (accumulator, range form) | 1-2 (operation, predicate form) |
 | **Decision type** | Syntax: "which form gives me what I need?" | Intent: "what operation expresses my goal?" |
 
