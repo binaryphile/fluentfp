@@ -448,7 +448,7 @@ flowchart TD
 2. **Complex control flow** - break, continue, early return within iteration
 3. **Index-dependent logic** - when you need `i` for more than just indexing
 
-These are intentional boundaries. The patterns above—index arithmetic, early exits, mutation during iteration—are common sources of off-by-one errors, missed elements, and subtle bugs. Functional programming avoids them on principle.
+These are intentional boundaries. The patterns above—index arithmetic, early exits, mutation during iteration—are common sources of off-by-one errors, missed elements, and subtle bugs. Functional programming avoids them on principle. Use them in other cases, but choosing a different default than the one prone to human error is wise.
 
 ## The Billion-Dollar Mistake
 
