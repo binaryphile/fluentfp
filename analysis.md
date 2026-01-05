@@ -448,7 +448,7 @@ flowchart TD
 2. **Complex control flow** - break, continue, early return within iteration
 3. **Index-dependent logic** - when you need `i` for more than just indexing
 
-These aren't failures of functional style—they're cases where imperative control flow is genuinely clearer.
+These are limitations of the functional approach—operations that require features fluentfp doesn't provide.
 
 ## The Billion-Dollar Mistake
 
