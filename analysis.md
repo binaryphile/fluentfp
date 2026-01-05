@@ -286,7 +286,7 @@ Same semantic content. Half the lines. Double the density.
 
 **Why:** The 64% of code that *should* stay as loops (i.e. doesn't fall into a fluentfp pattern) is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.  This was an intentional part of the experimental design, to reflect real-world code effects.  We targeted the average case for fluentfp opportunities in an existing codebase, not a best-case scenario for fluentfp.
 
-**What this reveals:** fluentfp's value is less about code shape—it's still about error surface. We wish this one were a bigger win, perhaps, but it remains to be seen what more use with real codebases will tell on this metric, and cases where fluentfp might shine.
+**What this reveals:** fluentfp's value isn't code shape—it's error surface and complexity. The 26% complexity reduction means fewer execution paths to test.
 
 ### Best Case: Data Pipeline Module
 
