@@ -448,7 +448,7 @@ flowchart TD
 2. **Complex control flow** - break, continue, early return within iteration
 3. **Index-dependent logic** - when you need `i` for more than just indexing
 
-These are limitations of the functional approach—operations that require features fluentfp doesn't provide.
+These are intentional boundaries. The patterns above—index arithmetic, early exits, mutation during iteration—are common sources of off-by-one errors, missed elements, and subtle bugs. fluentfp doesn't support them because avoiding them is the point.
 
 ## The Billion-Dollar Mistake
 
