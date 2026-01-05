@@ -287,11 +287,11 @@ What if a module is *entirely* data transformations? A report generator that onl
 | Version | Lines | Reduction |
 |---------|-------|-----------|
 | Conventional | 328 | — |
-| fluentfp | 186 | 43% |
+| fluentfp | 190 | 42% |
 
 *Source: [examples/code-shape/best-case-*](examples/code-shape)*
 
-The 43% reduction shows what's possible when all operations fit the functional pattern. Real codebases will fall somewhere between 7% (average mix) and 43% (pure data transformation), depending on the module's purpose.
+The 42% reduction shows what's possible when all operations fit the functional pattern. Real codebases will fall somewhere between 7% (average mix) and 42% (pure data transformation), depending on the module's purpose.
 
 ### The Brace Tax
 

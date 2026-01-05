@@ -147,15 +147,18 @@ func totalCompensation(employees []Employee) float64 {
 }
 
 func averageSalary(employees []Employee) float64 {
-	return slice.Fold(slice.From(employees).ToFloat64(Employee.GetSalary), 0.0, sumFloat) / float64(len(employees))
+	sum := slice.Fold(slice.From(employees).ToFloat64(Employee.GetSalary), 0.0, sumFloat)
+	return sum / float64(len(employees))
 }
 
 func averagePerformance(employees []Employee) float64 {
-	return slice.Fold(slice.From(employees).ToFloat64(Employee.GetPerformanceScore), 0.0, sumFloat) / float64(len(employees))
+	sum := slice.Fold(slice.From(employees).ToFloat64(Employee.GetPerformanceScore), 0.0, sumFloat)
+	return sum / float64(len(employees))
 }
 
 func averageYearsOfService(employees []Employee) float64 {
-	return float64(slice.Fold(slice.From(employees).ToInt(Employee.GetYearsOfService), 0, sumInt)) / float64(len(employees))
+	sum := slice.Fold(slice.From(employees).ToInt(Employee.GetYearsOfService), 0, sumInt)
+	return float64(sum) / float64(len(employees))
 }
 
 func totalYearsOfService(employees []Employee) int {
@@ -182,5 +185,6 @@ func totalHighPerformerSalary(employees []Employee) float64 {
 
 func averageRemoteSalary(employees []Employee) float64 {
 	remotes := slice.From(employees).KeepIf(Employee.IsRemote)
-	return slice.Fold(remotes.ToFloat64(Employee.GetSalary), 0.0, sumFloat) / float64(remotes.Len())
+	sum := slice.Fold(remotes.ToFloat64(Employee.GetSalary), 0.0, sumFloat)
+	return sum / float64(remotes.Len())
 }
