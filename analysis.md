@@ -540,9 +540,11 @@ flowchart TD
     O --> FH[Forced handling]
 ```
 
+*If an empty string or zero is a valid value distinct from "no value," use `option.Basic`. Otherwise, value types eliminate nil risk entirely.*
+
 ### Real-World Pattern
 
-From charybdis, handling nullable database fields:
+From a real project, handling nullable database fields:
 
 ```go
 // Database field might be NULL
