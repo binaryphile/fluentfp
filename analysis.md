@@ -41,6 +41,8 @@ flowchart TD
     style AP fill:#ffcdd2
 ```
 
+*Top: data flows linearly through transformations. Bottom: control flow branches and loops back. The shape reflects the mental model—pipeline vs. state machine.*
+
 A loop interleaves 4 concerns—variable declaration, iteration syntax, condition, and accumulation. fluentfp collapses these into one expression:
 
 ```go
