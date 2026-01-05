@@ -531,24 +531,13 @@ The API names are intuitive:
 
 ### Choosing the Right Defense
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                  Need Optional Value?                    │
-└─────────────────────────────────────────────────────────┘
-                          │
-            ┌─────────────┴─────────────┐
-            ▼                           ▼
-    Can zero value              Need to distinguish
-    mean "not present"?         "absent" vs "zero"?
-            │                           │
-            ▼                           ▼
-    ┌───────────────┐           ┌───────────────┐
-    │ Value type    │           │ option.Basic  │
-    │ (no pointer)  │           │ (explicit ok) │
-    └───────────────┘           └───────────────┘
-            │                           │
-            ▼                           ▼
-       No nil risk              Forced handling
+```mermaid
+flowchart TD
+    Q[Need Optional Value?]
+    Q -->|"Can zero mean<br/>'not present'?"| V[Value type<br/>no pointer]
+    Q -->|"Need 'absent'<br/>vs 'zero'?"| O[option.Basic<br/>explicit ok]
+    V --> NR[No nil risk]
+    O --> FH[Forced handling]
 ```
 
 ### Real-World Pattern
