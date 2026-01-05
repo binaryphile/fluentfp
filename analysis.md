@@ -626,6 +626,7 @@ This appendix documents how empirical claims in the Information Density section 
 - [C. Density Calculation](#c-density-calculation)
 - [D. Replication Guide](#d-replication-guide)
 - [E. Limitations](#e-limitations)
+- [F. Code Metrics Tool (scc)](#f-code-metrics-tool-scc)
 
 ### A. Loop Sampling Methodology
 
@@ -748,3 +749,43 @@ Results outside these ranges aren't wrong—they may indicate different coding s
 - Results are specific to Go; other languages may differ
 
 This is one lens among many. Use alongside other quality metrics, not as a sole criterion.
+
+### F. Code Metrics Tool (scc)
+
+The [Visual Comparison](#visual-comparison) uses [scc](https://github.com/boyter/scc) (Sloc, Cloc and Code) for line counting and complexity measurement.
+
+**Why scc:**
+- Separates code lines from blanks and comments
+- Provides complexity estimates at near-zero CPU cost
+- Fast enough for large codebases
+
+**Code vs Lines:**
+scc distinguishes:
+- **Lines**: Total lines including blanks and comments
+- **Code**: Executable statements only
+- **Blanks**: Empty lines
+- **Comments**: Documentation lines
+
+We report **Code** lines for accuracy. Total lines overcount by including whitespace and documentation.
+
+**Complexity metric:**
+scc's complexity is an approximation of [cyclomatic complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity). It counts branch and loop tokens in the code:
+
+- `for`, `if`, `switch`, `while`, `else`
+- `||`, `&&`, `!=`, `==`
+
+Each occurrence increments the file's complexity counter. This is cheaper than building an AST but provides a reasonable approximation for comparing files in the same language.
+
+**Why complexity matters:**
+Higher complexity = more execution paths = more test cases needed for coverage. The dramatic complexity reduction in fluentfp code (26% in average case, 95% in best case) reflects that chains have no embedded conditionals—the branching is factored into the predicate functions themselves.
+
+**Usage:**
+```bash
+# Compare two files
+scc file1.go file2.go
+
+# Find most complex files in a project
+scc --by-file -s complexity .
+```
+
+**Limitation:** Complexity is comparable only within the same language. Don't compare Go complexity to Python complexity directly.
