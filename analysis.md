@@ -272,9 +272,17 @@ Same semantic content. Half the lines. Double the density.
 
 ![Code shape comparison](images/code-shape-comparison.png)
 
-*Left: Conventional loops (116 lines). Right: fluentfp (108 lines). Source: [examples/code-shape](examples/code-shape).*
+*Source: [examples/code-shape](examples/code-shape)*
 
-**Result:** The line difference was about half what we expected, but 8/108 = 7.4%. A reasonable-sized enterprise Go project might run 500 kloc, for example.  Applied to a 500 kloc codebase: ~37 kloc saved. Thirty-seven thousand lines.
+| Version | Code | Complexity |
+|---------|------|------------|
+| Conventional | 91 | 23 |
+| fluentfp | 80 | 17 |
+| **Reduction** | **12%** | **26%** |
+
+*Measured with [scc](https://github.com/boyter/scc). Complexity approximates cyclomatic complexity by counting branch/loop tokens.*
+
+**Result:** The code reduction (12%) was lower than expected. Applied to a 500 kloc enterprise codebase: ~60 kloc saved. The complexity reduction (26%) is more significant—fewer branches means fewer paths to test.
 
 **Why:** The 64% of code that *should* stay as loops (i.e. doesn't fall into a fluentfp pattern) is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.  This was an intentional part of the experimental design, to reflect real-world code effects.  We targeted the average case for fluentfp opportunities in an existing codebase, not a best-case scenario for fluentfp.
 
@@ -282,16 +290,17 @@ Same semantic content. Half the lines. Double the density.
 
 ### Best Case: Data Pipeline Module
 
-What if a module is *entirely* data transformations? A report generator that only does filter/map/fold operations represents the ceiling for fluentfp's code shape impact.
+What if a module is *entirely* data transformations? A report generator that only does filter/map/fold operations represents the ceiling for fluentfp's impact.
 
-| Version | Lines | Reduction |
-|---------|-------|-----------|
-| Conventional | 328 | — |
-| fluentfp | 190 | 42% |
+| Version | Code | Complexity |
+|---------|------|------------|
+| Conventional | 281 | 57 |
+| fluentfp | 137 | 3 |
+| **Reduction** | **51%** | **95%** |
 
 *Source: [examples/code-shape/best-case-*](examples/code-shape)*
 
-The 42% reduction shows what's possible when all operations fit the functional pattern. Real codebases will fall somewhere between 7% (average mix) and 42% (pure data transformation), depending on the module's purpose.
+The 51% code reduction shows what's possible when all operations fit the functional pattern. But the complexity drop—from 57 to 3—is striking. Loops with embedded conditionals have many branches; chains have almost none. Real codebases will fall between 12% (average mix) and 51% (pure pipelines), depending on the module's purpose.
 
 ### The Brace Tax
 
