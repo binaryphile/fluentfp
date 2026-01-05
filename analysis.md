@@ -286,7 +286,7 @@ Same semantic content. Half the lines. Double the density.
 
 **Why:** The 64% of code that *should* stay as loops (i.e. doesn't fall into a fluentfp pattern) is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.  This was an intentional part of the experimental design, to reflect real-world code effects.  We targeted the average case for fluentfp opportunities in an existing codebase, not a best-case scenario for fluentfp.
 
-**What this reveals:** fluentfp's value isn't code shape—it's error surface and complexity. The complexity shifts from embedded conditionals to isolated predicate functions. Predicates are pure, reusable, and trivial to unit test. The main code becomes linear—no branch state to track across iterations.
+**What this reveals:** fluentfp's value isn't code shape—it's error surface and complexity. The control flow shifts from inline conditionals to isolated predicate functions. Predicates are pure, reusable, and trivial to unit test. The main code becomes linear—no state to track across iterations.
 
 ### Best Case: Data Pipeline Module
 
@@ -300,7 +300,7 @@ What if a module is *entirely* data transformations? A report generator that onl
 
 *Source: [examples/code-shape/best-case-*](examples/code-shape)*
 
-The 51% code reduction shows what's possible when all operations fit the functional pattern. But the complexity drop—from 57 to 3—is striking. The chain code has almost no branching; it lives in the predicates instead. And predicate methods like `IsActive` often already exist on your types—you're not adding testing overhead, just reusing what's there. Real codebases will fall between 12% (average mix) and 51% (pure pipelines), depending on the module's purpose.
+The 51% code reduction shows what's possible when all operations fit the functional pattern. But the complexity drop—from 57 to 3—is striking. The chain code has almost no control flow; it's factored into predicates instead. And predicate methods like `IsActive` often already exist on your types—you're not adding testing overhead, just reusing what's there. Real codebases will fall between 12% (average mix) and 51% (pure pipelines), depending on the module's purpose.
 
 **A note on scale:** 12% may not feel compelling on a small project. But codebases grow. At 500 kloc, 12% is 60,000 lines. At that scale, small percentages start to matter—for build times, code review burden, and cognitive load. You may find fluentfp's value proposition changes as your codebase crosses certain thresholds.
 
