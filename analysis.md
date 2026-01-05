@@ -74,7 +74,7 @@ Complexity has two dimensions: **concepts** (what you need to know) and **decisi
 flowchart LR
     subgraph fluentfp["fluentfp: intent"]
         direction LR
-        F1["What do I want?"] --> F2["How to express predicate?"]
+        F1["What do I want?"] --> F2["What form of predicate?"]
     end
 
     subgraph Conventional["Conventional: syntax"]
@@ -153,7 +153,7 @@ slice.From(users).KeepIf(User.IsActive)
 
 No extra syntax required—method expressions come free with every method you define.
 
-The preference hierarchy: **method expressions → named functions → inline lambdas**.
+The preference hierarchy: **method expressions → named functions**.  Inline lambdas also work, but are discouraged.
 
 ```go
 // Best: method expressions read as English
@@ -272,11 +272,11 @@ Same semantic content. Half the lines. Double the density.
 
 *Left: Conventional loops (116 lines). Right: fluentfp (108 lines). Source: [examples/code-shape](examples/code-shape).*
 
-**Result:** The shapes are similar. The conventional version is taller, but you have to look carefully to notice.
+**Result:** The line difference was about half what we expected, but 8/108 = 7.4%. A reasonable-sized enterprise Go project might run 500 kloc, for example.  Applied to a 500 kloc codebase: ~37 kloc saved. Thirty-seven thousand lines.
 
 **Why:** The 64% of code that *should* stay as loops is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.
 
-**What this reveals:** fluentfp's value isn't visible at thumbnail scale, indicating it's not about code shape. Compare `getActiveUsers` in both versions: the loop requires declaring a result slice, iterating, checking a condition, appending, and returning. Each step is an opportunity for error. The fluentfp version has one expression with one concept: keep if active. The benefit is correctness by construction—entire categories of bugs (forgotten initialization, wrong index, missed append) become structurally impossible.
+**What this reveals:** fluentfp's value isn't about code shape—it's about error surface. The loop version of `getActiveUsers` has five steps: declare result, iterate, check condition, append, return. Each step is an opportunity for error. The fluentfp version has one concept: keep if active. Entire categories of bugs (forgotten initialization, wrong index, missed append) become structurally impossible.
 
 ### The Brace Tax
 
