@@ -135,34 +135,41 @@ func countBonusEligible(employees []Employee) int {
 // === Aggregation Functions ===
 
 func totalSalary(employees []Employee) float64 {
-	return slice.Fold(slice.From(employees).ToFloat64(Employee.GetSalary), 0.0, sumFloat)
+	salaries := slice.From(employees).ToFloat64(Employee.GetSalary)
+	return slice.Fold(salaries, 0.0, sumFloat)
 }
 
 func totalBonus(employees []Employee) float64 {
-	return slice.Fold(slice.From(employees).ToFloat64(Employee.GetBonus), 0.0, sumFloat)
+	bonuses := slice.From(employees).ToFloat64(Employee.GetBonus)
+	return slice.Fold(bonuses, 0.0, sumFloat)
 }
 
 func totalCompensation(employees []Employee) float64 {
-	return slice.Fold(slice.From(employees).ToFloat64(Employee.GetCompensation), 0.0, sumFloat)
+	compensations := slice.From(employees).ToFloat64(Employee.GetCompensation)
+	return slice.Fold(compensations, 0.0, sumFloat)
 }
 
 func averageSalary(employees []Employee) float64 {
-	sum := slice.Fold(slice.From(employees).ToFloat64(Employee.GetSalary), 0.0, sumFloat)
+	salaries := slice.From(employees).ToFloat64(Employee.GetSalary)
+	sum := slice.Fold(salaries, 0.0, sumFloat)
 	return sum / float64(len(employees))
 }
 
 func averagePerformance(employees []Employee) float64 {
-	sum := slice.Fold(slice.From(employees).ToFloat64(Employee.GetPerformanceScore), 0.0, sumFloat)
+	scores := slice.From(employees).ToFloat64(Employee.GetPerformanceScore)
+	sum := slice.Fold(scores, 0.0, sumFloat)
 	return sum / float64(len(employees))
 }
 
 func averageYearsOfService(employees []Employee) float64 {
-	sum := slice.Fold(slice.From(employees).ToInt(Employee.GetYearsOfService), 0, sumInt)
+	years := slice.From(employees).ToInt(Employee.GetYearsOfService)
+	sum := slice.Fold(years, 0, sumInt)
 	return float64(sum) / float64(len(employees))
 }
 
 func totalYearsOfService(employees []Employee) int {
-	return slice.Fold(slice.From(employees).ToInt(Employee.GetYearsOfService), 0, sumInt)
+	years := slice.From(employees).ToInt(Employee.GetYearsOfService)
+	return slice.Fold(years, 0, sumInt)
 }
 
 // === Combined Operations ===
@@ -180,11 +187,15 @@ func getBonusEligibleIDs(employees []Employee) []string {
 }
 
 func totalHighPerformerSalary(employees []Employee) float64 {
-	return slice.Fold(slice.From(employees).KeepIf(Employee.IsHighPerformer).ToFloat64(Employee.GetSalary), 0.0, sumFloat)
+	salaries := slice.From(employees).
+		KeepIf(Employee.IsHighPerformer).
+		ToFloat64(Employee.GetSalary)
+	return slice.Fold(salaries, 0.0, sumFloat)
 }
 
 func averageRemoteSalary(employees []Employee) float64 {
 	remotes := slice.From(employees).KeepIf(Employee.IsRemote)
-	sum := slice.Fold(remotes.ToFloat64(Employee.GetSalary), 0.0, sumFloat)
+	salaries := remotes.ToFloat64(Employee.GetSalary)
+	sum := slice.Fold(salaries, 0.0, sumFloat)
 	return sum / float64(remotes.Len())
 }
