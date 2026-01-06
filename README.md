@@ -31,8 +31,8 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 
 Loop mechanics create bugs regardless of developer skill:
 
-- **Defer in loop**: resources pile up until function returns
 - **Accumulator errors**: forgot to increment, wrong variable
+- **Defer in loop**: resources pile up until function returns
 
 C-style loops add more:
 
@@ -47,9 +47,9 @@ These bugs compile, pass review, and look correct. They continue to appear in hi
 
 | Bug Class | Why It Happens | fluentfp Elimination |
 |-----------|----------------|---------------------|
-| Index typo | Manual index math | No index—predicates operate on values |
-| Defer in loop | Loop body accumulates | No loop body |
 | Accumulator error | Manual state tracking | `Fold` manages state |
+| Defer in loop | Loop body accumulates | No loop body |
+| Index typo | Manual index math | No index—predicates operate on values |
 | Off-by-one | Manual bounds | Iterate collection, not indices |
 
 ## Measurable Impact
