@@ -304,9 +304,9 @@ fluentfp uses eager evaluation—each operation materializes its result immediat
 | Filter + Map | 4.2 μs | 7.6 μs | Loop 45% faster |
 | Count (no result slice) | 0.26 μs | 7.3 μs | Loop 28× faster |
 
-*(1000 elements. Full results: [[methodology#benchmark-results|Methodology § Benchmarks]])*
+*(1000 elements, Intel i5. Absolute numbers vary by hardware; relative trends are consistent. Full results: [[methodology#benchmark-results|Methodology § Benchmarks]])*
 
-**Why chains can win:** `KeepIf` pre-allocates with `make([]T, 0, len(ts))`, avoiding the repeated reallocations of a naive append loop. Single-operation chains often equal or beat loops.
+**Why chains can win:** `KeepIf` pre-allocates with `make([]T, 0, len(ts))`, avoiding the repeated reallocations of a naive append loop. Simple predicates (like method expressions) inline well; complex closures may add call overhead. Single-operation chains often equal or beat loops.
 
 **Why loops can win:** Multi-operation chains allocate per operation. When you don't need the intermediate slice (e.g., just counting), fused loops are dramatically faster—they allocate nothing.
 
