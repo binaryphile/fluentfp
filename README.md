@@ -66,7 +66,7 @@ These bugs compile, pass review, and look correct. They continue to appear in hi
 | Filter + Map | 4.2 μs | 7.6 μs | Loop 45% faster |
 | Count only | 0.26 μs | 7.3 μs | Loop 28× faster |
 
-Single operations often equal or beat loops (fluentfp pre-allocates; naive loops reallocate). Multi-operation chains allocate per operation. See [full benchmarks](methodology.md#benchmark-results).
+Single operations often equal or beat loops (fluentfp pre-allocates; naive loops dynamically append). Multi-operation chains allocate per operation. See [full benchmarks](methodology.md#benchmark-results).
 
 ## When to Use fluentfp
 
