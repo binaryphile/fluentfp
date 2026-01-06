@@ -1,3 +1,5 @@
+> For why fluentfp exists and when to use it, see the [main README](../README.md).
+
 `must` offers a handful of functions for dealing with invariants, i.e. things that must be
 true, or else the program should panic.
 

@@ -1,3 +1,6 @@
+> For why fluentfp exists and when to use it, see the [main README](../README.md).
+> For performance characteristics, see [benchmarks](../methodology.md#benchmark-results).
+
 # fluent: simple, readable FP for slices
 
 ## Key Features

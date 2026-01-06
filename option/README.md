@@ -1,3 +1,6 @@
+> For the full discussion of nil safety and Tony Hoare's "billion-dollar mistake,"
+> see [Nil Safety in Go](../nil-safety.md).
+
 An option is a container type that conditionally holds a single value. It is useful for two
 purposes:
 
@@ -5,24 +8,6 @@ purposes:
     the value, preventing logical errors and runtime panics.
 -   writing expressive code that takes into account whether or not a value exists without
     requiring conditional branches and the corresponding verbosity.
-
-## Pointers as Pseudo-Options
-
-You’ve likely seen pointer types in Go used to indicate the presence of a valid value. For
-example, you may conditionally have a string value that can be anything, including the empty
-string. Since you can’t use the empty string to represent an invalid value, you need
-something else. You can use a string pointer as a pseudo-option, where `nil` means that the
-value isn’t valid, and anything else is the string itself.
-
-This is the source of the so-called "Billion-dollar Mistake" that opens the door for runtime
-errors, because trying to dereference a `nil` value to get a string will cause a panic, but
-the language will not flag it as an error at compile time because it can’t. The protocol
-needs to be that you check validity before attempting to use the value, but the language has
-chosen not to enforce such a protocol with pointers.
-
-Still, such pseudo-options have their uses and this package makes it easy to convert between
-them and the option type provided here. By convention, we call pseudo-options "opts" to
-distinguish from "options", and include "Opt" as a suffix on such variable names.
 
 ## Creating Options
 
