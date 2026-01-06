@@ -1,10 +1,12 @@
 # fluentfp
 
-Pragmatic functional programming for Go: fewer bugs, less code, same performance.
+Pragmatic functional programming for Go: fewer bugs, less code, predictable performance.
 
 > **Summary:** Eliminate control structures, eliminate the bugs they enable.
 > Mixed codebases see 26% complexity reduction; pure pipelines drop 95%.
 > The win isn't lines saved—it's bugs that become unwritable.
+
+fluentfp is a small set of composable utilities for slice-based data transformation in Go.
 
 ## Quick Start
 
