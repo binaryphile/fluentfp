@@ -357,7 +357,7 @@ for i, d := range devices {
 
 ### Counting with KeepIf + Len
 
-Count matching elements without intermediate allocation:
+Count matching elements concisely:
 
 ```go
 activeCount := slice.From(users).
@@ -374,6 +374,8 @@ for _, u := range users {
     }
 }
 ```
+
+**Note:** This allocates an intermediate slice. For hot paths where you only need the count, a manual loop avoids allocation. See [benchmarks](../methodology.md#benchmark-results).
 
 ### Chain Formatting
 
@@ -501,6 +503,10 @@ for result := range resultsChan {
 ### Complex Control Flow
 
 When you need `break`, `continue`, or early `return` within the loop body.
+
+### Index-Dependent Logic
+
+When you need the index `i` for more than just accessing elements—e.g., comparing adjacent elements, building position-aware output, or algorithms that depend on element position.
 
 --------------------------------------------------------------------------------------------
 
