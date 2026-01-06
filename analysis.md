@@ -1,98 +1,70 @@
 # fluentfp Analysis
 
-fluentfp is a genuine readability improvement for Go. The core insight: **method chaining abstracts iteration mechanics**, letting you read code as a sequence of transformations rather than machine instructions.
+Same operation, two styles:
 
-## The Core Difference
-
-Both approaches filter active users and extract their names. Compare how each represents the same operation:
-
-```mermaid
-flowchart LR
-    subgraph fluentfp["fluentfp: Data Pipeline"]
-        direction LR
-        A["[]User"] --> B["KeepIf(IsActive)"]
-        B --> C["ToString(Name)"]
-        C --> D["[]string"]
-    end
-
-    style A fill:#e1f5fe
-    style D fill:#c8e6c9
-    style B fill:#fff3e0
-    style C fill:#fff3e0
-```
-
-```mermaid
-flowchart TD
-    subgraph Conventional["Conventional: Iteration Mechanics"]
-        S([Start]) --> I["var result []string"]
-        I --> L{"for _, u := range users"}
-        L -->|each| C{"u.IsActive()?"}
-        C -->|yes| AP["result = append(result, u.Name)"]
-        C -->|no| L
-        AP --> L
-        L -->|done| R["result is ready"]
-    end
-
-    style S fill:#e1f5fe
-    style R fill:#c8e6c9
-    style I fill:#ffcdd2
-    style L fill:#ffcdd2
-    style C fill:#ffcdd2
-    style AP fill:#ffcdd2
-```
-
-*Top: data flows linearly through transformations. Bottom: control flow branches and loops back. The shape reflects the mental model—pipeline vs. state machine.*
-
-A loop interleaves 4 concerns—variable declaration, iteration syntax, condition, and accumulation. fluentfp collapses these into one expression:
-
+**Conventional (6 lines, 2 indent levels):**
 ```go
-// fluentfp: what you want
-names := slice.From(users).
-    KeepIf(User.IsActive).
-    ToString(User.Name)
-
-// Conventional: how to get it
-var names []string
+var active []User
 for _, u := range users {
     if u.IsActive() {
-        names = append(names, u.Name)
+        active = append(active, u)
     }
 }
 ```
 
-## Mental Load Comparison
-
-Complexity has two dimensions: **concepts** (what you need to know) and **decisions** (choices you make each time).
-
-| Dimension | Conventional | fluentfp |
-|-----------|--------------|----------|
-| **Concepts** | 4 intertwined concerns ([The Core Difference](#the-core-difference)) | 5 operations, predicate forms ([Choice of Function Arguments](#choice-of-function-arguments-for-higher-order-functions)) |
-| **Decisions per use** | 2-3 within concerns (accumulator, range form) | 1-2 (operation, predicate form) |
-| **Decision type** | Syntax: "which form gives me what I need?" | Intent: "what operation expresses my goal?" |
-
-```mermaid
-flowchart LR
-    subgraph fluentfp["fluentfp: intent"]
-        direction LR
-        F1["What do I want?"] --> F2["What form of predicate?"]
-    end
-
-    subgraph Conventional["Conventional: syntax"]
-        direction LR
-        C1["What accumulator?"] --> C2["Need index?"]
-        C2 --> C3["Need value?"]
-    end
-
-    style fluentfp fill:#c8e6c9
-    style Conventional fill:#ffcdd2
+**FP (1 line):**
+```go
+active := slice.From(users).KeepIf(User.IsActive)
 ```
 
-**Applicability:** In a production codebase (608 loops), 33-41% were fluentfp-replaceable. The rest required complex control flow, I/O streaming, or were Go idioms (table-driven tests).
+The conventional version has more indentation. Why does that matter? (Line counts depend on [formatting conventions](#g-chain-formatting-rules)—see methodology.)
 
-**For replaceable patterns**, conventional loops require boilerplate (variable declaration, append/increment) while fluentfp requires none:
+## What Creates the Indentation
+
+Control structures require indented bodies. A `for` loop needs a body—that's one level. An `if` inside the loop needs its own body—that's two levels. Nesting compounds: each control structure pushes the code rightward.
 
 ```go
-// Conventional: syntax decisions + boilerplate
+// Conventional: control structures create indentation
+var names []string                    // level 0
+for _, u := range users {             // level 0 → body at level 1
+    if u.IsActive() {                 // level 1 → body at level 2
+        names = append(names, u.Name) // level 2
+    }
+}
+```
+
+The jagged left edge in the conventional silhouette *is* the control structures. Every indent represents a `for`, `if`, or `switch` that Go's syntax requires you to express.
+
+```go
+// fluentfp: no control structures, no indentation
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
+```
+
+Even multiline chains have only *formatting* indentation (a style choice), not *structural* indentation (syntax-required block bodies). The former is cosmetic; the latter signals complexity.
+
+## Why Less Indentation Matters
+
+The same constructs that create indentation—`for`, `if`, `switch`—are what complexity metrics count. They're branch points: places where execution can go different ways.
+
+**Less indentation → fewer control structures → fewer branch points → fewer execution paths.**
+
+Fewer execution paths means:
+- Less to reason about when reading
+- Fewer states to test
+- Fewer opportunities for error
+
+This isn't metaphor. The correlation table in [Measuring the Correlation](#measuring-the-correlation) shows indent reduction tracking complexity reduction almost perfectly: 27%/26% in the mixed case, 80%/95% in the pure pipeline case.
+
+**Practical rule of thumb:** You can estimate complexity at a glance by counting indentation levels—no need to run a tool. More indentation means more control structures means higher complexity.
+
+The principle: **levers you don't have can't be pulled incorrectly**. We'll return to this in [The Principle](#the-principle).
+
+## How FP Eliminates Control Structures
+
+Functional programming converts element-by-element control flow into collection-as-unit transformation. The iteration still happens—inside the library. The condition still exists—but as data (a function value), not as branching syntax.
+
+```go
+// Conventional: you write the mechanics
 count := 0
 for _, u := range users {
     if u.IsActive() {
@@ -100,179 +72,57 @@ for _, u := range users {
     }
 }
 
-// fluentfp: intent decision, no boilerplate
+// fluentfp: library handles mechanics
 count := slice.From(users).
     KeepIf(User.IsActive).
     Len()
 ```
 
-## The Invisible Familiarity Discount
+### Why This Reduces Mental Load
 
-An experienced Go developer looks at `for _, t := range tickets { if ... { count++ } }` and "sees" it instantly. But that's pattern recognition from thousands of repetitions, not inherent simplicity.
+The key isn't that FP has fewer concepts—it's that they **compose**.
 
-**The tell:** Show that loop to a non-programmer, then show them `KeepIf(isActive).Len()`. Which one can they parse?
+A conventional loop bundles four concerns together: variable declaration, iteration syntax, condition, and accumulation. You need all four to write *any* loop. Want to count? Four things. Want to filter? Four things. Want to extract a field? Four things. (But see [the familiarity discount](#the-familiarity-discount).)
 
-**The real test:** Come back to your own code after 6 months. The loop requires re-simulation ("what is this accumulating? oh, it's counting matches"). The fluent method chain version states intent directly.
+FP has an entry cost—you learn the chaining pattern and how to pass functions as data. But then each operation (filter, map, fold) is *one* thing. And they compose: learn one, use it everywhere. Learn another, chain it with the first.
 
-The invisible familiarity discount: a pattern you've seen 10,000 times *feels* simple, but still requires parsing mechanics. This doesn't mean fluentfp is always clearer—conventional loops win in many cases (see "When Not to Use fluentfp" below). But be aware of the discount when comparing. fluentfp expresses intent without mechanics to parse—the "simplicity" is intrinsic, not the result of repeated exposure.
+| Approach | Cost Model |
+|----------|------------|
+| Conventional | 4 things bundled, every time |
+| FP | Entry cost + 1 operation at a time |
 
-## Concerns Factored, Not Eliminated
+**The formula:** Conventional patterns cost 4×N (four things, N times). FP operations cost entry + N (learn entry once, then one thing at a time).
 
-fluentfp doesn't make iteration disappear—it moves it into the library.
+**Punchline:** Conventional patterns don't compose; FP operations do.
 
-**Your call site:**
-```go
-return slice.From(history).ToFloat64(Record.GetValue)
-```
+**Applicability:** In a production codebase (608 loops), 33-41% were fluentfp-replaceable. The rest required complex control flow, channels, or Go idioms (table-driven tests).
 
-**What the library does:**
-- `make([]float64, len(input))` — allocation
-- `for i, t := range input` — iteration with index
-- `results[i] = fn(t)` — transformation and assignment
-- `return results` — return
+### The Familiarity Discount
 
-The same four concerns exist. The difference: the library handles them in one place, not every call site. You handle only what varies—the extraction function.
+A `for` loop you've seen 10,000 times feels instant to parse—but only because you've amortized the cognitive load through repetition. The four concerns don't disappear; you've just trained yourself to see them as one chunk.
 
-**The trade-off:**
-- **Conventional**: Write mechanics at every call site
-- **fluentfp**: Library writes mechanics once; you write only what varies
+This doesn't mean fluentfp is always clearer. Be aware of the discount when comparing: fluentfp's simplicity is inherent (fewer moving parts), while loop familiarity is learned (same parts, practiced recognition).
 
-## Choice of Function Arguments for Higher-Order Functions
+## Measuring the Correlation
 
-Takeaway: [Method Expressions](https://go.dev/ref/spec#Method_expressions) give the cleanest chain invocations.
+We measured total indentation (sum of leading tabs) against complexity (scc's branch/loop token count). Both metrics trace to the same source: control structures.
 
-A method expression references a method through its type rather than an instance. These two statements are equivalent:
+| Version | Total Indent | Complexity | Indent Change | Complexity Change |
+|---------|--------------|------------|----------|--------------|
+| Conventional | 97 | 23 | — | — |
+| fluentfp | 71 | 17 | −27% | −26% |
+| Best-case Conv. | 306 | 57 | — | — |
+| Best-case FP | 60 | 3 | −80% | −95% |
 
-```go
-user.IsActive()      // method call on instance
-User.IsActive(user)  // method expression - same result
+The correlation holds across both cases. In the mixed-code example (36% convertible), indent and complexity drop nearly identically. In the pure-pipeline example (100% convertible), complexity drops *faster*—a chain can have visual indentation with zero branch points.
 
-// The payoff: User.IsActive is a function value you can pass directly
-slice.From(users).KeepIf(User.IsActive)
-```
+*Source: [examples/code-shape](examples/code-shape). Measured with [scc](https://github.com/boyter/scc).*
 
-No extra syntax required—method expressions come free with every method you define.
+### Typical Case: Mixed Code
 
-The preference hierarchy: **method expressions → named functions**.  Inline lambdas also work, but are discouraged.
-
-```go
-// Best: method expressions read as English
-slice.From(history).ToFloat64(Record.GetLeadTime)
-
-// Good: named function documents intent
-// isAdult returns true if user is 18+ and has an active account.
-isAdult := func(u User) bool { return u.Age >= 18 && u.IsActive() }
-slice.From(users).
-    KeepIf(isAdult).
-    Len()
-
-// Avoid: inline lambda requires parsing function syntax mid-chain
-slice.From(users).
-    KeepIf(func(u User) bool { return u.Age >= 18 && u.IsActive() }).
-    Len()
-```
-
-**Method expression pre-req:** To use the better-reading method expressions, you must be using a struct with value receivers. `slice.From(users)` creates `Mapper[User]`, so `User.IsActive` must have a value-typed receiver.
-
-## Quantified Benefits
-
-Line counts include comment lines where I consider them essential for clarity.
-
-| Pattern                | fluentfp  | Conventional |
-| ---------------------- | --------- | ------------ |
-| Filter + Return        | 1 line    | 7 lines      |
-| Filter + Count         | 3 lines   | 7 lines      |
-| Field Extraction (Map) | 1-3 lines | 5 lines      |
-| Fold (Reduce)          | 3 lines   | 5 lines      |
-
-## Information Density
-
-**"As readable and as much code as I can fit on the page."**
-
-Line counts tell part of the story. Information density tells the rest: how much of each line conveys *intent* versus *mechanics*.
-
-**Semantic lines** express domain intent:
-- Condition checks (`if u.IsActive()`)
-- Accumulation (`count++`, `result = append(...)`)
-- Operations (`KeepIf`, `ToFloat64`, `Len`)
-
-**Syntactic lines** exist for language mechanics:
-- Variable declarations (`count := 0`, `var result []T`)
-- Loop headers (`for _, u := range users {`)
-- Closing braces (`}`)
-
-### Filter + Count: Line-by-Line Analysis
-
-```mermaid
-flowchart TD
-    subgraph Loop["Loop: 6 lines"]
-        L1["count := 0"]
-        L2["for _, u := range users {"]
-        L3["if u.IsActive() {"]
-        L4["count++"]
-        L5["}"]
-        L6["}"]
-        L1 ~~~ L2 ~~~ L3 ~~~ L4 ~~~ L5 ~~~ L6
-    end
-
-    subgraph FP["fluentfp: 3 lines"]
-        F1["count := slice.From(users)."]
-        F2["KeepIf(User.IsActive)."]
-        F3["Len()"]
-        F1 ~~~ F2 ~~~ F3
-    end
-
-    Loop ~~~ FP
-
-    style L1 fill:#ffcdd2
-    style L2 fill:#ffcdd2
-    style L3 fill:#c8e6c9
-    style L4 fill:#c8e6c9
-    style L5 fill:#ffcdd2
-    style L6 fill:#ffcdd2
-
-    style F1 fill:#ffcdd2
-    style F2 fill:#c8e6c9
-    style F3 fill:#c8e6c9
-```
-
-**Legend:** 🟩 Green = semantic (intent) | 🟥 Red = syntactic (mechanics)
-
-The fluent version reduces syntactic (red) lines from four to one.
-
-**Loop version** (6 lines):
-```go
-count := 0                    // syntactic: setup
-for _, u := range users {     // syntactic: iteration header
-    if u.IsActive() {         // SEMANTIC: condition
-        count++               // SEMANTIC: accumulation
-    }                         // syntactic: brace
-}                             // syntactic: brace
-```
-
-**fluentfp version** (3 lines):
-```go
-count := slice.From(users).   // syntactic: setup
-    KeepIf(User.IsActive).    // SEMANTIC: condition
-    Len()                     // SEMANTIC: count
-```
-
-| Metric | Loop | fluentfp |
-|--------|------|----------|
-| Total lines | 6 | 3 |
-| Semantic lines | 2 | 2 |
-| Syntactic lines | 4 | 1 |
-| **Semantic density** | **33%** | **67%** |
-
-Same semantic content. Half the lines. Double the density.
-
-### Visual Comparison
-
-**Experiment:** Render the same program in both styles at thumbnail scale—too small to read, but large enough to see the shape.
+Most modules mix FP-convertible patterns with code that should stay as loops. This example intentionally mirrors a typical production ratio—36% convertible, 64% conventional loops.
 
 ![Code shape comparison](images/code-shape-comparison.png)
-
-*Source: [examples/code-shape](examples/code-shape)*
 
 | Version | Code | Complexity |
 |---------|------|------------|
@@ -280,55 +130,178 @@ Same semantic content. Half the lines. Double the density.
 | fluentfp | 80 | 17 |
 | **Reduction** | **12%** | **26%** |
 
-*Measured with [scc](https://github.com/boyter/scc), which does not include blank lines. Complexity approximates cyclomatic complexity by counting branch/loop tokens.*
+The 12% code reduction seems modest. But complexity dropped 26%—the convertible functions lost their branch points while the unchanged loops kept theirs. At scale, both compound: 12% of 500 kloc is 60,000 lines; 26% fewer branch points means 26% fewer opportunities for error (see [Appendix H](#h-real-world-loop-bugs)).
 
-**Result:** The code reduction (12%) was lower than expected. Applied to a 500 kloc (thousand lines of code) enterprise codebase: ~60 kloc saved. The complexity reduction (26%) reflects flatter control flow in the main code.
+### Best Case: Pure Data Pipeline
 
-**Why:** The 64% of code that *should* stay as loops (i.e. doesn't fall into a fluentfp pattern) is identical in both versions. These seven functions dominate the silhouette. The 36% that converts (functions 1-4) does shrink dramatically—but that improvement is visually swamped by the unchanging majority.  This was an intentional part of the experimental design, to reflect real-world code effects.  We targeted the average case for fluentfp opportunities in an existing codebase, not a best-case scenario for fluentfp.
-
-**What this reveals:** fluentfp's value isn't code shape—it's error surface and complexity. The control flow is abstracted away by the library—iteration and conditionals disappear from your code. Predicates are just boolean expressions: pure, reusable, trivial to test. The main code becomes linear—no state to track across iterations.
-
-### Best Case: Data Pipeline Module
-
-What if a module is *entirely* data transformations? A report generator that only does filter/map/fold operations represents the ceiling for fluentfp's impact.
+What about modules that are *entirely* data transformations? Report generators, ETL jobs—pure filter/map/fold. This is the ceiling for fluentfp's impact.
 
 | Version | Code | Complexity |
 |---------|------|------------|
 | Conventional | 281 | 57 |
-| fluentfp | 137 | 3 |
-| **Reduction** | **51%** | **95%** |
+| fluentfp | 148 | 3 |
+| **Reduction** | **47%** | **95%** |
+
+![Best-case code shape comparison](images/best-case-code-shape-comparison.png)
 
 *Source: [examples/code-shape/best-case-*](examples/code-shape)*
 
-The 51% code reduction shows what's possible when all operations fit the functional pattern. But the complexity drop—from 57 to 3—is striking. The chain code has almost no control flow—the library handles iteration. And predicate methods like `IsActive` often already exist on your types—you're not adding testing overhead, just reusing what's there. Real codebases will fall between 12% (average mix) and 51% (pure pipelines), depending on the module's purpose.
+47% code reduction when all operations fit the functional pattern. Complexity drops 57 to 3—every `for` and `if` is gone, nothing for scc to count. Predicate methods like `IsActive` often already exist on your types; you're reusing code, not adding overhead. Real codebases fall between 12% (mixed) and 47% (pure pipelines), depending on the module.
 
-**A note on scale:** 12% may not feel compelling on a small project. But codebases grow. At 500 kloc, 12% is 60,000 lines. At that scale, small percentages start to matter—for build times, code review burden, and cognitive load. You may find fluentfp's value proposition changes as your codebase crosses certain thresholds.
+**A note on scale:** 12% may not feel compelling on a small project. But codebases grow. At 500 kloc, 12% is 60,000 lines. At that scale, small percentages start to matter—for build times, code review burden, and cognitive load.
 
-### The Brace Tax
+## The Principle
 
-Loops pay a "brace tax"—closing braces consume lines without conveying intent:
-- Closing brace for if block: 1 line
-- Closing brace for loop body: 1 line
-- Nested conditions: more braces
+The complexity numbers tell the deeper story. 95% fewer branch points doesn't just mean less to test—it means 95% fewer levers available to pull incorrectly.
 
-In the example above, 2 of 6 lines (33%) are just `}`. fluentfp has no brace tax.
+The principle is *correctness by construction*: design systems so errors can't occur, rather than catching them after the fact. FP embodies this—the mechanics of imperative iteration (indexes to mistype, accumulators to forget, break/continue to misplace) simply don't exist in FP code. You can't typo `i+i` instead of `i+1` when there's no `i`. You can't forget to initialize an accumulator when there's no accumulator. You can't put a `defer` in a loop body when there's no loop body.
 
-### Empirical Data
+In manufacturing, the physical manifestation of this principle is *poka-yoke* (ポカヨケ)—the Toyota Production System's term for mistake-proofing. A part that only fits one way. A switch that won't activate unless the guard is down. Don't train workers to avoid mistakes; design the process so mistakes become impossible.
 
-Analysis of 11 representative loops from a production Go codebase (608 total loops):
+The narrower silhouette isn't just about reading ease or line counts. It's correctness by construction.
 
-| Metric | Value |
-|--------|-------|
-| Average semantic density | 36% |
-| Simple transforms (map/filter/reduce) | 33% |
-| Braces as % of loop lines | 26% |
-| Combined overhead (braces + setup) | 39% |
+## Trade-offs
 
-**Key finding**: Simple transforms—exactly what fluentfp targets—waste 67% of lines on syntax.
+Not all code benefits equally from fluentfp. The return depends on what your code *does*.
 
-> **Methodology**: Lines classified as semantic if they express domain intent (conditions, operations, accumulation). Lines classified as syntactic if they exist purely for language mechanics (declarations, iteration headers, braces). Assignment lines (`x :=`) treated as syntactic on both sides for consistency.
+### High-Yield Code Patterns
 
-## Real Patterns
+**Data pipeline modules** (up to 47% reduction—see [best-case analysis](#best-case-pure-data-pipeline)):
+- Report generators, ETL jobs, metrics aggregators
+- Characteristics: primarily filter/map/fold operations, batch data, pure transformations
+
+**Controller/orchestration code** (12-40% reduction depending on filter/map density):
+- API handlers that collect and transform data before response
+- Kubernetes controllers filtering resources by state
+- CLI tools processing command output
+- Characteristics: query → filter → transform → return patterns
+
+From Kubernetes' [deployment_util.go](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/deployment/util/deployment_util.go):
+
+**Field extraction.** Extract container names from a pod—a common pattern when building responses or logs.
+
+```go
+// Kubernetes original
+var names []string
+for _, c := range pod.Spec.Containers {
+    names = append(names, c.Name)
+}
+return names
+```
+
+```go
+// fluentfp equivalent
+// getName returns the container's name.
+getName := func(c Container) string { return c.Name }
+return slice.From(pod.Spec.Containers).ToString(getName)
+```
+
+**Filtering by exclusion.** Remove conditions matching a specific type. The loop uses `continue` to skip matches—an inverted pattern where you express what to *exclude* rather than what to *keep*.
+
+```go
+// Kubernetes original
+var newConditions []apps.DeploymentCondition
+for _, c := range conditions {
+    if c.Type == condType {
+        continue
+    }
+    newConditions = append(newConditions, c)
+}
+return newConditions
+```
+
+```go
+// fluentfp equivalent
+// hasCondType returns true if the condition matches the target type.
+hasCondType := func(c apps.DeploymentCondition) bool { return c.Type == condType }
+return slice.From(conditions).RemoveIf(hasCondType)
+```
+
+**Configuration/validation code** (similar patterns, smaller scale):
+- Checking lists of config values against rules
+- Validating collections of inputs
+- Characteristics: many predicate-based filters
+
+**Config validation.** Find configs with debug mode enabled (shouldn't ship to prod).
+
+```go
+// Original
+var debugConfigs []Config
+for _, c := range configs {
+    if c.Debug {
+        debugConfigs = append(debugConfigs, c)
+    }
+}
+```
+
+```go
+// fluentfp equivalent
+debugConfigs := slice.From(configs).KeepIf(Config.IsDebug)
+```
+
+5 lines → 1 line. Uses method expression (assumes `func (c Config) IsDebug() bool` exists on type).
+
+### Lower-Yield Code Patterns
+
+**I/O-bound handlers** (minimal reduction):
+- HTTP handlers with mostly database/API calls
+- Characteristics: side effects dominate, few pure transformations
+
+**Graph/tree traversal** (minimal benefit):
+- Terraform's provider resolution, AST walkers
+- Characteristics: recursive patterns, stateful traversal, break/continue control flow
+
+**Streaming pipelines** (not applicable):
+- Channel-based data flow, unbounded input
+- fluentfp operates on batch (in-memory) slices, not streams
+
+### Choosing Whether to Adopt
+
+```mermaid
+flowchart TD
+    Q1[How much filter/map/fold<br/>in your codebase?]
+    Q1 -->|"<20%"| LOW["Low yield"]
+    Q1 -->|"20-40%"| MED["Medium yield"]
+    Q1 -->|">40%"| HIGH["High yield"]
+
+    LOW --> Q2[Expected growth?]
+    MED --> Q2
+    HIGH --> ADOPT["Adopt broadly"]
+
+    Q2 -->|"Staying small"| DEFER["Skip for now"]
+    Q2 -->|"Growing"| INCR["Adopt incrementally<br/>in new code"]
+
+    style HIGH fill:#c8e6c9
+    style MED fill:#fff3e0
+    style DEFER fill:#ffcdd2
+    style ADOPT fill:#c8e6c9
+    style INCR fill:#c8e6c9
+```
+
+The decision isn't binary. fluentfp is valuable even for lower-yield code—the clarity and bug prevention still apply. But for small projects that won't grow, the adoption cost may not justify the modest line savings. As codebases scale, those modest percentages become substantial absolute numbers.
+
+### When to Use Loops
+
+```mermaid
+flowchart TD
+    Q{"What do you need?"}
+    Q -->|"Filter/Map/Fold"| FP["Use fluentfp"]
+    Q -->|"break/continue"| Loop["Use loop"]
+    Q -->|"Channel range"| Loop
+    Q -->|"Index-dependent logic"| Loop
+    Q -->|"Early return on condition"| Loop
+
+    style FP fill:#c8e6c9
+    style Loop fill:#fff3e0
+```
+
+1. **Channel consumption** - `for r := range ch` has no FP equivalent
+2. **Complex control flow** - break, continue, early return within iteration
+3. **Index-dependent logic** - when you need `i` for more than just indexing
+
+These are intentional boundaries. Use loops when necessary—just recognize that loops are neither the clearest nor the safest choice for the patterns FP handles well.
+
+## Patterns in Practice
 
 ### Filter + Return
 ```go
@@ -395,7 +368,7 @@ for _, d := range durations {
 }
 ```
 
-## Correctness by Construction
+## Error Prevention
 
 Line counts don't capture bugs avoided. These bugs are from production Go code—all compiled, all passed code review.
 
@@ -455,172 +428,20 @@ The restraint is deliberate: solve patterns cleanly without becoming a framework
 
 **Works with Go's type system.** Generics are used minimally—`Mapper[T]` and `MapperTo[R, T]` are the extent of it. No reflection, no `any` abuse, no code generation. Type safety is preserved throughout.
 
-## When Not to Use fluentfp
+## Nil Safety
 
-```mermaid
-flowchart TD
-    Q{"What do you need?"}
-    Q -->|"Filter/Map/Fold"| FP["Use fluentfp"]
-    Q -->|"break/continue"| Loop["Use loop"]
-    Q -->|"Channel range"| Loop
-    Q -->|"Index-dependent logic"| Loop
-    Q -->|"Early return on condition"| Loop
+Go's `nil` pointers are a source of runtime panics. fluentfp addresses this through two complementary strategies:
 
-    style FP fill:#c8e6c9
-    style Loop fill:#fff3e0
-```
+1. **Value semantics**: Prefer value types and value receivers—no pointer means no nil
+2. **Option types**: When optionality is genuine, use `option.Basic[T]` to make absence explicit
 
-1. **Channel consumption** - `for r := range ch` has no FP equivalent
-2. **Complex control flow** - break, continue, early return within iteration
-3. **Index-dependent logic** - when you need `i` for more than just indexing
+The `option` package provides correctness by construction: there's no nil to check because there's no nil. The boolean `ok` flag replaces the entire category of nil-related bugs.
 
-These are intentional boundaries. The patterns above—index arithmetic, early exits, mutation during iteration—are common sources of off-by-one errors, missed elements, and subtle bugs. Functional programming avoids them on principle. Use them when necessary. For the patterns we've identified, the for loop is neither the clearest nor the safest choice.
-
-## The Billion-Dollar Mistake
-
-In 2009, Tony Hoare—recipient of the 1980 Turing Award for his contributions to programming languages—gave a talk at QCon titled "Null References: The Billion Dollar Mistake." His confession:
-
-> I call it my billion-dollar mistake. It was the invention of the null reference in 1965. At that time, I was designing the first comprehensive type system for references in an object oriented language (ALGOL W). My goal was to ensure that all use of references should be absolutely safe, with checking performed automatically by the compiler. But I couldn't resist the temptation to put in a null reference, simply because it was so easy to implement. This has led to innumerable errors, vulnerabilities, and system crashes, which have probably caused a billion dollars of pain and damage in the last forty years.
->
-> — Tony Hoare, QCon 2009 ([InfoQ](https://www.infoq.com/presentations/Null-References-The-Billion-Dollar-Mistake-Tony-Hoare/))
-
-The phrase "simply because it was so easy to implement" is telling. A colleague who worked with Hoare described his approach: "Tony has an amazing intuition for seeking a simple and elegant way of attacking problems" (Bill Roscoe, [FACS FACTS 2024](https://www.bcs.org/media/1wrosrpv/facs-jul24.pdf)). This intuition produced Quicksort, Hoare logic, and CSP. But with null references, simplicity backfired—the easy implementation created forty years of crashes.
-
-Hoare's friend Edsger Dijkstra saw the problem early: "If you have a null reference, then every bachelor who you represent in your object structure will seem to be married polyamorously to the same person Null." The type system lies—it claims a reference points to a User, but it might point to nothing.
-
-### Go's Nil Problem
-
-Go inherited this mistake as `nil`. Pointers serve as "pseudo-options" where `nil` means "not present":
-
-```go
-// Conventional: pointer as pseudo-option
-func FindUser(id string) *User {
-    // returns nil if not found
-}
-
-// Caller must remember to check
-user := FindUser("123")
-if user != nil {          // Easy to forget
-    fmt.Println(user.Name) // Panic if nil
-}
-```
-
-The compiler doesn't enforce the nil check. Every pointer dereference is a potential panic waiting for the right input.
-
-### Two Defenses
-
-fluentfp addresses nil through two complementary strategies:
-
-**1. Value Semantics (First Line of Defense)**
-
-Avoid pointers where possible. No pointer means no nil:
-
-```go
-// Value type: no nil possible
-type User struct {
-    Name  string
-    Email string
-}
-
-func GetUser() User {
-    return User{Name: "default"}  // Always valid
-}
-```
-
-fluentfp encourages value receivers over pointer receivers. The README states: "Pointer receivers carry costs: nil receiver panics and mutation at a distance. At scale, these become maintenance burdens."
-
-**2. Option Types (When Optionality Is Genuine)**
-
-When you genuinely need to distinguish "absent" from "present," use an explicit container:
-
-```go
-import "github.com/binaryphile/fluentfp/option"
-
-// Option type: explicit optionality
-func FindUser(id string) option.Basic[User] {
-    if found {
-        return option.Of(user)      // Present
-    }
-    return option.NotOk[User]()     // Absent (not nil!)
-}
-
-// Caller is forced to handle both cases
-userOpt := FindUser("123")
-if user, ok := userOpt.Get(); ok {
-    fmt.Println(user.Name)
-}
-// Or with default:
-user := userOpt.Or(defaultUser)
-```
-
-The API names are intuitive:
-- **Creation**: `Of` (always ok), `New` (conditional), `IfProvided` (ok if non-zero), `FromOpt` (from pointer)
-- **Extraction**: `Get()` (comma-ok), `Or()` (with default), `OrZero()`, `OrFalse()`, `MustGet()` (panic if not ok)
-
-### Choosing the Right Defense
-
-```mermaid
-flowchart TD
-    Q[Need Optional Value?]
-    Q -->|"Can zero mean<br/>'not present'?"| V[Value type<br/>no pointer]
-    Q -->|"Need 'absent'<br/>vs 'zero'?"| O[option.Basic<br/>explicit ok]
-    V --> NR[No nil risk]
-    O --> FH[Forced handling]
-```
-
-*If an empty string or zero is a valid value distinct from "no value," use `option.Basic`. Otherwise, value types eliminate nil risk entirely.*
-
-### Real-World Pattern
-
-From a real project, handling nullable database fields:
-
-```go
-// Database field might be NULL
-type Device struct {
-    NullableHost sql.NullString
-}
-
-// Convert to option at the boundary
-func (d Device) GetHostOption() option.String {
-    return option.IfProvided(d.NullableHost.String)
-}
-
-// Downstream code works with options, not nil
-hosts := slice.From(devices).ToString(Device.GetHostOption().Or(""))
-```
-
-Domain option types can propagate "not-ok" through call chains:
-
-```go
-type DeviceOption struct {
-    option.Basic[Device]
-}
-
-func (o DeviceOption) GetHost() option.String {
-    device, ok := o.Get()
-    if !ok {
-        return option.String{}  // Propagates not-ok
-    }
-    return device.GetHostOption()
-}
-```
-
-No nil checks in consumer code. If the device doesn't exist, downstream gets a not-ok option—no panic, no crash.
-
-### The Structural Guarantee
-
-The key insight: `option.Basic[T]` is a struct containing a value and a boolean flag—both value types. The zero value is automatically "not-ok" because the boolean defaults to false.
-
-| Approach | Risk | Cost |
-|----------|------|------|
-| `*T` (pointer) | Nil dereference panic | Every caller must check `if ptr != nil` |
-| `option.Basic[T]` | None—no nil possible | Must use `Get()`, `Or()`, or `MustGet()` |
-
-There's no nil to check because there's no nil. The boolean `ok` flag replaces the entire category of nil-related bugs. This is correctness by construction—the same principle that makes `KeepIf` safer than a filter loop. You can't forget to initialize, use the wrong index, or dereference nil, because the structure of the code makes those errors impossible.
+For the full discussion—including Tony Hoare's "billion-dollar mistake" confession, Go's nil problem, and real-world patterns—see [Nil Safety in Go](nil-safety.md).
 
 ## Appendix: Methodology
 
-This appendix documents how empirical claims in the Information Density section were derived, enabling readers to verify or replicate the analysis.
+This appendix documents how empirical claims were derived, enabling readers to verify or replicate the analysis.
 
 **Contents:**
 - [A. Loop Sampling Methodology](#a-loop-sampling-methodology)
@@ -629,6 +450,7 @@ This appendix documents how empirical claims in the Information Density section 
 - [D. Replication Guide](#d-replication-guide)
 - [E. Limitations](#e-limitations)
 - [F. Code Metrics Tool (scc)](#f-code-metrics-tool-scc)
+- [G. Chain Formatting Rules](#g-chain-formatting-rules)
 
 ### A. Loop Sampling Methodology
 
@@ -718,9 +540,9 @@ How readers can verify on their own codebase:
 
 **Multi-line example:**
 ```go
-result := slice.From(users).    // line 1: syntactic (setup)
+count := slice.From(users).     // line 1: syntactic (setup)
     KeepIf(User.IsActive).      // line 2: SEMANTIC (filter)
-    ToString(User.Name)         // line 3: SEMANTIC (map)
+    Len()                       // line 3: SEMANTIC (count)
 ```
 This is 3 visual lines: 1 syntactic + 2 semantic = 67% density.
 
@@ -741,7 +563,7 @@ Results outside these ranges aren't wrong—they may indicate different coding s
 
 **What this metric does NOT measure:**
 - Readability (dense code isn't always clearer)
-- Correctness (fewer lines doesn't mean fewer bugs—though see [Correctness by Construction](#correctness-by-construction) for how fluentfp eliminates certain bug classes)
+- Correctness (fewer lines doesn't mean fewer bugs—though see [Error Prevention](#error-prevention) for how fluentfp eliminates certain bug classes)
 - Performance (no runtime implications)
 - Maintainability (though reduced boilerplate can help)
 
@@ -754,7 +576,7 @@ This is one lens among many. Use alongside other quality metrics, not as a sole 
 
 ### F. Code Metrics Tool (scc)
 
-The [Visual Comparison](#visual-comparison) uses [scc](https://github.com/boyter/scc) (Sloc, Cloc and Code) for line counting and complexity measurement.
+The [Measuring the Correlation](#measuring-the-correlation) section uses [scc](https://github.com/boyter/scc) (Sloc, Cloc and Code) for line counting and complexity measurement.
 
 **Why scc:**
 - Separates code lines from blanks and comments
@@ -779,7 +601,7 @@ scc's complexity is an approximation of [cyclomatic complexity](https://en.wikip
 Each occurrence increments the file's complexity counter. This is cheaper than building an AST but provides a reasonable approximation for comparing files in the same language.
 
 **Why complexity matters:**
-Higher complexity = more execution paths = more test cases needed for coverage. The dramatic complexity reduction in fluentfp code (26% in average case, 95% in best case) reflects that chains have no embedded conditionals—the branching is factored into the predicate functions themselves.
+Higher complexity = more execution paths = more levers available to pull incorrectly. This is why the 95% complexity reduction matters—it's correctness by construction. See [The Principle](#the-principle) for why eliminating control structures eliminates the bugs they enable.
 
 **Usage:**
 ```bash
@@ -791,3 +613,101 @@ scc --by-file -s complexity .
 ```
 
 **Limitation:** Complexity is comparable only within the same language. Don't compare Go complexity to Python complexity directly.
+
+### G. Chain Formatting Rules
+
+How fluentfp chains are formatted affects line counts. These rules ensure consistent measurement.
+
+**Single operation = single line (ToX methods chain onto previous):**
+```go
+active := slice.From(users).KeepIf(User.IsActive)
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
+```
+
+**Two+ operations = multiline, each operation on its own line:**
+```go
+count := slice.From(users).
+    KeepIf(User.IsActive).
+    Len()
+```
+
+**What counts toward multiline:**
+- `KeepIf`, `RemoveIf`, `Convert`, `Len`, `Each` — these count
+- `slice.From()`, `slice.MapTo[R]()` — setup, doesn't count
+- `ToString`, `ToInt`, `ToFloat64` — data extraction, chains onto previous line
+
+**Why this matters:**
+By convention, data transformation operations don't add lines—they chain onto existing structure. A single filter is one line (vs 5-7 for a loop). Adding a second operation (filter-then-count) adds one line, not another 5-7. This is the composability advantage: conventional patterns cost 4×N; FP operations cost entry + N.
+
+### H. Real-World Loop Bugs
+
+Loop mechanics create opportunities for error regardless of developer experience. These categories were found in production code:
+
+#### Index Arithmetic
+```go
+// Bug: i+i instead of i+1 (typo doubles the index)
+p.Attributes = append(p.Attributes[:i], p.Attributes[i+i:]...)
+```
+FluentFP: No manual index math—`RemoveIf` handles element removal.
+
+#### Accumulator Assignment
+```java
+// Bug: passed 0 instead of accumulator, never incremented
+page = getAllEntities(0, pageSize, cond);  // should be: start
+// missing: start += page.getItems().size();
+```
+FluentFP: `Fold` manages the accumulator automatically.
+
+#### Iterator Bounds
+```java
+// Bug: assumes iterator has 3+ elements without checking
+Iterator<String> parts = splitter.split(input).iterator();
+String first = parts.next();   // assumes element exists
+String second = parts.next();  // assumes element exists
+String third = parts.next();   // assumes element exists
+```
+FluentFP: No manual iteration—element access is bounds-checked.
+
+#### Off-by-One
+```c
+// Bug: <= iterates one past array end (0-indexed)
+for (i = 0; i <= num_channels; i++) {
+    channels[i] = init_channel();  // accesses channels[num_channels] - OOB!
+}
+```
+FluentFP: No manual bounds—iteration is over the collection itself.
+
+#### Loop Termination
+```java
+// Bug: no progress detection causes infinite loop
+while (inflater.getRemaining() > 0) {
+    inflater.inflate(buffer);  // what if inflate returns 0?
+}
+```
+FluentFP: No while loops—operations are bounded by collection size.
+
+#### Defer in Loop (Go)
+```go
+// Bug: defer accumulates N times, all execute at function end
+for _, item := range items {
+    ctx, cancel := context.WithTimeout(parentCtx, timeout)
+    defer cancel()  // leaks until function returns
+}
+```
+FluentFP: No loop body reduces (but doesn't eliminate) misplacement risk.
+
+**What FluentFP eliminates:**
+- No accumulators to forget (`Fold` handles it)
+- No manual indexing (`KeepIf`/`RemoveIf`)
+- No index arithmetic (predicates operate on values)
+- No manual iteration (no `.next()` calls)
+- No off-by-one in bounds (iterate collection, not indices)
+
+**What FluentFP reduces but doesn't eliminate:**
+- Defer misplacement (no loop body, but still possible elsewhere)
+
+**What FluentFP does NOT prevent:**
+- Predicate logic errors—the user writes that logic either way
+
+**Why this matters:**
+These aren't junior developer mistakes. Off-by-one bugs made it into the Linux kernel—likely some of the most reviewed patches anywhere—and they inevitably recur. The same error pattern appears across kernel releases years apart. If the construct allows an error, it will eventually happen; loop mechanics errors are inherent to the construct itself.
