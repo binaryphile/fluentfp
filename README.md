@@ -36,7 +36,7 @@ Loop mechanics create bugs regardless of developer skill:
 - **Accumulator errors**: forgot to increment, wrong variable
 - **Off-by-one**: `i <= n` instead of `i < n`
 
-These bugs compile, pass review, and look correct. They made it into the Linux kernel—some of the most reviewed code anywhere. The same off-by-one pattern recurs across releases years apart. If the construct allows an error, it will eventually happen.
+These bugs compile, pass review, and look correct. They continue to appear in highly-reviewed, very public projects. If the construct allows an error, it will eventually happen.
 
 ## The Solution
 
