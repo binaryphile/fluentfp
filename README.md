@@ -33,11 +33,9 @@ Loop mechanics create bugs regardless of developer skill:
 
 - **Accumulator errors**: forgot to increment, wrong variable
 - **Defer in loop**: resources pile up until function returns
-
-C-style loops add more:
-
 - **Index typos**: `i+i` instead of `i+1`
-- **Off-by-one**: `i <= n` instead of `i < n`
+
+C-style loops add off-by-one errors: `i <= n` instead of `i < n`.
 
 These bugs compile, pass review, and look correct. They continue to appear in highly-reviewed, very public projects. If the construct allows an error, it will eventually happen.
 
@@ -49,8 +47,8 @@ These bugs compile, pass review, and look correct. They continue to appear in hi
 |-----------|----------------|---------------------|
 | Accumulator error | Manual state tracking | `Fold` manages state |
 | Defer in loop | Loop body accumulates | No loop body |
-| Index typo | Manual index math | No index—predicates operate on values |
-| Off-by-one | Manual bounds | Iterate collection, not indices |
+| Index typo | Manual index math | Predicates operate on values |
+| Off-by-one (C-style) | Manual bounds | Iterate collection, not indices |
 
 ## Measurable Impact
 
