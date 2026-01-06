@@ -11,6 +11,7 @@ This document details how empirical claims in [[analysis]] were derived, enablin
 - [[#F. Code Metrics Tool (scc)]]
 - [[#G. Chain Formatting Rules]]
 - [[#H. Real-World Loop Bugs]]
+- [[#I. Performance Analysis]]
 
 ## A. Loop Sampling Methodology
 
@@ -271,3 +272,65 @@ FluentFP: No loop body reduces (but doesn't eliminate) misplacement risk.
 
 **Why this matters:**
 These aren't junior developer mistakes. Off-by-one bugs made it into the Linux kernel—likely some of the most reviewed patches anywhere—and they inevitably recur. The same error pattern appears across kernel releases years apart. If the construct allows an error, it will eventually happen; loop mechanics errors are inherent to the construct itself.
+
+## I. Performance Analysis
+
+The [[analysis#performance-characteristics|Performance Characteristics]] section is based on static analysis of the fluentfp source code, not runtime benchmarks.
+
+### Source Code Evidence
+
+**Mapper type definition** (`slice/types.go`):
+```go
+type Mapper[T any] []T
+```
+
+`Mapper[T]` is a type alias for `[]T`—not a wrapper struct, not a lazy evaluator. Operations execute immediately.
+
+**KeepIf allocation** (`slice/mapper.go:30-39`):
+```go
+func (ts Mapper[T]) KeepIf(fn func(T) bool) Mapper[T] {
+    results := make([]T, 0, len(ts))  // Allocation happens here
+    for _, t := range ts {
+        if fn(t) {
+            results = append(results, t)
+        }
+    }
+    return results
+}
+```
+
+Every `KeepIf` call allocates a new slice. Chaining `KeepIf(...).ToString(...)` produces two allocations.
+
+**Exception: TakeFirst** (`slice/mapper.go:60-66`):
+```go
+func (ts Mapper[T]) TakeFirst(n int) Mapper[T] {
+    if n > len(ts) {
+        n = len(ts)
+    }
+    return ts[:n]  // Slice bounds—no allocation
+}
+```
+
+`TakeFirst` returns a slice view, not a copy. This is the only non-allocating filter operation.
+
+### Implications
+
+| Operation | Allocations |
+|-----------|-------------|
+| `slice.From(xs)` | 0 (type conversion) |
+| `.KeepIf(...)` | 1 |
+| `.ToString(...)` | 1 |
+| `.TakeFirst(n)` | 0 |
+| `Fold(...)` | 0 (accumulator only) |
+
+A 3-operation chain like `From(xs).KeepIf(p).Convert(f).ToString(g)` allocates 3 slices. A fused manual loop allocates 1.
+
+### Not Benchmarked
+
+These findings are from source inspection, not runtime measurement. Actual overhead depends on:
+- Slice size
+- Predicate complexity
+- GC pressure
+- CPU cache behavior
+
+For performance-critical code, profile before optimizing. The allocation count is knowable from source; the runtime cost is not.

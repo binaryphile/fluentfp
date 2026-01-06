@@ -1,5 +1,7 @@
 # fluentfp Analysis
 
+> **Summary:** Eliminate control structures, eliminate the bugs they enable. Mixed codebases see 26% complexity reduction; pure pipelines drop 95%. The win isn't lines saved—it's bugs that become unwritable.
+
 Same operation, two styles:
 
 | Conventional (6 lines, 2 indent levels) | FP (1 line) |
@@ -131,17 +133,19 @@ What about modules that are *entirely* data transformations? Report generators, 
 | fluentfp | 148 | 3 |
 | **Reduction** | **47%** | **95%** |
 
+> **Key result:** When code is pure filter/map/fold, complexity drops from 57 to 3—a 95% reduction in branch points.
+
 ![Best-case code shape comparison](images/best-case-code-shape-comparison.png)
 
 *Source: [examples/code-shape/best-case-*](examples/code-shape)*
 
 47% code reduction when all operations fit the functional pattern. Complexity drops 57 to 3—every `for` and `if` is gone, nothing for scc to count. Predicate methods like `IsActive` often already exist on your types; you're reusing code, not adding overhead. Real codebases fall between 12% (mixed) and 47% (pure pipelines), depending on the module.
 
-**A note on scale:** 12% may not feel compelling on a small project. But codebases grow. At 500 kloc, 12% is 60,000 lines. At that scale, small percentages start to matter—for build times, code review burden, and cognitive load.
+**A note on scale:** 12% may not feel compelling on a small project. But codebases grow. At 500 kloc, 12% is 60,000 lines. At that scale, the law of truly large numbers starts to matter—for build times, code review burden, and cognitive load.
 
 ## The Principle
 
-The complexity numbers tell the deeper story. 95% fewer branch points doesn't just mean less to test—it means 95% fewer levers available to pull incorrectly.
+The complexity numbers tell the deeper story. 95% fewer branch points means 95% fewer places where execution can diverge—fewer paths to test, fewer opportunities for the bugs that live in control flow.
 
 The principle is *correctness by construction*: design systems so errors can't occur, rather than catching them after the fact. FP embodies this—the mechanics of imperative iteration (indexes to mistype, accumulators to forget, break/continue to misplace) simply don't exist in FP code. You can't typo `i+i` instead of `i+1` when there's no `i`. You can't forget to initialize an accumulator when there's no accumulator. You can't put a `defer` in a loop body when there's no loop body.
 
@@ -289,6 +293,37 @@ flowchart TD
 3. **Index-dependent logic** - when you need `i` for more than just indexing
 
 These are intentional boundaries. Use loops when necessary—just recognize that loops are neither the clearest nor the safest choice for the patterns FP handles well.
+
+## Performance Characteristics
+
+fluentfp uses eager evaluation—each operation materializes its result immediately.
+
+**Allocation model:**
+```go
+// Chain: 2 allocations (one per intermediate result)
+names := slice.From(users).       // No allocation (type conversion)
+    KeepIf(User.IsActive).        // Allocation 1: filtered slice
+    ToString(User.GetName)        // Allocation 2: string slice
+
+// Manual loop: 1 allocation
+var names []string
+for _, u := range users {
+    if u.IsActive() { names = append(names, u.Name) }
+}
+```
+
+Chains allocate more than fused loops. The intermediate slices become garbage after the chain completes. For most code, GC handles this invisibly.
+
+**Single-pass alternatives:**
+- `Fold` accumulates without intermediate slices
+- `Unzip2/3/4` extracts multiple fields in one iteration
+
+**When to stay imperative:**
+- **Hot loops** identified by profiling—not speculation
+- **Pre-allocated buffers** you're reusing across calls
+- **Fused operations** where a single loop does filter + transform + accumulate
+
+**Rule of thumb:** Use fluentfp by default. The allocation overhead matters in hot paths; profile to find them. Everywhere else, clarity wins.
 
 ## Patterns in Practice
 
