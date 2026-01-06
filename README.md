@@ -31,10 +31,10 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 
 Loop mechanics create bugs regardless of developer skill:
 
-- **Index typos**: `i+i` instead of `i+1`
+- **Index typos** (C-style): `i+i` instead of `i+1`
+- **Off-by-one** (C-style): `i <= n` instead of `i < n`
 - **Defer in loop**: resources pile up until function returns
 - **Accumulator errors**: forgot to increment, wrong variable
-- **Off-by-one**: `i <= n` instead of `i < n`
 
 These bugs compile, pass review, and look correct. They continue to appear in highly-reviewed, very public projects. If the construct allows an error, it will eventually happen.
 
