@@ -97,7 +97,7 @@ Single operations often equal or beat loops (fluentfp pre-allocates; naive loops
 | [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
 | [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfProvided` |
 | [must](must/) | Error-to-panic for init | `Get`, `BeNil`, `Of` |
-| [ternary](ternary/) | Single-line conditionals | `If().Then().Else()` |
+| [ternary](ternary/) | Conditional expressions | `If().Then().Else()` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 
 ## Installation
@@ -155,7 +155,7 @@ home := must.Getenv("HOME")
 
 ### ternary
 
-Single-line conditionals:
+Conditional expressions:
 
 ```go
 status := ternary.If[string](done).Then("complete").Else("pending")
