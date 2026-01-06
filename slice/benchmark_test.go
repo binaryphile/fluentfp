@@ -41,7 +41,7 @@ func benchFilterLoop(b *testing.B, n int) {
 	users := makeUsers(n)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var result []benchUser
+		result := make([]benchUser, 0, len(users)) // pre-allocate like fluentfp
 		for _, u := range users {
 			if u.Active {
 				result = append(result, u)
@@ -74,7 +74,7 @@ func benchFilterMapLoop(b *testing.B, n int) {
 	users := makeUsers(n)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var result []string
+		result := make([]string, 0, len(users)) // pre-allocate like fluentfp
 		for _, u := range users {
 			if u.Active {
 				result = append(result, u.Name)
