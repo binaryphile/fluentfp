@@ -296,34 +296,30 @@ These are intentional boundaries. Use loops when necessary—just recognize that
 
 ## Performance Characteristics
 
-fluentfp uses eager evaluation—each operation materializes its result immediately.
+fluentfp uses eager evaluation—each operation materializes its result immediately. Benchmarks show the performance picture is nuanced:
 
-**Allocation model:**
-```go
-// Chain: 2 allocations (one per intermediate result)
-names := slice.From(users).       // No allocation (type conversion)
-    KeepIf(User.IsActive).        // Allocation 1: filtered slice
-    ToString(User.GetName)        // Allocation 2: string slice
+| Operation | Loop | Chain | Winner |
+|-----------|------|-------|--------|
+| Filter only | 6.6 μs | 5.8 μs | **Chain 13% faster** |
+| Filter + Map | 4.2 μs | 7.6 μs | Loop 45% faster |
+| Count (no result slice) | 0.26 μs | 7.3 μs | Loop 28× faster |
 
-// Manual loop: 1 allocation
-var names []string
-for _, u := range users {
-    if u.IsActive() { names = append(names, u.Name) }
-}
-```
+*(1000 elements. Full results: [[methodology#benchmark-results|Methodology § Benchmarks]])*
 
-Chains allocate more than fused loops. The intermediate slices become garbage after the chain completes. For most code, GC handles this invisibly.
+**Why chains can win:** `KeepIf` pre-allocates with `make([]T, 0, len(ts))`, avoiding the repeated reallocations of a naive append loop. Single-operation chains often equal or beat loops.
+
+**Why loops can win:** Multi-operation chains allocate per operation. When you don't need the intermediate slice (e.g., just counting), fused loops are dramatically faster—they allocate nothing.
+
+**When to stay imperative:**
+- **Fused operations** where one loop does filter + transform + accumulate
+- **Hot loops** identified by profiling—not speculation
+- **Pre-allocated buffers** you're reusing across calls
 
 **Single-pass alternatives:**
 - `Fold` accumulates without intermediate slices
 - `Unzip2/3/4` extracts multiple fields in one iteration
 
-**When to stay imperative:**
-- **Hot loops** identified by profiling—not speculation
-- **Pre-allocated buffers** you're reusing across calls
-- **Fused operations** where a single loop does filter + transform + accumulate
-
-**Rule of thumb:** Use fluentfp by default. The allocation overhead matters in hot paths; profile to find them. Everywhere else, clarity wins.
+**Rule of thumb:** Use fluentfp by default. For hot paths, profile first—single operations may be fine; multi-operation chains may need fusion.
 
 ## Patterns in Practice
 

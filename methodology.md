@@ -325,12 +325,37 @@ func (ts Mapper[T]) TakeFirst(n int) Mapper[T] {
 
 A 3-operation chain like `From(xs).KeepIf(p).Convert(f).ToString(g)` allocates 3 slices. A fused manual loop allocates 1.
 
-### Not Benchmarked
+### Benchmark Results
 
-These findings are from source inspection, not runtime measurement. Actual overhead depends on:
-- Slice size
-- Predicate complexity
-- GC pressure
-- CPU cache behavior
+Runtime benchmarks comparing fluentfp chains vs manual loops (1000 elements, Intel i5-1135G7):
 
-For performance-critical code, profile before optimizing. The allocation count is knowable from source; the runtime cost is not.
+```
+Filter only (KeepIf vs append loop):
+BenchmarkFilter_Loop_1000     6615 ns/op   37472 B/op   10 allocs/op
+BenchmarkFilter_Chain_1000    5769 ns/op   32768 B/op    1 allocs/op
+
+Filter + Map (chain vs fused loop):
+BenchmarkFilterMap_Loop_1000   4205 ns/op   18800 B/op   10 allocs/op
+BenchmarkFilterMap_Chain_1000  7603 ns/op   40960 B/op    2 allocs/op
+
+Count after filter+map (when result slice not needed):
+BenchmarkFilterMapCount_Loop_1000    260 ns/op       0 B/op    0 allocs/op
+BenchmarkFilterMapCount_Chain_1000  7331 ns/op   40960 B/op    2 allocs/op
+```
+
+**Key findings:**
+
+1. **Single-operation chains can be faster:** `KeepIf` pre-allocates with `make([]T, 0, len(ts))`, avoiding the multiple reallocations of a naive append loop. Filter-only chain is 13% faster.
+
+2. **Multi-operation chains have overhead:** Filter+Map chain is ~80% slower and uses ~2x memory vs a fused loop. Each chain operation allocates a new slice.
+
+3. **Fused loops win dramatically when you don't need intermediate results:** Counting without building a result slice shows 28x speedup for loops (260 ns vs 7331 ns). The chain allocates slices it then discards.
+
+**Guidance:**
+
+- For single operations (filter or map alone): fluentfp often equals or beats naive loops
+- For multi-operation pipelines: expect 50-100% overhead in hot paths
+- For count/reduce operations: use `Fold` (single pass, no intermediate allocation) or a fused loop
+- Profile actual hot paths before optimizing—the overhead is measurable but rarely dominant
+
+Source: `slice/benchmark_test.go`. Run with `go test -bench=. -benchmem ./slice/`
