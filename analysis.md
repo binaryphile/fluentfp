@@ -298,17 +298,17 @@ These are intentional boundaries. Use loops when necessary—just recognize that
 
 fluentfp uses eager evaluation—each operation materializes its result immediately. Benchmarks show the performance picture is nuanced:
 
-| Operation | Loop | Chain | Winner |
+| Operation | Loop | Chain | Result |
 |-----------|------|-------|--------|
-| Filter only | 6.6 μs | 5.8 μs | **Chain 13% faster** |
-| Filter + Map | 4.2 μs | 7.6 μs | Loop 45% faster |
-| Count (no result slice) | 0.26 μs | 7.3 μs | Loop 28× faster |
+| Filter only | 5.6 μs | 5.5 μs | **Equal** |
+| Filter + Map | 3.1 μs | 7.6 μs | Loop 2.5× faster |
+| Count (no result slice) | 0.26 μs | 7.6 μs | Loop 29× faster |
 
-*(1000 elements, Intel i5. Absolute numbers vary by hardware; relative trends are consistent. Full results: [[methodology#benchmark-results|Methodology § Benchmarks]])*
+*(1000 elements, Intel i5, both pre-allocate. Full results: [[methodology#benchmark-results|Methodology § Benchmarks]])*
 
-**Why chains can win:** `KeepIf` pre-allocates with `make([]T, 0, len(ts))`, avoiding the repeated reallocations of a naive append loop. Simple predicates (like method expressions) inline well; complex closures may add call overhead. Single-operation chains often equal or beat loops.
+**Single operations are equal:** When loops properly pre-allocate (as they should when input size is known), single operations have identical performance. The ~2% difference is measurement noise.
 
-**Why loops can win:** Multi-operation chains allocate per operation. When you don't need the intermediate slice (e.g., just counting), fused loops are dramatically faster—they allocate nothing.
+**Why loops win for multi-operation:** Each chain operation allocates a new slice. A fused loop allocates once. When you don't need the intermediate slice (e.g., just counting), fused loops are dramatically faster—they allocate nothing.
 
 **When to stay imperative:**
 - **Fused operations** where one loop does filter + transform + accumulate
