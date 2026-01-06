@@ -96,7 +96,7 @@ Single operations often equal or beat loops (fluentfp pre-allocates; naive loops
 |---------|---------|---------------|
 | [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
 | [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfProvided` |
-| [must](must/) | Error-to-panic for init | `Get`, `BeNil`, `Of` |
+| [must](must/) | Fallible funcs → HOF args | `Get`, `BeNil`, `Of` |
 | [ternary](ternary/) | Conditional expressions | `If().Then().Else()` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 
@@ -145,12 +145,11 @@ user := opt.Or(defaultUser)      // with fallback
 
 ### must
 
-Convert fallible functions for init sequences:
+Convert fallible functions for use with higher-order functions:
 
 ```go
-db := must.Get(sql.Open("postgres", dsn))
-must.BeNil(db.Ping())
-home := must.Getenv("HOME")
+mustAtoi := must.Of(strconv.Atoi)
+ints := slice.From(strings).ToInt(mustAtoi)
 ```
 
 ### ternary
