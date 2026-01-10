@@ -96,3 +96,7 @@ func GetReadme() string {
     return string(must.Get(files.ReadFile("README.md")))
 }
 ```
+
+## TODO
+
+- Add section on recovering from panics when using `must`-wrapped functions in pipelines where panic is possible but recoverable (e.g., using `defer`/`recover` to gracefully handle panics from `must.Of`-wrapped functions)
