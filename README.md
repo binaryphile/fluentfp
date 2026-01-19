@@ -96,7 +96,7 @@ Single operations equal properly-written loops (both pre-allocate). In practice,
 | Package | Purpose | Key Functions |
 |---------|---------|---------------|
 | [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
-| [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfProvided` |
+| [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfProvided`, `IfNotZero` |
 | [must](must/) | Fallible funcs → HOF args | `Get`, `BeNil`, `Of` |
 | [ternary](ternary/) | Conditional expressions | `If().Then().Else()` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
@@ -137,7 +137,8 @@ Eliminate nil panics with explicit optionality:
 ```go
 // Create
 opt := option.Of(user)           // always ok
-opt := option.IfProvided(name)   // ok if non-zero
+opt := option.IfProvided(name)   // ok if non-zero (comparable types)
+opt := option.IfNotZero(reg)     // ok if !reg.IsZero() (ZeroChecker types)
 
 // Extract
 user, ok := opt.Get()            // comma-ok
@@ -173,6 +174,7 @@ A `for` loop you've seen 10,000 times feels instant to parse—but only because 
 
 ## Recent Additions
 
+- **v0.7.0**: `IfNotZero`, `ZeroChecker` interface (option package)
 - **v0.6.0**: `Fold`, `Unzip2/3/4`, `Zip`/`ZipWith` (pair package)
 - **v0.5.0**: `ToFloat64`, `ToFloat32`
 
