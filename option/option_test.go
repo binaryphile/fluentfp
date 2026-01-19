@@ -233,6 +233,9 @@ type testRegistry struct {
 
 func (r testRegistry) IsZero() bool { return r.instances == nil }
 
+// Compile-time interface constraint verification.
+var _ ZeroChecker = testRegistry{}
+
 func TestIfNotZero(t *testing.T) {
 	t.Run("non-zero value returns ok option", func(t *testing.T) {
 		reg := testRegistry{instances: make(map[string]int)}
