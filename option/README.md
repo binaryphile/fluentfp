@@ -76,6 +76,25 @@ notOkOption := option.FromOpt(messageOpt)
 messageOpt = notOkOption.ToOpt() // messageOpt gets nil
 ```
 
+### Converting Non-Comparable Zero Values
+
+For types that cannot use `IfProvided` because they contain slices, maps, or funcs (which are
+not comparable), implement the `ZeroChecker` interface:
+
+``` go
+type Registry struct {
+    instances map[string]Instance
+}
+
+func (r Registry) IsZero() bool { return r.instances == nil }
+
+// Now you can use IfNotZero
+okOption := option.IfNotZero(Registry{instances: make(map[string]Instance)})
+notOkOption := option.IfNotZero(Registry{}) // zero value has nil map
+```
+
+This mirrors `IfProvided` but works with any type that can report its own zero-ness.
+
 ## Using the Option
 
 ### Filtering

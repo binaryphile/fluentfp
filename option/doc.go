@@ -1,6 +1,11 @@
 // Package option provides types and functions to work with optional values.
 package option
 
+// testZeroChecker is used only in doc.go to verify API surface.
+type testZeroChecker struct{}
+
+func (testZeroChecker) IsZero() bool { return true }
+
 func _() {
 	_ = Basic[int].Get
 	_ = Basic[int].IsOk
@@ -22,10 +27,13 @@ func _() {
 
 	_ = FromOpt[int]
 	_ = Getenv("")
+	_ = IfNotZero[testZeroChecker]
 	_ = IfProvided[int]
 	_ = Map(Basic[int]{}, func(int) int { return 0 })
 	_ = New[int]
 	_ = Of[int]
+
+	var _ ZeroChecker = testZeroChecker{}
 
 	_ = NotOkAny
 	_ = NotOkBool

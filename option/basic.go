@@ -47,6 +47,23 @@ func FromOpt[T any](t *T) (_ Basic[T]) {
 	return Of(*t)
 }
 
+// ZeroChecker is implemented by types that can report whether they are their zero value.
+// This enables IfNotZero to work with non-comparable types (structs with slices, maps, or funcs).
+type ZeroChecker interface {
+	IsZero() bool
+}
+
+// IfNotZero returns an ok option of t provided that t.IsZero() returns false, or not-ok otherwise.
+// It is the complement to IfProvided for non-comparable types.
+// Use this when a type has fields that prevent it from being comparable (slices, maps, funcs).
+func IfNotZero[T ZeroChecker](t T) (_ Basic[T]) {
+	if t.IsZero() {
+		return
+	}
+
+	return Of(t)
+}
+
 // methods
 
 // Call applies fn to the option's value provided that the option is ok.

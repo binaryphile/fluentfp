@@ -224,6 +224,41 @@ func TestToNotOkIf(t *testing.T) {
 	})
 }
 
+// --- ZeroChecker Interface ---
+
+// testRegistry is a test type that implements ZeroChecker.
+type testRegistry struct {
+	instances map[string]int
+}
+
+func (r testRegistry) IsZero() bool { return r.instances == nil }
+
+func TestIfNotZero(t *testing.T) {
+	t.Run("non-zero value returns ok option", func(t *testing.T) {
+		reg := testRegistry{instances: make(map[string]int)}
+		opt := IfNotZero(reg)
+		if v, ok := opt.Get(); !ok || v.instances == nil {
+			t.Errorf("IfNotZero(non-zero) = (%v, %v), want ok option", v, ok)
+		}
+	})
+
+	t.Run("zero value returns not-ok option", func(t *testing.T) {
+		var reg testRegistry // zero value has nil map
+		opt := IfNotZero(reg)
+		if _, ok := opt.Get(); ok {
+			t.Error("IfNotZero(zero) should be not-ok")
+		}
+	})
+
+	t.Run("preserves value in ok option", func(t *testing.T) {
+		reg := testRegistry{instances: map[string]int{"a": 1}}
+		opt := IfNotZero(reg)
+		if v, ok := opt.Get(); !ok || v.instances["a"] != 1 {
+			t.Errorf("IfNotZero should preserve value, got instances[\"a\"] = %v", v.instances["a"])
+		}
+	})
+}
+
 // --- Conversion ---
 
 func TestToOpt(t *testing.T) {
