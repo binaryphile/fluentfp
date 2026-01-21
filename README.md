@@ -6,7 +6,7 @@ Pragmatic functional programming for Go: fewer bugs, less code, predictable perf
 > Mixed codebases see 26% complexity reduction; pure pipelines drop 95%.
 > The win isn't lines saved—it's bugs that become unwritable.
 
-fluentfp is a small set of composable utilities for slice-based data transformation in Go.
+fluentfp is a small set of composable utilities for data transformation and type safety in Go.
 
 ## Quick Start
 
