@@ -92,3 +92,181 @@ func TestFold(t *testing.T) {
 		})
 	}
 }
+
+// TestMapFunc tests the package-level Map function for type-changing transforms.
+func TestMapFunc(t *testing.T) {
+	itoa := func(i int) string { return fmt.Sprintf("%d", i) }
+
+	t.Run("Right transforms value", func(t *testing.T) {
+		e := Right[string, int](42)
+		result := Map(e, itoa)
+		if r, ok := result.Get(); !ok || r != "42" {
+			t.Errorf("Map() = (%v, %v), want (42, true)", r, ok)
+		}
+	})
+
+	t.Run("Left preserves error", func(t *testing.T) {
+		e := Left[string, int]("error")
+		result := Map(e, itoa)
+		if l, ok := result.GetLeft(); !ok || l != "error" {
+			t.Errorf("Map() should preserve Left, got (%v, %v)", l, ok)
+		}
+	})
+}
+
+// TestMapLeft tests the package-level MapLeft function.
+func TestMapLeft(t *testing.T) {
+	upper := func(s string) string { return "ERR:" + s }
+
+	t.Run("Left transforms error", func(t *testing.T) {
+		e := Left[string, int]("fail")
+		result := MapLeft(e, upper)
+		if l, ok := result.GetLeft(); !ok || l != "ERR:fail" {
+			t.Errorf("MapLeft() = (%v, %v), want (ERR:fail, true)", l, ok)
+		}
+	})
+
+	t.Run("Right preserves value", func(t *testing.T) {
+		e := Right[string, int](42)
+		result := MapLeft(e, upper)
+		if r, ok := result.Get(); !ok || r != 42 {
+			t.Errorf("MapLeft() should preserve Right, got (%v, %v)", r, ok)
+		}
+	})
+}
+
+// TestMustGet tests panic behavior for MustGet.
+func TestMustGet(t *testing.T) {
+	t.Run("Right returns value", func(t *testing.T) {
+		e := Right[string, int](42)
+		if got := e.MustGet(); got != 42 {
+			t.Errorf("MustGet() = %v, want 42", got)
+		}
+	})
+
+	t.Run("Left panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("MustGet() should panic on Left")
+			}
+		}()
+		e := Left[string, int]("error")
+		e.MustGet()
+	})
+}
+
+// TestMustGetLeft tests panic behavior for MustGetLeft.
+func TestMustGetLeft(t *testing.T) {
+	t.Run("Left returns value", func(t *testing.T) {
+		e := Left[string, int]("error")
+		if got := e.MustGetLeft(); got != "error" {
+			t.Errorf("MustGetLeft() = %v, want error", got)
+		}
+	})
+
+	t.Run("Right panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("MustGetLeft() should panic on Right")
+			}
+		}()
+		e := Right[string, int](42)
+		e.MustGetLeft()
+	})
+}
+
+// TestCall tests side-effect execution for Right values.
+func TestCall(t *testing.T) {
+	t.Run("Right calls function", func(t *testing.T) {
+		called := false
+		e := Right[string, int](42)
+		e.Call(func(i int) { called = true })
+		if !called {
+			t.Error("Call() should invoke function for Right")
+		}
+	})
+
+	t.Run("Left does not call function", func(t *testing.T) {
+		called := false
+		e := Left[string, int]("error")
+		e.Call(func(i int) { called = true })
+		if called {
+			t.Error("Call() should not invoke function for Left")
+		}
+	})
+}
+
+// TestCallLeft tests side-effect execution for Left values.
+func TestCallLeft(t *testing.T) {
+	t.Run("Left calls function", func(t *testing.T) {
+		called := false
+		e := Left[string, int]("error")
+		e.CallLeft(func(s string) { called = true })
+		if !called {
+			t.Error("CallLeft() should invoke function for Left")
+		}
+	})
+
+	t.Run("Right does not call function", func(t *testing.T) {
+		called := false
+		e := Right[string, int](42)
+		e.CallLeft(func(s string) { called = true })
+		if called {
+			t.Error("CallLeft() should not invoke function for Right")
+		}
+	})
+}
+
+// TestGetOrCall tests lazy default for Right values.
+func TestGetOrCall(t *testing.T) {
+	t.Run("Right returns value without calling", func(t *testing.T) {
+		called := false
+		e := Right[string, int](42)
+		got := e.GetOrCall(func() int { called = true; return 99 })
+		if got != 42 {
+			t.Errorf("GetOrCall() = %v, want 42", got)
+		}
+		if called {
+			t.Error("GetOrCall() should not call function for Right")
+		}
+	})
+
+	t.Run("Left calls function", func(t *testing.T) {
+		called := false
+		e := Left[string, int]("error")
+		got := e.GetOrCall(func() int { called = true; return 99 })
+		if got != 99 {
+			t.Errorf("GetOrCall() = %v, want 99", got)
+		}
+		if !called {
+			t.Error("GetOrCall() should call function for Left")
+		}
+	})
+}
+
+// TestLeftOrCall tests lazy default for Left values.
+func TestLeftOrCall(t *testing.T) {
+	t.Run("Left returns value without calling", func(t *testing.T) {
+		called := false
+		e := Left[string, int]("error")
+		got := e.LeftOrCall(func() string { called = true; return "default" })
+		if got != "error" {
+			t.Errorf("LeftOrCall() = %v, want error", got)
+		}
+		if called {
+			t.Error("LeftOrCall() should not call function for Left")
+		}
+	})
+
+	t.Run("Right calls function", func(t *testing.T) {
+		called := false
+		e := Right[string, int](42)
+		got := e.LeftOrCall(func() string { called = true; return "default" })
+		if got != "default" {
+			t.Errorf("LeftOrCall() = %v, want default", got)
+		}
+		if !called {
+			t.Error("LeftOrCall() should call function for Right")
+		}
+	})
+}
