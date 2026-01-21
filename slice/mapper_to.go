@@ -133,6 +133,26 @@ func (ts MapperTo[R, T]) ToInt(fn func(T) int) MapperTo[R, int] {
 	return results
 }
 
+// ToInt32 returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) ToInt32(fn func(T) int32) MapperTo[R, int32] {
+	results := make([]int32, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
+// ToInt64 returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) ToInt64(fn func(T) int64) MapperTo[R, int64] {
+	results := make([]int64, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
 // To returns the result of applying fn to each member of ts.
 func (ts MapperTo[R, T]) To(fn func(T) R) Mapper[R] {
 	results := make([]R, len(ts))

@@ -34,6 +34,8 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToFloat32(fn func(T) float32) Mapper[float32]
 .ToFloat64(fn func(T) float64) Mapper[float64]
 .ToInt(fn func(T) int) Mapper[int]
+.ToInt32(fn func(T) int32) Mapper[int32]
+.ToInt64(fn func(T) int64) Mapper[int64]
 .ToRune(fn func(T) rune) Mapper[rune]
 .ToString(fn func(T) string) Mapper[string]
 
@@ -69,6 +71,30 @@ total := slice.Fold(amounts, 0.0, sumFloat64)
 // Unzip - extract multiple fields in one pass
 a, b, c, d := slice.Unzip4(items, Item.GetA, Item.GetB, Item.GetC, Item.GetD)
 ```
+
+### either Package
+
+```go
+import "github.com/binaryphile/fluentfp/either"
+
+// Constructors
+either.Left[L, R any](l L) Either[L, R]
+either.Right[L, R any](r R) Either[L, R]
+
+// Methods
+.IsLeft() bool
+.IsRight() bool
+.Get() (R, bool)              // comma-ok for Right
+.GetLeft() (L, bool)          // comma-ok for Left
+.GetOrElse(defaultVal R) R
+.LeftOrElse(defaultVal L) L
+.Map(fn func(R) R) Either[L, R]  // right-biased
+
+// Standalone functions
+either.Fold[L, R, T any](e Either[L, R], onLeft func(L) T, onRight func(R) T) T
+```
+
+Convention: Left = failure/error, Right = success. Mnemonic: "Right is right" (correct).
 
 ### option Package
 
