@@ -146,6 +146,25 @@ user, ok := opt.Get()            // comma-ok
 user := opt.Or(defaultUser)      // with fallback
 ```
 
+### either
+
+Sum types for values that are one of two possible types:
+
+```go
+// Create
+left := either.Left[string, int]("error")
+right := either.Right[string, int](42)
+
+// Extract with comma-ok
+if val, ok := result.Get(); ok { /* use val */ }
+
+// Pattern match with Fold
+msg := either.Fold(result,
+    func(err string) string { return "Error: " + err },
+    func(val int) string { return fmt.Sprintf("Got: %d", val) },
+)
+```
+
 ### must
 
 Convert fallible functions for use with higher-order functions:

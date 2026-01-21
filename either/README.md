@@ -94,51 +94,52 @@ Option is for "maybe nothing." Either is for "definitely something, but which on
 
 ## Patterns
 
-### Mutually Exclusive Modes
+### Parse, Don't Validate
 
-When a struct can be in one of two states with different associated data:
-
-```go
-// Instead of two nullable fields with scattered nil checks
-type App struct {
-    mode either.Either[EngineMode, ClientMode]
-}
-
-// Access with Fold for exhaustive handling
-simID := either.Fold(app.mode,
-    func(eng EngineMode) string { return eng.Engine.Sim().ID },
-    func(cli ClientMode) string { return cli.SimID },
-)
-```
-
-### Operation with Failure Reason
-
-When you need more context than just success/failure:
+Return structured failure information instead of just `bool` or `error`:
 
 ```go
-type NotDecomposable struct {
-    Reason string // "not found", "policy forbids", etc.
+type ParseError struct {
+    Line   int
+    Reason string
 }
 
-func (e *Engine) TryDecompose(id string) either.Either[NotDecomposable, []Ticket]
+func ParseConfig(input string) either.Either[ParseError, Config]
 
-// Caller gets failure context
-result := engine.TryDecompose("TKT-001")
-if tickets, ok := result.Get(); ok {
-    // use tickets
-} else if notDecomp, ok := result.GetLeft(); ok {
-    log.Printf("Cannot decompose: %s", notDecomp.Reason)
+// Caller gets actionable failure context
+result := ParseConfig(raw)
+if cfg, ok := result.Get(); ok {
+    return cfg
+}
+if err, ok := result.GetLeft(); ok {
+    log.Printf("Parse failed at line %d: %s", err.Line, err.Reason)
 }
 ```
 
-### Exhaustive Handling with Fold
+### Exhaustive Handling
 
-Fold forces you to handle both cases, preventing forgotten error paths:
+Fold forces handling both cases at compile time—no forgotten error paths:
 
 ```go
-message := either.Fold(result,
-    func(err Error) string { return err.Message },
-    func(data Data) string { return data.Summary() },
+response := either.Fold(result,
+    func(err ParseError) Response { return ErrorResponse(err) },
+    func(cfg Config) Response { return SuccessResponse(cfg) },
 )
-// Both paths must return the same type
+```
+
+### Two-State Structs
+
+Replace pairs of nullable fields with explicit Either:
+
+```go
+// Before: which field is set? nil checks scattered everywhere
+type Handler struct {
+    syncFn  *func()
+    asyncFn *func() <-chan Result
+}
+
+// After: exactly one mode, exhaustively handled
+type Handler struct {
+    mode either.Either[func(), func() <-chan Result]
+}
 ```
