@@ -97,6 +97,7 @@ Single operations equal properly-written loops (both pre-allocate). In practice,
 |---------|---------|---------------|
 | [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
 | [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfProvided`, `IfNotZero` |
+| [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
 | [must](must/) | Fallible funcs → HOF args | `Get`, `BeNil`, `Of` |
 | [ternary](ternary/) | Conditional expressions | `If().Then().Else()` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
@@ -174,6 +175,7 @@ A `for` loop you've seen 10,000 times feels instant to parse—but only because 
 
 ## Recent Additions
 
+- **v0.8.0**: `either` package (Left/Right sum types), `ToInt32`/`ToInt64` (slice package)
 - **v0.7.0**: `IfNotZero`, `ZeroChecker` interface (option package)
 - **v0.6.0**: `Fold`, `Unzip2/3/4`, `Zip`/`ZipWith` (pair package)
 - **v0.5.0**: `ToFloat64`, `ToFloat32`

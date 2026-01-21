@@ -271,7 +271,11 @@ on both `Mapper` and `MapperTo`:
 - `ToBool`
 - `ToByte`
 - `ToError`
+- `ToFloat32`
+- `ToFloat64`
 - `ToInt`
+- `ToInt32`
+- `ToInt64`
 - `ToRune`
 - `ToString`
 
