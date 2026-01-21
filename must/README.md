@@ -1,57 +1,78 @@
-> For why fluentfp exists and when to use it, see the [main README](../README.md).
+# must: panic-on-error for invariants
 
-`must` offers a handful of functions for dealing with invariants, i.e. things that must be
-true, or else the program should panic.
+Convert fallible operations to panics when errors are unrecoverable. Useful for initialization, config loading, and embedded files.
 
-## Fallible Functions
-
-Fallible functions are functions that may return an error. If an error is not recoverable,
-the proper response may be to panic. If so, you can get the value and panic on any error
-with the `must.Get` function:
-
-``` go
-response := must.Get(http.Get(url))
+```go
+db := must.Get(sql.Open("postgres", dsn))
+must.BeNil(db.Ping())
 ```
 
-You may need a lower-order function to be consumed by a higher-order one, but can’t because
-the function you want returns an error along with a value. `must.Of` converts a function
-that returns a value and an error into one that only returns a value:
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/must) for complete API documentation.
 
-``` go
-symbols := slice.From([]string{"1", "2"})
-integers := symbols.ToInt(must.Of(strconv.Atoi))
-```
+## Quick Start
 
-**Naming convention:** When storing a must-wrapped function in a variable, prefix the name with
-`must` to signal that it will panic on error:
+```go
+import "github.com/binaryphile/fluentfp/must"
 
-``` go
+// Extract value or panic
+db := must.Get(sql.Open("postgres", dsn))
+
+// Panic if error non-nil
+must.BeNil(db.Ping())
+
+// Environment variable or panic
+home := must.Getenv("HOME")
+
+// Wrap fallible func for HOF use
 mustAtoi := must.Of(strconv.Atoi)
 ints := slice.From(strings).ToInt(mustAtoi)
 ```
 
-This makes the panic behavior visible at the call site.
+## API Reference
 
-`err != nil` checking is verbose. If the correct response to an error is to panic, then
-`must.BeNil` is the abbreviated version of panicking on an error:
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `Get` | `Get[T](t T, err error) T` | Return value or panic |
+| `Get2` | `Get2[T,T2](t T, t2 T2, err error) (T, T2)` | Two-value variant |
+| `BeNil` | `BeNil(err error)` | Panic if error non-nil |
+| `Getenv` | `Getenv(key string) string` | Env var or panic if empty |
+| `Of` | `Of[T,R](fn func(T)(R,error)) func(T)R` | Wrap fallible func for HOF use |
 
-``` go
-err := response.Write(writer)
-must.BeNil(err)
+## Naming Convention
+
+When storing a must-wrapped function in a variable, prefix with `must` to signal panic behavior:
+
+```go
+mustAtoi := must.Of(strconv.Atoi)
+ints := slice.From(strings).ToInt(mustAtoi)
 ```
 
-## Helpers
+This makes panic behavior visible at the call site.
 
-There is currently one helper function that gives a panic-on-error version of a standard
-library function:
+## Recovering from Panics
 
-``` go
-home := must.Getenv("HOME") // panic if HOME is unset or empty
+When using `must.Of` in pipelines, panics can be caught with defer/recover:
+
+```go
+func SafeParseAll(inputs []string) (results []int, err error) {
+    defer func() {
+        if r := recover(); r != nil {
+            err = fmt.Errorf("parse failed: %v", r)
+        }
+    }()
+
+    mustAtoi := must.Of(strconv.Atoi)
+    results = slice.From(inputs).ToInt(mustAtoi)
+    return results, nil
+}
 ```
+
+This pattern converts pipeline panics back to errors at the boundary. Use it when:
+- Processing untrusted input that may contain invalid values
+- You want FP-style pipelines but need error handling at the edges
+- The calling code expects errors, not panics
 
 ## Patterns
-
-These patterns demonstrate idiomatic usage drawn from production code.
 
 ### Initialization Sequences
 
@@ -69,11 +90,9 @@ func OpenDatabase(cfg Config) *Database {
 }
 ```
 
-This is cleaner than nested error checks when failure means the program cannot continue.
-
 ### Config Loading
 
-Combine with config parsing where missing config is a fatal error:
+Combine with config parsing where missing config is fatal:
 
 ```go
 func LoadConfig() Config {
@@ -97,6 +116,20 @@ func GetReadme() string {
 }
 ```
 
-## TODO
+### Other Common Uses
 
-- Add section on recovering from panics when using `must`-wrapped functions in pipelines where panic is possible but recoverable (e.g., using `defer`/`recover` to gracefully handle panics from `must.Of`-wrapped functions)
+```go
+// Time parsing with known-valid formats
+timestamp := must.Get(time.Parse("2006-01-02 15:04:05", s.ScannedAt))
+
+// Validation-only (discard result)
+_ = must.Get(strconv.Atoi(configID))  // panics if invalid
+```
+
+## When NOT to Use must
+
+- **Recoverable errors** — If the caller can handle it, return `error`
+- **User input** — Never panic on external input; validate and return errors
+- **Library code** — Libraries should return errors, not panic
+- **Production request handlers** — One bad request shouldn't crash the server
+- **Expected failures** — Network timeouts, file not found, etc. are expected; handle them

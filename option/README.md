@@ -1,265 +1,169 @@
-> For the full discussion of nil safety and Tony Hoare's "billion-dollar mistake,"
-> see [Nil Safety in Go](../nil-safety.md).
+# option: nil-safe optional values
 
-An option is a container type that conditionally holds a single value. It is useful for two
-purposes:
+Represent values that may be absent. Options enforce checking before use—nil panics become compile-time errors.
 
--   enforcing a protocol that checks to see whether a value exists before attempting to use
-    the value, preventing logical errors and runtime panics.
--   writing expressive code that takes into account whether or not a value exists without
-    requiring conditional branches and the corresponding verbosity.
+```go
+host := config.GetHost().Or("localhost")  // default if absent
+```
+
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation. For the full discussion of nil safety, see [Nil Safety in Go](../nil-safety.md).
+
+## Quick Start
+
+```go
+import "github.com/binaryphile/fluentfp/option"
+
+// Create options
+found := option.Of("hello")           // ok option
+missing := option.NotOk[string]()     // not-ok option
+
+// Extract with defaults
+value := found.Or("default")          // "hello"
+value := missing.Or("default")        // "default"
+
+// Check and extract
+if val, ok := found.Get(); ok {
+    // use val
+}
+```
+
+## API Reference
+
+### Constructors
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `Of` | `Of[T](T) Basic[T]` | Create ok option |
+| `New` | `New[T](T, bool) Basic[T]` | Create from value + ok flag |
+| `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option |
+| `IfProvided` | `IfProvided[T comparable](T) Basic[T]` | Not-ok if zero value |
+| `IfNotZero` | `IfNotZero[T ZeroChecker](T) Basic[T]` | Not-ok if `t.IsZero()` |
+| `FromOpt` | `FromOpt[T](*T) Basic[T]` | From pointer (nil = not-ok) |
+| `Getenv` | `Getenv(string) String` | From env var (empty = not-ok) |
+
+### Extraction Methods
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `.Get` | `.Get() (T, bool)` | Comma-ok unwrap |
+| `.IsOk` | `.IsOk() bool` | Check if ok |
+| `.MustGet` | `.MustGet() T` | Value or panic |
+| `.Or` | `.Or(T) T` | Value or default |
+| `.OrCall` | `.OrCall(func() T) T` | Value or lazy default |
+| `.OrZero` | `.OrZero() T` | Value or zero |
+| `.OrEmpty` | `.OrEmpty() T` | Alias for strings |
+| `.OrFalse` | `.OrFalse() bool` | For `option.Bool` |
+| `.ToOpt` | `.ToOpt() *T` | Convert to pointer |
+
+### Filtering Methods
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `.KeepOkIf` | `.KeepOkIf(func(T) bool) Basic[T]` | Not-ok if predicate false |
+| `.ToNotOkIf` | `.ToNotOkIf(func(T) bool) Basic[T]` | Not-ok if predicate true |
+
+### Mapping Methods
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `.ToSame` | `.ToSame(func(T) T) Basic[T]` | Transform, same type |
+| `.ToString` | `.ToString(func(T) string) String` | Transform to string |
+| `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int |
+| `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type (function, not method) |
+
+Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToRune`
+
+### Side Effects
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `.Call` | `.Call(func(T))` | Execute if ok |
+
+### Type Aliases
+
+Pre-defined types: `String`, `Int`, `Bool`, `Error`, `Any`, `Byte`, `Rune`
+
+Pre-defined not-ok values: `NotOkString`, `NotOkInt`, `NotOkBool`, `NotOkError`, `NotOkAny`, `NotOkByte`, `NotOkRune`
 
 ## Creating Options
 
-The option type is `option.Basic[T any]`, where `T` is the type of the contained value. An
-option is considered *ok* if it contains a value and *not-ok* if it doesn’t.
+```go
+// From known value
+opt := option.Of("hello")
 
-The zero value is automatically not-ok:
+// Conditional creation
+opt := option.New(value, ok)
 
-``` go
-notOkOption := option.Basic[string]{}
+// From comparable (not-ok if zero)
+opt := option.IfProvided(maybeEmpty)
+
+// From pointer (not-ok if nil)
+opt := option.FromOpt(ptr)
+
+// From environment
+port := option.Getenv("PORT").Or("8080")
 ```
 
-For most of Go’s built-in types, there are pre-made package variables of not-ok instances.
-The variables are:
+### Non-Comparable Types
 
--   `option.NotOkAny`
--   `option.NotOkBool`
--   `option.NotOkByte`
--   `option.NotOkError`
--   `option.NotOkInt`
--   `option.NotOkRune`
--   `option.NotOkString`
+For types containing slices, maps, or funcs, implement `ZeroChecker`:
 
-For those not included or for your own types, you may want to define a not-ok variable of
-your own, which can be done as a zero value above, or using the `NotOk[T]` factory:
-
-``` go
-myOption := option.NotOk[string]()
-```
-
-To make an ok option, use `option.Of`:
-
-``` go
-okOption := option.Of("hello world")
-```
-
-To make an option whose validity is dynamic, use `option.New`:
-
-``` go
-myOption := option.New(myString, ok) // option is "ok" if ok is true
-```
-
-A not-ok option never has a value, so if ok is false, the value for myString is discarded.
-
-For comparable types, you may want to make an ok option only if a value has been provided. Since
-Go initializes variables to a zero value, let’s say you know the option should be not-ok if the
-variable has the zero value, since it hasn’t been assigned a value since initialization:
-
-``` go
-notOkOption := option.IfProvided("") // empty is the zero value for strings
-```
-
-### Converting Pseudo-Options
-
-Convert opts to options and vice-versa. `nil` pointers become not-ok. The value of an ok
-option is the value pointed at by the pointer, not the pointer itself:
-
-``` go
-message := "howdy"
-messageOpt := &message // ok pseudo-option
-okOption := option.FromOpt(messageOpt) // contains string not *string
-
-messageOpt = nil // not-ok
-notOkOption := option.FromOpt(messageOpt)
-
-messageOpt = notOkOption.ToOpt() // messageOpt gets nil
-```
-
-### Converting Non-Comparable Zero Values
-
-For types that cannot use `IfProvided` because they contain slices, maps, or funcs (which are
-not comparable), implement the `ZeroChecker` interface:
-
-``` go
+```go
 type Registry struct {
     instances map[string]Instance
 }
 
 func (r Registry) IsZero() bool { return r.instances == nil }
 
-// Now you can use IfNotZero
-okOption := option.IfNotZero(Registry{instances: make(map[string]Instance)})
-notOkOption := option.IfNotZero(Registry{}) // zero value has nil map
+opt := option.IfNotZero(registry)  // not-ok if IsZero() returns true
 ```
 
-This mirrors `IfProvided` but works with any type that can report its own zero-ness.
+## Using Options
 
-## Using the Option
-
-### Filtering
-
-Limit the option to a range of values with `KeepOkIf` or `ToNotOkIf`, which return an option
-of the same type, just not-ok if the value doesn’t cause the argument function to return
-true.
-
-These only make sense to use on options that might be ok.
-
-``` go
-func IsNotEmpty(s string) bool {
-    return s != ""
+```go
+// Get with comma-ok
+if val, ok := opt.Get(); ok {
+    // use val
 }
 
-okOption := option.Of("hello").KeepOkIf(IsNotEmpty)
-notOkOption := option.Of("hello").ToNotOkIf(IsNotEmpty)
+// Get with default
+val := opt.Or("default")
+val := opt.OrCall(expensiveDefault)
+val := opt.OrZero()
+
+// Transform
+length := opt.ToInt(func(s string) int { return len(s) })
+upper := option.Map(opt, strings.ToUpper)
+
+// Filter
+nonEmpty := opt.KeepOkIf(func(s string) bool { return s != "" })
+
+// Side effect
+opt.Call(fmt.Println)
 ```
 
-### Mapping
+## When NOT to Use option
 
-There are `To[Type]` methods for mapping a contained value to the basic built-in types,
-which return an option of the type named in the method:
-
-``` go
-stringOption := option.Of(3).ToString(strconv.Itoa)
-```
-
-The types on the methods are the same as for the package variables, plus `Convert` to map to the
-same type as the existing value:
-
--   `Convert`
--   `ToAny`
--   `ToBool`
--   `ToByte`
--   `ToError`
--   `ToInt`
--   `ToRune`
--   `ToString`
-
-Since methods cannot be generic in Go, there is no general `Map` method. To map to one of the
-other built-in types or a named type, there is a generic `Map` function instead:
-
-``` go
-stringOption := option.Map(option.Of(3), strconv.Itoa)
-```
-
-### Working with the Value
-
-If you need to obtain the value and work with it directly, `Get` returns the potential value
-and whether it is ok in Go’s comma-ok idiom:
-
-``` go
-if value, ok := myOption.Get(); ok {
-    // work with value
-}
-```
-
-While many things can be accomplished without unpacking the option, this is the easiest way
-to get started with options if you’re not familiar with FP.
-
-It’s also possible to test for the presence of value:
-
-``` go
-ok := myOption.IsOk()
-```
-
-If you have tested it, or if your program requires the presence of a value as an invariant,
-you can get the value and panic if it is not there:
-
-``` go
-value := myOption.MustGet()
-```
-
-Apply a function to the value (if ok) for its side effect:
-
-``` go
-option.Of("hello world").Call(lof.Println) // print "hello world"
-option.NotOkString.Call(lof.Println) // not called
-```
-
-If you have an alternative value such as a default, you can get the value, or the
-alternative if the value is not-ok:
-
-``` go
-three := option.Of(3).Or(4)
-four := option.NotOkInt.Or(4)
-```
-
-If you are looking for the zero value of the value’s type as an alternative, there are a few
-methods that mean the same thing:
-
-``` go
-zero := option.NotOkInt.OrZero()
-empty := option.NotOkString.OrEmpty()
-False := option.NotOkBool.OrFalse()
-```
-
-Produce an expensive-to-compute alternative:
-
-``` go
-expensiveValue := option.NotOkInt.OrCall(ExpensiveCalculation)
-```
-
-You're ready to use options!
+- **Go idiom `(T, error)`** — Don't replace error returns with option
+- **Performance-critical paths** — Option adds a bool field; profile first
+- **Simple nil checks** — If `if ptr != nil` is clear, don't over-engineer
+- **When error context matters** — Option loses why something is absent
 
 ## Patterns
 
-These patterns demonstrate idiomatic usage drawn from production code.
-
-### Domain Option Types
-
-Embed `option.Basic` in a custom struct for domain-specific option types:
-
-```go
-type UserOption struct {
-    option.Basic[User]
-}
-
-func UserOptionOf(u User) UserOption {
-    return UserOption{Basic: option.Of(u)}
-}
-```
-
-This allows adding domain-specific methods that work on the contained value.
-
-### Delegating Methods with Ok-Check
-
-When you have a domain option type, add methods that delegate to the contained value:
-
-```go
-func (o UserOption) IsActive() option.Bool {
-    user, ok := o.Get()
-    if !ok {
-        return option.NotOkBool
-    }
-    return option.BoolOf(user.IsActive())
-}
-```
-
-This propagates "not-ok" through the call chain - if the user doesn't exist, the result is also not-ok.
-
-### Tri-State with option.Bool
-
-Use `option.Bool` when you need true/false/unknown semantics:
+### Tri-State Boolean
 
 ```go
 type ScanResult struct {
-    IsConnected option.Bool  // true, false, or unknown (not-ok)
-    IsMigrated  option.Bool
+    IsConnected option.Bool  // true, false, or unknown
 }
 
-// Usage with default:
-connected := result.IsConnected.OrFalse()  // unknown becomes false
+connected := result.IsConnected.OrFalse()  // unknown → false
 ```
 
-### IfProvided for Nullable Database Fields
-
-Convert nullable strings to options cleanly:
+### Nullable Database Fields
 
 ```go
-type Record struct {
-    NullableHost sql.NullString `db:"host"`
-}
-
 func (r Record) GetHost() option.String {
     return option.IfProvided(r.NullableHost.String)
 }

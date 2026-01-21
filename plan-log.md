@@ -3,6 +3,72 @@
 
 ## Archived: 2026-01-21
 
+# Phase 1 Contract: Improve Package READMEs
+
+**Created:** 2026-01-21
+
+## Step 1 Checklist
+- [x] 1a: Presented understanding
+- [x] 1b: Asked clarifying questions
+- [x] 1b-answer: Received answers
+- [x] 1c: Contract created (this file)
+- [x] 1d: Approval received
+- [x] 1e: Plan + contract archived
+
+## Objective
+
+Rewrite 5 package READMEs (slice, option, either, must, ternary) to match the quality and tone of the main README—simple, authoritative, comprehensive.
+
+## Success Criteria
+
+- [x] slice/README.md rewritten with API tables, decision flowchart, naming patterns
+- [x] option/README.md has title, API table, "When NOT to use" section
+- [x] ternary/README.md has rationale moved to appendix, API table, "When NOT to use"
+- [x] must/README.md has sharpened intro, API table, panic recovery section, "When NOT to use"
+- [x] either/README.md has API table, "When NOT to use" section
+- [x] All READMEs use `Function | Signature | Purpose` table format
+- [x] All examples follow named function comment pattern from guides
+- [x] User approves slice README before proceeding to others
+
+## Actual Results
+
+**Completed:** 2026-01-21
+
+| File | Before | After | Key Changes |
+|------|--------|-------|-------------|
+| `slice/README.md` | 575 lines | 283 lines | API tables, decision flowchart, naming patterns |
+| `option/README.md` | 267 lines | 170 lines | Title, API tables, "When NOT to use" |
+| `ternary/README.md` | 148 lines | 124 lines | Rationale to appendix, API table, "When NOT to use" |
+| `must/README.md` | 103 lines | 135 lines | Sharpened intro, API table, panic recovery, "When NOT to use" |
+| `either/README.md` | 146 lines | 143 lines | API table, "When NOT to use", named function example |
+
+**Total: 1239 → 855 lines (-31%)**
+
+## Approval
+✅ APPROVED BY USER - 2026-01-21
+Final grade: A (96/100)
+
+---
+
+## Log: 2026-01-21 - Phase 1: Improve Package READMEs
+
+**What was done:**
+Rewrote 5 package READMEs (slice, option, ternary, must, either) to match main README quality. Added API tables with signatures, "When NOT to use" sections, and consistent structure. Reduced total line count by 31% while adding content.
+
+**Key files changed:**
+- `slice/README.md`: Major restructure with API tables, decision flowchart, naming patterns (575 → 283 lines)
+- `option/README.md`: Added title, API tables, removed advanced embedding pattern (267 → 170 lines)
+- `ternary/README.md`: Moved rationale to appendix, condensed (148 → 124 lines)
+- `must/README.md`: Added panic recovery section (TODO fulfilled), sharpened intro (103 → 135 lines)
+- `either/README.md`: Added API tables, named function example in Fold (146 → 143 lines)
+
+**Why it matters:**
+Package documentation now matches main README quality—simple, authoritative, comprehensive. Users can quickly understand each package's API and appropriate use cases.
+
+---
+
+## Archived: 2026-01-21
+
 # Phase 1 Contract: ToInt32/ToInt64 + Either Package
 
 **Created:** 2026-01-21
@@ -109,3 +175,85 @@ Added ToInt32/ToInt64 methods to slice package for Kubernetes-style APIs. Create
 
 **Why it matters:**
 Completes fluentfp wishlist items for sofdevsim-2026 project.
+
+---
+
+## Approved Plan: 2026-01-21
+
+# Plan: Improve Package READMEs
+
+**Goal:** Rewrite package READMEs to be simple, authoritative, and comprehensive—matching the quality and tone of the main README while preserving flexibility per package.
+
+**User preferences:**
+- Structure: Flexible by package (adapt to what each needs)
+- Defensive content: Move to appendix (keep but relocate)
+- API detail: Comprehensive (full listing with examples)
+
+## Tone Guidelines
+
+| Principle | Avoid | Prefer |
+|-----------|-------|--------|
+| Confidence | "It is useful for..." | "Eliminates nil panics." |
+| Brevity | "Unfortunately, a rough edge..." | "Note: requires wrapper due to variadic signature." |
+| Neutrality | "the Go authors have substituted..." | (omit opinion, show code) |
+
+**Voice:** State facts. Show code. Trust the reader.
+
+## Content Standards (from guides)
+
+- Comment format: "reports whether" for predicates, describe action for side-effects
+- Preference hierarchy: method expressions > named functions > inline lambdas
+- Decision flowchart for naming in slice README
+- Predicate/reducer naming pattern tables
+- "⚠️ Taking It Too Far" warnings
+
+## Execution Order
+
+1. slice (largest, sets template) → user review checkpoint
+2. option, ternary, must, either
+
+---
+
+## Approved Contract: 2026-01-21
+
+# Phase 1 Contract: Improve Package READMEs
+
+**Created:** 2026-01-21
+
+## Objective
+
+Rewrite 5 package READMEs (slice, option, either, must, ternary) to match the quality and tone of the main README—simple, authoritative, comprehensive.
+
+## Success Criteria
+
+- [ ] slice/README.md rewritten with API tables, decision flowchart, naming patterns
+- [ ] option/README.md has title, API table, "When NOT to use" section
+- [ ] either/README.md has API table, "When NOT to use" section
+- [ ] must/README.md has sharpened intro, API table, panic recovery section, "When NOT to use"
+- [ ] ternary/README.md has rationale moved to appendix, API table, "When NOT to use"
+- [ ] All READMEs use `Function | Signature | Purpose` table format
+- [ ] All examples follow named function comment pattern from guides
+- [ ] User approves slice README before proceeding to others
+
+## User Preferences
+
+| Question | Answer |
+|----------|--------|
+| Structure across packages | Flexible by package |
+| Defensive comparisons | Move to appendix |
+| API detail level | Comprehensive (full listing) |
+| must TODO section | Write the panic recovery section |
+
+## Files to Modify
+
+| File | Action |
+|------|--------|
+| slice/README.md | Major restructure (~575 → ~400 lines) |
+| option/README.md | Add title, API table (~267 → ~300 lines) |
+| either/README.md | Minor polish, API table (~146 → ~170 lines) |
+| must/README.md | Sharpen intro, add sections (~103 → ~150 lines) |
+| ternary/README.md | Move rationale to appendix (~148 → ~160 lines) |
+
+## Token Budget
+
+Estimated: 30-40K tokens

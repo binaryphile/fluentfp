@@ -1,94 +1,76 @@
-> For why fluentfp exists and when to use it, see the [main README](../README.md).
-
 # either: sum types for Go
 
-An Either represents a value that is one of two possible types: Left or Right. By convention,
-Left represents failure or an alternative path, while Right represents success or the primary
-path. The mnemonic is "Right is right" (correct).
-
-## Creating Either Values
-
-The Either type is `either.Either[L, R any]`, where `L` is the Left type and `R` is the
-Right type.
-
-Create a Left value:
+A value that is one of two types: Left or Right. Convention: Left = failure, Right = success. Mnemonic: "Right is right."
 
 ```go
-left := either.Left[string, int]("error message")
-```
-
-Create a Right value:
-
-```go
-right := either.Right[string, int](42)
-```
-
-## Using the Either
-
-### Checking Which Side
-
-Test which variant you have:
-
-```go
-if e.IsRight() {
-    // handle success
-}
-
-if e.IsLeft() {
-    // handle failure/alternative
-}
-```
-
-### Extracting Values
-
-Use the comma-ok idiom to safely extract values:
-
-```go
-// Get the Right value
-if value, ok := e.Get(); ok {
-    // use value
-}
-
-// Get the Left value
-if err, ok := e.GetLeft(); ok {
-    // handle error
-}
-```
-
-Get with a default fallback:
-
-```go
-value := e.GetOrElse(defaultValue)    // returns Right or default
-leftVal := e.LeftOrElse(defaultLeft)  // returns Left or default
-```
-
-### Transforming
-
-**Map** applies a function to the Right value (right-biased):
-
-```go
-doubled := right.Map(func(x int) int { return x * 2 })
-// Left values pass through unchanged
-```
-
-**Fold** handles both cases exhaustively (pattern matching):
-
-```go
-result := either.Fold(e,
-    func(err string) string { return "Error: " + err },
-    func(val int) string { return fmt.Sprintf("Value: %d", val) },
+result := either.Fold(parsed,
+    func(err ParseError) string { return "failed: " + err.Reason },
+    func(cfg Config) string { return "loaded: " + cfg.Name },
 )
 ```
 
-Note: `Fold` is a function, not a method, due to Go's generics limitations (methods
-cannot introduce new type parameters).
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/either) for complete API documentation.
+
+## Quick Start
+
+```go
+import "github.com/binaryphile/fluentfp/either"
+
+// Create values
+left := either.Left[string, int]("error")
+right := either.Right[string, int](42)
+
+// Extract with comma-ok
+if val, ok := right.Get(); ok {
+    fmt.Println(val)  // 42
+}
+
+// Get with default
+value := right.GetOrElse(0)
+
+// Pattern match both cases
+result := either.Fold(parsed,
+    func(err string) int { return -1 },
+    func(val int) int { return val * 2 },
+)
+```
+
+## API Reference
+
+### Constructors
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `Left` | `Left[L,R](L) Either[L,R]` | Create Left variant |
+| `Right` | `Right[L,R](R) Either[L,R]` | Create Right variant |
+
+### Methods
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `.IsLeft` | `.IsLeft() bool` | Check if Left |
+| `.IsRight` | `.IsRight() bool` | Check if Right |
+| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) |
+| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) |
+| `.GetOrElse` | `.GetOrElse(R) R` | Right or default |
+| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default |
+| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right (right-biased) |
+
+### Standalone Functions
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `Fold` | `Fold[L,R,T](Either, func(L)T, func(R)T) T` | Pattern match both cases |
+| `Map` | `Map[L,R,R2](Either, func(R)R2) Either[L,R2]` | Transform to different type |
+
+Note: `Fold` and `Map` are functions (not methods) due to Go's generics limitation—methods cannot introduce new type parameters.
 
 ## Either vs Option
 
 | Type | Use Case | Example |
 |------|----------|---------|
 | `option.Basic[T]` | Value may be absent | Database nullable field |
-| `either.Either[L, R]` | One of two distinct states | Success with value OR failure with reason |
+| `either.Either[L, R]` | One of two distinct states | Success OR failure with reason |
 
 Option is for "maybe nothing." Either is for "definitely something, but which one?"
 
@@ -121,10 +103,18 @@ if err, ok := result.GetLeft(); ok {
 Fold forces handling both cases at compile time—no forgotten error paths:
 
 ```go
+// Inline lambdas for simple cases
 response := either.Fold(result,
     func(err ParseError) Response { return ErrorResponse(err) },
     func(cfg Config) Response { return SuccessResponse(cfg) },
 )
+
+// Named functions for complex/reusable handlers
+// formatError returns a user-friendly error message.
+formatError := func(err ParseError) string {
+    return fmt.Sprintf("line %d: %s", err.Line, err.Reason)
+}
+message := either.Fold(result, formatError, Config.Summary)
 ```
 
 ### Two-State Structs
@@ -143,3 +133,11 @@ type Handler struct {
     mode either.Either[func(), func() <-chan Result]
 }
 ```
+
+## When NOT to Use either
+
+- **Error handling** — Use `(T, error)` for Go idiom; Either is for typed alternatives
+- **Optional values** — Use `option.Basic[T]` when one side is "absent"
+- **More than two variants** — Either is binary; use interface + types for 3+
+- **Simple boolean checks** — Don't use `Either[FalseReason, TrueReason]` for simple yes/no
+- **When Go idioms suffice** — If comma-ok or `(T, error)` is clear, don't over-engineer
