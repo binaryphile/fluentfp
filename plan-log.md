@@ -945,3 +945,107 @@ Restructured `examples/comparison/main.go` to be a clearer, more compelling comp
 
 **Why it matters:**
 Makes the executable comparison easy to scan and understand at a glance, showing the real cost of each library's API design.
+
+---
+
+## Archived: 2026-01-22
+
+# Plan: Improve examples/advanced_option.go
+
+## Goal
+Make the advanced option example clearer and more scannable while preserving the pattern demonstration.
+
+## Current Issues (from grading: B- 78/100)
+
+1. **Too verbose**: Pattern explained 3 times (lines 12-53, 135-151, 265-286)
+2. **43-line wall of text**: Pattern overview before any code is daunting
+3. **Bullet list in comments**: Lines 270-278 hard to read
+4. **No quick reference**: Long file with no summary at top
+
+## Changes
+
+### 1. Rewrite intro (merge summary + pattern/example clarification)
+Replace current intro with concise summary:
+```go
+// === ADVANCED OPTIONS ===
+//
+// Advanced options embed a basic option and add methods that conditionally
+// call the wrapped value's methods based on ok status. ("Advanced" complements
+// "basic" - the standard option.Basic[T] type.)
+//
+// This example demonstrates the pattern with lifecycle management (Close),
+// but it applies to any type where you want conditional method calls.
+```
+
+### 2. Consolidate pattern explanations
+- Trim PATTERN OVERVIEW (lines 12-53) per Change 4
+- Remove lines 135-151: Comment block before ClientOption struct - redundant intro to "ADVANCED OPTION TYPE" section, already covered by PATTERN OVERVIEW
+- Replace lines 265-286 with concise "when to use":
+```go
+// === WHEN TO USE ===
+//
+// Use advanced options when:
+// - Many dependencies with lifecycle methods (Open/Close)
+// - Factory functions that conditionally open resources
+// - You want to eliminate conditional logic in Close() methods
+//
+// Skip when: single dependency, or types without methods to call conditionally.
+```
+
+### 3. Add dependency checklist (part of "when to use" block from Change 2)
+After the "when to use" bullets, add:
+```go
+// Each dependency needs: a client type, an advanced option wrapping it,
+// a factory returning the advanced option, a field in App, and a Close call.
+// None of these require conditionals - that's the pattern's value.
+```
+(This replaces the hard-to-read bullet list at lines 270-278)
+
+### 4. Trim PATTERN OVERVIEW
+Target: 20-25 lines instead of 43.
+
+**Keep:**
+- What problem it solves (conditional method calls on optional dependencies)
+- How it works (embed basic option, add conditional methods)
+- The CLI example framing (source/dest/compare commands)
+
+**Cut:**
+- Lines 22-34: Detailed walkthrough of "databases" and "Client struct" (code shows this)
+- Lines 36-44: Detailed explanation of App struct purpose (redundant with code comments)
+- Lines 46-53: Explanation of how options work in OpenApp (code demonstrates)
+
+## Preserve As-Is
+- **USAGE EXAMPLE** (lines 55-133): The main() function and switch cases - clear and well-commented
+- **ADVANCED OPTION TYPE code** (lines 149-186): ClientOption struct, factories, Close method - keep code and inline comments
+- **DOMAIN TYPES** (lines 188-213): Client struct and methods - minimal and correct
+- **APP STRUCT & FACTORY** (lines 215-251): OpenApp and App.Close - demonstrates the payoff
+
+## Target Metrics
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total lines | 287 | ~200 |
+| Pattern overview | 43 lines | ~25 lines |
+| Redundant sections | 3 | 1 |
+| Grade target | B- (78) | A- (90) |
+
+## Files to Modify
+- `examples/advanced_option.go`
+
+## Verification
+- `go run examples/advanced_option.go source` prints source users
+- `go run examples/advanced_option.go dest` prints dest users
+- `go run examples/advanced_option.go compare` shows diff
+
+---
+
+## Log: 2026-01-22 - Streamline advanced option example
+
+**What was done:**
+Reduced `examples/advanced_option.go` from 287 to 178 lines (38%) while preserving teachability. Trimmed verbose pattern explanations, consolidated redundant sections, and made doc comment style consistent throughout.
+
+**Key files changed:**
+- `examples/advanced_option.go`: Streamlined documentation, kept teaching moment in OpenClientAsOption
+
+**Why it matters:**
+Makes the advanced option pattern easier to scan and understand without walls of text before the code.
