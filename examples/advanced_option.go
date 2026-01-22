@@ -47,7 +47,6 @@ func main() {
 	command := os.Args[1]
 
 	switch command {
-	// commands source and dest do the same thing each with a different database: print the users
 	case "source":
 		app := OpenApp(OpenAppArgs{SourceData: sourceData})
 		defer app.Close() // closes only opened deps
@@ -98,9 +97,9 @@ func NewClientOption(basic option.Basic[Client]) ClientOption {
 
 // OpenClientAsOption returns ok ClientOption if users is non-empty.
 func OpenClientAsOption(users string) ClientOption {
-	usersOption := option.IfProvided(users)                  // ok if not empty
-	clientBasicOption := option.Map(usersOption, OpenClient) // option.Map accepts and returns basic options
-	return NewClientOption(clientBasicOption)                // convert the basic option to the advanced option
+	usersOption := option.IfProvided(users)
+	clientBasicOption := option.Map(usersOption, OpenClient)
+	return NewClientOption(clientBasicOption)
 }
 
 // Close closes the Client if ok.
