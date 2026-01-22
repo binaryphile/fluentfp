@@ -9,48 +9,26 @@ import (
 	"os"
 )
 
-// === PATTERN OVERVIEW ===
+// === ADVANCED OPTIONS ===
 //
-// Advanced options expose methods corresponding to the value type's methods that do the right thing based on ok status.
-// Advanced option usage as described here requires more code and has more limited use cases than basic options.
-// The benefit, however, is that these options can significantly lower the complexity of code that manipulates
-// many option instances in one place (i.e. in one central function)
-// when the stored value types are needed for their methods as opposed to their fields.
-// That's because the difference between a basic and advanced option
-// is the presence of option-aware versions of those methods.
+// Advanced options embed a basic option and add methods that conditionally
+// call the wrapped value's methods based on ok status. ("Advanced" complements
+// "basic" - the standard option.Basic[T] type.)
 //
-// As an example, let's design a simple cli tool intended to synchronize the users in two databases.
-// Well, we haven't gotten as far as actually synchronizing them yet,
-// but we do have subcommands to show the users from each of the source and destination databases,
-// as well as to see if the databases differ: commands "source", "dest" and "compare".
-// Each command needs to connect to the appropriate database(s);
-// the first two need the requisite source or destination database,
-// while the third requires both.
+// This example demonstrates the pattern with lifecycle management (Close),
+// but it applies to any type where you want conditional method calls.
 //
-// We won't actually connect to real databases, but we'll simulate the process with a Client struct
-// that looks like a database connection in that it has a deferrable Close method
-// and a factory function named OpenClient.
-// Each "database" has a single user in a JSON string that represents a users table,
-// but it's just a hardwired string in the Client struct.
+// === PATTERN ===
 //
-// The databases are external dependencies to this tool that live for the duration of the tool's run.
-// One way to approach long-lived dependencies is to collect them in a single place for lifecycle management.
-// The App struct is this collection of dependencies needed by the application before it can run.
-// Each dependency has a field in the struct.
-// When the tool is run, we determine the user's command and instantiate an App by using the factory function OpenApp.
-// The arguments to OpenApp determine which of the dependencies are actually opened.
-// For example, since the "source" command doesn't talk to the dest database, only the source database is opened.
-// To handle the existence of some of the fields in App but not others, each field is an option type whose value
-// is the now-open dependency, or not-ok if a dependency wasn't requested.
-// The command code then obtains the dependency from the corresponding option in the App instance
-// by calling app.[Dependency]Option.MustGet.
+// Problem: An App struct holds optional dependencies. Some commands need one
+// dependency, others need both. How do you Close() without conditionals?
 //
-// In this example, we only have two dependencies, which makes this approach appear verbose.
-// Real applications may have many dependencies, however,
-// which can quickly blow up the complexity of an omnibus-style factory like OpenApp.
-// To illustrate the usefulness of this advanced option approach,
-// we'll create an OpenApp that now can be very simple because
-// we've offloaded the conditionality (i.e. the if-statements) to these advanced options.
+// Solution: Wrap each dependency in an advanced option that has a Close method.
+// The option's Close calls the underlying Close only if ok.
+//
+// Result: App.Close() just calls each option's Close - no if-statements needed.
+// OpenApp() just calls factory functions - no if-statements needed.
+// The conditionality lives in the option type, not scattered through your code.
 
 // === USAGE EXAMPLE ===
 
@@ -133,19 +111,8 @@ func main() {
 }
 
 // === ADVANCED OPTION TYPE ===
-//
-// Below is where it gets interesting.  We'll see the definition of the advanced option ClientOption
-// and the implementation of OpenApp, which is the primary beneficiary of ClientOption's ergonomics.
 
-// ClientOption is an advanced option faking our database dependencies.
-// An advanced option is a named type that offers conditional access to the methods of the value type.
-// It embeds a basic option so that the basic option methods are available as well.
-// The idea is to offer the same behavior as the value type,
-// but to only call the contained value's method if the option is ok.
-// The return value (if there is one) then must come back as an option of the original method's return type.
-// The way to implement this is with a struct that embeds a basic option
-// and has methods for the value type's methods of interest.
-// In this example, we only need the Close method.
+// ClientOption embeds a basic option and adds a conditional Close method.
 type ClientOption struct {
 	option.Basic[Client] // we just need the basic option and to add a Close method, shown after the factories below.
 }
@@ -255,32 +222,10 @@ func (a App) Close() {
 // Use advanced options when:
 // - Many dependencies with lifecycle methods (Open/Close)
 // - Factory functions that conditionally open resources
-// - You want to eliminate conditional logic in app-level Close() methods
+// - You want to eliminate conditional logic in Close() methods
 //
-// When NOT to use:
-// - Simple value extraction (use basic options instead)
-// - Single dependency (overhead not justified)
-// - Types without methods you need to call conditionally
-
-// Ultimately, this pattern can be followed with little variation for each type of dependency,
-// and the resulting code pushes the complexity into a consistently-structured set of methods and functions
-// which are themselves kept simple by being couched as functional operations.
-// It's how they are assembled that makes them powerful.
+// Skip when: single dependency, or types without methods to call conditionally.
 //
-// Notice that each new type of dependency usually only needs one argument in OpenAppArgs and one line of code in
-// the OpenApp function, so long as you also provide:
-// - the client implementation of the dependency
-// - an advanced option wrapping a basic option of the client
-// - a factory for the advanced option that accepts just the basic option
-// - a factory that acts on the OpenAppArgs argument and returns an advanced option
-// - a field in the App struct that gets filled in with a single call to the second factory (usually,
-//  	although dependency trees can require more work)
-// - a call to the dependency's Close method in app's Close method
-//
-// Also notice how none of these structs/functions are more than three (readable) lines as implemented in this example,
-// and don't contain any branches.
-// That's about as straightforward as it can get.
-//
-// While the benefits of advanced options *are* valuable in this and other use cases,
-// their application is more limited than that of basic options and requires more explanation,
-// so use them with temperance if you work on teams.
+// Each dependency needs: a client type, an advanced option wrapping it,
+// a factory returning the advanced option, a field in App, and a Close call.
+// None of these require conditionals - that's the pattern's value.
