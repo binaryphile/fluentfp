@@ -14,16 +14,16 @@ See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for 
 import "github.com/binaryphile/fluentfp/option"
 
 // Create options
-found := option.Of("hello")           // ok
-missing := option.NotOkString         // not-ok
+okHello := option.Of("hello")           // ok
+notOkString := option.NotOkString       // not-ok
 
 // Extract with defaults
-hello := found.Or("fallback")
-fallback := missing.Or("fallback")
+hello := okHello.Or("fallback")
+fallback := notOkString.Or("fallback")
 
 // Check and extract
-if val, ok := found.Get(); ok {
-    // use val
+if hello, ok := okHello.Get(); ok {
+    // use hello
 }
 ```
 
