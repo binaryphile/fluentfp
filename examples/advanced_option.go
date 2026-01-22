@@ -96,9 +96,10 @@ func NewClientOption(basic option.Basic[Client]) ClientOption {
 }
 
 // OpenClientAsOption returns ok ClientOption if users is non-empty.
+// This is the key function: it chains option operations so OpenApp needs no conditionals.
 func OpenClientAsOption(users string) ClientOption {
-	usersOption := option.IfProvided(users)
-	clientBasicOption := option.Map(usersOption, OpenClient)
+	usersOption := option.IfProvided(users)              // "" → not-ok, else ok
+	clientBasicOption := option.Map(usersOption, OpenClient) // not-ok passes through
 	return NewClientOption(clientBasicOption)
 }
 
