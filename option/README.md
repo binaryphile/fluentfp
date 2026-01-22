@@ -180,6 +180,10 @@ func (r Record) GetHost() option.String {
 }
 ```
 
+### Advanced: Domain Option Types
+
+For domain-specific behavior (conditional lifecycle management, dependency injection), see the [advanced option example](../examples/advanced_option.go).
+
 ## See Also
 
 For typed failure values instead of absent, see [either](../either/).

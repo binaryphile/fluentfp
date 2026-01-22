@@ -136,6 +136,7 @@ func main() {
 	okPostOption := option.Map(okIntOption, IntToPost)
 
 	// filter is implemented with two complementary methods
+	// intIs42 reports whether i equals 42.
 	intIs42 := func(i int) bool {
 		return i == 42
 	}

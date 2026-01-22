@@ -223,18 +223,7 @@ Both panic if slices have different lengths.
 - **Complex control flow**: break, continue, early return
 - **Index-dependent logic**: comparing adjacent elements, position-aware output
 
-## Appendix: Library Comparison
-
-| Library | Type-Safe | Concise | Method Exprs | Fluent |
-|---------|-----------|---------|--------------|--------|
-| binaryphile/fluentfp | ✅ | ✅ | ✅ | ✅ |
-| samber/lo | ✅ | ❌ | ❌ | ❌ |
-| thoas/go-funk | ❌ | ✅ | ✅ | ❌ |
-| ahmetb/go-linq | ❌ | ❌ | ❌ | ✅ |
-| rjNemo/underscore | ✅ | ✅ | ✅ | ❌ |
-
-**fluentfp vs lo:** `lo` passes indexes to all callbacks, requiring wrappers. Non-fluent style requires intermediate variables. See [examples/comparison/main.go](../examples/comparison/main.go).
-
 ## See Also
 
-For zipping slices together, see [pair](../tuple/pair/).
+- For zipping slices together, see [pair](../tuple/pair/)
+- For library comparison, see [comparison.md](../comparison.md)

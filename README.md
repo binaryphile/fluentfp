@@ -192,6 +192,7 @@ A `for` loop you've seen 10,000 times feels instant to parse—but only because 
 - [Methodology](methodology.md) - How claims were measured
 - [Nil Safety](nil-safety.md) - The billion-dollar mistake and Go
 - [Naming Functions](naming-in-hof.md) - Function naming patterns for HOF use
+- [Library Comparison](comparison.md) - How fluentfp compares to alternatives
 
 ## Recent Additions
 

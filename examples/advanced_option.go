@@ -9,6 +9,8 @@ import (
 	"os"
 )
 
+// === PATTERN OVERVIEW ===
+//
 // Advanced options expose methods corresponding to the value type's methods that do the right thing based on ok status.
 // Advanced option usage as described here requires more code and has more limited use cases than basic options.
 // The benefit, however, is that these options can significantly lower the complexity of code that manipulates
@@ -49,6 +51,8 @@ import (
 // To illustrate the usefulness of this advanced option approach,
 // we'll create an OpenApp that now can be very simple because
 // we've offloaded the conditionality (i.e. the if-statements) to these advanced options.
+
+// === USAGE EXAMPLE ===
 
 // main allows the user to specify "source", "dest" or "compare" to inspect the two databases.
 func main() {
@@ -128,6 +132,8 @@ func main() {
 	}
 }
 
+// === ADVANCED OPTION TYPE ===
+//
 // Below is where it gets interesting.  We'll see the definition of the advanced option ClientOption
 // and the implementation of OpenApp, which is the primary beneficiary of ClientOption's ergonomics.
 
@@ -179,6 +185,8 @@ func (o ClientOption) Close() {
 	o.Call(Client.Close)
 }
 
+// === DOMAIN TYPES ===
+
 // Client is a "client" to our fake database.
 // It is the value type contained by its complementary advanced option.
 // It returns the configured users string as if it were the result of a query.
@@ -204,7 +212,7 @@ func (c Client) ListUsers() string {
 	return c.users
 }
 
-// dependency instantiation
+// === APP STRUCT & FACTORY ===
 
 // App is a collection of external dependencies.
 // Because not all may be opened at once, they are stored as options.
@@ -241,6 +249,18 @@ func (a App) Close() {
 	a.SourceClientOption.Close()
 	a.DestClientOption.Close()
 }
+
+// === WHEN TO USE ===
+//
+// Use advanced options when:
+// - Many dependencies with lifecycle methods (Open/Close)
+// - Factory functions that conditionally open resources
+// - You want to eliminate conditional logic in app-level Close() methods
+//
+// When NOT to use:
+// - Simple value extraction (use basic options instead)
+// - Single dependency (overhead not justified)
+// - Types without methods you need to call conditionally
 
 // Ultimately, this pattern can be followed with little variation for each type of dependency,
 // and the resulting code pushes the complexity into a consistently-structured set of methods and functions
