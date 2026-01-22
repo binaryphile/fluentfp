@@ -42,40 +42,40 @@ names := users.ToString(User.Name)  // Mapper[string]
 
 ### Factory Functions
 
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `From` | `From[T]([]T) Mapper[T]` | Create Mapper from slice |
-| `MapTo` | `MapTo[R,T]([]T) MapperTo[R,T]` | Create MapperTo for mapping to type R |
+| Function | Signature | Purpose | Example |
+|----------|-----------|---------|---------|
+| `From` | `From[T]([]T) Mapper[T]` | Create Mapper from slice | `slice.From(users)` |
+| `MapTo` | `MapTo[R,T]([]T) MapperTo[R,T]` | Create MapperTo for type R | `slice.MapTo[User](ids)` |
 
 ### Mapper Methods
 
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `KeepIf` | `.KeepIf(func(T) bool) Mapper[T]` | Keep elements matching predicate |
-| `RemoveIf` | `.RemoveIf(func(T) bool) Mapper[T]` | Remove elements matching predicate |
-| `TakeFirst` | `.TakeFirst(n int) Mapper[T]` | First n elements |
-| `Convert` | `.Convert(func(T) T) Mapper[T]` | Map to same type |
-| `ToString` | `.ToString(func(T) string) Mapper[string]` | Map to string |
-| `ToInt` | `.ToInt(func(T) int) Mapper[int]` | Map to int |
-| `Each` | `.Each(func(T))` | Side-effect iteration |
-| `Len` | `.Len() int` | Count elements |
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `KeepIf` | `.KeepIf(func(T) bool) Mapper[T]` | Keep matching | `users.KeepIf(User.IsActive)` |
+| `RemoveIf` | `.RemoveIf(func(T) bool) Mapper[T]` | Remove matching | `users.RemoveIf(User.IsExpired)` |
+| `TakeFirst` | `.TakeFirst(n int) Mapper[T]` | First n elements | `users.TakeFirst(10)` |
+| `Convert` | `.Convert(func(T) T) Mapper[T]` | Map to same type | `users.Convert(User.Normalize)` |
+| `ToString` | `.ToString(func(T) string) Mapper[string]` | Map to string | `users.ToString(User.Name)` |
+| `ToInt` | `.ToInt(func(T) int) Mapper[int]` | Map to int | `users.ToInt(User.Age)` |
+| `Each` | `.Each(func(T))` | Side-effect iteration | `users.Each(User.Save)` |
+| `Len` | `.Len() int` | Count elements | `users.Len()` |
 
 Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `ToFloat64`, `ToInt32`, `ToInt64`, `ToRune`
 
 ### MapperTo Additional Method
 
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `To` | `.To(func(T) R) Mapper[R]` | Map to arbitrary type R |
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `To` | `.To(func(T) R) Mapper[R]` | Map to type R | `ids.To(FetchUser)` |
 
 ### Standalone Functions
 
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `Fold` | `Fold[T,R]([]T, R, func(R,T) R) R` | Reduce slice to single value |
-| `Unzip2` | `Unzip2[T,A,B]([]T, func(T)A, func(T)B) (Mapper[A], Mapper[B])` | Extract 2 fields in one pass |
-| `Unzip3` | `Unzip3[T,A,B,C](...)` | Extract 3 fields |
-| `Unzip4` | `Unzip4[T,A,B,C,D](...)` | Extract 4 fields |
+| Function | Signature | Purpose | Example |
+|----------|-----------|---------|---------|
+| `Fold` | `Fold[T,R]([]T, R, func(R,T) R) R` | Reduce to single value | See [Fold](#fold) |
+| `Unzip2` | `Unzip2[T,A,B]([]T, func(T)A, func(T)B) (Mapper[A], Mapper[B])` | Extract 2 fields | `slice.Unzip2(users, User.Name, User.Age)` |
+| `Unzip3` | `Unzip3[T,A,B,C](...)` | Extract 3 fields | — |
+| `Unzip4` | `Unzip4[T,A,B,C,D](...)` | Extract 4 fields | — |
 
 ### Type Aliases
 

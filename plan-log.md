@@ -323,3 +323,52 @@ Created shared naming guide (`naming-in-hof.md`, 124 lines) for function naming 
 
 **Why it matters:**
 Types are now explained before API tables, reducing reader confusion. Naming guidance is centralized and accessible from all packages. Cross-references help users discover related packages.
+
+---
+
+## Archived: 2026-01-21
+
+# Phase 3 Contract: Add Example Column to API Tables (Pilot: slice)
+
+**Created:** 2026-01-21
+
+## Objective
+
+Add Example column to slice/README.md API tables to make signatures more immediately useful.
+
+## Success Criteria
+
+- [x] All 4 API tables have Example column
+- [x] Examples are single expressions (no multi-line)
+- [x] Examples use method expressions where applicable
+- [x] Fold links to Patterns section (not inline)
+- [x] Table renders correctly in GitHub markdown
+- [x] User approves before expanding to other packages
+
+## Actual Results
+
+**Completed:** 2026-01-21
+
+| Table | Rows | Examples Added |
+|-------|------|----------------|
+| Factory Functions | 2 | `slice.From(users)`, `slice.MapTo[User](ids)` |
+| Mapper Methods | 8 | Method expressions: `User.IsActive`, `User.Name`, etc. |
+| MapperTo Additional | 1 | `ids.To(FetchUser)` |
+| Standalone Functions | 4 | Link to Fold pattern, Unzip2 example, — for Unzip3/4 |
+
+## Approval
+✅ APPROVED BY USER - 2026-01-21
+Final grade: A (98/100)
+
+---
+
+## Log: 2026-01-21 - Phase 3: Add Example Column to API Tables (Pilot)
+
+**What was done:**
+Added Example column to all 4 API tables in slice/README.md. Examples use method expressions (`User.IsActive`, `User.Name`) and field access patterns consistent with the naming guide. Fold links to Patterns section instead of inline example.
+
+**Key files changed:**
+- `slice/README.md`: Added Example column to Factory Functions, Mapper Methods, MapperTo, and Standalone Functions tables
+
+**Why it matters:**
+API tables now show immediate usage examples alongside signatures, making the documentation more actionable without requiring readers to scroll to Patterns sections for simple cases.
