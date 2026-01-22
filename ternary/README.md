@@ -31,7 +31,7 @@ If := ternary.If[string]
 result := If(condition).Then(trueVal).Else(falseVal)
 
 // Lazy evaluation (short-circuit expensive calls)
-value := ternary.If[Config](useCache).Then(cached).ElseCall(loadFromDB)
+config := ternary.If[Config](useCache).Then(cached).ElseCall(loadFromDB)
 ```
 
 ## Types

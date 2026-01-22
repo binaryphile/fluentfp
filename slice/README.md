@@ -51,14 +51,14 @@ names := users.ToString(User.Name)  // Mapper[string]
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `KeepIf` | `.KeepIf(func(T) bool) Mapper[T]` | Keep matching | `users.KeepIf(User.IsActive)` |
-| `RemoveIf` | `.RemoveIf(func(T) bool) Mapper[T]` | Remove matching | `users.RemoveIf(User.IsExpired)` |
-| `TakeFirst` | `.TakeFirst(n int) Mapper[T]` | First n elements | `users.TakeFirst(10)` |
-| `Convert` | `.Convert(func(T) T) Mapper[T]` | Map to same type | `users.Convert(User.Normalize)` |
-| `ToString` | `.ToString(func(T) string) Mapper[string]` | Map to string | `users.ToString(User.Name)` |
-| `ToInt` | `.ToInt(func(T) int) Mapper[int]` | Map to int | `users.ToInt(User.Age)` |
-| `Each` | `.Each(func(T))` | Side-effect iteration | `users.Each(User.Save)` |
-| `Len` | `.Len() int` | Count elements | `users.Len()` |
+| `KeepIf` | `.KeepIf(func(T) bool) Mapper[T]` | Keep matching | `actives = slice.From(users).KeepIf(User.IsActive)` |
+| `RemoveIf` | `.RemoveIf(func(T) bool) Mapper[T]` | Remove matching | `current = slice.From(users).RemoveIf(User.IsExpired)` |
+| `TakeFirst` | `.TakeFirst(n int) Mapper[T]` | First n elements | `top10 = slice.From(users).TakeFirst(10)` |
+| `Convert` | `.Convert(func(T) T) Mapper[T]` | Map to same type | `normalized = slice.From(users).Convert(User.Normalize)` |
+| `ToString` | `.ToString(func(T) string) Mapper[string]` | Map to string | `names = slice.From(users).ToString(User.Name)` |
+| `ToInt` | `.ToInt(func(T) int) Mapper[int]` | Map to int | `ages = slice.From(users).ToInt(User.Age)` |
+| `Each` | `.Each(func(T))` | Side-effect iteration | `slice.From(users).Each(User.Save)` |
+| `Len` | `.Len() int` | Count elements | `count = slice.From(users).Len()` |
 
 Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `ToFloat64`, `ToInt32`, `ToInt64`, `ToRune`
 
@@ -66,14 +66,14 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `To` | `.To(func(T) R) Mapper[R]` | Map to type R | `ids.To(FetchUser)` |
+| `To` | `.To(func(T) R) Mapper[R]` | Map to type R | `users = slice.MapTo[User](ids).To(FetchUser)` |
 
 ### Standalone Functions
 
 | Function | Signature | Purpose | Example |
 |----------|-----------|---------|---------|
 | `Fold` | `Fold[T,R]([]T, R, func(R,T) R) R` | Reduce to single value | See [Fold](#fold) |
-| `Unzip2` | `Unzip2[T,A,B]([]T, func(T)A, func(T)B) (Mapper[A], Mapper[B])` | Extract 2 fields | `slice.Unzip2(users, User.Name, User.Age)` |
+| `Unzip2` | `Unzip2[T,A,B]([]T, func(T)A, func(T)B) (Mapper[A], Mapper[B])` | Extract 2 fields | `names, ages = slice.Unzip2(users, User.Name, User.Age)` |
 | `Unzip3` | `Unzip3[T,A,B,C](...)` | Extract 3 fields | — |
 | `Unzip4` | `Unzip4[T,A,B,C,D](...)` | Extract 4 fields | — |
 

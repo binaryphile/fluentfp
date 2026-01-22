@@ -17,16 +17,16 @@ See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/either) for 
 import "github.com/binaryphile/fluentfp/either"
 
 // Create values
-left := either.Left[string, int]("error")
-right := either.Right[string, int](42)
+leftErr := either.Left[string, int]("error")
+rightFortyTwo := either.Right[string, int](42)
 
 // Extract with comma-ok
-if val, ok := right.Get(); ok {
-    fmt.Println(val)  // 42
+if fortyTwo, ok := rightFortyTwo.Get(); ok {
+    fmt.Println(fortyTwo)  // 42
 }
 
 // Get with default
-value := right.GetOrElse(0)
+fortyTwo := rightFortyTwo.GetOrElse(0)
 
 // Pattern match both cases
 result := either.Fold(parsed,
@@ -57,20 +57,20 @@ failure := either.Left[ParseError, Config](err)   // Either[ParseError, Config]
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.IsLeft` | `.IsLeft() bool` | Check if Left | `if e.IsLeft()` |
-| `.IsRight` | `.IsRight() bool` | Check if Right | `if e.IsRight()` |
-| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) | `val, ok := e.Get()` |
-| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) | `err, ok := e.GetLeft()` |
-| `.GetOrElse` | `.GetOrElse(R) R` | Right or default | `e.GetOrElse(defaultUser)` |
-| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default | `e.LeftOrElse(defaultErr)` |
-| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right | `e.Map(User.Normalize)` |
+| `.IsLeft` | `.IsLeft() bool` | Check if Left | `if either.Left[Error, User](err).IsLeft()` |
+| `.IsRight` | `.IsRight() bool` | Check if Right | `if either.Right[Error, User](user).IsRight()` |
+| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) | `user, ok := either.Right[Error, User](user).Get()` |
+| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) | `err, ok := either.Left[Error, User](err).GetLeft()` |
+| `.GetOrElse` | `.GetOrElse(R) R` | Right or default | `user = either.Right[Error, User](u).GetOrElse(defaultUser)` |
+| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default | `err = either.Left[Error, User](e).LeftOrElse(defaultErr)` |
+| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right | `normalized = either.Right[Error, User](user).Map(User.Normalize)` |
 
 ### Standalone Functions
 
 | Function | Signature | Purpose | Example |
 |----------|-----------|---------|---------|
 | `Fold` | `Fold[L,R,T](Either, func(L)T, func(R)T) T` | Pattern match both | See [Exhaustive Handling](#exhaustive-handling) |
-| `Map` | `Map[L,R,R2](Either, func(R)R2) Either[L,R2]` | Transform to new type | `either.Map(e, User.Name)` |
+| `Map` | `Map[L,R,R2](Either, func(R)R2) Either[L,R2]` | Transform to new type | `name = either.Map(rightUser, User.Name)` |
 
 Note: `Fold` and `Map` are functions (not methods) due to Go's generics limitation—methods cannot introduce new type parameters.
 
