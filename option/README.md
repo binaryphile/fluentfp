@@ -13,7 +13,7 @@ See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for 
 ```go
 import "github.com/binaryphile/fluentfp/option"
 
-// Create options (returns Basic[T])
+// Create options
 found := option.Of("hello")           // ok
 missing := option.NotOkString         // not-ok
 
@@ -26,6 +26,12 @@ if val, ok := found.Get(); ok {
     // use val
 }
 ```
+
+## Types
+
+`Basic[T]` holds an optional value—either "ok" (has value) or "not-ok" (absent).
+
+Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[int]`, etc. See [Type Aliases](#type-aliases) for the full list.
 
 ## API Reference
 
