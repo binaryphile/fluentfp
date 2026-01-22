@@ -9,6 +9,10 @@
 // Note: lof.Println (wraps fmt.Println) is available to all libraries,
 // but only those accepting func(T) callbacks can use it directly.
 // Libraries requiring func(T, int) must write their own wrapper.
+//
+// Structure: Each library is wrapped in a block { ... } with its own
+// printActiveNames function. Blocks scope the function definitions,
+// allowing each library to define identically-named functions without conflict.
 package main
 
 import (
