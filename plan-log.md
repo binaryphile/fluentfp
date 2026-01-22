@@ -864,3 +864,84 @@ Enhanced advanced_option.go with section headers, created comparison.md with lib
 
 **Why it matters:**
 Provides quantitative performance comparison showing fluentfp equals lo and pre-allocated loops.
+
+---
+
+## Archived: 2026-01-22
+
+# Plan: Improve examples/comparison/main.go
+
+## Status: COMPLETE
+
+Committed: `af98b9e` - Improve library comparison for clarity and correctness
+
+## Goal
+Make the library comparison executable easy to understand and compelling while keeping all 10 libraries and showing all required boilerplate.
+
+## Key Principles (from discussion)
+1. **Keep all 10 libraries** - comprehensive comparison
+2. **Boilerplate stays visible** - that's the cost being demonstrated
+3. **`lof.Println` available to all** - but only some can use it (API design point)
+
+## Changes Implemented
+
+| Change | Status |
+|--------|--------|
+| 1. Add line counts to headers | Done |
+| 2. Keep `printActiveNames` wrapper | Done |
+| 3. Simplify wrapper call (remove `_ =`) | Done |
+| 4. Keep `fmt.Print` headers | Done |
+| 5. Collapse prose to pain points only | Done |
+| 6. Library order (by popularity) | Kept |
+| 7. Add intro comment | Done |
+| 8. Remove "500 stars" comment | Done |
+| 9. Keep inline hints in fluentfp | Done |
+| 10. Fix go-functional bug | Done |
+| 11. Verify line counts | Done |
+| 12. Fix gofp indentation | Done |
+| 13. Fix fuego stream bug | Done |
+| 14. Keep helpful inline comments | Done |
+| 15. Integrate existing intro | Done |
+
+## Final Line Counts
+
+| Library | Lines | Pain Point |
+|---------|-------|------------|
+| fluentfp | 5 | Method expressions, fluent chaining. lof.Println provided by library. |
+| lo | 13 | Requires index parameter in callbacks. Cannot use lof.Println. |
+| go-funk | 4 | Requires type assertions (not type-safe). Can use lof.Println. |
+| go-linq | 22 | Query objects require any wrappers. Painful to get back to []string. |
+| underscore | 4 | Best alternative. Not fluent but clean. Can use lof.Println. |
+| fp-go | 6 | Curried API: Filter(pred)(slice). Lacks Each. |
+| go-functional | 8 | Go 1.23+ iterators. Single-use (must collect before reuse). |
+| fpGo | 9 | Variadic args. Filter needs index wrapper, Map doesn't. Lacks Each. |
+| fuego | 12 | Stream-based. Single-use (like Java). Map must return fuego.Any. |
+| gofp | 20 | Must convert input to []any first. Heavy type assertion overhead. |
+
+## Verification
+All 10 libraries verified to print "Ren" (the active user).
+
+## Commit
+```
+af98b9e Improve library comparison for clarity and correctness
+
+- Add intro comment with run instructions and lof.Println note
+- Add line count headers to all 10 library examples
+- Collapse verbose prose to concise pain points
+- Fix go-functional bug: collect iterator before iterating
+- Fix fuego bug: collect stream before consuming
+- Fix gofp indentation (spaces to tabs)
+```
+
+---
+
+## Log: 2026-01-22 - Library comparison improvements
+
+**What was done:**
+Restructured `examples/comparison/main.go` to be a clearer, more compelling comparison of 10 Go FP libraries. Added line count headers, collapsed verbose prose to concise pain points, and fixed bugs in go-functional and fuego examples (both had single-use iterator/stream issues).
+
+**Key files changed:**
+- `examples/comparison/main.go`: Restructured with line counts, pain points, bug fixes
+
+**Why it matters:**
+Makes the executable comparison easy to scan and understand at a glance, showing the real cost of each library's API design.
