@@ -15,7 +15,7 @@ import "github.com/binaryphile/fluentfp/option"
 
 // Create options
 found := option.Of("hello")           // ok option
-missing := option.NotOk[string]()     // not-ok option
+missing := option.NotOkString         // not-ok option (or NotOk[string]())
 
 // Extract with defaults
 value := found.Or("default")          // "hello"
@@ -35,7 +35,7 @@ Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[i
 
 ```go
 found := option.Of("hello")       // Basic[string], ok
-missing := option.NotOk[string]() // Basic[string], not-ok
+missing := option.NotOkString     // Basic[string], not-ok
 ```
 
 ## API Reference
@@ -46,7 +46,7 @@ missing := option.NotOk[string]() // Basic[string], not-ok
 |----------|-----------|---------|---------|
 | `Of` | `Of[T](T) Basic[T]` | Create ok option | `option.Of(user)` |
 | `New` | `New[T](T, bool) Basic[T]` | From value + ok flag | `option.New(val, ok)` |
-| `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOk[string]()` |
+| `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOkString` |
 | `IfProvided` | `IfProvided[T comparable](T) Basic[T]` | Not-ok if zero | `option.IfProvided(name)` |
 | `IfNotZero` | `IfNotZero[T ZeroChecker](T) Basic[T]` | Not-ok if IsZero() | `option.IfNotZero(time)` |
 | `FromOpt` | `FromOpt[T](*T) Basic[T]` | From pointer | `option.FromOpt(ptr)` |
