@@ -49,55 +49,27 @@ func main() {
 	switch command {
 	// commands source and dest do the same thing each with a different database: print the users
 	case "source":
-		// The idea with OpenApp is to allow an argument for each dependency.
-		// If the function receives a non-zero version of that argument,
-		// it opens the dependency.
-		// Otherwise, the resulting option for the dependency is not-ok.
-		// This works most easily with a single struct argument, OpenAppArgs.
-		// Any unsupplied field gets the zero-value.
-		// OpenApp is implemented to not open dependencies with zero-value arguments.
-		app := OpenApp(OpenAppArgs{
-			// in this example, we've resorted to using the user data itself
-			// as the configuration argument for the dependency,
-			// but the argument would normally be something like a struct
-			// with connection details (server name, DSN, etc.).
-			SourceData: sourceData,
-		})
-		defer app.Close() // app.Close knows to only try to close opened dependencies
+		app := OpenApp(OpenAppArgs{SourceData: sourceData})
+		defer app.Close()
 
-		// unwrap the client from the option, so we can use it
-		client := app.SourceClientOption.MustGet() // we have to have this dependency, so panic if not there
-
-		// now do something useful with it, list users in this case
+		client := app.SourceClientOption.MustGet()
 		users := client.ListUsers()
 		fmt.Print("Source users:\n", users)
 
-	// dest is the same as above
 	case "dest":
-		app := OpenApp(OpenAppArgs{
-			DestData: destData, // this is the only difference
-		})
+		app := OpenApp(OpenAppArgs{DestData: destData})
 		defer app.Close()
 
 		client := app.DestClientOption.MustGet()
-
 		users := client.ListUsers()
 		fmt.Print("Dest users:\n", users)
 
-	// compare gives a diff of the users data by google's diff library
 	case "compare":
-		// this time we need both dependencies, so they both get arguments
-		app := OpenApp(OpenAppArgs{
-			SourceData: sourceData,
-			DestData:   destData,
-		})
+		app := OpenApp(OpenAppArgs{SourceData: sourceData, DestData: destData})
 		defer app.Close()
 
-		// unwrap dependencies
 		sourceClient := app.SourceClientOption.MustGet()
 		destClient := app.DestClientOption.MustGet()
-
-		// use them
 		sourceUsers := sourceClient.ListUsers()
 		destUsers := destClient.ListUsers()
 		diff := cmp.Diff(sourceUsers, destUsers)
@@ -188,10 +160,7 @@ type App struct {
 	DestClientOption   ClientOption
 }
 
-// OpenApp conditionally opens each dependency if it was requested with a non-zero argument.
-// It relies on OpenClientAsOption to fill out the field directly, using the provided argument.
-// This is the code that benefits the most from advanced options,
-// because this is where code otherwise mushrooms as dependencies are added.
+// OpenApp opens dependencies for non-zero arguments.
 func OpenApp(a OpenAppArgs) App {
 	return App{
 		SourceClientOption: OpenClientAsOption(a.SourceData),
@@ -199,19 +168,13 @@ func OpenApp(a OpenAppArgs) App {
 	}
 }
 
-// OpenAppArgs offers a field for each dependency to obtain its configuration parameters as a signal to open it.
-// Zero-values in fields indicate that a dependency is not requested,
-// so the consumer doesn't have to provide undesired fields explicitly when calling OpenApp.
+// OpenAppArgs holds configuration for each dependency. Zero fields are not opened.
 type OpenAppArgs struct {
 	SourceData string
 	DestData   string
 }
 
-// Close closes the dependencies.
-// This is also where we benefit from advanced options,
-// since we only have to call Close on them without making any decisions.
-// The options will do the right thing without needing conditionals here.
-// This is another place where complexity otherwise mushrooms as dependencies are added.
+// Close closes opened dependencies. No conditionals needed - options handle it.
 func (a App) Close() {
 	a.SourceClientOption.Close()
 	a.DestClientOption.Close()
