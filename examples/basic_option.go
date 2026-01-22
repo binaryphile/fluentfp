@@ -114,13 +114,13 @@ func main() {
 		fmt.Println("Int option is ok")
 	}
 
-	// ToSame is a map implementation that returns the result of applying a function to the option's value,
+	// Convert is a map implementation that returns the result of applying a function to the option's value,
 	// provided that the option is ok, or not-ok otherwise.
-	// For ToSame, the function returns the same type as the value.
+	// For Convert, the function returns the same type as the value.
 	doubleInt := func(i int) int {
 		return 2 * i
 	}
-	okDoubledIntOption := okIntOption.ToSame(doubleInt)
+	okDoubledIntOption := okIntOption.Convert(doubleInt)
 
 	// there are To[Type] mapping methods for the built-in types to change the option value's type.
 	okStringOption := okIntOption.ToString(strconv.Itoa) // okStringOption holds the result of strconv.Itoa

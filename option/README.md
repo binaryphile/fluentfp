@@ -72,7 +72,7 @@ Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[i
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.ToSame` | `.ToSame(func(T) T) Basic[T]` | Transform, same type | `normalized = option.Of(user).ToSame(User.Normalize)` |
+| `.Convert` | `.Convert(func(T) T) Basic[T]` | Transform, same type | `normalized = option.Of(user).Convert(User.Normalize)` |
 | `.ToString` | `.ToString(func(T) string) String` | Transform to string | `name = option.Of(user).ToString(User.Name)` |
 | `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int | `age = option.Of(user).ToInt(User.Age)` |
 | `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type | `role = option.Map(option.Of(user), User.Role)` |

@@ -256,8 +256,8 @@ func (b Basic[T]) ToOpt() (_ *T) {
 	return &b.t
 }
 
-// ToSame returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToSame(fn func(T) T) (_ Basic[T]) {
+// Convert returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) Convert(fn func(T) T) (_ Basic[T]) {
 	if !b.ok {
 		return
 	}
