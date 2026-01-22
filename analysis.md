@@ -8,7 +8,7 @@ Same operation, two styles:
 |----------------------------------------|-------------|
 | <pre>var active []User<br>for _, u := range users {<br>    if u.IsActive() {<br>        active = append(active, u)<br>    }<br>}</pre> | <pre>active := slice.From(users).KeepIf(User.IsActive)</pre> |
 
-The conventional version has more indentation. Why does that matter? (Line counts depend on [[methodology#g-chain-formatting-rules|formatting conventions]]—see methodology.)
+The conventional version has more indentation. Why does that matter? (Line counts depend on [formatting conventions](methodology.md#g-chain-formatting-rules)—see methodology.)
 
 ## What Creates the Indentation
 
@@ -121,7 +121,7 @@ Most modules mix FP-convertible patterns with code that should stay as loops. Th
 | fluentfp | 80 | 17 |
 | **Reduction** | **12%** | **26%** |
 
-The 12% code reduction seems modest. But complexity dropped 26%—the convertible functions lost their branch points while the unchanged loops kept theirs. At scale, both obey the law of truly large numbers: 12% of 500 kloc is 60,000 lines; 26% fewer branch points means 26% fewer opportunities for error (see [[methodology#h-real-world-loop-bugs|Real-World Loop Bugs]]).
+The 12% code reduction seems modest. But complexity dropped 26%—the convertible functions lost their branch points while the unchanged loops kept theirs. At scale, both obey the law of truly large numbers: 12% of 500 kloc is 60,000 lines; 26% fewer branch points means 26% fewer opportunities for error (see [Real-World Loop Bugs](methodology.md#h-real-world-loop-bugs)).
 
 ### Best Case: Pure Data Pipeline
 
@@ -304,7 +304,7 @@ fluentfp uses eager evaluation—each operation materializes its result immediat
 | Filter + Map | 3.1 μs | 7.6 μs | Loop 2.5× faster |
 | Count (no result slice) | 0.26 μs | 7.6 μs | Loop 29× faster |
 
-*(1000 elements, Intel i5, both pre-allocate. Full results: [[methodology#benchmark-results|Methodology § Benchmarks]])*
+*(1000 elements, Intel i5, both pre-allocate. Full results: [Methodology § Benchmarks](methodology.md#benchmark-results))*
 
 **Single operations are equal:** When loops properly pre-allocate (as they should when input size is known), single operations have identical performance. The ~2% difference is measurement noise.
 
@@ -321,7 +321,7 @@ fluentfp uses eager evaluation—each operation materializes its result immediat
 
 **Rule of thumb:** Use fluentfp by default. For hot paths, profile first—single operations may be fine; multi-operation chains may need fusion.
 
-For benchmarks comparing fluentfp to other Go FP libraries (lo, go-funk, go-linq, underscore), see [[comparison#performance|Library Comparison § Performance]].
+For benchmarks comparing fluentfp to other Go FP libraries (lo, go-funk, go-linq, underscore), see [Library Comparison § Performance](comparison.md#performance).
 
 ## Patterns in Practice
 
@@ -459,8 +459,8 @@ Go's `nil` pointers are a source of runtime panics. fluentfp addresses this thro
 
 The `option` package provides correctness by construction: there's no nil to check because there's no nil. The boolean `ok` flag replaces the entire category of nil-related bugs.
 
-For the full discussion—including Tony Hoare's "billion-dollar mistake" confession, Go's nil problem, and real-world patterns—see [[nil-safety|Nil Safety in Go]].
+For the full discussion—including Tony Hoare's "billion-dollar mistake" confession, Go's nil problem, and real-world patterns—see [Nil Safety in Go](nil-safety.md).
 
 ## Methodology
 
-For empirical methodology details—how claims were derived, replication guides, and real-world loop bug examples—see [[methodology]].
+For empirical methodology details—how claims were derived, replication guides, and real-world loop bug examples—see [Methodology](methodology.md).

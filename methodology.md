@@ -1,17 +1,17 @@
 # fluentfp Methodology
 
-This document details how empirical claims in [[analysis]] were derived, enabling readers to verify or replicate the analysis.
+This document details how empirical claims in [analysis](analysis.md) were derived, enabling readers to verify or replicate the analysis.
 
 **Contents:**
-- [[#A. Loop Sampling Methodology]]
-- [[#B. Line Classification Rules]]
-- [[#C. Density Calculation]]
-- [[#D. Replication Guide]]
-- [[#E. Limitations]]
-- [[#F. Code Metrics Tool (scc)]]
-- [[#G. Chain Formatting Rules]]
-- [[#H. Real-World Loop Bugs]]
-- [[#I. Performance Analysis]]
+- [A. Loop Sampling Methodology](#a-loop-sampling-methodology)
+- [B. Line Classification Rules](#b-line-classification-rules)
+- [C. Density Calculation](#c-density-calculation)
+- [D. Replication Guide](#d-replication-guide)
+- [E. Limitations](#e-limitations)
+- [F. Code Metrics Tool (scc)](#f-code-metrics-tool-scc)
+- [G. Chain Formatting Rules](#g-chain-formatting-rules)
+- [H. Real-World Loop Bugs](#h-real-world-loop-bugs)
+- [I. Performance Analysis](#i-performance-analysis)
 
 ## A. Loop Sampling Methodology
 
@@ -124,7 +124,7 @@ Results outside these ranges aren't wrong—they may indicate different coding s
 
 **What this metric does NOT measure:**
 - Readability (dense code isn't always clearer)
-- Correctness (fewer lines doesn't mean fewer bugs—though see [[analysis#error-prevention|Error Prevention]] for how fluentfp eliminates certain bug classes)
+- Correctness (fewer lines doesn't mean fewer bugs—though see [Error Prevention](analysis.md#error-prevention) for how fluentfp eliminates certain bug classes)
 - Performance (no runtime implications)
 - Maintainability (though reduced boilerplate can help)
 
@@ -137,7 +137,7 @@ This is one lens among many. Use alongside other quality metrics, not as a sole 
 
 ## F. Code Metrics Tool (scc)
 
-The [[analysis#measuring-the-correlation|Measuring the Correlation]] section uses [scc](https://github.com/boyter/scc) (Sloc, Cloc and Code) for line counting and complexity measurement.
+The [Measuring the Correlation](analysis.md#measuring-the-correlation) section uses [scc](https://github.com/boyter/scc) (Sloc, Cloc and Code) for line counting and complexity measurement.
 
 **Why scc:**
 - Separates code lines from blanks and comments
@@ -162,7 +162,7 @@ scc's complexity is an approximation of [cyclomatic complexity](https://en.wikip
 Each occurrence increments the file's complexity counter. This is cheaper than building an AST but provides a reasonable approximation for comparing files in the same language.
 
 **Why complexity matters:**
-Higher complexity = more execution paths = more levers available to pull incorrectly. This is why the 95% complexity reduction matters—it's correctness by construction. See [[analysis#the-principle|The Principle]] for why eliminating control structures eliminates the bugs they enable.
+Higher complexity = more execution paths = more levers available to pull incorrectly. This is why the 95% complexity reduction matters—it's correctness by construction. See [The Principle](analysis.md#the-principle) for why eliminating control structures eliminates the bugs they enable.
 
 **Usage:**
 ```bash
@@ -275,7 +275,7 @@ These aren't junior developer mistakes. Off-by-one bugs made it into the Linux k
 
 ## I. Performance Analysis
 
-The [[analysis#performance-characteristics|Performance Characteristics]] section is based on static analysis of the fluentfp source code, not runtime benchmarks.
+The [Performance Characteristics](analysis.md#performance-characteristics) section is based on static analysis of the fluentfp source code, not runtime benchmarks.
 
 ### Source Code Evidence
 
