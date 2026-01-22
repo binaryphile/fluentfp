@@ -13,9 +13,9 @@ See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for 
 ```go
 import "github.com/binaryphile/fluentfp/option"
 
-// Create options
-found := option.Of("hello")           // ok option
-missing := option.NotOkString         // not-ok option (or NotOk[string]())
+// Create options (returns Basic[T])
+found := option.Of("hello")           // ok
+missing := option.NotOkString         // not-ok
 
 // Extract with defaults
 value := found.Or("default")          // "hello"
@@ -25,17 +25,6 @@ value := missing.Or("default")        // "default"
 if val, ok := found.Get(); ok {
     // use val
 }
-```
-
-## Types
-
-`Basic[T]` holds an optional value—either "ok" (has value) or "not-ok" (absent).
-
-Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[int]`, etc.
-
-```go
-found := option.Of("hello")       // Basic[string], ok
-missing := option.NotOkString     // Basic[string], not-ok
 ```
 
 ## API Reference
