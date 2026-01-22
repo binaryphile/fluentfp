@@ -50,7 +50,7 @@ func main() {
 	// commands source and dest do the same thing each with a different database: print the users
 	case "source":
 		app := OpenApp(OpenAppArgs{SourceData: sourceData})
-		defer app.Close()
+		defer app.Close() // closes only opened deps
 
 		client := app.SourceClientOption.MustGet()
 		users := client.ListUsers()
@@ -86,41 +86,25 @@ func main() {
 
 // ClientOption embeds a basic option and adds a conditional Close method.
 type ClientOption struct {
-	option.Basic[Client] // we just need the basic option and to add a Close method, shown after the factories below.
+	option.Basic[Client]
 }
 
-// NewClientOption is a factory that just accepts the embedded option field as an argument.
-// Having a simple factory like this that only accepts fields helps keep the consumer code readable.
-// It can also be used as an argument to higher-order functions,
-// whereas the literal form used to provide its return value cannot.
+// NewClientOption wraps a basic option in a ClientOption.
 func NewClientOption(basic option.Basic[Client]) ClientOption {
 	return ClientOption{
 		Basic: basic,
 	}
 }
 
-// OpenClientAsOption returns an ok ClientOption if users is provided (not empty).
-// This function handles everything so that you don't need to write code around it in OpenApp,
-// allowing the resulting ClientOption to be assigned straight to its field in the App struct.
-// This keeps the OpenApp code economical which is our goal,
-// because OpenApp is where complexity mushrooms as dependencies are added.
+// OpenClientAsOption returns ok ClientOption if users is non-empty.
 func OpenClientAsOption(users string) ClientOption {
 	usersOption := option.IfProvided(users)                  // ok if not empty
 	clientBasicOption := option.Map(usersOption, OpenClient) // option.Map accepts and returns basic options
 	return NewClientOption(clientBasicOption)                // convert the basic option to the advanced option
 }
 
-// Close conditionally closes the Client.
-// In our example, this method is the whole point of the advanced option.
-// It means the consumer doesn't need conditional statements,
-// it can simply call Close and get the proper behavior
-// based on whether the dependency was opened or not.
-// Having a method to do this rather than the consumer having to use option.Call directly
-// means the resulting code conforms to existing Go developer expectations
-// of how closing the dependency *should* look when they read the code.
+// Close closes the Client if ok.
 func (o ClientOption) Close() {
-	// option.Call applies the function argument to the contained value for its side effect
-	// if the option is ok
 	o.Call(Client.Close)
 }
 
