@@ -372,3 +372,19 @@ Added Example column to all 4 API tables in slice/README.md. Examples use method
 
 **Why it matters:**
 API tables now show immediate usage examples alongside signatures, making the documentation more actionable without requiring readers to scroll to Patterns sections for simple cases.
+
+---
+
+## Log: 2026-01-21 - Phase 3b: Expand Example Column to All Packages
+
+**What was done:**
+Extended Example column from slice pilot to all remaining packages: option (5 tables, 24 examples), either (3 tables, 12 examples), ternary (1 table, 5 examples), must (1 table, 5 examples). Total: 61 examples across 14 tables.
+
+**Key files changed:**
+- `option/README.md`: Constructors, Extraction, Filtering, Mapping, Side Effects tables
+- `either/README.md`: Constructors, Methods, Standalone Functions tables
+- `ternary/README.md`: API Reference table
+- `must/README.md`: API Reference table
+
+**Why it matters:**
+All API tables now show immediate usage examples, making documentation actionable without scrolling to Patterns sections.
