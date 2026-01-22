@@ -101,6 +101,7 @@ Single operations equal properly-written loops (both pre-allocate). In practice,
 | [must](must/) | Fallible funcs → HOF args | `Get`, `BeNil`, `Of` |
 | [ternary](ternary/) | Conditional expressions | `If().Then().Else()` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
+| [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
 
 ## Installation
 
