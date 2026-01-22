@@ -81,7 +81,8 @@ func main() {
 
 	fmt.Print("\ngithub.com/thoas/go-funk\n")
 	// === go-funk (4 lines) ===
-	// Requires type assertions (not type-safe). Can use lof.Println.
+	// Requires type assertions (not type-safe). Runtime overhead from boxing/unboxing.
+	// Can use lof.Println.
 	{
 		printActiveNames := func(users []User) []string {
 			actives := funk.Filter(users, User.IsActive).([]User)
@@ -94,7 +95,8 @@ func main() {
 
 	fmt.Print("\ngithub.com/ahmetb/go-linq/v3\n")
 	// === go-linq (22 lines) ===
-	// Query objects require any wrappers. Painful to get back to []string.
+	// Query objects require any wrappers. Runtime overhead from boxing/unboxing.
+	// Painful to get back to []string.
 	{
 		printActiveNames := func(users []User) []string {
 			userIsActive := func(user any) bool {
@@ -189,6 +191,7 @@ func main() {
 	fmt.Print("\ngithub.com/seborama/fuego/v12\n")
 	// === fuego (12 lines) ===
 	// Stream-based. Single-use (like Java). Map must return fuego.Any.
+	// Runtime overhead from boxing/unboxing.
 	{
 		printActiveNames := func(users []User) []string {
 			getName := func(u User) fuego.Any { return u.Name() }
@@ -209,7 +212,7 @@ func main() {
 
 	fmt.Print("\ngithub.com/rbrahul/gofp\n")
 	// === gofp (20 lines) ===
-	// Must convert input to []any first. Heavy type assertion overhead.
+	// Must convert input to []any first. Runtime overhead from boxing/unboxing.
 	{
 		printActiveNames := func(users []User) []string {
 			anyUsers := make([]any, len(users))
