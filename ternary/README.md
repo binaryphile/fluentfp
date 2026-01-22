@@ -16,7 +16,7 @@ return Gizmo{
 }
 ```
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/ternary) for complete API documentation.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/ternary) for complete API documentation. For function naming patterns, see [Naming Functions for Higher-Order Functions](../naming-in-hof.md).
 
 ## Quick Start
 
@@ -33,6 +33,17 @@ result := If(condition).Then(trueVal).Else(falseVal)
 // Lazy evaluation (short-circuit expensive calls)
 value := ternary.If[Config](useCache).Then(cached).ElseCall(loadFromDB)
 ```
+
+## Types
+
+`Ternary[R]` builds a conditional expression returning type R:
+
+```go
+If := ternary.If[string]
+status := If(done).Then("complete").Else("pending")  // string
+```
+
+Create with `If[R](condition)`, set values with `.Then()` and `.Else()`.
 
 ## API Reference
 
@@ -122,3 +133,7 @@ func NewGizmo(sprocket, thingy string) Gizmo {
 Most languages have single-line conditionals: C-style `condition ? a : b`, Python's `a if condition else b`, or functional `if-then-else` expressions. Go omitted them to prevent abuse.
 
 This package provides ternary expressions for cases where they improve readability—particularly struct literals with conditional fields. Traditional Go requires 4 lines per field (3 conditional + 1 assignment); ternary requires 1. A 12-field struct: 48+ lines vs 12.
+
+## See Also
+
+For optional values with defaults, see [option](../option/).

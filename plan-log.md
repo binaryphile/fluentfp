@@ -257,3 +257,69 @@ Rewrite 5 package READMEs (slice, option, either, must, ternary) to match the qu
 ## Token Budget
 
 Estimated: 30-40K tokens
+
+---
+
+## Archived: 2026-01-21
+
+# Phase 2 Contract: Address README Depth Gaps
+
+**Created:** 2026-01-21
+
+## Step 1 Checklist
+- [x] 1a: Presented understanding
+- [x] 1b: Asked clarifying questions
+- [x] 1b-answer: Received answers (shared guide approach, type explanations)
+- [x] 1c: Contract created (this file)
+- [x] 1d: Approval received
+- [x] 1e: Plan + contract archived
+
+## Objective
+
+Create shared naming guide and add type explanations to package READMEs.
+
+## Success Criteria
+
+- [x] All package READMEs explain their types with examples (6 lines each)
+- [x] Shared naming guide exists at `naming-in-hof.md` (~120 lines)
+- [x] Naming guide has examples for all packages (slice, option, either, must, ternary)
+- [x] Naming guide has 8 anti-patterns in "Taking It Too Far"
+- [x] All package READMEs link to shared guide
+- [x] All package READMEs have "See Also" cross-references
+- [x] slice/README.md is leaner (283 → 240 lines, -15%)
+- [x] Main README.md links to shared guide in Further Reading
+- [x] Method Expressions and Pipeline Formatting stay in slice
+
+## Actual Results
+
+**Completed:** 2026-01-21
+
+| File | Before | After | Changes |
+|------|--------|-------|---------|
+| `naming-in-hof.md` | (new) | 124 | Created shared naming guide |
+| `slice/README.md` | 283 | 240 | Added Types, removed naming section, added link, See Also (-15%) |
+| `option/README.md` | 184 | 185 | Added Types, link, See Also |
+| `either/README.md` | 143 | 156 | Added Types, link, See Also |
+| `ternary/README.md` | 124 | 139 | Added Types, link, See Also |
+| `must/README.md` | 135 | 141 | Added link, See Also |
+| `README.md` | 204 | 205 | Added link in Further Reading |
+
+## Approval
+✅ APPROVED BY USER - 2026-01-21
+Final grade: A (98/100)
+
+---
+
+## Log: 2026-01-21 - Phase 2: Address README Depth Gaps
+
+**What was done:**
+Created shared naming guide (`naming-in-hof.md`, 124 lines) for function naming patterns in HOF contexts. Added Types sections to 4 package READMEs explaining `Mapper[T]`, `Basic[T]`, `Either[L,R]`, and `Ternary[R]` before API tables. Added consistent "See Also" cross-references to all 5 packages creating a navigation network.
+
+**Key files changed:**
+- `naming-in-hof.md`: New shared guide with preference hierarchy, decision flowchart, naming patterns, 8 anti-patterns
+- `slice/README.md`: Added Types, removed naming section (now in shared guide), added See Also (283 → 240 lines, -15%)
+- `option/README.md`, `either/README.md`, `ternary/README.md`: Added Types sections with examples
+- All 5 package READMEs: Added links to naming guide and "See Also" cross-references
+
+**Why it matters:**
+Types are now explained before API tables, reducing reader confusion. Naming guidance is centralized and accessible from all packages. Cross-references help users discover related packages.

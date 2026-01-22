@@ -6,7 +6,7 @@ Eliminate loop bugs with type-safe collection operations. Method expressions mak
 actives := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
-See the [main README](../README.md) for when to use fluentfp and performance characteristics. See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation.
+See the [main README](../README.md) for when to use fluentfp and performance characteristics. See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation. For function naming patterns, see [Naming Functions for Higher-Order Functions](../naming-in-hof.md).
 
 ## Quick Start
 
@@ -25,6 +25,17 @@ users := slice.MapTo[User](emails).To(UserFromEmail)
 
 // Reduce
 total := slice.Fold(amounts, 0.0, sumFloat64)
+```
+
+## Types
+
+`Mapper[T]` wraps a slice for fluent operations. Create with `From()`, chain methods, use as a regular slice.
+
+`MapperTo[R,T]` adds `.To()` for mapping to arbitrary type R. Create with `MapTo[R]()`.
+
+```go
+users := slice.From(rawUsers)       // Mapper[User]
+names := users.ToString(User.Name)  // Mapper[string]
 ```
 
 ## API Reference
@@ -93,64 +104,6 @@ slice.From(users).KeepIf(User.IsActive)  // ✓
 func (u *User) IsActive() bool { return u.Active }
 slice.From(users).KeepIf(User.IsActive)  // ✗ type mismatch
 ```
-
-## Naming Functions in Chains
-
-### Preference Hierarchy
-
-1. **Method expressions** — `User.IsActive` (cleanest)
-2. **Named functions** — with leading comment
-3. **Inline lambdas** — trivial one-time use only
-
-### Decision Flowchart
-
-```
-Is there a method on the type?
-  YES → Method expression: User.IsActive
-  NO  → Has domain meaning?
-        YES → Named function + comment
-        NO  → Trivial?
-              YES → Inline lambda OK
-              NO  → Name it anyway
-```
-
-### Comment Format
-
-Start with function name, succinct sentence on return value:
-
-```go
-// completedAfterCutoff reports whether ticket was completed after cutoff.
-completedAfterCutoff := func(t Ticket) bool { return t.CompletedTick >= cutoff }
-
-// sumFloat64 adds two float64 values.
-sumFloat64 := func(acc, x float64) float64 { return acc + x }
-```
-
-### Naming Patterns
-
-**Predicates** (`func(T) bool`):
-
-| Pattern | Example |
-|---------|---------|
-| `Is[Condition]` | `IsValid`, `IsExpired` |
-| `[Subject][Verb]` | `TicketIsComplete` |
-| `Type.Method` | `User.IsActive` |
-
-**Reducers** (`func(R, T) R`):
-
-| Pattern | Example |
-|---------|---------|
-| `sum[Type]` | `sumFloat64` |
-| `max[Type]` | `maxDuration` |
-| `[verb][Subject]` | `accumulateRevenue` |
-
-### Taking It Too Far
-
-- Don't wrap `User.IsActive` — already named
-- 3-4 chain operations is fine — split for meaning, not length
-- Don't comment obvious folds like `sum`
-- Don't extract predicates for simple `if` statements — `if u.IsActive()` is clearer than `if isActive(u)`
-- Don't name single field access — `func(u User) string { return u.Name }` is fine inline
 
 ## Pipeline Formatting
 
@@ -281,3 +234,7 @@ Both panic if slices have different lengths.
 | rjNemo/underscore | ✅ | ✅ | ✅ | ❌ |
 
 **fluentfp vs lo:** `lo` passes indexes to all callbacks, requiring wrappers. Non-fluent style requires intermediate variables. See [examples/comparison/main.go](../examples/comparison/main.go).
+
+## See Also
+
+For zipping slices together, see [pair](../tuple/pair/).

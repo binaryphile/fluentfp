@@ -9,7 +9,7 @@ result := either.Fold(parsed,
 )
 ```
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/either) for complete API documentation.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/either) for complete API documentation. For function naming patterns, see [Naming Functions for Higher-Order Functions](../naming-in-hof.md).
 
 ## Quick Start
 
@@ -33,6 +33,15 @@ result := either.Fold(parsed,
     func(err string) int { return -1 },
     func(val int) int { return val * 2 },
 )
+```
+
+## Types
+
+`Either[L,R]` holds exactly one value—a Left of type L, or a Right of type R:
+
+```go
+success := either.Right[ParseError, Config](cfg)  // Either[ParseError, Config]
+failure := either.Left[ParseError, Config](err)   // Either[ParseError, Config]
 ```
 
 ## API Reference
@@ -141,3 +150,7 @@ type Handler struct {
 - **More than two variants** — Either is binary; use interface + types for 3+
 - **Simple boolean checks** — Don't use `Either[FalseReason, TrueReason]` for simple yes/no
 - **When Go idioms suffice** — If comma-ok or `(T, error)` is clear, don't over-engineer
+
+## See Also
+
+For simple absent values without failure info, see [option](../option/).

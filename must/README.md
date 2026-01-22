@@ -49,6 +49,8 @@ ints := slice.From(strings).ToInt(mustAtoi)
 
 This makes panic behavior visible at the call site.
 
+For more naming patterns, see [Naming Functions for Higher-Order Functions](../naming-in-hof.md).
+
 ## Recovering from Panics
 
 When using `must.Of` in pipelines, panics can be caught with defer/recover:
@@ -133,3 +135,7 @@ _ = must.Get(strconv.Atoi(configID))  // panics if invalid
 - **Library code** — Libraries should return errors, not panic
 - **Production request handlers** — One bad request shouldn't crash the server
 - **Expected failures** — Network timeouts, file not found, etc. are expected; handle them
+
+## See Also
+
+For typed error handling without panics, see [either](../either/).

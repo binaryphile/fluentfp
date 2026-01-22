@@ -6,7 +6,7 @@ Represent values that may be absent. Options enforce checking before use—nil p
 host := config.GetHost().Or("localhost")  // default if absent
 ```
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation. For the full discussion of nil safety, see [Nil Safety in Go](../nil-safety.md).
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation. For the full discussion of nil safety, see [Nil Safety in Go](../nil-safety.md). For function naming patterns, see [Naming Functions for Higher-Order Functions](../naming-in-hof.md).
 
 ## Quick Start
 
@@ -25,6 +25,17 @@ value := missing.Or("default")        // "default"
 if val, ok := found.Get(); ok {
     // use val
 }
+```
+
+## Types
+
+`Basic[T]` holds an optional value—either "ok" (has value) or "not-ok" (absent).
+
+Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[int]`, etc.
+
+```go
+found := option.Of("hello")       // Basic[string], ok
+missing := option.NotOk[string]() // Basic[string], not-ok
 ```
 
 ## API Reference
@@ -168,3 +179,7 @@ func (r Record) GetHost() option.String {
     return option.IfProvided(r.NullableHost.String)
 }
 ```
+
+## See Also
+
+For typed failure values instead of absent, see [either](../either/).
