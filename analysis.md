@@ -321,6 +321,8 @@ fluentfp uses eager evaluation—each operation materializes its result immediat
 
 **Rule of thumb:** Use fluentfp by default. For hot paths, profile first—single operations may be fine; multi-operation chains may need fusion.
 
+For benchmarks comparing fluentfp to other Go FP libraries (lo, go-funk, go-linq, underscore), see [[comparison#performance|Library Comparison § Performance]].
+
 ## Patterns in Practice
 
 ### Filter + Return
