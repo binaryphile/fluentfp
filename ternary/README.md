@@ -47,13 +47,13 @@ Create with `If[R](condition)`, set values with `.Then()` and `.Else()`.
 
 ## API Reference
 
-| Function/Method | Signature | Purpose |
-|-----------------|-----------|---------|
-| `If` | `If[R](bool) Ternary[R]` | Factory: create with condition |
-| `.Then` | `.Then(R) Ternary[R]` | Set value if true (eager) |
-| `.ThenCall` | `.ThenCall(func() R) Ternary[R]` | Set value if true (lazy) |
-| `.Else` | `.Else(R) R` | Return value if false (eager) |
-| `.ElseCall` | `.ElseCall(func() R) R` | Return value if false (lazy) |
+| Function/Method | Signature | Purpose | Example |
+|-----------------|-----------|---------|---------|
+| `If` | `If[R](bool) Ternary[R]` | Create with condition | `ternary.If[string](done)` |
+| `.Then` | `.Then(R) Ternary[R]` | Value if true (eager) | `.Then("yes")` |
+| `.ThenCall` | `.ThenCall(func() R) Ternary[R]` | Value if true (lazy) | `.ThenCall(compute)` |
+| `.Else` | `.Else(R) R` | Value if false (eager) | `.Else("no")` |
+| `.ElseCall` | `.ElseCall(func() R) R` | Value if false (lazy) | `.ElseCall(loadDefault)` |
 
 ## Eager vs Lazy Evaluation
 

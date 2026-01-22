@@ -48,29 +48,29 @@ failure := either.Left[ParseError, Config](err)   // Either[ParseError, Config]
 
 ### Constructors
 
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `Left` | `Left[L,R](L) Either[L,R]` | Create Left variant |
-| `Right` | `Right[L,R](R) Either[L,R]` | Create Right variant |
+| Function | Signature | Purpose | Example |
+|----------|-----------|---------|---------|
+| `Left` | `Left[L,R](L) Either[L,R]` | Create Left variant | `either.Left[Error, User](err)` |
+| `Right` | `Right[L,R](R) Either[L,R]` | Create Right variant | `either.Right[Error, User](user)` |
 
 ### Methods
 
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `.IsLeft` | `.IsLeft() bool` | Check if Left |
-| `.IsRight` | `.IsRight() bool` | Check if Right |
-| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) |
-| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) |
-| `.GetOrElse` | `.GetOrElse(R) R` | Right or default |
-| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default |
-| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right (right-biased) |
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `.IsLeft` | `.IsLeft() bool` | Check if Left | `if e.IsLeft()` |
+| `.IsRight` | `.IsRight() bool` | Check if Right | `if e.IsRight()` |
+| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) | `val, ok := e.Get()` |
+| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) | `err, ok := e.GetLeft()` |
+| `.GetOrElse` | `.GetOrElse(R) R` | Right or default | `e.GetOrElse(defaultUser)` |
+| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default | `e.LeftOrElse(defaultErr)` |
+| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right | `e.Map(User.Normalize)` |
 
 ### Standalone Functions
 
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `Fold` | `Fold[L,R,T](Either, func(L)T, func(R)T) T` | Pattern match both cases |
-| `Map` | `Map[L,R,R2](Either, func(R)R2) Either[L,R2]` | Transform to different type |
+| Function | Signature | Purpose | Example |
+|----------|-----------|---------|---------|
+| `Fold` | `Fold[L,R,T](Either, func(L)T, func(R)T) T` | Pattern match both | See [Exhaustive Handling](#exhaustive-handling) |
+| `Map` | `Map[L,R,R2](Either, func(R)R2) Either[L,R2]` | Transform to new type | `either.Map(e, User.Name)` |
 
 Note: `Fold` and `Map` are functions (not methods) due to Go's generics limitation—methods cannot introduce new type parameters.
 

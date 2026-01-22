@@ -42,53 +42,53 @@ missing := option.NotOk[string]() // Basic[string], not-ok
 
 ### Constructors
 
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `Of` | `Of[T](T) Basic[T]` | Create ok option |
-| `New` | `New[T](T, bool) Basic[T]` | Create from value + ok flag |
-| `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option |
-| `IfProvided` | `IfProvided[T comparable](T) Basic[T]` | Not-ok if zero value |
-| `IfNotZero` | `IfNotZero[T ZeroChecker](T) Basic[T]` | Not-ok if `t.IsZero()` |
-| `FromOpt` | `FromOpt[T](*T) Basic[T]` | From pointer (nil = not-ok) |
-| `Getenv` | `Getenv(string) String` | From env var (empty = not-ok) |
+| Function | Signature | Purpose | Example |
+|----------|-----------|---------|---------|
+| `Of` | `Of[T](T) Basic[T]` | Create ok option | `option.Of(user)` |
+| `New` | `New[T](T, bool) Basic[T]` | From value + ok flag | `option.New(val, ok)` |
+| `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOk[string]()` |
+| `IfProvided` | `IfProvided[T comparable](T) Basic[T]` | Not-ok if zero | `option.IfProvided(name)` |
+| `IfNotZero` | `IfNotZero[T ZeroChecker](T) Basic[T]` | Not-ok if IsZero() | `option.IfNotZero(time)` |
+| `FromOpt` | `FromOpt[T](*T) Basic[T]` | From pointer | `option.FromOpt(ptr)` |
+| `Getenv` | `Getenv(string) String` | From env var | `option.Getenv("PORT")` |
 
 ### Extraction Methods
 
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `.Get` | `.Get() (T, bool)` | Comma-ok unwrap |
-| `.IsOk` | `.IsOk() bool` | Check if ok |
-| `.MustGet` | `.MustGet() T` | Value or panic |
-| `.Or` | `.Or(T) T` | Value or default |
-| `.OrCall` | `.OrCall(func() T) T` | Value or lazy default |
-| `.OrZero` | `.OrZero() T` | Value or zero |
-| `.OrEmpty` | `.OrEmpty() T` | Alias for strings |
-| `.OrFalse` | `.OrFalse() bool` | For `option.Bool` |
-| `.ToOpt` | `.ToOpt() *T` | Convert to pointer |
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `.Get` | `.Get() (T, bool)` | Comma-ok unwrap | `val, ok := opt.Get()` |
+| `.IsOk` | `.IsOk() bool` | Check if ok | `if opt.IsOk()` |
+| `.MustGet` | `.MustGet() T` | Value or panic | `opt.MustGet()` |
+| `.Or` | `.Or(T) T` | Value or default | `opt.Or("default")` |
+| `.OrCall` | `.OrCall(func() T) T` | Lazy default | `opt.OrCall(loadDefault)` |
+| `.OrZero` | `.OrZero() T` | Value or zero | `opt.OrZero()` |
+| `.OrEmpty` | `.OrEmpty() T` | Alias for strings | `opt.OrEmpty()` |
+| `.OrFalse` | `.OrFalse() bool` | For option.Bool | `opt.OrFalse()` |
+| `.ToOpt` | `.ToOpt() *T` | Convert to pointer | `opt.ToOpt()` |
 
 ### Filtering Methods
 
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `.KeepOkIf` | `.KeepOkIf(func(T) bool) Basic[T]` | Not-ok if predicate false |
-| `.ToNotOkIf` | `.ToNotOkIf(func(T) bool) Basic[T]` | Not-ok if predicate true |
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `.KeepOkIf` | `.KeepOkIf(func(T) bool) Basic[T]` | Not-ok if false | `opt.KeepOkIf(User.IsActive)` |
+| `.ToNotOkIf` | `.ToNotOkIf(func(T) bool) Basic[T]` | Not-ok if true | `opt.ToNotOkIf(User.IsExpired)` |
 
 ### Mapping Methods
 
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `.ToSame` | `.ToSame(func(T) T) Basic[T]` | Transform, same type |
-| `.ToString` | `.ToString(func(T) string) String` | Transform to string |
-| `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int |
-| `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type (function, not method) |
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `.ToSame` | `.ToSame(func(T) T) Basic[T]` | Transform, same type | `opt.ToSame(User.Normalize)` |
+| `.ToString` | `.ToString(func(T) string) String` | Transform to string | `opt.ToString(User.Name)` |
+| `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int | `opt.ToInt(User.Age)` |
+| `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type | `option.Map(opt, User.Role)` |
 
 Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToRune`
 
 ### Side Effects
 
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `.Call` | `.Call(func(T))` | Execute if ok |
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `.Call` | `.Call(func(T))` | Execute if ok | `opt.Call(User.Save)` |
 
 ### Type Aliases
 

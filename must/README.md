@@ -30,13 +30,13 @@ ints := slice.From(strings).ToInt(mustAtoi)
 
 ## API Reference
 
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `Get` | `Get[T](t T, err error) T` | Return value or panic |
-| `Get2` | `Get2[T,T2](t T, t2 T2, err error) (T, T2)` | Two-value variant |
-| `BeNil` | `BeNil(err error)` | Panic if error non-nil |
-| `Getenv` | `Getenv(key string) string` | Env var or panic if empty |
-| `Of` | `Of[T,R](fn func(T)(R,error)) func(T)R` | Wrap fallible func for HOF use |
+| Function | Signature | Purpose | Example |
+|----------|-----------|---------|---------|
+| `Get` | `Get[T](t T, err error) T` | Value or panic | `must.Get(os.Open(path))` |
+| `Get2` | `Get2[T,T2](t T, t2 T2, err error) (T, T2)` | Two-value variant | `must.Get2(fn())` |
+| `BeNil` | `BeNil(err error)` | Panic if non-nil | `must.BeNil(db.Ping())` |
+| `Getenv` | `Getenv(key string) string` | Env var or panic | `must.Getenv("HOME")` |
+| `Of` | `Of[T,R](fn func(T)(R,error)) func(T)R` | Wrap for HOF use | `must.Of(strconv.Atoi)` |
 
 ## Naming Convention
 
