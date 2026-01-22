@@ -18,8 +18,8 @@ found := option.Of("hello")           // ok
 missing := option.NotOkString         // not-ok
 
 // Extract with defaults
-value := found.Or("default")          // "hello"
-value := missing.Or("default")        // "default"
+hello := found.Or("fallback")
+fallback := missing.Or("fallback")
 
 // Check and extract
 if val, ok := found.Get(); ok {
