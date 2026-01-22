@@ -6,6 +6,20 @@
 // Run: go run examples/comparison/main.go
 // See comparison.md for summary table and benchmarks.
 //
+// Quick reference (T=Type-safe, C=Concise, M=Method exprs, F=Fluent):
+//
+//	Library        Lines  T C M F
+//	fluentfp         5    ✓ ✓ ✓ ✓
+//	lo              13    ✓ . . .   index params prevent method exprs
+//	go-funk          4    . ✓ ✓ .   uses any, requires type assertions
+//	go-linq         22    . . . ✓   uses any, painful slice conversion
+//	underscore       4    ✓ ✓ ✓ .   best alternative
+//	fp-go            6    ✓ ✓ ✓ .   curried API, lacks Each
+//	go-functional    8    ✓ ✓ ✓ .   iterators are single-use
+//	fpGo             9    ✓ . ~ .   Filter needs index, Map doesn't
+//	fuego           12    . ✓ ~ ✓   streams are single-use, uses Any
+//	gofp            20    . . . .   must convert to []any first
+//
 // Note: lof.Println (wraps fmt.Println) is available to all libraries,
 // but only those accepting func(T) callbacks can use it directly.
 // Libraries requiring func(T, int) must write their own wrapper.
