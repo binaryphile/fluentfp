@@ -51,31 +51,31 @@ Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[i
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.Get` | `.Get() (T, bool)` | Comma-ok unwrap | `val, ok := opt.Get()` |
-| `.IsOk` | `.IsOk() bool` | Check if ok | `if opt.IsOk()` |
-| `.MustGet` | `.MustGet() T` | Value or panic | `opt.MustGet()` |
-| `.Or` | `.Or(T) T` | Value or default | `opt.Or("default")` |
-| `.OrCall` | `.OrCall(func() T) T` | Lazy default | `opt.OrCall(loadDefault)` |
-| `.OrZero` | `.OrZero() T` | Value or zero | `opt.OrZero()` |
-| `.OrEmpty` | `.OrEmpty() T` | Alias for strings | `opt.OrEmpty()` |
-| `.OrFalse` | `.OrFalse() bool` | For option.Bool | `opt.OrFalse()` |
-| `.ToOpt` | `.ToOpt() *T` | Convert to pointer | `opt.ToOpt()` |
+| `.Get` | `.Get() (T, bool)` | Comma-ok unwrap | `user, ok := option.FromOpt(ptr).Get()` |
+| `.IsOk` | `.IsOk() bool` | Check if ok | `if option.IfProvided(name).IsOk()` |
+| `.MustGet` | `.MustGet() T` | Value or panic | `user = option.Of(admin).MustGet()` |
+| `.Or` | `.Or(T) T` | Value or default | `port = option.Getenv("PORT").Or("8080")` |
+| `.OrCall` | `.OrCall(func() T) T` | Lazy default | `port = option.Getenv("PORT").OrCall(findPort)` |
+| `.OrZero` | `.OrZero() T` | Value or zero | `name = option.IfProvided(input).OrZero()` |
+| `.OrEmpty` | `.OrEmpty() T` | Alias for strings | `name = option.IfProvided(input).OrEmpty()` |
+| `.OrFalse` | `.OrFalse() bool` | For option.Bool | `enabled = option.New(flag, ok).OrFalse()` |
+| `.ToOpt` | `.ToOpt() *T` | Convert to pointer | `ptr = option.Of(user).ToOpt()` |
 
 ### Filtering Methods
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.KeepOkIf` | `.KeepOkIf(func(T) bool) Basic[T]` | Not-ok if false | `opt.KeepOkIf(User.IsActive)` |
-| `.ToNotOkIf` | `.ToNotOkIf(func(T) bool) Basic[T]` | Not-ok if true | `opt.ToNotOkIf(User.IsExpired)` |
+| `.KeepOkIf` | `.KeepOkIf(func(T) bool) Basic[T]` | Not-ok if false | `active = option.Of(user).KeepOkIf(User.IsActive)` |
+| `.ToNotOkIf` | `.ToNotOkIf(func(T) bool) Basic[T]` | Not-ok if true | `valid = option.Of(user).ToNotOkIf(User.IsExpired)` |
 
 ### Mapping Methods
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.ToSame` | `.ToSame(func(T) T) Basic[T]` | Transform, same type | `opt.ToSame(User.Normalize)` |
-| `.ToString` | `.ToString(func(T) string) String` | Transform to string | `opt.ToString(User.Name)` |
-| `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int | `opt.ToInt(User.Age)` |
-| `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type | `option.Map(opt, User.Role)` |
+| `.ToSame` | `.ToSame(func(T) T) Basic[T]` | Transform, same type | `normalized = option.Of(user).ToSame(User.Normalize)` |
+| `.ToString` | `.ToString(func(T) string) String` | Transform to string | `name = option.Of(user).ToString(User.Name)` |
+| `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int | `age = option.Of(user).ToInt(User.Age)` |
+| `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type | `role = option.Map(option.Of(user), User.Role)` |
 
 Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToRune`
 
@@ -83,7 +83,7 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToRune`
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.Call` | `.Call(func(T))` | Execute if ok | `opt.Call(User.Save)` |
+| `.Call` | `.Call(func(T))` | Execute if ok | `option.Of(user).Call(User.Save)` |
 
 ### Type Aliases
 
