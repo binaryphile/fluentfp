@@ -23,7 +23,8 @@ func StringLen(s string) int {
 // IfNotEmpty returns s and whether s is non-empty.
 // Converts "empty string = absent" returns to Go's comma-ok idiom.
 //
-//	if diff, ok := lof.IfNotEmpty(cmp.Diff(want, got)); ok {
+//	result := cmp.Diff(want, got)
+//	if diff, ok := lof.IfNotEmpty(result); ok {
 //	    t.Errorf("mismatch:\n%s", diff)
 //	}
 func IfNotEmpty(s string) (string, bool) {

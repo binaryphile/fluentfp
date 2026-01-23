@@ -38,14 +38,15 @@ pageCounts := slice.From(reports).ToInt(pageCount)
 | `Len` | `Len[T]([]T) int` | Wrap `len` for slices | `lengths = items.ToInt(lof.Len)` |
 | `StringLen` | `StringLen(string) int` | Wrap `len` for strings | `lens = names.ToInt(lof.StringLen)` |
 | `Println` | `Println(string)` | Wrap `fmt.Println` | `names.Each(lof.Println)` |
-| `IfNotEmpty` | `IfNotEmpty(string) (string, bool)` | Comma-ok for strings | `diff, ok := lof.IfNotEmpty(cmp.Diff(a, b))` |
+| `IfNotEmpty` | `IfNotEmpty(string) (string, bool)` | Comma-ok for strings | `diff, ok := lof.IfNotEmpty(result)` |
 
 ## IfNotEmpty: Comma-ok for Empty Strings
 
 Some functions use empty string as "absent" (e.g., `cmp.Diff` returns `""` when equal). `IfNotEmpty` converts this to Go's comma-ok idiom.
 
 ```go
-if diff, ok := lof.IfNotEmpty(cmp.Diff(want, got)); ok {
+result := cmp.Diff(want, got)
+if diff, ok := lof.IfNotEmpty(result); ok {
     t.Errorf("mismatch:\n%s", diff)
 }
 ```

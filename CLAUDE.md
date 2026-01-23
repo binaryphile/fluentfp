@@ -203,7 +203,8 @@ lof.IfNotEmpty(s string) (string, bool) // Comma-ok for "empty = absent" returns
 
 ```go
 // cmp.Diff returns "" when equal — convert to comma-ok
-if diff, ok := lof.IfNotEmpty(cmp.Diff(want, got)); ok {
+result := cmp.Diff(want, got)
+if diff, ok := lof.IfNotEmpty(result); ok {
     t.Errorf("mismatch:\n%s", diff)
 }
 ```
