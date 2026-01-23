@@ -20,42 +20,42 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestIfProvided(t *testing.T) {
+func TestIfNotZero(t *testing.T) {
 	t.Run("non-zero value returns ok option", func(t *testing.T) {
-		opt := IfProvided("hello")
+		opt := IfNotZero("hello")
 		if v, ok := opt.Get(); !ok || v != "hello" {
-			t.Errorf("IfProvided(\"hello\") = (%v, %v), want (\"hello\", true)", v, ok)
+			t.Errorf("IfNotZero(\"hello\") = (%v, %v), want (\"hello\", true)", v, ok)
 		}
 	})
 
 	t.Run("zero value returns not-ok option", func(t *testing.T) {
-		opt := IfProvided("")
+		opt := IfNotZero("")
 		if _, ok := opt.Get(); ok {
-			t.Error("IfProvided(\"\") should be not-ok")
+			t.Error("IfNotZero(\"\") should be not-ok")
 		}
 	})
 
 	t.Run("zero int returns not-ok option", func(t *testing.T) {
-		opt := IfProvided(0)
+		opt := IfNotZero(0)
 		if _, ok := opt.Get(); ok {
-			t.Error("IfProvided(0) should be not-ok")
+			t.Error("IfNotZero(0) should be not-ok")
 		}
 	})
 }
 
-func TestFromOpt(t *testing.T) {
+func TestIfNotNil(t *testing.T) {
 	t.Run("non-nil pointer returns ok option with dereferenced value", func(t *testing.T) {
 		val := 42
-		opt := FromOpt(&val)
+		opt := IfNotNil(&val)
 		if v, ok := opt.Get(); !ok || v != 42 {
-			t.Errorf("FromOpt(&42) = (%v, %v), want (42, true)", v, ok)
+			t.Errorf("IfNotNil(&42) = (%v, %v), want (42, true)", v, ok)
 		}
 	})
 
 	t.Run("nil pointer returns not-ok option", func(t *testing.T) {
-		opt := FromOpt[int](nil)
+		opt := IfNotNil[int](nil)
 		if _, ok := opt.Get(); ok {
-			t.Error("FromOpt(nil) should be not-ok")
+			t.Error("IfNotNil(nil) should be not-ok")
 		}
 	})
 }
@@ -220,44 +220,6 @@ func TestToNotOkIf(t *testing.T) {
 		result := opt.ToNotOkIf(isNegative)
 		if _, ok := result.Get(); ok {
 			t.Error("not-ok.ToNotOkIf() should stay not-ok")
-		}
-	})
-}
-
-// --- ZeroChecker Interface ---
-
-// testRegistry is a test type that implements ZeroChecker.
-type testRegistry struct {
-	instances map[string]int
-}
-
-func (r testRegistry) IsZero() bool { return r.instances == nil }
-
-// Compile-time interface constraint verification.
-var _ ZeroChecker = testRegistry{}
-
-func TestIfNotZero(t *testing.T) {
-	t.Run("non-zero value returns ok option", func(t *testing.T) {
-		reg := testRegistry{instances: make(map[string]int)}
-		opt := IfNotZero(reg)
-		if v, ok := opt.Get(); !ok || v.instances == nil {
-			t.Errorf("IfNotZero(non-zero) = (%v, %v), want ok option", v, ok)
-		}
-	})
-
-	t.Run("zero value returns not-ok option", func(t *testing.T) {
-		var reg testRegistry // zero value has nil map
-		opt := IfNotZero(reg)
-		if _, ok := opt.Get(); ok {
-			t.Error("IfNotZero(zero) should be not-ok")
-		}
-	})
-
-	t.Run("preserves value in ok option", func(t *testing.T) {
-		reg := testRegistry{instances: map[string]int{"a": 1}}
-		opt := IfNotZero(reg)
-		if v, ok := opt.Get(); !ok || v.instances["a"] != 1 {
-			t.Errorf("IfNotZero should preserve value, got instances[\"a\"] = %v", v.instances["a"])
 		}
 	})
 }

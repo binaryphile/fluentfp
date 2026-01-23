@@ -104,8 +104,8 @@ import "github.com/binaryphile/fluentfp/option"
 // Creating options
 option.Of(t T) Basic[T]                // Always ok
 option.New(t T, ok bool) Basic[T]      // Conditional ok
-option.IfProvided(t T) Basic[T]        // Ok if non-zero value
-option.FromOpt(ptr *T) Basic[T]        // From pointer (nil = not-ok)
+option.IfNotZero(t T) Basic[T]         // Ok if non-zero value
+option.IfNotNil(ptr *T) Basic[T]       // From pointer (nil = not-ok)
 
 // Using options
 .Get() (T, bool)                       // Comma-ok unwrap
@@ -124,7 +124,7 @@ option.String, option.Int, option.Bool, option.Error
 ```go
 // Nullable database field
 func (r Record) GetHost() option.String {
-    return option.IfProvided(r.NullableHost.String)
+    return option.IfNotZero(r.NullableHost.String)
 }
 
 // Tri-state boolean (true/false/unknown)
@@ -370,7 +370,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `slice.KeepIf`, `slice.RemoveIf` - conditional inclusion logic
 - `slice.TakeFirst` - boundary handling (`if n > len`)
 - `slice.Fold`, `slice.Unzip2/3/4` - accumulation and multi-output logic
-- `option.New`, `option.IfProvided`, `option.FromOpt` - conditional construction
+- `option.New`, `option.IfNotZero`, `option.IfNotNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
 - `option.KeepOkIf`, `option.ToNotOkIf` - double conditional (filter)
 - `ternary.Else`, `ternary.ElseCall` - 3 code paths each

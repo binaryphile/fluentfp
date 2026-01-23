@@ -44,12 +44,11 @@ Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[i
 | `Of` | `Of[T](T) Basic[T]` | Create ok option | `option.Of(user)` |
 | `New` | `New[T](T, bool) Basic[T]` | From value + ok flag | `option.New(val, ok)` |
 | `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOk[User]()` |
-| `IfProvided` | `IfProvided[T comparable](T) Basic[T]` | Not-ok if zero | `option.IfProvided(name)` |
-| `IfNotZero` | `IfNotZero[T ZeroChecker](T) Basic[T]` | Not-ok if IsZero() | `option.IfNotZero(time)` |
-| `FromOpt` | `FromOpt[T](*T) Basic[T]` | From pseudo-option | `option.FromOpt(userOpt)` |
+| `IfNotZero` | `IfNotZero[T comparable](T) Basic[T]` | Not-ok if zero | `option.IfNotZero(name)` |
+| `IfNotNil` | `IfNotNil[T](*T) Basic[T]` | Not-ok if nil | `option.IfNotNil(userPtr)` |
 | `Getenv` | `Getenv(string) String` | From env var | `option.Getenv("PORT")` |
 
-**Pseudo-options:** Go APIs sometimes use `*T` as a pseudo-option where `nil` means absent. The `Opt` suffix (e.g., `userOpt`) signals this convention. `FromOpt` converts these to formal options.
+**Pseudo-options:** Go APIs sometimes use `*T` (nil = absent) or zero values (empty = absent) as pseudo-options. `IfNotNil` and `IfNotZero` convert these to formal options.
 
 ### Extraction Methods
 
@@ -105,27 +104,13 @@ opt := option.Of("hello")
 opt := option.New(value, ok)
 
 // From comparable (not-ok if zero)
-opt := option.IfProvided(maybeEmpty)
+opt := option.IfNotZero(maybeEmpty)
 
 // From pointer (not-ok if nil)
-opt := option.FromOpt(ptr)
+opt := option.IfNotNil(ptr)
 
 // From environment
 port := option.Getenv("PORT").Or("8080")
-```
-
-### Non-Comparable Types
-
-For types containing slices, maps, or funcs, implement `ZeroChecker`:
-
-```go
-type Registry struct {
-    instances map[string]Instance
-}
-
-func (r Registry) IsZero() bool { return r.instances == nil }
-
-opt := option.IfNotZero(registry)  // not-ok if IsZero() returns true
 ```
 
 ## Using Options
@@ -175,7 +160,7 @@ connected := result.IsConnected.OrFalse()  // unknown → false
 
 ```go
 func (r Record) GetHost() option.String {
-    return option.IfProvided(r.NullableHost.String)
+    return option.IfNotZero(r.NullableHost.String)
 }
 ```
 

@@ -79,15 +79,15 @@ func main() {
 	// the next examples show how to create options
 
 	fortyTwoOption := option.Of(42)        // Of creates an ok option from a value
-	notOkIntOption := option.IfProvided(0) // IfProvided creates an ok option if the value is not the zero value for the type
+	notOkIntOption := option.IfNotZero(0) // IfNotZero creates an ok option if the value is not the zero value for the type
 
 	// there are pre-declared option types for the built-in types
 	notOkStringOption := option.String{}   // the zero value is not-ok because the ok field's zero value is false
 	notOkStringOption = option.NotOkString // but there are more readable package variables to create not-oks
 
 	// Sometimes in Go you encounter a pointer being used as a pseudo-option where nil means not-ok.
-	// The FromOpt method creates a formal option of the pointed-to value.
-	postsOption := option.FromOpt(&posts) // this gives the same result as option.Of(posts)
+	// The IfNotNil function creates a formal option of the pointed-to value.
+	postsOption := option.IfNotNil(&posts) // this gives the same result as option.Of(posts)
 	pseudoOption := postsOption.ToOpt()   // the ToOpt method gets the pointer pseudo-option back
 
 	// New dynamically creates an option when you have a value and an ok bool

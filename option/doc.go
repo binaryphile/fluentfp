@@ -20,14 +20,12 @@ func _() {
 	type _ = Rune
 	type _ = String
 
-	_ = FromOpt[int]
 	_ = Getenv("")
-	_ = IfProvided[int]
+	_ = IfNotNil[int]
+	_ = IfNotZero[int]
 	_ = Map(Basic[int]{}, func(int) int { return 0 })
 	_ = New[int]
 	_ = Of[int]
-
-	// ZeroChecker and IfNotZero verified via option_test.go
 
 	_ = NotOkAny
 	_ = NotOkBool

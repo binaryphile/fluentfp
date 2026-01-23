@@ -8,8 +8,8 @@ type Basic[T any] struct {
 
 // factories
 
-// IfProvided returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
-func IfProvided[T comparable](t T) (_ Basic[T]) {
+// IfNotZero returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
+func IfNotZero[T comparable](t T) (_ Basic[T]) {
 	var zero T
 	if t == zero {
 		return
@@ -35,33 +35,14 @@ func Of[T any](t T) Basic[T] {
 	}
 }
 
-// FromOpt returns an ok option of *what t points at* provided that t is not nil, or not-ok otherwise.
-// It is useful to convert a pseudo-option based on pointers into a formal option.
-// By convention, in consuming code, we suffix a pseudo-option's variable name with an "Opt" suffix to clarify intent,
-// hence "FromOpt".
-func FromOpt[T any](t *T) (_ Basic[T]) {
+// IfNotNil returns an ok option of *what t points at* provided that t is not nil, or not-ok otherwise.
+// It converts a pointer-based pseudo-option (where nil means absent) into a formal option.
+func IfNotNil[T any](t *T) (_ Basic[T]) {
 	if t == nil {
 		return
 	}
 
 	return Of(*t)
-}
-
-// ZeroChecker is implemented by types that can report whether they are their zero value.
-// This enables IfNotZero to work with non-comparable types (structs with slices, maps, or funcs).
-type ZeroChecker interface {
-	IsZero() bool
-}
-
-// IfNotZero returns an ok option of t provided that t.IsZero() returns false, or not-ok otherwise.
-// It is the complement to IfProvided for non-comparable types.
-// Use this when a type has fields that prevent it from being comparable (slices, maps, funcs).
-func IfNotZero[T ZeroChecker](t T) (_ Basic[T]) {
-	if t.IsZero() {
-		return
-	}
-
-	return Of(t)
 }
 
 // methods
