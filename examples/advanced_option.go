@@ -4,9 +4,11 @@ package main
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/binaryphile/fluentfp/lof"
 	"github.com/binaryphile/fluentfp/option"
 	"github.com/google/go-cmp/cmp"
-	"os"
 )
 
 // === ADVANCED OPTIONS ===
@@ -71,12 +73,13 @@ func main() {
 		destClient := app.DestClientOption.MustGet()
 		sourceUsers := sourceClient.ListUsers()
 		destUsers := destClient.ListUsers()
-		diff := cmp.Diff(sourceUsers, destUsers)
-		switch diff {
-		case "":
+
+		// cmp.Diff returns "" when equal — use IfNotEmpty for comma-ok
+		// (IfNotEmpty2 can't wrap cmp.Diff due to its variadic opts parameter)
+		if diff, hasDiff := lof.IfNotEmpty(cmp.Diff(sourceUsers, destUsers)); hasDiff {
+			fmt.Print("data sources are NOT in sync:\n", diff, "\n")
+		} else {
 			fmt.Println("data sources are in sync")
-		default:
-			fmt.Print("data source are NOT in sync:\n", diff, "\n")
 		}
 	}
 }

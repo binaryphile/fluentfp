@@ -1,6 +1,6 @@
 # lof: lower-order function wrappers
 
-Wrap Go builtins for use with higher-order functions. When `len` or `fmt.Println` don't match the signature a HOF expects, lof provides compatible wrappers.
+Utility functions for functional programming. Wraps Go builtins for HOF use, plus helpers for common patterns.
 
 A **lower-order function** is the flip side of a higher-order function—the function being passed, not the one receiving it.
 
@@ -38,6 +38,17 @@ pageCounts := slice.From(reports).ToInt(pageCount)
 | `Len` | `Len[T]([]T) int` | Wrap `len` for slices | `lengths = items.ToInt(lof.Len)` |
 | `StringLen` | `StringLen(string) int` | Wrap `len` for strings | `lens = names.ToInt(lof.StringLen)` |
 | `Println` | `Println(string)` | Wrap `fmt.Println` | `names.Each(lof.Println)` |
+| `IfNotEmpty` | `IfNotEmpty(string) (string, bool)` | Comma-ok for strings | `diff, ok := lof.IfNotEmpty(cmp.Diff(a, b))` |
+
+## IfNotEmpty: Comma-ok for Empty Strings
+
+Some functions use empty string as "absent" (e.g., `cmp.Diff` returns `""` when equal). `IfNotEmpty` converts this to Go's comma-ok idiom.
+
+```go
+if diff, ok := lof.IfNotEmpty(cmp.Diff(want, got)); ok {
+    t.Errorf("mismatch:\n%s", diff)
+}
+```
 
 ## When NOT to Use lof
 

@@ -195,6 +195,17 @@ import "github.com/binaryphile/fluentfp/lof"
 
 lof.Println(s string)      // Wraps fmt.Println for Each
 lof.Len(ts []T) int        // Wraps len
+lof.StringLen(s string) int // Wraps len for strings
+lof.IfNotEmpty(s string) (string, bool) // Comma-ok for "empty = absent" returns
+```
+
+### lof.IfNotEmpty Pattern
+
+```go
+// cmp.Diff returns "" when equal — convert to comma-ok
+if diff, ok := lof.IfNotEmpty(cmp.Diff(want, got)); ok {
+    t.Errorf("mismatch:\n%s", diff)
+}
 ```
 
 ### pair Package (Tuples)
