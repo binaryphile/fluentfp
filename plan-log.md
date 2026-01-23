@@ -1049,3 +1049,116 @@ Reduced `examples/advanced_option.go` from 287 to 178 lines (38%) while preservi
 
 **Why it matters:**
 Makes the advanced option pattern easier to scan and understand without walls of text before the code.
+
+---
+
+## Approved Plan: 2026-01-23
+
+# Plan: Create lof README and README Writing Guide
+
+## Goal
+1. Create `lof/README.md` following established patterns
+2. Create `guides/readme-writing-guide.md` capturing lessons learned from README work
+3. Add lof to main README packages table
+
+## Deliverables
+
+### 1. lof/README.md (~40 lines)
+
+- Title + tagline
+- Quick example
+- Quick Start with realistic domain example (Report.Pages)
+- API Reference table
+- When NOT to Use
+- See Also
+
+### 2. guides/readme-writing-guide.md (~80 lines)
+
+8 sections: Common Structure, API Table Format, Variable Naming, Tone, Scaling by Package Size, Canonical Examples, When to Use fluentfp (links to FP guide), Related Docs
+
+### 3. Updates to existing files
+
+- Verify main README lof entry
+- Add guide link to CLAUDE.md
+- Add "See Also" link to naming-in-hof.md
+
+## Compliance Notes
+- lof example must use named function per FP guide §13
+- Guide section 7 must reference FP guide's "When to Use fluentfp vs Raw Loops"
+
+---
+
+## Approved Contract: 2026-01-23
+
+# Phase 1 Contract: lof README and README Writing Guide
+
+**Created:** 2026-01-23
+
+## Objective
+Create missing lof package documentation and capture README writing lessons in a reusable guide.
+
+## Success Criteria
+- [ ] `lof/README.md` created (~40 lines) following established patterns
+- [ ] `guides/readme-writing-guide.md` created (~80 lines) with 8 sections
+- [ ] Main `README.md` verified for lof entry consistency
+- [ ] `CLAUDE.md` updated with link to new guide
+- [ ] `naming-in-hof.md` updated with "See Also" link
+
+## Approach
+1. Create `guides/` directory
+2. Write `lof/README.md` with realistic domain example (Report.Pages)
+3. Write `guides/readme-writing-guide.md` with 8 sections including FP guide reference
+4. Verify/update main README lof entry
+5. Add guide link to CLAUDE.md
+6. Add "See Also" link to naming-in-hof.md
+
+---
+
+## Archived: 2026-01-23
+
+# Phase 1 Contract: lof README and README Writing Guide
+
+**Created:** 2026-01-23
+
+## Objective
+Create missing lof package documentation and capture README writing lessons in a reusable guide.
+
+## Success Criteria
+- [x] `lof/README.md` created (~40 lines) following established patterns
+- [x] `guides/readme-writing-guide.md` created (~80 lines) with 7 sections
+- [x] Main `README.md` verified for lof entry consistency
+- [x] `CLAUDE.md` updated with link to new guide
+- [N/A] `naming-in-hof.md` updated with "See Also" link — user declined
+
+## Actual Results
+
+**Completed:** 2026-01-23
+
+| File | Lines | Notes |
+|------|-------|-------|
+| `lof/README.md` | 43 | Title, Quick Start with named function, API table, When NOT, See Also |
+| `guides/readme-writing-guide.md` | 78 | 7 sections, fully package-independent |
+| `CLAUDE.md` | +1 | Added "See also" link after Reducer Naming section |
+
+**Compliance verified:**
+- lof example uses named function `pageCount` (not inline lambda)
+- Guide is package-independent, reusable across projects
+
+## Approval
+✅ APPROVED BY USER - 2026-01-23
+Final grade: A (98/100)
+
+---
+
+## Log: 2026-01-23 - lof README and README Writing Guide
+
+**What was done:**
+Created `lof/README.md` (43 lines) documenting the lower-order function wrapper package, and `guides/readme-writing-guide.md` (78 lines) capturing README writing patterns in a package-independent format.
+
+**Key files changed:**
+- `lof/README.md`: New file with API table, Quick Start, When NOT to Use
+- `guides/readme-writing-guide.md`: New file with 7 sections on documentation patterns
+- `CLAUDE.md`: Added link to new guide after Reducer Naming section
+
+**Why it matters:**
+lof package now has documentation consistent with other fluentfp packages. The writing guide can be reused across any Go project to maintain documentation quality.
