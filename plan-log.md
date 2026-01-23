@@ -1786,3 +1786,104 @@ Fixed minor issues in must.go (universal file path, commented panic demo) and te
 
 **Why it matters:**
 Both examples now run without errors and teach their concepts without opinionated digressions.
+
+---
+
+## Approved Plan: 2026-01-23
+
+# Plan: Apply Naming Conventions to basic_option.go
+
+## Goal
+Apply the readme writing guide's variable naming conventions to make basic_option.go more readable.
+
+## Key Convention
+From readme-writing-guide.md Section 3:
+- Wrapper types: suffix with type name (`httpClient`, `dbConn`)
+- Results should match variable names: `name := user.Name()`
+
+For options: suffix with `Option` to clearly distinguish option variables from extracted values.
+
+## Changes
+
+| Line | Current | New | Reason |
+|------|---------|-----|--------|
+| 19 | `age := option.Of(42)` | `ageOption := option.Of(42)` | Option wrapper needs suffix |
+| 24 | `userOpt := option.New(...)` | `userOption := option.New(...)` | Consistent suffix |
+| 28 | `zeroCount := option.IfNotZero(0)` | `zeroCountOption := option.IfNotZero(0)` | Keep context + suffix |
+| 32 | `emptyName := option.IfNotEmpty("")` | `emptyNameOption := option.IfNotEmpty("")` | Keep context + suffix |
+| 33 | `realName := option.IfNotEmpty("Bob")` | `realNameOption := option.IfNotEmpty("Bob")` | Keep context + suffix |
+| 38 | `fromNil := option.IfNotNil(nilPtr)` | `nilIntOption := option.IfNotNil(nilPtr)` | Clarify nil source |
+| 75 | `doubled := age.Convert(doubleInt)` | `doubledOption := ageOption.Convert(...)` | Option wrapper needs suffix |
+| 79 | `ageStr := age.ToString(...)` | `ageStrOption := ageOption.ToString(...)` | Option wrapper needs suffix |
+| 85 | `userFromAge := option.Map(...)` | `userFromAgeOption := option.Map(...)` | Keep context + suffix |
+| 100 | `adult := age.KeepOkIf(...)` | `adultOption := ageOption.KeepOkIf(...)` | Option wrapper needs suffix |
+| 104 | `notAdult := age.ToNotOkIf(...)` | `notAdultOption := ageOption.ToNotOkIf(...)` | Option wrapper needs suffix |
+
+---
+
+## Approved Contract: 2026-01-23
+
+# Phase 1 Contract: Apply Naming Conventions to basic_option.go
+
+**Created:** 2026-01-23
+
+## Objective
+Apply readme-writing-guide.md naming conventions to basic_option.go to make examples more readable.
+
+## Success Criteria
+- [ ] All option-typed variables have `Option` suffix
+- [ ] Semantic context preserved in wrapper names
+- [ ] Extracted values named to match what they represent
+- [ ] Print statements match variable names
+- [ ] File compiles (`go build`)
+
+## Deliverables
+- `examples/basic_option.go` — updated with naming conventions
+- `guides/readme-writing-guide.md` — already updated with discovered patterns
+
+---
+
+## Archived: 2026-01-23
+
+# Phase 1 Contract: Apply Naming Conventions to basic_option.go
+
+**Created:** 2026-01-23
+
+## Objective
+Apply readme-writing-guide.md naming conventions to basic_option.go to make examples more readable.
+
+## Success Criteria
+- [x] All option-typed variables have `Option` suffix
+- [x] Semantic context preserved in wrapper names
+- [x] Extracted values named to match what they represent
+- [x] Print statements match variable names
+- [x] File compiles (`go build`)
+
+## Actual Results
+
+**Completed:** 2026-01-23
+
+| Category | Count | Examples |
+|----------|-------|----------|
+| Option variables renamed | 11 | `age` → `ageOption`, `userOpt` → `userOption` |
+| Method call sites updated | 2 | `age.Call()` → `ageOption.Call()` |
+| Extracted values renamed | 4 | `value` → `age`, `lazy` → `lazyName` |
+| Print statements updated | 11 | `"age.IsOk():"` → `"ageOption.IsOk():"` |
+
+## Approval
+✅ APPROVED BY USER - 2026-01-23
+Final grade: A+ (99/100)
+
+---
+
+## Log: 2026-01-23 - Apply Naming Conventions to basic_option.go
+
+**What was done:**
+Applied readme-writing-guide.md naming conventions to basic_option.go. Renamed 11 option variables with `Option` suffix, updated 4 extracted values to match what they represent, and updated 11 print statements. Also updated guides/readme-writing-guide.md Section 3 with the discovered patterns (ok-state vs not-ok-state naming, wrapper vs extracted value distinction).
+
+**Key files changed:**
+- `examples/basic_option.go`: Naming conventions applied (e.g., `age` → `ageOption`, `value` → `age`)
+- `guides/readme-writing-guide.md`: Section 3 expanded with option naming patterns
+
+**Why it matters:**
+Examples now clearly distinguish option wrappers from extracted values, making the code more readable and teachable. The patterns are documented in the writing guide for reuse.

@@ -16,27 +16,27 @@ func main() {
 	// === Creating Options ===
 
 	// Of creates an ok option from a value
-	age := option.Of(42)
-	fmt.Println("age.IsOk():", age.IsOk()) // true
+	ageOption := option.Of(42)
+	fmt.Println("ageOption.IsOk():", ageOption.IsOk()) // true
 
 	// New creates an option conditionally based on a bool
 	user := User{Name: "Alice", Age: 30}
-	userOpt := option.New(user, user.IsValid())
-	fmt.Println("userOpt.IsOk():", userOpt.IsOk()) // true
+	userOption := option.New(user, user.IsValid())
+	fmt.Println("userOption.IsOk():", userOption.IsOk()) // true
 
 	// IfNotZero creates an ok option only if the value is not the zero value ("", 0, false, etc.)
-	zeroCount := option.IfNotZero(0)
-	fmt.Println("zeroCount.IsOk():", zeroCount.IsOk()) // false
+	zeroCountOption := option.IfNotZero(0)
+	fmt.Println("zeroCountOption.IsOk():", zeroCountOption.IsOk()) // false
 
 	// IfNotEmpty is a readable alias for IfNotZero with strings
-	emptyName := option.IfNotEmpty("")
-	realName := option.IfNotEmpty("Bob")
-	fmt.Println("realName.IsOk():", realName.IsOk()) // true
+	emptyNameOption := option.IfNotEmpty("")
+	realNameOption := option.IfNotEmpty("Bob")
+	fmt.Println("realNameOption.IsOk():", realNameOption.IsOk()) // true
 
 	// IfNotNil converts pointer-based pseudo-options (nil = absent)
 	var nilPtr *int
-	fromNil := option.IfNotNil(nilPtr)
-	fmt.Println("fromNil.IsOk():", fromNil.IsOk()) // false
+	nilIntOption := option.IfNotNil(nilPtr)
+	fmt.Println("nilIntOption.IsOk():", nilIntOption.IsOk()) // false
 
 	// Pre-declared not-ok values for built-ins
 	notOkString, notOkBool := option.NotOkString, option.NotOkBool
@@ -45,45 +45,45 @@ func main() {
 	// === Extracting Values ===
 
 	// Get uses Go's comma-ok pattern
-	if name, ok := realName.Get(); ok {
+	if name, ok := realNameOption.Get(); ok {
 		fmt.Println("Got name:", name)
 	}
 
 	// Or provides a default if not-ok
-	name := emptyName.Or("default")
-	fmt.Println("name with default:", name) // "default"
+	name := emptyNameOption.Or("default")
+	fmt.Println("name:", name) // "default"
 
 	// OrZero returns the zero value if not-ok (OrFalse for bools)
-	fmt.Println("zero value:", emptyName.OrZero())            // ""
-	fmt.Println("false value:", notOkBool.OrFalse()) // false
+	fmt.Println("zero value:", emptyNameOption.OrZero())      // ""
+	fmt.Println("false value:", notOkBool.OrFalse())          // false
 
 	// MustGet panics if not-ok — use when you know it's ok
-	value := age.MustGet()
-	fmt.Println("must get age:", value) // 42
+	age := ageOption.MustGet()
+	fmt.Println("ageOption.MustGet():", age) // 42
 
 	// OrCall computes the default lazily
 	// expensiveDefault simulates an expensive computation.
 	expensiveDefault := func() string { return "computed" }
-	lazy := emptyName.OrCall(expensiveDefault)
-	fmt.Println("lazy default:", lazy) // "computed"
+	lazyName := emptyNameOption.OrCall(expensiveDefault)
+	fmt.Println("lazyName:", lazyName) // "computed"
 
 	// === Transforming ===
 
 	// Convert maps to the same type
 	// doubleInt doubles an integer.
 	doubleInt := func(i int) int { return i * 2 }
-	doubled := age.Convert(doubleInt)
-	fmt.Println("doubled:", doubled.OrZero()) // 84
+	doubledOption := ageOption.Convert(doubleInt)
+	fmt.Println("doubledOption.OrZero():", doubledOption.OrZero()) // 84
 
 	// ToString maps to string
-	ageStr := age.ToString(strconv.Itoa)
-	fmt.Println("age as string:", ageStr.OrEmpty()) // "42"
+	ageStrOption := ageOption.ToString(strconv.Itoa)
+	fmt.Println("ageStrOption.OrEmpty():", ageStrOption.OrEmpty()) // "42"
 
 	// option.Map maps to any type
 	// ageToUser creates a User with the given age.
 	ageToUser := func(a int) User { return User{Name: "Unknown", Age: a} }
-	userFromAge := option.Map(age, ageToUser)
-	if u, ok := userFromAge.Get(); ok {
+	userFromAgeOption := option.Map(ageOption, ageToUser)
+	if u, ok := userFromAgeOption.Get(); ok {
 		fmt.Println("user from age:", u.Name, u.Age)
 	}
 
@@ -92,20 +92,20 @@ func main() {
 	// Call executes a function only if ok
 	// printAge prints the age value.
 	printAge := func(a int) { fmt.Println("called with age:", a) }
-	age.Call(printAge)
+	ageOption.Call(printAge)
 
 	// KeepOkIf keeps ok only if predicate passes
 	// isAdult reports whether age is 18 or older.
 	isAdult := func(a int) bool { return a >= 18 }
-	adult := age.KeepOkIf(isAdult)
-	fmt.Println("adult.IsOk():", adult.IsOk()) // true
+	adultOption := ageOption.KeepOkIf(isAdult)
+	fmt.Println("adultOption.IsOk():", adultOption.IsOk()) // true
 
 	// ToNotOkIf makes not-ok if predicate passes
-	notAdult := age.ToNotOkIf(isAdult)
-	fmt.Println("notAdult.IsOk():", notAdult.IsOk()) // false
+	notAdultOption := ageOption.ToNotOkIf(isAdult)
+	fmt.Println("notAdultOption.IsOk():", notAdultOption.IsOk()) // false
 
 	// ToOpt converts back to pointer (inverse of IfNotNil)
-	fmt.Println("ptr value:", *age.ToOpt()) // 42
+	fmt.Println("ptr value:", *ageOption.ToOpt()) // 42
 }
 
 // User represents a simple user with a name and age.
