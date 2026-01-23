@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/binaryphile/fluentfp/lof"
+	"github.com/binaryphile/fluentfp/must"
 	"github.com/binaryphile/fluentfp/slice"
 	"github.com/binaryphile/fluentfp/tuple/pair"
 )
@@ -30,7 +31,7 @@ import (
 // main retrieves a list of posts from the JSONPlaceholder API and prints various details about them.
 func main() {
 	// get some posts from the REST endpoint
-	resp, _ := http.Get("https://jsonplaceholder.typicode.com/posts")
+	resp := must.Get(http.Get("https://jsonplaceholder.typicode.com/posts"))
 
 	// A fluent slice is a named type with an underlying type of slice,
 	// so it usable in all the same ways as slice.

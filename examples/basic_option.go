@@ -5,9 +5,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/binaryphile/fluentfp/option"
 	"net/http"
 	"strconv"
+
+	"github.com/binaryphile/fluentfp/must"
+	"github.com/binaryphile/fluentfp/option"
 )
 
 // This is a usage example for option.Basic.
@@ -28,7 +30,7 @@ func main() {
 	getPosts := func(ids ...int) []Post {
 		posts := make([]Post, len(ids))
 		for i, id := range ids {
-			resp, _ := http.Get(fmt.Sprintf("https://jsonplaceholder.typicode.com/posts/%d", id))
+			resp := must.Get(http.Get(fmt.Sprintf("https://jsonplaceholder.typicode.com/posts/%d", id)))
 
 			// Decode the response into a post.
 			// This may error on individual requests, in which case,
@@ -104,6 +106,7 @@ func main() {
 	False := option.NotOkBool.OrFalse()
 
 	// if the alternative value for Or requires computation, there is OrCall
+	// returnZero returns 0.
 	returnZero := func() int {
 		return 0
 	}
@@ -117,6 +120,7 @@ func main() {
 	// Convert is a map implementation that returns the result of applying a function to the option's value,
 	// provided that the option is ok, or not-ok otherwise.
 	// For Convert, the function returns the same type as the value.
+	// doubleInt doubles an integer.
 	doubleInt := func(i int) int {
 		return 2 * i
 	}
@@ -127,6 +131,7 @@ func main() {
 
 	// But there's no method for map to a named type.
 	// Use option.Map instead, it is the generic map function.
+	// IntToPost creates a Post from an integer ID.
 	IntToPost := func(i int) Post {
 		return Post{
 			id:    i,

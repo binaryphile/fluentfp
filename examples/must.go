@@ -28,10 +28,12 @@ func main() {
 	fmt.Println("closed file")
 
 	// consume fallible functions like http.Get and stringFromResponseBody using must.Of
+	// urlFromID builds a JSONPlaceholder URL for the given post ID.
 	urlFromID := func(id int) string {
 		return fmt.Sprintf("http://jsonplaceholder.typicode.com/posts/%d", id)
 	}
 
+	// stringFromResponseBody reads and returns the response body as a string.
 	stringFromResponseBody := func(resp *http.Response) (_ string, err error) {
 		defer resp.Body.Close()
 

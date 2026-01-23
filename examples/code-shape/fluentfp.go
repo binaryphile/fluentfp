@@ -35,6 +35,7 @@ func countAdmins(users []User) int {
 
 // 4. Average age (5 lines)
 func averageAge(users []User) float64 {
+	// sumInt adds two integers.
 	sumInt := func(a, b int) int { return a + b }
 	sum := slice.Fold(slice.From(users).ToInt(User.GetAge), 0, sumInt)
 	return float64(sum) / float64(len(users))

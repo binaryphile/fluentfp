@@ -196,20 +196,6 @@ leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
 )
 ```
 
-### Zip (pair package)
-
-```go
-import "github.com/binaryphile/fluentfp/tuple/pair"
-
-pairs := pair.Zip(names, scores)
-// []pair.X[string, int]{{V1: "Alice", V2: 95}, ...}
-
-results := pair.ZipWith(names, scores, formatScore)
-// []string{"Alice: 95", ...}
-```
-
-Both panic if slices have different lengths.
-
 ## When NOT to Use slice
 
 - **Early exit needed** — `KeepIf` iterates entire slice; use loop with `break` for first match

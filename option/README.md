@@ -127,11 +127,13 @@ val := opt.OrCall(expensiveDefault)
 val := opt.OrZero()
 
 // Transform
-length := opt.ToInt(func(s string) int { return len(s) })
+length := opt.ToInt(lof.StringLen)
 upper := option.Map(opt, strings.ToUpper)
 
 // Filter
-nonEmpty := opt.KeepOkIf(func(s string) bool { return s != "" })
+// isNonEmpty reports whether s is not empty.
+isNonEmpty := func(s string) bool { return s != "" }
+nonEmpty := opt.KeepOkIf(isNonEmpty)
 
 // Side effect
 opt.Call(fmt.Println)

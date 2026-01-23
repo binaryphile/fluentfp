@@ -43,7 +43,10 @@ func (e Employee) GetCompensation() float64    { return e.Salary + e.Bonus }
 func (e Employee) GetYearsOfService() int      { return e.YearsOfService }
 func (e Employee) GetPerformanceScore() float64 { return e.PerformanceScore }
 
+// sumFloat adds two float64 values.
 var sumFloat = func(a, b float64) float64 { return a + b }
+
+// sumInt adds two integers.
 var sumInt = func(a, b int) int { return a + b }
 
 // === Filtering Functions ===

@@ -61,6 +61,7 @@ func main() {
 	// there are methods ThenCall and ElseCall which can replace their respective counterparts.
 	// They defer execution of their function argument until the necessary branch is determined.
 
+	// expensiveYes simulates an expensive computation.
 	expensiveYes := func() string { return "that took some time" }
 	expensiveNo := expensiveYes
 
