@@ -2,6 +2,8 @@
 
 Wrap Go builtins for use with higher-order functions. When `len` or `fmt.Println` don't match the signature a HOF expects, lof provides compatible wrappers.
 
+A **lower-order function** is the flip side of a higher-order function—the function being passed, not the one receiving it.
+
 Go builtins like `len` are operators, not functions—you can't pass `len` to `ToInt`. lof wraps them as passable functions.
 
 ```go
