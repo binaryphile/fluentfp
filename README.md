@@ -157,7 +157,7 @@ fail := either.Left[string, int]("error")
 ok42 := either.Right[string, int](42)
 
 // Extract with comma-ok
-if val, ok := ok42.Get(); ok { /* use val */ }
+if fortyTwo, ok := ok42.Get(); ok { /* use fortyTwo */ }
 
 // Pattern match with Fold
 msg := either.Fold(result,
