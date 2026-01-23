@@ -19,8 +19,8 @@ func main() {
 	fmt.Println("got", home, "for $HOME")
 
 	// panic if os.Open returns an error
-	file := must.Get(os.Open(home + "/.profile")) // TODO: need universal example
-	fmt.Println("opened file")
+	file := must.Get(os.Open(home))
+	fmt.Println("opened", file.Name())
 
 	// panic if there is an error on close
 	err := file.Close()
@@ -53,6 +53,6 @@ func main() {
 		ToString(must.Of(stringFromResponseBody)).
 		Each(lof.Println)
 
-	// show a panic
-	must.BeNil(fmt.Errorf("this will panic"))
+	// Uncomment to see panic behavior:
+	// must.BeNil(fmt.Errorf("this is how must.BeNil panics on error"))
 }
