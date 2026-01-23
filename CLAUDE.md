@@ -104,7 +104,8 @@ import "github.com/binaryphile/fluentfp/option"
 // Creating options
 option.Of(t T) Basic[T]                // Always ok
 option.New(t T, ok bool) Basic[T]      // Conditional ok
-option.IfNotZero(t T) Basic[T]         // Ok if non-zero value
+option.IfNotZero(t T) Basic[T]         // Ok if not zero value ("", 0, false, etc.)
+option.IfNotEmpty(s string) String     // Ok if non-empty (string alias for IfNotZero)
 option.IfNotNil(ptr *T) Basic[T]       // From pointer (nil = not-ok)
 
 // Using options

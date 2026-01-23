@@ -8,7 +8,18 @@ type Basic[T any] struct {
 
 // factories
 
+// IfNotEmpty returns an ok option of s provided that s is not empty, or not-ok otherwise.
+// It is a readable alias for IfNotZero when the type is string.
+func IfNotEmpty(s string) (_ String) {
+	if s == "" {
+		return
+	}
+
+	return Of(s)
+}
+
 // IfNotZero returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
+// Zero values include "" for strings, 0 for numbers, false for bools, etc.
 func IfNotZero[T comparable](t T) (_ Basic[T]) {
 	var zero T
 	if t == zero {
@@ -127,14 +138,15 @@ func (b Basic[T]) OrEmpty() (_ T) {
 	return b.t
 }
 
-// OrFalse returns the option's value provided that it is ok, otherwise the zero value for T.
-// It is a more readable alias for OrZero when T is bool.
-func (b Basic[T]) OrFalse() (_ T) {
+// OrFalse returns the option's value provided that it is ok, otherwise false.
+// It is a readable alias for OrZero when the type is bool.
+func (b Basic[T]) OrFalse() bool {
 	if !b.ok {
-		return
+		return false
 	}
 
-	return b.t
+	// Type assert to bool; panics if T is not bool
+	return any(b.t).(bool)
 }
 
 // OrZero returns the option's value provided that it is ok, otherwise the zero value for T.

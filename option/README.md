@@ -44,11 +44,12 @@ Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[i
 | `Of` | `Of[T](T) Basic[T]` | Create ok option | `option.Of(user)` |
 | `New` | `New[T](T, bool) Basic[T]` | From value + ok flag | `option.New(val, ok)` |
 | `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOk[User]()` |
-| `IfNotZero` | `IfNotZero[T comparable](T) Basic[T]` | Not-ok if zero | `option.IfNotZero(name)` |
+| `IfNotZero` | `IfNotZero[T comparable](T) Basic[T]` | Not-ok if zero value | `option.IfNotZero(count)` |
+| `IfNotEmpty` | `IfNotEmpty(string) String` | Not-ok if empty (string alias) | `option.IfNotEmpty(name)` |
 | `IfNotNil` | `IfNotNil[T](*T) Basic[T]` | Not-ok if nil | `option.IfNotNil(userPtr)` |
 | `Getenv` | `Getenv(string) String` | From env var | `option.Getenv("PORT")` |
 
-**Pseudo-options:** Go APIs sometimes use `*T` (nil = absent) or zero values (empty = absent) as pseudo-options. `IfNotNil` and `IfNotZero` convert these to formal options.
+**Pseudo-options:** Go APIs sometimes use `*T` (nil = absent) or zero values (empty string, 0, false, etc.) as pseudo-options. `IfNotNil` and `IfNotZero` convert these to formal options. `IfNotEmpty` is a readable alias for `IfNotZero` when the type is string.
 
 ### Extraction Methods
 
@@ -104,7 +105,10 @@ opt := option.Of("hello")
 opt := option.New(value, ok)
 
 // From comparable (not-ok if zero)
-opt := option.IfNotZero(maybeEmpty)
+opt := option.IfNotZero(count)
+
+// From string (not-ok if empty)
+opt := option.IfNotEmpty(name)
 
 // From pointer (not-ok if nil)
 opt := option.IfNotNil(ptr)

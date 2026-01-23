@@ -3,187 +3,118 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 
-	"github.com/binaryphile/fluentfp/must"
 	"github.com/binaryphile/fluentfp/option"
 )
 
-// This is a usage example for option.Basic.
-// Options are containers that either hold a value (ok) or don't (not-ok).
-// option.Basic offers a variety of operations familiar from functional programming, such as map.
-// While option.Basic is useful on its own, as the name implies,
-// there is a more advanced use case.
-// See advanced_option.go as well.
+// This example demonstrates option.Basic — a container that either holds a value (ok) or doesn't (not-ok).
+// For advanced usage with custom types, see advanced_option.go.
 
-// main fetches posts from the post api as options.
 func main() {
-	// option.Basic is generic, so when you have to declare a variable,
-	// include the type of value it holds.
-	// We alias the concrete type here to make things a little more readable when it's used.
-	type PostOption = option.Basic[Post]
+	// === Creating Options ===
 
-	// getPosts returns the posts with the provided ids.
-	getPosts := func(ids ...int) []Post {
-		posts := make([]Post, len(ids))
-		for i, id := range ids {
-			resp := must.Get(http.Get(fmt.Sprintf("https://jsonplaceholder.typicode.com/posts/%d", id)))
+	// Of creates an ok option from a value
+	age := option.Of(42)
+	fmt.Println("age.IsOk():", age.IsOk()) // true
 
-			// Decode the response into a post.
-			// This may error on individual requests, in which case,
-			// we want the zero value for the post to know that it's invalid.
-			err := json.NewDecoder(resp.Body).Decode(&posts[i])
-			if err != nil {
-				posts[i] = Post{} // Decode doesn't guarantee posts[i] is unchanged
-			}
-		}
+	// New creates an option conditionally based on a bool
+	user := User{Name: "Alice", Age: 30}
+	userOpt := option.New(user, user.IsValid())
+	fmt.Println("userOpt.IsOk():", userOpt.IsOk()) // true
 
-		return posts
+	// IfNotZero creates an ok option only if the value is not the zero value ("", 0, false, etc.)
+	zeroCount := option.IfNotZero(0)
+	fmt.Println("zeroCount.IsOk():", zeroCount.IsOk()) // false
+
+	// IfNotEmpty is a readable alias for IfNotZero with strings
+	emptyName := option.IfNotEmpty("")
+	realName := option.IfNotEmpty("Bob")
+	fmt.Println("realName.IsOk():", realName.IsOk()) // true
+
+	// IfNotNil converts pointer-based pseudo-options (nil = absent)
+	var nilPtr *int
+	fromNil := option.IfNotNil(nilPtr)
+	fmt.Println("fromNil.IsOk():", fromNil.IsOk()) // false
+
+	// Pre-declared not-ok values for built-ins
+	notOkString, notOkBool := option.NotOkString, option.NotOkBool
+	fmt.Println("notOkString.IsOk():", notOkString.IsOk()) // false
+
+	// === Extracting Values ===
+
+	// Get uses Go's comma-ok pattern
+	if name, ok := realName.Get(); ok {
+		fmt.Println("Got name:", name)
 	}
 
-	// get two posts
-	posts := getPosts(1, 2)
+	// Or provides a default if not-ok
+	name := emptyName.Or("default")
+	fmt.Println("name with default:", name) // "default"
 
-	// Sometimes you have data from an external source that you need to marry with other data.
-	// Options can provide a way to combine corresponding data where individual records may have errored,
-	// but you still want to work with the data that is available.
+	// OrZero returns the zero value if not-ok (OrFalse for bools)
+	fmt.Println("zero value:", emptyName.OrZero())            // ""
+	fmt.Println("false value:", notOkBool.OrFalse()) // false
 
-	// We'll play a trick here and make a slice of PostOptions with three slots instead of two,
-	// so the last slot is always not-ok.
-	// If any requests errored, those will also be not-ok since zero-value posts don't pass IsValid.
+	// MustGet panics if not-ok — use when you know it's ok
+	value := age.MustGet()
+	fmt.Println("must get age:", value) // 42
 
-	// create options from posts using post.IsValid() as the ok value
-	postOptions := make([]PostOption, 3)
-	for i, post := range posts {
-		postOptions[i] = option.New(post, post.IsValid())
-	}
+	// OrCall computes the default lazily
+	// expensiveDefault simulates an expensive computation.
+	expensiveDefault := func() string { return "computed" }
+	lazy := emptyName.OrCall(expensiveDefault)
+	fmt.Println("lazy default:", lazy) // "computed"
 
-	// We have additional data about the posts in the form of personal notes on them.
-	// The next couple blocks print the posts along with the associated note.
+	// === Transforming ===
 
-	myNotesOnPosts := []string{
-		"a compelling tale of woe",
-		"a reggae music review",
-		"commercials from the 70s and 80s",
-	}
-
-	// since the last post is not-ok, it won't be printed
-	for i, postOption := range postOptions {
-		if post, ok := postOption.Get(); ok { // Get gets the option's value using Go's comma-ok idiom
-			fmt.Printf("\n%s\n", post.String())
-			fmt.Println("My notes:", myNotesOnPosts[i])
-		}
-	}
-
-	// the next examples show how to create options
-
-	fortyTwoOption := option.Of(42)        // Of creates an ok option from a value
-	notOkIntOption := option.IfNotZero(0) // IfNotZero creates an ok option if the value is not the zero value for the type
-
-	// there are pre-declared option types for the built-in types
-	notOkStringOption := option.String{}   // the zero value is not-ok because the ok field's zero value is false
-	notOkStringOption = option.NotOkString // but there are more readable package variables to create not-oks
-
-	// Sometimes in Go you encounter a pointer being used as a pseudo-option where nil means not-ok.
-	// The IfNotNil function creates a formal option of the pointed-to value.
-	postsOption := option.IfNotNil(&posts) // this gives the same result as option.Of(posts)
-	pseudoOption := postsOption.ToOpt()   // the ToOpt method gets the pointer pseudo-option back
-
-	// New dynamically creates an option when you have a value and an ok bool
-	theAnswer := 42 // to the question of Life, the Universe and Everything
-	ok := true
-	okIntOption := option.New(theAnswer, ok)
-
-	fortyTwo := okIntOption.MustGet()   // MustGet gets the value from an option you know is ok or else panics
-	sixtyEight := notOkIntOption.Or(68) // Or gets the value from an ok option or else the supplied alternative
-	zero := notOkIntOption.OrZero()     // OrZero gets the zero value of the option value's type
-
-	// OrZero is generic and works for strings and bools, but there are more readable versions for them
-	empty := option.NotOkString.OrEmpty()
-	False := option.NotOkBool.OrFalse()
-
-	// if the alternative value for Or requires computation, there is OrCall
-	// returnZero returns 0.
-	returnZero := func() int {
-		return 0
-	}
-	zero = notOkIntOption.OrCall(returnZero)
-
-	// IsOk checks if an option is ok
-	if okIntOption.IsOk() {
-		fmt.Println("Int option is ok")
-	}
-
-	// Convert is a map implementation that returns the result of applying a function to the option's value,
-	// provided that the option is ok, or not-ok otherwise.
-	// For Convert, the function returns the same type as the value.
+	// Convert maps to the same type
 	// doubleInt doubles an integer.
-	doubleInt := func(i int) int {
-		return 2 * i
+	doubleInt := func(i int) int { return i * 2 }
+	doubled := age.Convert(doubleInt)
+	fmt.Println("doubled:", doubled.OrZero()) // 84
+
+	// ToString maps to string
+	ageStr := age.ToString(strconv.Itoa)
+	fmt.Println("age as string:", ageStr.OrEmpty()) // "42"
+
+	// option.Map maps to any type
+	// ageToUser creates a User with the given age.
+	ageToUser := func(a int) User { return User{Name: "Unknown", Age: a} }
+	userFromAge := option.Map(age, ageToUser)
+	if u, ok := userFromAge.Get(); ok {
+		fmt.Println("user from age:", u.Name, u.Age)
 	}
-	okDoubledIntOption := okIntOption.Convert(doubleInt)
 
-	// there are To[Type] mapping methods for the built-in types to change the option value's type.
-	okStringOption := okIntOption.ToString(strconv.Itoa) // okStringOption holds the result of strconv.Itoa
+	// === Checking and Side Effects ===
 
-	// But there's no method for map to a named type.
-	// Use option.Map instead, it is the generic map function.
-	// IntToPost creates a Post from an integer ID.
-	IntToPost := func(i int) Post {
-		return Post{
-			id:    i,
-			title: fmt.Sprintf("Post #%d", i),
-		}
-	}
-	okPostOption := option.Map(okIntOption, IntToPost)
+	// Call executes a function only if ok
+	// printAge prints the age value.
+	printAge := func(a int) { fmt.Println("called with age:", a) }
+	age.Call(printAge)
 
-	// filter is implemented with two complementary methods
-	// intIs42 reports whether i equals 42.
-	intIs42 := func(i int) bool {
-		return i == 42
-	}
-	stillOkIntOption := okIntOption.KeepOkIf(intIs42)
-	nowNotOkIntOption := okIntOption.ToNotOkIf(intIs42)
+	// KeepOkIf keeps ok only if predicate passes
+	// isAdult reports whether age is 18 or older.
+	isAdult := func(a int) bool { return a >= 18 }
+	adult := age.KeepOkIf(isAdult)
+	fmt.Println("adult.IsOk():", adult.IsOk()) // true
 
-	// Congratulations, you're officially ready to use options!
-	// See advanced_option.go for examples of options with behavior from their value types.
+	// ToNotOkIf makes not-ok if predicate passes
+	notAdult := age.ToNotOkIf(isAdult)
+	fmt.Println("notAdult.IsOk():", notAdult.IsOk()) // false
 
-	// ignore the following -- to keep Go happy
-	eat[*[]Post](pseudoOption)
-	eat[PostOption](okPostOption)
-	eat[bool](False)
-	eat[int](fortyTwo, sixtyEight, zero)
-	eat[option.Int](fortyTwoOption, notOkIntOption, stillOkIntOption, nowNotOkIntOption, okDoubledIntOption)
-	eat[option.String](notOkStringOption, okStringOption)
-	eat[string](empty)
+	// ToOpt converts back to pointer (inverse of IfNotNil)
+	fmt.Println("ptr value:", *age.ToOpt()) // 42
 }
 
-// Post type definition
-///////////////////////
-
-// Post represents a post from the JSONPlaceholder API.
-type Post struct {
-	id    int
-	title string
+// User represents a simple user with a name and age.
+type User struct {
+	Name string
+	Age  int
 }
 
-// IsValid returns whether the post id is positive.
-func (p Post) IsValid() bool {
-	return p.id > 0
+// IsValid reports whether the user has a non-empty name.
+func (u User) IsValid() bool {
+	return u.Name != ""
 }
-
-// String generates a friendly, string version of p suitable for printing to stdout.
-// The output looks like:
-//
-//	Post ID: 1, Title: sunt aut facere repellat provident
-func (p Post) String() string {
-	return fmt.Sprint("Post ID: ", p.id, ", Title: ", p.title)
-}
-
-// Helpers
-//////////
-
-func eat[T any](...T) {}
