@@ -2,6 +2,8 @@
 
 Represent values that may be absent. Options enforce checking before use—nil panics become compile-time errors.
 
+An option is either **ok** (has a value) or **not-ok** (absent).
+
 ```go
 host := config.GetHost().Or("localhost")  // default if absent
 ```
