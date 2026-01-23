@@ -2,9 +2,13 @@
 
 Wrap Go builtins for use with higher-order functions. When `len` or `fmt.Println` don't match the signature a HOF expects, lof provides compatible wrappers.
 
+Go builtins like `len` are operators, not functions—you can't pass `len` to `ToInt`. lof wraps them as passable functions.
+
 ```go
 names.Each(lof.Println)  // print each name
 ```
+
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/lof) for complete API documentation.
 
 ## Quick Start
 

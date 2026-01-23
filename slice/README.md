@@ -1,6 +1,6 @@
 # slice: fluent collection operations
 
-Eliminate loop bugs with type-safe collection operations. Method expressions make pipelines read like intent:
+Eliminate loop bugs with type-safe collection operations. Method expressions make pipelines read like intent—**fluent** operations chain method calls on a single line, no intermediate variables, no loop scaffolding.
 
 ```go
 actives := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)

@@ -1162,3 +1162,64 @@ Created `lof/README.md` (43 lines) documenting the lower-order function wrapper 
 
 **Why it matters:**
 lof package now has documentation consistent with other fluentfp packages. The writing guide can be reused across any Go project to maintain documentation quality.
+
+---
+
+## Approved Plan: 2026-01-23
+
+# Plan: Add Key Concept Definitions to READMEs
+
+## Goal
+Add key concept definitions to 5 READMEs to address main grading deduction.
+
+## Changes
+- slice: define "fluent"
+- must: define "invariant"
+- ternary: define "ternary expression"
+- lof: explain why lof exists + pkg.go.dev link
+- either: define "sum type"
+
+---
+
+## Approved Contract: 2026-01-23
+
+# Phase 2 Contract: Add Key Concept Definitions to READMEs
+
+**Objective:** Add key concept definitions to 5 READMEs
+**Success criteria:** 5 files modified with definitions after line 3
+
+---
+
+## Archived: 2026-01-23
+
+# Phase 2 Contract: Add Key Concept Definitions to READMEs
+
+**Objective:** Add key concept definitions to 5 READMEs
+
+## Success Criteria (all complete)
+- [x] slice/README.md — define "fluent"
+- [x] must/README.md — define "invariant"
+- [x] ternary/README.md — define "ternary expression"
+- [x] lof/README.md — explain why lof exists + pkg.go.dev link
+- [x] either/README.md — define "sum type"
+
+## Approval
+✅ APPROVED BY USER - 2026-01-23
+Final grade: A (100/100)
+
+---
+
+## Log: 2026-01-23 - Add Key Concept Definitions
+
+**What was done:**
+Added key concept definitions to 5 READMEs (slice, must, ternary, lof, either) to address grading deduction. Each README now defines its core term early in the document.
+
+**Key files changed:**
+- slice/README.md: embedded "fluent" definition in intro paragraph
+- must/README.md: added "invariant" definition
+- ternary/README.md: added "ternary expression" definition
+- lof/README.md: added explanation + pkg.go.dev link
+- either/README.md: added "sum type" definition
+
+**Why it matters:**
+READMEs now follow the writing guide's "define terminology early" pattern.

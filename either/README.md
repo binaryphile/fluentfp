@@ -2,6 +2,8 @@
 
 A value that is one of two types: Left or Right. Convention: Left = failure, Right = success. Mnemonic: "Right is right."
 
+A **sum type** holds exactly one of two possible types—here, either L or R.
+
 ```go
 result := either.Fold(parsed,
     func(err ParseError) string { return "failed: " + err.Reason },

@@ -2,6 +2,8 @@
 
 Convert fallible operations to panics when errors are unrecoverable. Useful for initialization, config loading, and embedded files.
 
+An **invariant** is a precondition that, if violated, means the program has a bug—not a runtime error to handle.
+
 ```go
 db := must.Get(sql.Open("postgres", dsn))
 must.BeNil(db.Ping())

@@ -2,6 +2,8 @@
 
 Go lacks ternary expressions. This package provides them.
 
+A **ternary expression** evaluates a condition and returns one of two values—`if/else` as an expression rather than a statement.
+
 ```go
 If := ternary.If[string]
 status := If(task.IsDone()).Then("complete").Else("pending")
