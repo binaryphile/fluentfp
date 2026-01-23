@@ -117,19 +117,17 @@ if err, ok := result.GetLeft(); ok {
 
 
 ```go
-// toErrorResponse converts a parse error to an error response.
-toErrorResponse := func(err ParseError) Response { return ErrorResponse(err) }
-
-// toSuccessResponse converts a config to a success response.
-toSuccessResponse := func(cfg Config) Response { return SuccessResponse(cfg) }
-
-response := either.Fold(result, toErrorResponse, toSuccessResponse)
-
 // formatError returns a user-friendly error message.
 formatError := func(err ParseError) string {
     return fmt.Sprintf("line %d: %s", err.Line, err.Reason)
 }
-message := either.Fold(result, formatError, Config.Summary)
+
+// formatSuccess returns a success message with the config name.
+formatSuccess := func(cfg Config) string {
+    return fmt.Sprintf("loaded: %s", cfg.Name)
+}
+
+message := either.Fold(result, formatError, formatSuccess)
 ```
 
 ### Two-State Structs
