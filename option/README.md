@@ -41,7 +41,7 @@ Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[i
 |----------|-----------|---------|---------|
 | `Of` | `Of[T](T) Basic[T]` | Create ok option | `option.Of(user)` |
 | `New` | `New[T](T, bool) Basic[T]` | From value + ok flag | `option.New(val, ok)` |
-| `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOkString` |
+| `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOk[User]()` |
 | `IfProvided` | `IfProvided[T comparable](T) Basic[T]` | Not-ok if zero | `option.IfProvided(name)` |
 | `IfNotZero` | `IfNotZero[T ZeroChecker](T) Basic[T]` | Not-ok if IsZero() | `option.IfNotZero(time)` |
 | `FromOpt` | `FromOpt[T](*T) Basic[T]` | From pointer | `option.FromOpt(ptr)` |
