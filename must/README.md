@@ -1,6 +1,6 @@
 # must: panic-on-error for invariants
 
-Convert fallible operations to panics when errors are unrecoverable. Useful for initialization, config loading, and embedded files.
+Convert fallible operations to panics when errors indicate bugs, not runtime conditions. **If you're tempted to ignore an error with `_ =`, use `must` instead.**
 
 An **invariant** is a precondition that, if violated, means the program has a bug—not a runtime error to handle.
 
@@ -137,6 +137,26 @@ _ = must.Get(strconv.Atoi(configID))  // panics if invalid
 - **Library code** — Libraries should return errors, not panic
 - **Production request handlers** — One bad request shouldn't crash the server
 - **Expected failures** — Network timeouts, file not found, etc. are expected; handle them
+
+## Never Ignore Errors
+
+When you write `_ = doSomething()`, you're implicitly declaring an invariant: "this won't error." But what if it does?
+
+```go
+_ = os.Setenv("PATH", newPath)  // Silent failure, program continues corrupted
+```
+
+The program continues in an invalid state. You've traded a clear failure for silent corruption.
+
+`must` makes the invariant explicit:
+
+```go
+must.BeNil(os.Setenv("PATH", newPath))  // Invariant enforced, clear failure
+```
+
+**Every `_ = fn()` that discards an error should be `must.BeNil()` or `must.Get()`.** If you're confident the error "won't happen," prove it—by panicking if it does.
+
+Tools like `errcheck` flag ignored errors as bugs.
 
 ## See Also
 

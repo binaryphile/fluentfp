@@ -34,6 +34,7 @@ Loop mechanics create bugs regardless of developer skill:
 - **Accumulator errors**: forgot to increment, wrong variable
 - **Defer in loop**: resources pile up until function returns
 - **Index typos**: `i+i` instead of `i+1`
+- **Ignored errors**: `_ = fn()` silently continues when "impossible" errors occur
 
 C-style loops add off-by-one errors: `i <= n` instead of `i < n`.
 
@@ -49,6 +50,7 @@ These bugs compile, pass review, and look correct. They continue to appear in hi
 | Defer in loop | Loop body accumulates | No loop body |
 | Index typo | Manual index math | Predicates operate on values |
 | Off-by-one (C-style) | Manual bounds | Iterate collection, not indices |
+| Ignored error | `_ =` discards error | `must.BeNil` enforces invariant |
 
 ## Measurable Impact
 
@@ -168,7 +170,14 @@ msg := either.Fold(result,
 
 ### must
 
-Convert fallible functions for use with higher-order functions:
+Make error invariants explicit. Every `_ = fn()` should be `must.BeNil(fn())`:
+
+```go
+_ = os.Setenv("KEY", value)           // Silent corruption if error
+must.BeNil(os.Setenv("KEY", value))   // Invariant enforced
+```
+
+Also wraps fallible functions for HOF use:
 
 ```go
 mustAtoi := must.Of(strconv.Atoi)

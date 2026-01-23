@@ -164,6 +164,10 @@ timestamp := must.Get(time.Parse("2006-01-02 15:04:05", s.ScannedAt))
 // With slice operations (prefix with "must" to signal panic behavior)
 mustAtoi := must.Of(strconv.Atoi)
 ints := slice.From(strings).ToInt(mustAtoi)
+
+// Never ignore errors - use must instead of _ =
+_ = os.Setenv("KEY", value)           // Bad: silent corruption
+must.BeNil(os.Setenv("KEY", value))   // Good: invariant enforced
 ```
 
 ### ternary Package
