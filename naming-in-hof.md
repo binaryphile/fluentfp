@@ -112,6 +112,53 @@ formatError := func(err ParseError) string {
 message := either.Fold(result, formatError, Config.Summary)
 ```
 
+## Wrapper Variable Naming
+
+When storing fluentfp wrapper types in variables, use these naming conventions:
+
+### Option Variables
+
+Suffix with `Option` to signal the value may be absent:
+
+```go
+userOption := option.Of(user)
+portOption := option.Getenv("PORT")
+nameOption := option.IfProvided(name)
+
+// Use the option
+user = userOption.Or(defaultUser)
+```
+
+### Pseudo-Option Pointers
+
+Go APIs sometimes use `*T` as a pseudo-option where `nil` means absent. Suffix with `Opt`:
+
+```go
+userOpt := fetchUserPointer()  // returns *User, nil if not found
+userOption := option.FromOpt(userOpt)  // convert to formal option
+```
+
+### Either Variables
+
+Use `result` or a domain-appropriate name:
+
+```go
+result := ParseConfig(input)  // Either[ParseError, Config]
+if cfg, ok := result.Get(); ok {
+    // use cfg
+}
+```
+
+### Slice Variables
+
+Use natural plural names—no special suffix needed:
+
+```go
+users := slice.From(rawUsers)
+actives := users.KeepIf(User.IsActive)
+names := actives.ToString(User.Name)
+```
+
 ## Taking It Too Far
 
 - **Don't wrap method expressions** — `User.IsActive` is already named

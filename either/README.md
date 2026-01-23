@@ -57,20 +57,20 @@ failure := either.Left[ParseError, Config](err)   // Either[ParseError, Config]
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.IsLeft` | `.IsLeft() bool` | Check if Left | `if either.Left[E, T](err).IsLeft()` |
-| `.IsRight` | `.IsRight() bool` | Check if Right | `if either.Right[E, T](val).IsRight()` |
-| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) | `val, ok := either.Right[E, T](v).Get()` |
-| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) | `err, ok := either.Left[E, T](e).GetLeft()` |
-| `.GetOrElse` | `.GetOrElse(R) R` | Right or default | `val = either.Right[E, T](v).GetOrElse(fallback)` |
-| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default | `err = either.Left[E, T](e).LeftOrElse(fallback)` |
-| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right | `norm = either.Right[E, User](u).Map(User.Normalize)` |
+| `.IsLeft` | `.IsLeft() bool` | Check if Left | `if result.IsLeft()` |
+| `.IsRight` | `.IsRight() bool` | Check if Right | `if result.IsRight()` |
+| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) | `user, ok := result.Get()` |
+| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) | `err, ok := result.GetLeft()` |
+| `.GetOrElse` | `.GetOrElse(R) R` | Right or default | `user = result.GetOrElse(fallback)` |
+| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default | `err = result.LeftOrElse(fallback)` |
+| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right | `normalized = result.Map(User.Normalize)` |
 
 ### Standalone Functions
 
 | Function | Signature | Purpose | Example |
 |----------|-----------|---------|---------|
 | `Fold` | `Fold[L,R,T](Either, func(L)T, func(R)T) T` | Pattern match both | See [Exhaustive Handling](#exhaustive-handling) |
-| `Map` | `Map[L,R,R2](Either, func(R)R2) Either[L,R2]` | Transform to new type | `name = either.Map(rightUser, User.Name)` |
+| `Map` | `Map[L,R,R2](Either, func(R)R2) Either[L,R2]` | Transform to new type | `name = either.Map(result, User.Name)` |
 
 Note: `Fold` and `Map` are functions (not methods) due to Go's generics limitation—methods cannot introduce new type parameters.
 

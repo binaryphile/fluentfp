@@ -44,38 +44,40 @@ Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[i
 | `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOk[User]()` |
 | `IfProvided` | `IfProvided[T comparable](T) Basic[T]` | Not-ok if zero | `option.IfProvided(name)` |
 | `IfNotZero` | `IfNotZero[T ZeroChecker](T) Basic[T]` | Not-ok if IsZero() | `option.IfNotZero(time)` |
-| `FromOpt` | `FromOpt[T](*T) Basic[T]` | From pointer | `option.FromOpt(ptr)` |
+| `FromOpt` | `FromOpt[T](*T) Basic[T]` | From pseudo-option | `option.FromOpt(userOpt)` |
 | `Getenv` | `Getenv(string) String` | From env var | `option.Getenv("PORT")` |
+
+**Pseudo-options:** Go APIs sometimes use `*T` as a pseudo-option where `nil` means absent. The `Opt` suffix (e.g., `userOpt`) signals this convention. `FromOpt` converts these to formal options.
 
 ### Extraction Methods
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.Get` | `.Get() (T, bool)` | Comma-ok unwrap | `user, ok := option.FromOpt(ptr).Get()` |
+| `.Get` | `.Get() (T, bool)` | Comma-ok unwrap | `user, ok := userOption.Get()` |
 | `.IsOk` | `.IsOk() bool` | Check if ok | `if nameOption.IsOk()` |
-| `.MustGet` | `.MustGet() T` | Value or panic | `user = option.Of(admin).MustGet()` |
-| `.Or` | `.Or(T) T` | Value or default | `port = option.Getenv("PORT").Or("8080")` |
-| `.OrCall` | `.OrCall(func() T) T` | Lazy default | `port = option.Getenv("PORT").OrCall(findPort)` |
+| `.MustGet` | `.MustGet() T` | Value or panic | `user = userOption.MustGet()` |
+| `.Or` | `.Or(T) T` | Value or default | `port = portOption.Or("8080")` |
+| `.OrCall` | `.OrCall(func() T) T` | Lazy default | `port = portOption.OrCall(findPort)` |
 | `.OrZero` | `.OrZero() T` | Value or zero | `name = nameOption.OrZero()` |
 | `.OrEmpty` | `.OrEmpty() T` | Alias for strings | `name = nameOption.OrEmpty()` |
-| `.OrFalse` | `.OrFalse() bool` | For option.Bool | `enabled = option.New(flag, ok).OrFalse()` |
-| `.ToOpt` | `.ToOpt() *T` | Convert to pointer | `ptr = option.Of(user).ToOpt()` |
+| `.OrFalse` | `.OrFalse() bool` | For option.Bool | `enabled = flagOption.OrFalse()` |
+| `.ToOpt` | `.ToOpt() *T` | Convert to pointer | `ptr = userOption.ToOpt()` |
 
 ### Filtering Methods
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.KeepOkIf` | `.KeepOkIf(func(T) bool) Basic[T]` | Not-ok if false | `active = option.Of(user).KeepOkIf(User.IsActive)` |
-| `.ToNotOkIf` | `.ToNotOkIf(func(T) bool) Basic[T]` | Not-ok if true | `valid = option.Of(user).ToNotOkIf(User.IsExpired)` |
+| `.KeepOkIf` | `.KeepOkIf(func(T) bool) Basic[T]` | Not-ok if false | `active = userOption.KeepOkIf(User.IsActive)` |
+| `.ToNotOkIf` | `.ToNotOkIf(func(T) bool) Basic[T]` | Not-ok if true | `valid = userOption.ToNotOkIf(User.IsExpired)` |
 
 ### Mapping Methods
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.Convert` | `.Convert(func(T) T) Basic[T]` | Transform, same type | `normalized = option.Of(user).Convert(User.Normalize)` |
-| `.ToString` | `.ToString(func(T) string) String` | Transform to string | `name = option.Of(user).ToString(User.Name)` |
-| `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int | `age = option.Of(user).ToInt(User.Age)` |
-| `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type | `role = option.Map(option.Of(user), User.Role)` |
+| `.Convert` | `.Convert(func(T) T) Basic[T]` | Transform, same type | `normalized = userOption.Convert(User.Normalize)` |
+| `.ToString` | `.ToString(func(T) string) String` | Transform to string | `name = userOption.ToString(User.Name)` |
+| `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int | `age = userOption.ToInt(User.Age)` |
+| `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type | `role = option.Map(userOption, User.Role)` |
 
 Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToRune`
 
@@ -83,7 +85,7 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToRune`
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.Call` | `.Call(func(T))` | Execute if ok | `option.Of(user).Call(User.Save)` |
+| `.Call` | `.Call(func(T))` | Execute if ok | `userOption.Call(User.Save)` |
 
 ### Type Aliases
 
