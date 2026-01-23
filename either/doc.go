@@ -3,8 +3,8 @@
 // Convention: Left represents failure/error, Right represents success.
 // Mnemonic: "Right is right" (correct).
 //
-// Either is right-biased: Map, MustGet, Call, GetOrElse operate on the Right value.
-// Use MapLeft, MustGetLeft, CallLeft, LeftOrElse for Left-side operations.
+// Either is right-biased: Map, MustGet, Call, GetOr operate on the Right value.
+// Use MapLeft, MustGetLeft, CallLeft, LeftOr for Left-side operations.
 package either
 
 // Compile-time API verification
@@ -22,8 +22,8 @@ func _() {
 	_ = Either[int, string].MustGetLeft
 
 	// Defaults
-	_ = Either[int, string].GetOrElse
-	_ = Either[int, string].LeftOrElse
+	_ = Either[int, string].GetOr
+	_ = Either[int, string].LeftOr
 	_ = Either[int, string].GetOrCall
 	_ = Either[int, string].LeftOrCall
 

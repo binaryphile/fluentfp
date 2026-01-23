@@ -28,7 +28,7 @@ if fortyTwo, ok := ok42.Get(); ok {
 }
 
 // Get with default
-fortyTwo := ok42.GetOrElse(0)
+fortyTwo := ok42.GetOr(0)
 
 // Fold: handle both cases, return a single result
 // First function handles Left, second handles Right
@@ -64,8 +64,8 @@ failure := either.Left[ParseError, Config](err)   // Either[ParseError, Config]
 | `.IsRight` | `.IsRight() bool` | Check if Right | `if result.IsRight()` |
 | `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) | `user, ok := result.Get()` |
 | `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) | `err, ok := result.GetLeft()` |
-| `.GetOrElse` | `.GetOrElse(R) R` | Right or default | `user = result.GetOrElse(fallback)` |
-| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default | `err = result.LeftOrElse(fallback)` |
+| `.GetOr` | `.GetOr(R) R` | Right or default | `user = result.GetOr(fallback)` |
+| `.LeftOr` | `.LeftOr(L) L` | Left or default | `err = result.LeftOr(fallback)` |
 | `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right | `normalized = result.Map(User.Normalize)` |
 
 ### Standalone Functions

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestGetOrElse(t *testing.T) {
+func TestGetOr(t *testing.T) {
 	tests := []struct {
 		name       string
 		either     Either[string, int]
@@ -17,14 +17,14 @@ func TestGetOrElse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.either.GetOrElse(tt.defaultVal); got != tt.want {
-				t.Errorf("GetOrElse(%v) = %v, want %v", tt.defaultVal, got, tt.want)
+			if got := tt.either.GetOr(tt.defaultVal); got != tt.want {
+				t.Errorf("GetOr(%v) = %v, want %v", tt.defaultVal, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestLeftOrElse(t *testing.T) {
+func TestLeftOr(t *testing.T) {
 	tests := []struct {
 		name       string
 		either     Either[string, int]
@@ -36,8 +36,8 @@ func TestLeftOrElse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.either.LeftOrElse(tt.defaultVal); got != tt.want {
-				t.Errorf("LeftOrElse(%v) = %v, want %v", tt.defaultVal, got, tt.want)
+			if got := tt.either.LeftOr(tt.defaultVal); got != tt.want {
+				t.Errorf("LeftOr(%v) = %v, want %v", tt.defaultVal, got, tt.want)
 			}
 		})
 	}

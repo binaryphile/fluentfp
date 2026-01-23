@@ -86,8 +86,8 @@ either.Right[L, R any](r R) Either[L, R]
 .IsRight() bool
 .Get() (R, bool)              // comma-ok for Right
 .GetLeft() (L, bool)          // comma-ok for Left
-.GetOrElse(defaultVal R) R
-.LeftOrElse(defaultVal L) L
+.GetOr(defaultVal R) R
+.LeftOr(defaultVal L) L
 .Map(fn func(R) R) Either[L, R]  // right-biased
 
 // Standalone functions

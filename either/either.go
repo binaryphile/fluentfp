@@ -42,16 +42,16 @@ func (e Either[L, R]) GetLeft() (_ L, _ bool) {
 	return e.left, !e.isRight
 }
 
-// GetOrElse returns the Right value, or defaultVal if Left.
-func (e Either[L, R]) GetOrElse(defaultVal R) R {
+// GetOr returns the Right value, or defaultVal if Left.
+func (e Either[L, R]) GetOr(defaultVal R) R {
 	if e.isRight {
 		return e.right
 	}
 	return defaultVal
 }
 
-// LeftOrElse returns the Left value, or defaultVal if Right.
-func (e Either[L, R]) LeftOrElse(defaultVal L) L {
+// LeftOr returns the Left value, or defaultVal if Right.
+func (e Either[L, R]) LeftOr(defaultVal L) L {
 	if !e.isRight {
 		return e.left
 	}
