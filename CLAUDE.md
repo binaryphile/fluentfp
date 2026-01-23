@@ -321,7 +321,7 @@ sumFloat64 := func(acc, x float64) float64 { return acc + x }
 total := slice.Fold(amounts, 0.0, sumFloat64)
 ```
 
-**See also:** [naming-in-hof.md](naming-in-hof.md) for complete naming patterns, [guides/readme-writing-guide.md](guides/readme-writing-guide.md) for documentation patterns.
+**See also:** [naming-in-hof.md](naming-in-hof.md) for complete naming patterns.
 
 ### Why Always Prefer fluentfp Over Loops
 
