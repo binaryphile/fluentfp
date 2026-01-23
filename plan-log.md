@@ -1478,3 +1478,191 @@ Rewrote examples/basic_option.go from 190 lines to 120 lines. Removed HTTP/JSON 
 
 **Why it matters:**
 Example now teaches option concepts clearly without distracting network code.
+
+---
+
+## Approved Contract: 2026-01-23
+
+# Phase 2 Contract
+
+**Created:** 2026-01-23
+
+## Step 1 Checklist
+- [x] 1a: Presented understanding
+- [x] 1b: Asked clarifying questions (during planning)
+- [x] 1c: Contract created (this file)
+- [x] 1d: Approval received
+- [ ] 1e: Plan + contract archived
+
+## Objective
+Split examples/slice.go into two focused tutorial files: slice_basics.go (~100 lines) and slice_advanced.go (~80 lines).
+
+## Success Criteria
+- [ ] slice_basics.go created with From, KeepIf, RemoveIf, Convert, ToString, TakeFirst, Each, Len
+- [ ] slice_advanced.go created with MapTo, To, Fold, Unzip2/3/4, pair.Zip reference
+- [ ] Both files have section headers (=== Section ===)
+- [ ] Both files use inline Post struct with sample data
+- [ ] Method expressions used: Post.IsValid, Post.GetID, Post.GetTitle
+- [ ] Named functions have godoc-style comments
+- [ ] Fold section mentions event sourcing state reconstruction
+- [ ] Original slice.go deleted
+- [ ] Both files compile successfully
+- [ ] Each file under 120 lines
+
+## Approach
+
+### slice_basics.go (~100 lines)
+```
+// Intro + imports (~10 lines)
+// === Creating Fluent Slices === (~15 lines)
+//   From(), inline Post data
+// === Filtering === (~20 lines)
+//   KeepIf, RemoveIf with method expressions (Post.IsValid)
+// === Mapping === (~20 lines)
+//   Convert, ToString with method expressions (Post.GetTitle)
+// === Utilities === (~15 lines)
+//   TakeFirst, Each, Len
+// === Comparison to Loop === (~10 lines)
+//   One conventional loop example showing when loops are clearer
+// Post struct + methods (~10 lines)
+//   IsValid, GetID, GetTitle — for method expression demos
+```
+
+### slice_advanced.go (~80 lines)
+```
+// Intro + imports (~10 lines)
+// === Mapping to Different Types === (~20 lines)
+//   MapTo[R](), .To(fn) with named transformer
+// === Reducing === (~20 lines)
+//   Fold with named reducer (sumInt, indexByID)
+//   Note: Fold is essential for event sourcing state reconstruction
+// === Multi-field Extraction === (~15 lines)
+//   Unzip2/3/4 for batch processing
+// === Zipping (reference) === (~5 lines)
+//   Note: see pair.Zip/ZipWith
+// Post struct + methods (~10 lines)
+//   GetID, GetTitle, GetIDAsFloat64 — for method expression demos
+```
+
+## Token Budget
+Estimated: 15-20K tokens
+
+---
+
+## Archived: 2026-01-23
+
+# Phase 2 Contract
+
+**Created:** 2026-01-23
+
+## Step 1 Checklist
+- [x] 1a: Presented understanding
+- [x] 1b: Asked clarifying questions (during planning)
+- [x] 1c: Contract created (this file)
+- [x] 1d: Approval received
+- [x] 1e: Plan + contract archived
+
+## Objective
+Split examples/slice.go into two focused tutorial files: slice_basics.go (~100 lines) and slice_advanced.go (~80 lines).
+
+## Success Criteria
+- [x] slice_basics.go created with From, KeepIf, RemoveIf, Convert, ToString, TakeFirst, Each, Len
+- [x] slice_advanced.go created with MapTo, To, Fold, Unzip2/3/4, pair.Zip reference
+- [x] Both files have section headers (=== Section ===)
+- [x] Both files use inline Post struct with sample data
+- [x] Method expressions used: Post.IsValid, Post.GetID, Post.GetTitle
+- [x] Named functions have godoc-style comments
+- [x] Fold section mentions event sourcing state reconstruction
+- [x] Original slice.go deleted
+- [x] Both files compile successfully
+- [x] Each file under 120 lines (108 and 102)
+
+## Approach
+
+### slice_basics.go (~100 lines)
+```
+// Intro + imports (~10 lines)
+// === Creating Fluent Slices === (~15 lines)
+//   From(), inline Post data
+// === Filtering === (~20 lines)
+//   KeepIf, RemoveIf with method expressions (Post.IsValid)
+// === Mapping === (~20 lines)
+//   Convert, ToString with method expressions (Post.GetTitle)
+// === Utilities === (~15 lines)
+//   TakeFirst, Each, Len
+// === Comparison to Loop === (~10 lines)
+//   One conventional loop example showing when loops are clearer
+// Post struct + methods (~10 lines)
+//   IsValid, GetID, GetTitle — for method expression demos
+```
+
+### slice_advanced.go (~80 lines)
+```
+// Intro + imports (~10 lines)
+// === Mapping to Different Types === (~20 lines)
+//   MapTo[R](), .To(fn) with named transformer
+// === Reducing === (~20 lines)
+//   Fold with named reducer (sumInt, indexByID)
+//   Note: Fold is essential for event sourcing state reconstruction
+// === Multi-field Extraction === (~15 lines)
+//   Unzip2/3/4 for batch processing
+// === Zipping (reference) === (~5 lines)
+//   Note: see pair.Zip/ZipWith
+// Post struct + methods (~10 lines)
+//   GetID, GetTitle, GetIDAsFloat64 — for method expression demos
+```
+
+## Token Budget
+Estimated: 15-20K tokens
+
+## Actual Results
+
+**Completed:** 2026-01-23
+
+### Files Created
+- `examples/slice_basics.go` (108 lines)
+- `examples/slice_advanced.go` (102 lines)
+
+### Files Deleted
+- `examples/slice.go` (230 lines)
+
+### Verification
+- Both files compile successfully
+- Section headers present in both files
+- Method expressions used throughout
+- Named functions with godoc comments (isShortTitle, titleFromPost, sumInt, indexByID)
+- Event sourcing mention in Fold section (line 36)
+
+### Self-Assessment
+Grade: A (95/100)
+
+What went well:
+- Clean split of basics vs advanced concepts
+- Self-contained examples with inline data
+- Consistent section header formatting
+
+Deductions:
+- slice_advanced.go at 102 lines (target was ~80): -5 points
+
+## Step 4 Checklist
+- [x] 4a: Results presented to user
+- [x] 4b: Approval received
+
+## Approval
+✅ APPROVED BY USER - 2026-01-23
+Final grade: A+ (99/100)
+
+---
+
+## Log: 2026-01-23 - Phase 2: Split slice.go
+
+**What was done:**
+Split examples/slice.go (230 lines) into two focused tutorial files: slice_basics.go (109 lines) covering From, filtering, mapping, and utilities; and slice_advanced.go (101 lines) covering MapTo, Fold, Unzip, and Zip.
+
+**Key files changed:**
+- examples/slice_basics.go: New file demonstrating basic fluent slice operations
+- examples/slice_advanced.go: New file demonstrating advanced operations including Fold for event sourcing
+- examples/slice.go: Deleted
+
+**Why it matters:**
+Readers can now learn slice operations progressively—basics first, then advanced patterns—without wading through a 230-line monolithic example.
