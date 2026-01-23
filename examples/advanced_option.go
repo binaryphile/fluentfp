@@ -74,8 +74,6 @@ func main() {
 		sourceUsers := sourceClient.ListUsers()
 		destUsers := destClient.ListUsers()
 
-		// cmp.Diff returns "" when equal — use IfNotEmpty for comma-ok
-		// (IfNotEmpty2 can't wrap cmp.Diff due to its variadic opts parameter)
 		if diff, hasDiff := lof.IfNotEmpty(cmp.Diff(sourceUsers, destUsers)); hasDiff {
 			fmt.Print("data sources are NOT in sync:\n", diff, "\n")
 		} else {
