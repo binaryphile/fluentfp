@@ -52,12 +52,12 @@ Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[i
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
 | `.Get` | `.Get() (T, bool)` | Comma-ok unwrap | `user, ok := option.FromOpt(ptr).Get()` |
-| `.IsOk` | `.IsOk() bool` | Check if ok | `if option.IfProvided(name).IsOk()` |
+| `.IsOk` | `.IsOk() bool` | Check if ok | `if nameOption.IsOk()` |
 | `.MustGet` | `.MustGet() T` | Value or panic | `user = option.Of(admin).MustGet()` |
 | `.Or` | `.Or(T) T` | Value or default | `port = option.Getenv("PORT").Or("8080")` |
 | `.OrCall` | `.OrCall(func() T) T` | Lazy default | `port = option.Getenv("PORT").OrCall(findPort)` |
-| `.OrZero` | `.OrZero() T` | Value or zero | `name = option.IfProvided(input).OrZero()` |
-| `.OrEmpty` | `.OrEmpty() T` | Alias for strings | `name = option.IfProvided(input).OrEmpty()` |
+| `.OrZero` | `.OrZero() T` | Value or zero | `name = nameOption.OrZero()` |
+| `.OrEmpty` | `.OrEmpty() T` | Alias for strings | `name = nameOption.OrEmpty()` |
 | `.OrFalse` | `.OrFalse() bool` | For option.Bool | `enabled = option.New(flag, ok).OrFalse()` |
 | `.ToOpt` | `.ToOpt() *T` | Convert to pointer | `ptr = option.Of(user).ToOpt()` |
 
