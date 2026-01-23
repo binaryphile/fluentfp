@@ -95,54 +95,6 @@ Pre-defined types: `String`, `Int`, `Bool`, `Error`, `Any`, `Byte`, `Rune`
 
 Pre-defined not-ok values: `NotOkString`, `NotOkInt`, `NotOkBool`, `NotOkError`, `NotOkAny`, `NotOkByte`, `NotOkRune`
 
-## Creating Options
-
-```go
-// From known value
-opt := option.Of("hello")
-
-// Conditional creation
-opt := option.New(value, ok)
-
-// From comparable (not-ok if zero)
-opt := option.IfNotZero(count)
-
-// From string (not-ok if empty)
-opt := option.IfNotEmpty(name)
-
-// From pointer (not-ok if nil)
-opt := option.IfNotNil(ptr)
-
-// From environment
-port := option.Getenv("PORT").Or("8080")
-```
-
-## Using Options
-
-```go
-// Get with comma-ok
-if val, ok := opt.Get(); ok {
-    // use val
-}
-
-// Get with default
-val := opt.Or("default")
-val := opt.OrCall(expensiveDefault)
-val := opt.OrZero()
-
-// Transform
-length := opt.ToInt(lof.StringLen)
-upper := option.Map(opt, strings.ToUpper)
-
-// Filter
-// isNonEmpty reports whether s is not empty.
-isNonEmpty := func(s string) bool { return s != "" }
-nonEmpty := opt.KeepOkIf(isNonEmpty)
-
-// Side effect
-opt.Call(fmt.Println)
-```
-
 ## When NOT to Use option
 
 - **Go idiom `(T, error)`** — Don't replace error returns with option

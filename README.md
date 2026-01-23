@@ -1,12 +1,16 @@
 # fluentfp
 
-Pragmatic functional programming for Go: fewer bugs, less code, predictable performance.
+**Fluent** functional programming for Go: fewer bugs, less code, predictable performance.
 
 > **Summary:** Eliminate control structures, eliminate the bugs they enable.
 > Mixed codebases see 26% complexity reduction; pure pipelines drop 95%.
 > The win isn't lines saved—it's bugs that become unwritable.
 
 fluentfp is a small set of composable utilities for data transformation and type safety in Go.
+
+Fluent operations chain method calls on a single line—no intermediate variables, no loop scaffolding.
+
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for complete API documentation.
 
 ## Quick Start
 
