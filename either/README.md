@@ -5,10 +5,10 @@ A value that is one of two types: Left or Right. Convention: Left = failure, Rig
 A **sum type** holds exactly one of two possible types—here, either L or R.
 
 ```go
-result := either.Fold(parsed,
-    func(err ParseError) string { return "failed: " + err.Reason },
-    func(cfg Config) string { return "loaded: " + cfg.Name },
-)
+result := ParseConfig(input)  // Either[ParseError, Config]
+if cfg, ok := result.Get(); ok {
+    fmt.Println("loaded:", cfg.Name)
+}
 ```
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/either) for complete API documentation. For function naming patterns, see [Naming Functions for Higher-Order Functions](../naming-in-hof.md).
@@ -19,7 +19,7 @@ See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/either) for 
 import "github.com/binaryphile/fluentfp/either"
 
 // Create values
-fail := either.Left[string, int]("error")
+fail := either.Left[string, int]("fail")
 ok42 := either.Right[string, int](42)
 
 // Extract with comma-ok
@@ -30,7 +30,8 @@ if fortyTwo, ok := ok42.Get(); ok {
 // Get with default
 fortyTwo := ok42.GetOrElse(0)
 
-// Pattern match both cases
+// Fold: handle both cases, return a single result
+// First function handles Left, second handles Right
 result := either.Fold(parsed,
     func(err string) int { return -1 },
     func(val int) int { return val * 2 },
@@ -71,7 +72,7 @@ failure := either.Left[ParseError, Config](err)   // Either[ParseError, Config]
 
 | Function | Signature | Purpose | Example |
 |----------|-----------|---------|---------|
-| `Fold` | `Fold[L,R,T](Either, func(L)T, func(R)T) T` | Pattern match both | See [Exhaustive Handling](#exhaustive-handling) |
+| `Fold` | `Fold[L,R,T](Either, func(L)T, func(R)T) T` | Handle both cases, return one result | See [Exhaustive Handling](#exhaustive-handling) |
 | `Map` | `Map[L,R,R2](Either, func(R)R2) Either[L,R2]` | Transform to new type | `name = either.Map(result, User.Name)` |
 
 Note: `Fold` and `Map` are functions (not methods) due to Go's generics limitation—methods cannot introduce new type parameters.
@@ -111,7 +112,8 @@ if err, ok := result.GetLeft(); ok {
 
 ### Exhaustive Handling
 
-Fold forces handling both cases at compile time—no forgotten error paths:
+`Fold` takes two functions—one for Left, one for Right—and returns a single result. Both functions must return the same type, forcing you to handle both cases:
+
 
 ```go
 // Inline lambdas for simple cases
