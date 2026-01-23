@@ -32,10 +32,11 @@ fortyTwo := ok42.GetOr(0)
 
 // Fold: handle both cases, return a single result
 // First function handles Left, second handles Right
-result := either.Fold(parsed,
-    func(err string) int { return -1 },
-    func(val int) int { return val * 2 },
-)
+// onError returns -1 for any error.
+onError := func(err string) int { return -1 }
+// doubleValue doubles the parsed value.
+doubleValue := func(val int) int { return val * 2 }
+result := either.Fold(parsed, onError, doubleValue)
 ```
 
 ## Types
@@ -116,13 +117,14 @@ if err, ok := result.GetLeft(); ok {
 
 
 ```go
-// Inline lambdas for simple cases
-response := either.Fold(result,
-    func(err ParseError) Response { return ErrorResponse(err) },
-    func(cfg Config) Response { return SuccessResponse(cfg) },
-)
+// toErrorResponse converts a parse error to an error response.
+toErrorResponse := func(err ParseError) Response { return ErrorResponse(err) }
 
-// Named functions for complex/reusable handlers
+// toSuccessResponse converts a config to a success response.
+toSuccessResponse := func(cfg Config) Response { return SuccessResponse(cfg) }
+
+response := either.Fold(result, toErrorResponse, toSuccessResponse)
+
 // formatError returns a user-friendly error message.
 formatError := func(err ParseError) string {
     return fmt.Sprintf("line %d: %s", err.Line, err.Reason)
