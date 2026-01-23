@@ -161,7 +161,6 @@ names := actives.ToString(User.Name)
 
 ## Taking It Too Far
 
-- **Don't wrap method expressions** — `User.IsActive` is already named
 - **Don't over-split chains** — 3-4 operations is fine; split for meaning, not length
 - **Don't comment obvious folds** — `sum := func(a, b int) int { return a + b }` needs no comment
 - **Don't name single field access** — `func(u User) string { return u.Name }` is fine inline
