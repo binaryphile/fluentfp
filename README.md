@@ -153,11 +153,11 @@ Sum types for values that are one of two possible types:
 
 ```go
 // Create
-leftErr := either.Left[string, int]("error")
-rightFortyTwo := either.Right[string, int](42)
+fail := either.Left[string, int]("error")
+ok42 := either.Right[string, int](42)
 
 // Extract with comma-ok
-if fortyTwo, ok := rightFortyTwo.Get(); ok { /* use fortyTwo */ }
+if val, ok := ok42.Get(); ok { /* use val */ }
 
 // Pattern match with Fold
 msg := either.Fold(result,

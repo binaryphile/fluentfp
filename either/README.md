@@ -17,16 +17,16 @@ See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/either) for 
 import "github.com/binaryphile/fluentfp/either"
 
 // Create values
-leftErr := either.Left[string, int]("error")
-rightFortyTwo := either.Right[string, int](42)
+fail := either.Left[string, int]("error")
+ok42 := either.Right[string, int](42)
 
 // Extract with comma-ok
-if fortyTwo, ok := rightFortyTwo.Get(); ok {
+if fortyTwo, ok := ok42.Get(); ok {
     fmt.Println(fortyTwo)  // 42
 }
 
 // Get with default
-fortyTwo := rightFortyTwo.GetOrElse(0)
+fortyTwo := ok42.GetOrElse(0)
 
 // Pattern match both cases
 result := either.Fold(parsed,
@@ -57,13 +57,13 @@ failure := either.Left[ParseError, Config](err)   // Either[ParseError, Config]
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `.IsLeft` | `.IsLeft() bool` | Check if Left | `if either.Left[Error, User](err).IsLeft()` |
-| `.IsRight` | `.IsRight() bool` | Check if Right | `if either.Right[Error, User](user).IsRight()` |
-| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) | `user, ok := either.Right[Error, User](user).Get()` |
-| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) | `err, ok := either.Left[Error, User](err).GetLeft()` |
-| `.GetOrElse` | `.GetOrElse(R) R` | Right or default | `user = either.Right[Error, User](u).GetOrElse(defaultUser)` |
-| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default | `err = either.Left[Error, User](e).LeftOrElse(defaultErr)` |
-| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right | `normalized = either.Right[Error, User](user).Map(User.Normalize)` |
+| `.IsLeft` | `.IsLeft() bool` | Check if Left | `if either.Left[E, T](err).IsLeft()` |
+| `.IsRight` | `.IsRight() bool` | Check if Right | `if either.Right[E, T](val).IsRight()` |
+| `.Get` | `.Get() (R, bool)` | Get Right (comma-ok) | `val, ok := either.Right[E, T](v).Get()` |
+| `.GetLeft` | `.GetLeft() (L, bool)` | Get Left (comma-ok) | `err, ok := either.Left[E, T](e).GetLeft()` |
+| `.GetOrElse` | `.GetOrElse(R) R` | Right or default | `val = either.Right[E, T](v).GetOrElse(fallback)` |
+| `.LeftOrElse` | `.LeftOrElse(L) L` | Left or default | `err = either.Left[E, T](e).LeftOrElse(fallback)` |
+| `.Map` | `.Map(func(R) R) Either[L,R]` | Transform Right | `norm = either.Right[E, User](u).Map(User.Normalize)` |
 
 ### Standalone Functions
 
