@@ -1887,3 +1887,169 @@ Applied readme-writing-guide.md naming conventions to basic_option.go. Renamed 1
 
 **Why it matters:**
 Examples now clearly distinguish option wrappers from extracted values, making the code more readable and teachable. The patterns are documented in the writing guide for reuse.
+
+---
+
+## Approved Plan: 2026-01-23
+
+# Plan: Fix Conflicting Naming Patterns in readme-writing-guide.md
+
+## Goal
+Clarify that README examples should use value-based naming for self-documentation, and distinguish this from semantic context for not-ok states.
+
+## Issues to Fix
+
+### 1. Table example uses semantic name (line 36)
+**Current:** `ageOption` (semantic—doesn't tell you value is 42)
+**Fix:** `fortyTwoOption` (value-based—self-documenting)
+
+### 2. Semantic context section conflicts with self-documenting (lines 60-68)
+**Current:** Shows `ageOption := option.Of(42)` as "Ok states: simple names suffice"
+**Problem:** `ageOption` isn't self-documenting for README examples
+**Fix:** Remove the "Ok states" example—it conflicts with self-documenting section above
+
+### 3. Missing "remove ALL trailing comments" guidance
+**Current:** Implies value comments can be removed
+**Fix:** Add note that boolean/zero-value comments (`// true`, `// ""`) are also unnecessary
+
+## Changes
+
+| Line | Current | New |
+|------|---------|-----|
+| 36 | `ageOption` | `fortyTwoOption` |
+| 50 | (after `zero := zeroOption.Or(0)`) | Add: "Boolean and zero-value comments (`// true`, `// ""`) are equally unnecessary." |
+| 59-62 | "Ok states" comment + `ageOption` example | Remove these 3 lines only |
+
+## Revised Section (lines 48-68)
+
+```markdown
+**Self-documenting examples:**
+
+Name wrappers and extracted values after the actual value—no comments needed:
+```go
+fortyTwoOption := option.Of(42)
+zeroOption := option.NotOkInt
+
+fortyTwo := fortyTwoOption.Or(0)
+zero := zeroOption.Or(0)
+```
+
+Boolean and zero-value comments (`// true`, `// ""`) are equally unnecessary.
+
+**Semantic context in wrapper names:**
+
+When demonstrating not-ok states, preserve context explaining why:
+```go
+zeroCountOption := option.IfNotZero(0)    // "zero" explains why not-ok
+emptyNameOption := option.IfNotEmpty("")  // "empty" explains why not-ok
+countOption := option.IfNotZero(0)        // bad: why is it not-ok?
+```
+
+## File to Modify
+- `guides/readme-writing-guide.md`
+
+---
+
+## Approved Contract: 2026-01-23
+
+# Phase 1 Contract
+
+**Created:** 2026-01-23
+
+## Step 1 Checklist
+- [x] 1a: Presented understanding
+- [x] 1b: Asked clarifying questions
+- [x] 1b-answer: Received answers
+- [x] 1c: Contract created (this file)
+- [x] 1d: Approval received
+- [ ] 1e: Plan + contract archived
+
+## Objective
+Fix conflicting naming patterns in readme-writing-guide.md so self-documenting examples are consistent.
+
+## Success Criteria
+- [ ] Table example uses `fortyTwoOption` (not `ageOption`)
+- [ ] Boolean/zero-value comment guidance added
+- [ ] "Ok states" conflicting example removed
+
+## Approach
+1. Change `ageOption` to `fortyTwoOption` in line 36 table
+2. Add guidance line after code block: "Boolean and zero-value comments are equally unnecessary"
+3. Remove lines 59-62 ("Ok states" comment + `ageOption` example)
+
+## Token Budget
+Estimated: 5-10K tokens
+
+---
+
+## Archived: 2026-01-23
+
+# Phase 1 Contract
+
+**Created:** 2026-01-23
+
+## Step 1 Checklist
+- [x] 1a: Presented understanding
+- [x] 1b: Asked clarifying questions
+- [x] 1b-answer: Received answers
+- [x] 1c: Contract created (this file)
+- [x] 1d: Approval received
+- [x] 1e: Plan + contract archived
+
+## Objective
+Fix conflicting naming patterns in readme-writing-guide.md so self-documenting examples are consistent.
+
+## Success Criteria
+- [x] Table example uses `fortyTwoOption` (not `ageOption`)
+- [x] Boolean/zero-value comment guidance added
+- [x] "Ok states" conflicting example removed
+
+## Approach
+1. Change `ageOption` to `fortyTwoOption` in line 36 table
+2. Add guidance line after code block: "Boolean and zero-value comments are equally unnecessary"
+3. Remove lines 59-62 ("Ok states" comment + `ageOption` example)
+
+## Token Budget
+Estimated: 5-10K tokens
+
+## Actual Results
+
+**Deliverable:** readme-writing-guide.md (102 lines)
+**Completed:** 2026-01-23
+
+### Success Criteria Status
+- [x] Table example uses `fortyTwoOption` (line 36)
+- [x] Boolean/zero-value comment guidance added (line 57)
+- [x] "Ok states" conflicting example removed (was lines 62-65)
+
+### Self-Assessment
+Grade: A (95/100)
+
+What went well:
+- All three changes applied cleanly
+- No conflicts with surrounding text
+- Section now reads consistently
+
+Deductions:
+- Protocol compliance: -5 (created contract after plan approval instead of before)
+
+## Step 4 Checklist
+- [x] 4a: Results presented to user
+- [x] 4b: Approval received
+
+## Approval
+✅ APPROVED BY USER - 2026-01-23
+Fixed conflicting naming patterns; all Section 3 examples now use value-based self-documenting names.
+
+---
+
+## Log: 2026-01-23 - Fix readme-writing-guide naming conflicts
+
+**What was done:**
+Fixed conflicting naming patterns in Section 3 of readme-writing-guide.md. Changed `ageOption` to `fortyTwoOption` in the wrapper types table, added guidance that boolean/zero-value comments are equally unnecessary, and removed the "Ok states" example that conflicted with the self-documenting pattern.
+
+**Key files changed:**
+- guides/readme-writing-guide.md: Consolidated all Section 3 examples to use value-based self-documenting names
+
+**Why it matters:**
+README examples should be self-documenting—naming wrappers after their values eliminates the need for trailing comments.
