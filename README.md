@@ -99,32 +99,40 @@ Single operations equal properly-written loops (both pre-allocate). In practice,
 
 ## Parallelism Readiness
 
-Pure functions + immutable data = safe parallelism. fluentfp doesn't provide parallel operations, but the patterns it encourages are *parallel-ready*.
+Pure functions + immutable data = safe parallelism.
+
+**Note:** fluentfp does not provide parallel operations. But the patterns it encourages—pure transforms, no shared state—are exactly what makes code *parallel-ready* when you need it.
 
 ```go
-// Safe to parallelize: transform is pure, each goroutine writes unique index
+// With errgroup (idiomatic Go)
+import "golang.org/x/sync/errgroup"
+
+var g errgroup.Group
 results := make([]Result, len(items))
-var wg sync.WaitGroup
 for i, item := range items {
-    wg.Add(1)
-    go func(i int, item Item) {
-        defer wg.Done()
-        results[i] = transform(item)  // Safe because transform is pure
-    }(i, item)
+    g.Go(func() error {
+        results[i] = transform(item)  // Safe: transform is pure, i is unique
+        return nil
+    })
 }
-wg.Wait()
+g.Wait()
 ```
 
-**Benchmarked crossover (Go, 8 cores, ~56ns/transform):**
+**Benchmarked crossover (Go, 8 cores):**
 
-| N | Sequential | Parallel | Speedup |
-|---|------------|----------|---------|
-| 100 | 5.6μs | 9.3μs | 0.6× (overhead dominates) |
-| 1,000 | 56μs | 40μs | 1.4× |
-| 10,000 | 559μs | 200μs | 2.8× |
-| 100,000 | 5.6ms | 1.4ms | 4.0× |
+| N | Sequential | Parallel | Speedup | Verdict |
+|---|------------|----------|---------|---------|
+| 100 | 5.6μs | 9.3μs | 0.6× | Sequential wins |
+| 1,000 | 56μs | 40μs | 1.4× | Parallel starts winning |
+| 10,000 | 559μs | 200μs | 2.8× | Parallel wins |
+| 100,000 | 5.6ms | 1.4ms | 4.0× | Parallel wins decisively |
 
-**Key insight:** The discipline fluentfp encourages—pure transforms, no mutation—is exactly what makes parallel code safe. When you need to parallelize (N > 1K, CPU-bound), code written this way is ready. Code with side effects threaded through loops isn't.
+**When to parallelize:**
+- N > 1K items AND CPU-bound transform → yes
+- N < 500 OR transform < 100ns → no (overhead dominates)
+- I/O-bound (HTTP calls, disk) → yes (waiting is free to parallelize)
+
+**Key insight:** The discipline investment—writing pure transforms—pays off when you need parallelism and don't have to refactor first.
 
 ## Packages
 
