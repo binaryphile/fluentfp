@@ -159,17 +159,22 @@ Sum types for values that are one of two possible types:
 
 ```go
 // Create
-fail := either.Left[string, int]("error")
+fail := either.Left[string, int]("fail")
 ok42 := either.Right[string, int](42)
 
 // Extract with comma-ok
-if fortyTwo, ok := ok42.Get(); ok { /* use fortyTwo */ }
+if fortyTwo, ok := ok42.Get(); ok {
+    fmt.Println(fortyTwo) // 42
+}
 
-// Pattern match with Fold
-msg := either.Fold(result,
-    func(err string) string { return "Error: " + err },
-    func(val int) string { return fmt.Sprintf("Got: %d", val) },
-)
+// Fold: handle both cases exhaustively
+// formatLeft returns an error message.
+formatLeft := func(err string) string { return "Error: " + err }
+// formatRight returns a success message.
+formatRight := func(n int) string { return fmt.Sprintf("Got: %d", n) }
+
+msg := either.Fold(ok42, formatLeft, formatRight)   // "Got: 42"
+msg = either.Fold(fail, formatLeft, formatRight)    // "Error: fail"
 ```
 
 ### must

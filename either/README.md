@@ -30,13 +30,13 @@ if fortyTwo, ok := ok42.Get(); ok {
 // Get with default
 fortyTwo := ok42.GetOr(0)
 
-// Fold: handle both cases, return a single result
-// First function handles Left, second handles Right
+// Fold: handle both cases exhaustively
 // onError returns -1 for any error.
 onError := func(err string) int { return -1 }
-// doubleValue doubles the parsed value.
-doubleValue := func(val int) int { return val * 2 }
-result := either.Fold(parsed, onError, doubleValue)
+// useValue returns the value unchanged.
+useValue := func(n int) int { return n }
+result := either.Fold(ok42, onError, useValue)   // 42
+result = either.Fold(fail, onError, useValue)    // -1
 ```
 
 ## Types

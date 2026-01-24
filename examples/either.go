@@ -20,7 +20,7 @@ func main() {
 	ok42 := either.Right[string, int](42)
 
 	// Left creates a failure value
-	fail := either.Left[string, int]("invalid input")
+	fail := either.Left[string, int]("fail")
 
 	// === Extracting Values ===
 
@@ -31,7 +31,7 @@ func main() {
 
 	// GetLeft returns the Left value with comma-ok pattern
 	if err, ok := fail.GetLeft(); ok {
-		fmt.Println("Got error:", err) // Got error: invalid input
+		fmt.Println("Got error:", err) // Got error: fail
 	}
 
 	// GetOr returns the Right value or a default
@@ -53,15 +53,15 @@ func main() {
 	}
 
 	// formatSuccess returns a success message with the value.
-	formatSuccess := func(val int) string {
-		return fmt.Sprintf("Success: %d", val)
+	formatSuccess := func(n int) string {
+		return fmt.Sprintf("Success: %d", n)
 	}
 
 	message := either.Fold(ok42, formatError, formatSuccess)
 	fmt.Println(message) // Success: 42
 
 	message = either.Fold(fail, formatError, formatSuccess)
-	fmt.Println(message) // Error: invalid input
+	fmt.Println(message) // Error: fail
 
 	// === Mapping ===
 
@@ -88,7 +88,7 @@ func main() {
 	// CallLeft executes a function only if Left
 	// logError logs an error message.
 	logError := func(err string) { fmt.Println("Error logged:", err) }
-	fail.CallLeft(logError) // Error logged: invalid input
+	fail.CallLeft(logError) // Error logged: fail
 	ok42.CallLeft(logError) // (nothing printed)
 
 	// === Practical Example: Parse with Error Context ===

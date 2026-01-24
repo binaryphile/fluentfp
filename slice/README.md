@@ -172,7 +172,7 @@ activeCount := slice.From(users).KeepIf(User.IsActive).Len()
 
 ```go
 // sumFloat64 adds two float64 values.
-sumFloat64 := func(acc, x float64) float64 { return acc + x }
+sumFloat64 := func(acc, n float64) float64 { return acc + n }
 total := slice.Fold(amounts, 0.0, sumFloat64)
 
 // indexByMAC adds a device to the map keyed by its MAC address.

@@ -101,7 +101,7 @@ For `either.Fold`, name handlers by what they handle:
 // Inline for simple cases
 result := either.Fold(e,
     func(err Error) string { return "failed: " + err.Reason },
-    func(val Value) string { return "success: " + val.Name },
+    func(v Value) string { return "success: " + v.Name },
 )
 
 // Named for complex/reusable handlers
