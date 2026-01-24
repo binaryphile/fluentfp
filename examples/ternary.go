@@ -12,15 +12,15 @@ import (
 func main() {
 	// === Selecting Values ===
 
-	one := t.If[string](true).Then("one").Else("two")
-	two := t.If[string](false).Then("one").Else("two")
+	one := t.StrIf(true).Then("one").Else("two")
+	two := t.StrIf(false).Then("one").Else("two")
 
 	// === Inline in Structs ===
 
 	carIsGoing88MPH := true
 	type BackInTime struct{ fluxCapacitorGigawatts string }
 	backInTime := BackInTime{
-		fluxCapacitorGigawatts: t.If[string](carIsGoing88MPH).Then("1.21").Else("none"),
+		fluxCapacitorGigawatts: t.StrIf(carIsGoing88MPH).Then("1.21").Else("none"),
 	}
 
 	// === Deferring Computation ===
@@ -29,7 +29,7 @@ func main() {
 	expensiveYes := func() string { return "that took some time" }
 	expensiveNo := expensiveYes
 
-	lazyResult := t.If[string](true).ThenCall(expensiveYes).ElseCall(expensiveNo)
+	lazyResult := t.StrIf(true).ThenCall(expensiveYes).ElseCall(expensiveNo)
 
 	fmt.Println("one:", one)                    // one: one
 	fmt.Println("two:", two)                    // two: two
