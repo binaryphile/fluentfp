@@ -110,6 +110,7 @@ import "golang.org/x/sync/errgroup"
 var g errgroup.Group
 results := make([]Result, len(items))
 for i, item := range items {
+    i, item := i, item  // capture by value for closure
     g.Go(func() error {
         results[i] = transform(item)  // Safe: transform is pure, i is unique
         return nil
