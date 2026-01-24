@@ -25,8 +25,8 @@ func main() {
 	// === Extracting Values ===
 
 	// Get returns the Right value with comma-ok pattern
-	if val, ok := ok42.Get(); ok {
-		fmt.Println("Got value:", val) // Got value: 42
+	if fortyTwo, ok := ok42.Get(); ok {
+		fmt.Println("fortyTwo:", fortyTwo) // 42
 	}
 
 	// GetLeft returns the Left value with comma-ok pattern
@@ -35,12 +35,12 @@ func main() {
 	}
 
 	// GetOr returns the Right value or a default
-	value := fail.GetOr(0)
-	fmt.Println("Value or default:", value) // Value or default: 0
+	zero := fail.GetOr(0)
+	fmt.Println("zero:", zero) // 0
 
 	// LeftOr returns the Left value or a default
-	errMsg := ok42.LeftOr("no error")
-	fmt.Println("Error or default:", errMsg) // Error or default: no error
+	noError := ok42.LeftOr("no error")
+	fmt.Println("noError:", noError) // no error
 
 	// === Folding (Exhaustive Handling) ===
 
