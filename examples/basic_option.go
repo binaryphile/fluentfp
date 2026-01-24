@@ -79,7 +79,7 @@ func main() {
 	fortyTwoStrOption := fortyTwoOption.ToString(strconv.Itoa)
 	fmt.Println("fortyTwoStrOption.OrEmpty():", fortyTwoStrOption.OrEmpty()) // 42
 
-	// option.Map maps to any type
+	// option.Map maps to an arbitrary type (not the "any" type)
 	// ageToUser creates a User with the given age.
 	ageToUser := func(a int) User { return User{Name: "Unknown", Age: a} }
 	userFromFortyTwoOption := option.Map(fortyTwoOption, ageToUser)
