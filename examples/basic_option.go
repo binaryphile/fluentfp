@@ -57,7 +57,7 @@ func main() {
 	fmt.Println("emptyNameOption.OrZero():", emptyNameOption.OrZero()) // ""
 	fmt.Println("notOkBool.OrFalse():", notOkBool.OrFalse()) // false
 
-	// MustGet panics if not-ok — use when you know it's ok
+	// MustGet panics if not-ok — use when ok is an invariant
 	fortyTwo := fortyTwoOption.MustGet()
 	fmt.Println("fortyTwo:", fortyTwo) // 42
 
