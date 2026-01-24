@@ -104,7 +104,7 @@ func main() {
 	notAdultOption := fortyTwoOption.ToNotOkIf(isAdult)
 	fmt.Println("notAdultOption.IsOk():", notAdultOption.IsOk()) // false
 
-	// ToOpt converts back to pointer (inverse of IfNotNil)
+	// ToOpt converts to pointer (inverse of IfNotNil) — named after the *Opt convention for pseudo-options
 	fmt.Println("fortyTwoOption.ToOpt():", *fortyTwoOption.ToOpt()) // 42
 }
 
