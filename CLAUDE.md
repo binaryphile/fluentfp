@@ -40,7 +40,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToString(fn func(T) string) Mapper[string]
 
 // MapperTo[R,T] additional method
-.To(fn func(T) R) Mapper[R]            // Map to type R
+.Map(fn func(T) R) Mapper[R]           // Map to type R
 
 // Standalone functions
 slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R

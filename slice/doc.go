@@ -33,7 +33,7 @@ func _() {
 	_ = MapperTo[int, int].ToByte
 	_ = MapperTo[int, int].ToError
 	_ = MapperTo[int, int].ToInt
-	_ = MapperTo[int, int].To
+	_ = MapperTo[int, int].Map
 	_ = MapperTo[int, int].ToRune
 	_ = MapperTo[int, int].Convert
 	_ = MapperTo[int, int].ToString

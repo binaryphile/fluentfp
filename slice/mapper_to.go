@@ -153,8 +153,8 @@ func (ts MapperTo[R, T]) ToInt64(fn func(T) int64) MapperTo[R, int64] {
 	return results
 }
 
-// To returns the result of applying fn to each member of ts.
-func (ts MapperTo[R, T]) To(fn func(T) R) Mapper[R] {
+// Map returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) Map(fn func(T) R) Mapper[R] {
 	results := make([]R, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)

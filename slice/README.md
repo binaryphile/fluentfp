@@ -21,7 +21,7 @@ import "github.com/binaryphile/fluentfp/slice"
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 
 // Map to arbitrary type
-users := slice.MapTo[User](emails).To(UserFromEmail)
+users := slice.MapTo[User](emails).Map(UserFromEmail)
 
 // Reduce
 total := slice.Fold(amounts, 0.0, sumFloat64)
@@ -31,7 +31,7 @@ total := slice.Fold(amounts, 0.0, sumFloat64)
 
 `Mapper[T]` wraps a slice for fluent operations. Create with `From()`, chain methods, use as a regular slice.
 
-`MapperTo[R,T]` adds `.To()` for mapping to arbitrary type R. Create with `MapTo[R]()`.
+`MapperTo[R,T]` adds `.Map()` for mapping to arbitrary type R. Create with `MapTo[R]()`.
 
 ```go
 users := slice.From(rawUsers)       // Mapper[User]
@@ -66,7 +66,7 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
-| `To` | `.To(func(T) R) Mapper[R]` | Map to type R | `users = slice.MapTo[User](ids).To(FetchUser)` |
+| `Map` | `.Map(func(T) R) Mapper[R]` | Map to type R | `users = slice.MapTo[User](ids).Map(FetchUser)` |
 
 ### Standalone Functions
 

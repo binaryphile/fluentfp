@@ -22,11 +22,11 @@ func main() {
 	// titleFromPost extracts a Title from a Post.
 	titleFromPost := func(p Post) Title { return Title(p.Title) }
 
-	titles := slice.MapTo[Title](posts).To(titleFromPost)
+	titles := slice.MapTo[Title](posts).Map(titleFromPost)
 	fmt.Println("last title:", titles[len(titles)-1]) // last title: Error Handling
 
 	lengths := slice.MapTo[Title](posts).
-		To(titleFromPost).
+		Map(titleFromPost).
 		ToInt(Title.Len)
 	fmt.Println("last length:", lengths[len(lengths)-1]) // last length: 14
 

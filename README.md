@@ -132,7 +132,7 @@ actives := slice.From(users).KeepIf(User.IsActive)
 names := slice.From(users).ToString(User.GetName)
 
 // Map to arbitrary types
-users := slice.MapTo[User](ids).To(FetchUser)
+users := slice.MapTo[User](ids).Map(FetchUser)
 
 // Reduce
 total := slice.Fold(amounts, 0.0, sumFloat64)
