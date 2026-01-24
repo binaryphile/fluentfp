@@ -4,55 +4,51 @@ package main
 
 import (
 	"fmt"
-	"github.com/binaryphile/fluentfp/lof"
-	"github.com/binaryphile/fluentfp/must"
-	"github.com/binaryphile/fluentfp/slice"
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/binaryphile/fluentfp/lof"
+	"github.com/binaryphile/fluentfp/must"
+	"github.com/binaryphile/fluentfp/slice"
 )
 
+// This example demonstrates must — panic-on-error for invariants.
 func main() {
-	// get the contents of the environment variable $HOME,
-	// panic if it is empty or not set
+	// === Environment Variables ===
+
 	home := must.Getenv("HOME")
-	fmt.Println("got", home, "for $HOME")
+	fmt.Println("home:", home) // (varies by system)
 
-	// panic if os.Open returns an error
+	// === File Operations ===
+
 	file := must.Get(os.Open(home))
-	fmt.Println("opened", file.Name())
+	fmt.Println("opened:", file.Name()) // (varies by system)
 
-	// panic if there is an error on close
-	err := file.Close()
-	must.BeNil(err) // you could call this on file.Close directly, but assigning to err is more readable
-	fmt.Println("closed file")
+	must.BeNil(file.Close())
+	fmt.Println("closed file") // closed file
 
-	// consume fallible functions like http.Get and stringFromResponseBody using must.Of
+	// === HTTP Pipeline ===
+
 	// urlFromID builds a JSONPlaceholder URL for the given post ID.
 	urlFromID := func(id int) string {
 		return fmt.Sprintf("http://jsonplaceholder.typicode.com/posts/%d", id)
 	}
 
-	// stringFromResponseBody reads and returns the response body as a string.
-	stringFromResponseBody := func(resp *http.Response) (_ string, err error) {
+	// bodyFromResponse reads the response body as a string.
+	bodyFromResponse := func(resp *http.Response) (_ string, err error) {
 		defer resp.Body.Close()
-
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return
 		}
-
 		return string(bodyBytes), nil
 	}
 
-	// print some posts
 	var ids slice.MapperTo[*http.Response, int] = []int{1, 2}
 	ids.
 		ToString(urlFromID).
 		To(must.Of(http.Get)).
-		ToString(must.Of(stringFromResponseBody)).
+		ToString(must.Of(bodyFromResponse)).
 		Each(lof.Println)
-
-	// Uncomment to see panic behavior:
-	// must.BeNil(fmt.Errorf("this is how must.BeNil panics on error"))
 }

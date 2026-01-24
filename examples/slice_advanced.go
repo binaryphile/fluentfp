@@ -11,7 +11,6 @@ import (
 
 // This example demonstrates advanced slice operations: MapTo, Fold, Unzip, and Zip.
 func main() {
-	// Sample data — inline for self-contained example
 	posts := slice.From([]Post{
 		{ID: 1, Title: "Introduction to Go"},
 		{ID: 2, Title: "Functional Programming"},
@@ -20,28 +19,23 @@ func main() {
 
 	// === Mapping to Different Types ===
 
-	// MapTo[R] creates a MapperTo that can map to arbitrary type R
 	// titleFromPost extracts a Title from a Post.
 	titleFromPost := func(p Post) Title { return Title(p.Title) }
 
 	titles := slice.MapTo[Title](posts).To(titleFromPost)
-	fmt.Println("titles as Title type:", titles)
+	fmt.Println("last title:", titles[len(titles)-1]) // last title: Error Handling
 
-	// Chain with other operations
 	lengths := slice.MapTo[Title](posts).
 		To(titleFromPost).
 		ToInt(Title.Len)
-	fmt.Println("title lengths:", lengths)
+	fmt.Println("last length:", lengths[len(lengths)-1]) // last length: 14
 
 	// === Reducing ===
-
-	// Fold reduces a slice to a single value.
-	// This pattern is essential for event sourcing state reconstruction.
 
 	// sumIDs accumulates post IDs into a running total.
 	sumIDs := func(total int, p Post) int { return total + p.ID }
 	totalID := slice.Fold(posts, 0, sumIDs)
-	fmt.Println("sum of IDs:", totalID)
+	fmt.Println("sum of IDs:", totalID) // sum of IDs: 6
 
 	// indexByID builds a map keyed by post ID.
 	indexByID := func(m map[int]Post, p Post) map[int]Post {
@@ -49,33 +43,25 @@ func main() {
 		return m
 	}
 	byID := slice.Fold(posts, make(map[int]Post), indexByID)
-	fmt.Println("post with ID 2:", byID[2].Title)
+	fmt.Println("post with ID 2:", byID[2].Title) // post with ID 2: Functional Programming
 
 	// === Multi-field Extraction ===
 
-	// Unzip extracts multiple fields in a single pass (avoids N iterations)
 	ids, postTitles := slice.Unzip2(posts, Post.GetID, Post.GetTitle)
-	fmt.Println("extracted IDs:", ids)
-	fmt.Println("extracted titles:", postTitles)
+	fmt.Printf("unzip2: %d IDs, %d titles\n", len(ids), len(postTitles)) // unzip2: 3 IDs, 3 titles
 
-	// Unzip3 and Unzip4 extract more fields in one pass
-	// (shown with same fields for brevity — real use would have distinct fields)
 	ids3, titles3, _ := slice.Unzip3(posts,
 		Post.GetID,
 		Post.GetTitle,
 		Post.GetIDAsFloat64,
 	)
-	fmt.Printf("unzip3: %d IDs, %d titles\n", len(ids3), len(titles3))
+	fmt.Printf("unzip3: %d IDs, %d titles\n", len(ids3), len(titles3)) // unzip3: 3 IDs, 3 titles
 
 	// === Zipping ===
 
-	// pair.Zip combines two slices into pairs
-	// pair.ZipWith combines and transforms in one step
-	// See tuple/pair package for details.
-
 	ratings := []int{5, 4, 3}
-	pairs := pair.Zip([]Post(posts), ratings) // explicit conversion from Mapper to []Post
-	fmt.Printf("zipped %d post-rating pairs\n", len(pairs))
+	pairs := pair.Zip([]Post(posts), ratings)
+	fmt.Printf("zipped %d post-rating pairs\n", len(pairs)) // zipped 3 post-rating pairs
 }
 
 // Post represents a blog post.

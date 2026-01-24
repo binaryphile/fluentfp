@@ -13,7 +13,6 @@ import (
 func main() {
 	// === Creating Fluent Slices ===
 
-	// Sample data — inline for self-contained example
 	posts := slice.From([]Post{
 		{ID: 1, Title: "Introduction to Go"},
 		{ID: 0, Title: ""},                        // invalid: ID is 0
@@ -21,48 +20,40 @@ func main() {
 		{ID: 3, Title: "Error Handling Patterns"},
 	})
 
-	fmt.Println("all posts:", len(posts))
+	fmt.Println("all posts:", len(posts)) // all posts: 4
 
 	// === Filtering ===
 
-	// KeepIf keeps elements where the predicate returns true
 	validPosts := posts.KeepIf(Post.IsValid)
-	fmt.Println("valid posts:", len(validPosts))
+	fmt.Println("valid posts:", len(validPosts)) // valid posts: 3
 
-	// RemoveIf removes elements where the predicate returns true
 	// isShortTitle reports whether the post title is 20 characters or fewer.
 	isShortTitle := func(p Post) bool {
 		return len(p.Title) <= 20
 	}
 	longTitles := posts.KeepIf(Post.IsValid).RemoveIf(isShortTitle)
-	fmt.Println("posts with long titles:", len(longTitles))
+	fmt.Println("posts with long titles:", len(longTitles)) // posts with long titles: 2
 
 	// === Mapping ===
 
-	// Convert transforms elements to the same type
 	normalized := validPosts.Convert(Post.Normalize)
-	fmt.Println("first normalized:", normalized[0].Title)
+	fmt.Println("first normalized:", normalized[0].Title) // first normalized: Introduction to Go
 
-	// ToString transforms elements to strings
 	titles := validPosts.ToString(Post.GetTitle)
-	fmt.Println("titles:", titles)
+	fmt.Println("last title:", titles[len(titles)-1]) // last title: Error Handling Patterns
 
-	// ToInt transforms elements to ints
 	ids := validPosts.ToInt(Post.GetID)
-	fmt.Println("ids:", ids)
+	fmt.Println("last id:", ids[len(ids)-1]) // last id: 3
 
 	// === Utilities ===
 
-	// TakeFirst returns the first n elements
 	first2 := validPosts.TakeFirst(2)
-	fmt.Println("first 2 posts:", len(first2))
+	fmt.Println("first 2 posts:", len(first2)) // first 2 posts: 2
 
-	// Len returns the count
 	count := validPosts.Len()
-	fmt.Println("count:", count)
+	fmt.Println("count:", count) // count: 3
 
-	// Each applies a function to each element for side effects
-	fmt.Println("\nall valid posts:")
+	fmt.Println("\nall valid posts:") // (3 posts follow)
 	validPosts.ToString(Post.String).Each(lof.Println)
 
 	// === Comparison to Loop ===
