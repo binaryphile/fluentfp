@@ -135,6 +135,8 @@ g.Wait()
 
 **Key insight:** The discipline investment—writing pure transforms—pays off when you need parallelism and don't have to refactor first.
 
+*Reproduce these benchmarks: `go test -bench=. -benchmem ./examples/`*
+
 ## Packages
 
 | Package | Purpose | Key Functions |
