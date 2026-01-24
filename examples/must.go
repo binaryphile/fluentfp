@@ -46,9 +46,8 @@ func main() {
 	}
 
 	var ids slice.MapperTo[*http.Response, int] = []int{1, 2}
-	bodies := ids.
-		ToString(urlFromID).
-		To(must.Of(http.Get)).
-		ToString(must.Of(bodyFromResponse))
+	urls := ids.ToString(urlFromID)
+	responses := urls.To(must.Of(http.Get))
+	bodies := responses.ToString(must.Of(bodyFromResponse))
 	bodies.Each(lof.Println) // (2 JSON responses from external API)
 }
