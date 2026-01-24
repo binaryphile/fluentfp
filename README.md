@@ -215,6 +215,7 @@ A `for` loop you've seen 10,000 times feels instant to parse—but only because 
 
 ## Recent Additions
 
+- **v0.13.0**: `StrIf`, `IntIf`, `BoolIf` type aliases (ternary package)
 - **v0.12.0**: **BREAKING** — `MapperTo.To` renamed to `MapperTo.Map` for clarity
 - **v0.8.0**: `either` package (Left/Right sum types), `ToInt32`/`ToInt64` (slice package)
 - **v0.7.0**: `IfNotZero` for comparable types (option package)

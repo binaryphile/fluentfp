@@ -52,6 +52,9 @@ Create with `If[R](condition)`, set values with `.Then()` and `.Else()`.
 | Function/Method | Signature | Purpose | Example |
 |-----------------|-----------|---------|---------|
 | `If` | `If[R](bool) Ternary[R]` | Create with condition | `ternary.If[string](done)` |
+| `StrIf` | `StrIf(bool) Ternary[string]` | String ternary | `ternary.StrIf(done).Then("yes").Else("no")` |
+| `IntIf` | `IntIf(bool) Ternary[int]` | Int ternary | `ternary.IntIf(n > 0).Then(n).Else(0)` |
+| `BoolIf` | `BoolIf(bool) Ternary[bool]` | Bool ternary | `ternary.BoolIf(cond).Then(true).Else(false)` |
 | `.Then` | `.Then(R) Ternary[R]` | Value if true (eager) | `.Then("yes")` |
 | `.ThenCall` | `.ThenCall(func() R) Ternary[R]` | Value if true (lazy) | `.ThenCall(compute)` |
 | `.Else` | `.Else(R) R` | Value if false (eager) | `.Else("no")` |

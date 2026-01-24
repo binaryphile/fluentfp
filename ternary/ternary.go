@@ -28,6 +28,15 @@ func If[R any](condition bool) Ternary[R] {
 	}
 }
 
+// StrIf returns a ternary for string values.
+func StrIf(condition bool) Ternary[string] { return If[string](condition) }
+
+// IntIf returns a ternary for int values.
+func IntIf(condition bool) Ternary[int] { return If[int](condition) }
+
+// BoolIf returns a ternary for bool values.
+func BoolIf(condition bool) Ternary[bool] { return If[bool](condition) }
+
 // Then assigns the value returned by Else or ElseCall when condition is true.
 func (i Ternary[R]) Then(t R) Ternary[R] {
 	return Ternary[R]{

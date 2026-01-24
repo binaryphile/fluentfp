@@ -178,6 +178,11 @@ import "github.com/binaryphile/fluentfp/ternary"
 
 ternary.If[R](cond bool).Then(t R).Else(e R) R
 ternary.If[R](cond bool).ThenCall(fn).ElseCall(fn) R  // Lazy
+
+// Type aliases for common types
+ternary.StrIf(cond).Then("yes").Else("no")
+ternary.IntIf(cond).Then(1).Else(0)
+ternary.BoolIf(cond).Then(true).Else(false)
 ```
 
 ### ternary Patterns
