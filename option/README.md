@@ -88,6 +88,7 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToRune`
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
 | `.Call` | `.Call(func(T))` | Execute if ok | `userOption.Call(User.Save)` |
+| `Lift` | `Lift[T](func(T)) func(Basic[T])` | Lift side-effect function | `option.Lift(func(u User) { u.Save() })(userOpt)` |
 
 ### Type Aliases
 

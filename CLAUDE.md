@@ -115,6 +115,7 @@ option.IfNotNil(ptr *T) Basic[T]       // From pointer (nil = not-ok)
 .OrEmpty() T                           // Alias for strings
 .OrFalse() bool                        // For option.Bool
 .Call(fn func(T))                      // Side-effect if ok
+option.Lift(fn func(T)) func(Basic[T]) // Lift side-effect function to accept option
 
 // Pre-defined types
 option.String, option.Int, option.Bool, option.Error

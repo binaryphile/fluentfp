@@ -144,6 +144,26 @@ func TestCall(t *testing.T) {
 	})
 }
 
+func TestLift(t *testing.T) {
+	t.Run("lifted function calls original when ok", func(t *testing.T) {
+		var received int
+		lifted := Lift(func(v int) { received = v })
+		lifted(Of(42))
+		if received != 42 {
+			t.Errorf("Lift received %v, want 42", received)
+		}
+	})
+
+	t.Run("lifted function does not call original when not-ok", func(t *testing.T) {
+		called := false
+		lifted := Lift(func(v int) { called = true })
+		lifted(New(0, false))
+		if called {
+			t.Error("Lift was invoked on not-ok option")
+		}
+	})
+}
+
 // --- Transformation (representative) ---
 
 func TestToInt(t *testing.T) {
