@@ -145,7 +145,7 @@ g.Wait()
 | [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfNotZero`, `IfNotNil` |
 | [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
 | [must](must/) | Fallible funcs → HOF args | `Get`, `BeNil`, `Of` |
-| [ternary](ternary/) | Conditional expressions | `If().Then().Else()` |
+| [value](value/) | Conditional value selection | `Of().When().Or()` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 | [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
 
@@ -233,12 +233,16 @@ mustAtoi := must.Of(strconv.Atoi)
 ints := slice.From(strings).ToInt(mustAtoi)
 ```
 
-### ternary
+### value
 
-Conditional expressions:
+Value-first conditional selection:
 
 ```go
-status := ternary.If[string](done).Then("complete").Else("pending")
+// "value of CurrentTick when CurrentTick < 7, or 7"
+days := value.Of(tick).When(tick < 7).Or(7)
+
+// Lazy evaluation for expensive computations
+config := value.OfCall(loadFromDB).When(useCache).Or(defaultConfig)
 ```
 
 ## The Familiarity Discount
@@ -255,7 +259,7 @@ A `for` loop you've seen 10,000 times feels instant to parse—but only because 
 
 ## Recent Additions
 
-- **v0.13.0**: `StrIf`, `IntIf`, `BoolIf` type aliases (ternary package)
+- **v0.14.0**: `value` package replaces `ternary` — value-first conditional selection
 - **v0.12.0**: **BREAKING** — `MapperTo.To` renamed to `MapperTo.Map` for clarity
 - **v0.8.0**: `either` package (Left/Right sum types), `ToInt32`/`ToInt64` (slice package)
 - **v0.7.0**: `IfNotZero` for comparable types (option package)

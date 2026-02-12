@@ -1,4 +1,4 @@
-@/home/ted/projects/share/tandem-protocol/tandem-protocol.md
+@/home/ted/projects/tandem-protocol/README.md
 
 # fluentfp - Functional Programming Library for Go
 
@@ -171,26 +171,27 @@ _ = os.Setenv("KEY", value)           // Bad: silent corruption
 must.BeNil(os.Setenv("KEY", value))   // Good: invariant enforced
 ```
 
-### ternary Package
+### value Package
 
 ```go
-import "github.com/binaryphile/fluentfp/ternary"
+import "github.com/binaryphile/fluentfp/value"
 
-ternary.If[R](cond bool).Then(t R).Else(e R) R
-ternary.If[R](cond bool).ThenCall(fn).ElseCall(fn) R  // Lazy
-
-// Type aliases for common types
-ternary.StrIf(cond).Then("yes").Else("no")
-ternary.IntIf(cond).Then(1).Else(0)
-ternary.BoolIf(cond).Then(true).Else(false)
+// Value-first conditional selection
+value.Of(v).When(cond).Or(fallback)        // Eager
+value.OfCall(fn).When(cond).Or(fallback)   // Lazy preferred value
 ```
 
-### ternary Patterns
+### value Patterns
 
 ```go
-// Factory alias for repeated use
-If := ternary.If[string]
-status := If(done).Then("complete").Else("pending")
+// "value of CurrentTick when CurrentTick < 7, or 7"
+days := value.Of(sim.CurrentTick).When(sim.CurrentTick < 7).Or(7)
+
+// Simple value selection
+status := value.Of("complete").When(done).Or("pending")
+
+// Lazy evaluation for expensive computations
+config := value.OfCall(loadFromDB).When(useCache).Or(defaultConfig)
 ```
 
 ### lof Package (Lower-Order Functions)
@@ -395,7 +396,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `option.New`, `option.IfNotZero`, `option.IfNotNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
 - `option.KeepOkIf`, `option.ToNotOkIf` - double conditional (filter)
-- `ternary.Else`, `ternary.ElseCall` - 3 code paths each
+- `value.When` (on LazyCond) - conditional function call
 
 ### Representative Pattern Testing
 
@@ -412,14 +413,15 @@ When multiple methods share **identical logic**, test ONE representative:
 - `slice.From`, `slice.MapTo` - just return input
 - `option.Of`, `option.NotOk` - just construct struct
 - `option.Get`, `option.IsOk` - just return fields
-- `ternary.If`, `ternary.Then`, `ternary.ThenCall` - just store values
+- `value.Of`, `value.OfCall` - just store values
+- `value.When` (on Cond) - trivial delegation to option.New
 
 ### Coverage Baseline (2026-01-03)
 
 | Package | Coverage | Notes |
 |---------|----------|-------|
 | must | 100% | All domain (conditional + panic) |
-| ternary | 100% | All domain code paths tested |
+| value | 100% | All domain code paths tested |
 | option | 51.9% | Domain tested, trivial aliases untested |
 | slice | 28.8% | Domain tested, ToX methods trivial |
 | lof | 0.0% | All trivial wrappers - acceptable |

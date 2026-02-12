@@ -2053,3 +2053,15 @@ Fixed conflicting naming patterns in Section 3 of readme-writing-guide.md. Chang
 
 **Why it matters:**
 README examples should be self-documenting—naming wrappers after their values eliminates the need for trailing comments.
+2026-02-12T10:30:00Z | Contract: Value package replaces ternary
+[ ] Create value package with Cond[T], LazyCond[T], Of, OfCall, When
+[ ] Create value_test.go with domain logic tests
+[ ] Update CLAUDE.md - replace ternary with value docs
+[ ] Remove ternary package and examples
+[ ] Create examples/value.go
+2026-02-12T10:45:00Z | Completion: Value package
+[x] value package created (evidence: go test -cover ./value/... = 100%)
+[x] Tests pass (evidence: 9 tests pass)
+[x] CLAUDE.md updated (evidence: grep "value.Of" CLAUDE.md)
+[x] ternary removed (evidence: ls ternary/ fails)
+[x] Example created (evidence: go run examples/value.go works)
