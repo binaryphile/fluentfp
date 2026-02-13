@@ -79,6 +79,8 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `
 | `Unzip3` | `Unzip3[T,A,B,C](...)` | Extract 3 fields | — |
 | `Unzip4` | `Unzip4[T,A,B,C,D](...)` | Extract 4 fields | — |
 
+**Prefer Mapper methods for consistency.** Use `slice.From(items).Find(pred)` over `slice.Find(items, pred)` — people expect `slice.From` as the entry point.
+
 ### Type Aliases
 
 For use with `make()`: `Any`, `Bool`, `Byte`, `Error`, `Int`, `Rune`, `String`
