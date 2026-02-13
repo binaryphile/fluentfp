@@ -72,6 +72,7 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `
 
 | Function | Signature | Purpose | Example |
 |----------|-----------|---------|---------|
+| `Find` | `Find[T]([]T, func(T) bool) option.Basic[T]` | First matching element | `user = slice.Find(users, User.IsAdmin)` |
 | `Fold` | `Fold[T,R]([]T, R, func(R,T) R) R` | Reduce to single value | See [Fold](#fold) |
 | `Unzip2` | `Unzip2[T,A,B]([]T, func(T)A, func(T)B) (Mapper[A], Mapper[B])` | Extract 2 fields | `names, ages = slice.Unzip2(users, User.Name, User.Age)` |
 | `Unzip3` | `Unzip3[T,A,B,C](...)` | Extract 3 fields | — |

@@ -43,6 +43,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .Map(fn func(T) R) Mapper[R]           // Map to type R
 
 // Standalone functions
+slice.Find[T](ts []T, fn func(T) bool) option.Basic[T]  // First matching element
 slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R
 slice.Unzip2[T, A, B](ts []T, fa func(T) A, fb func(T) B) (Mapper[A], Mapper[B])
 slice.Unzip3[T, A, B, C](...)
