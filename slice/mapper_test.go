@@ -5,6 +5,27 @@ import (
 	"testing"
 )
 
+func TestMapper_Find(t *testing.T) {
+	t.Run("finds after filtering", func(t *testing.T) {
+		input := []int{1, 2, 3, 4, 5, 6}
+		isEven := func(n int) bool { return n%2 == 0 }
+		greaterThan3 := func(n int) bool { return n > 3 }
+		got := From(input).KeepIf(isEven).Find(greaterThan3)
+		if val, ok := got.Get(); !ok || val != 4 {
+			t.Errorf("Find() = %v, want 4", got)
+		}
+	})
+
+	t.Run("delegates to standalone Find", func(t *testing.T) {
+		input := []int{1, 2, 3}
+		isTwo := func(n int) bool { return n == 2 }
+		got := From(input).Find(isTwo)
+		if val, ok := got.Get(); !ok || val != 2 {
+			t.Errorf("Find() = %v, want 2", got)
+		}
+	})
+}
+
 func TestKeepIf(t *testing.T) {
 	isEven := func(n int) bool { return n%2 == 0 }
 

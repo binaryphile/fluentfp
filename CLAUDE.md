@@ -24,6 +24,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .Convert(fn func(T) T) Mapper[T]       // Map to same type
 .TakeFirst(n int) Mapper[T]            // First n elements
 .Each(fn func(T))                      // Side-effect iteration
+.Find(fn func(T) bool) option.Basic[T] // First matching element
 .Len() int                             // Count elements
 
 // Mapping methods (return Mapper of target type)

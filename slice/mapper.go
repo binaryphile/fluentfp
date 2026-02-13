@@ -1,5 +1,7 @@
 package slice
 
+import "github.com/binaryphile/fluentfp/option"
+
 // Mapper is a fluent slice usable anywhere a regular slice is, but provides additional fluent fp methods.
 // Its underlying type is []T.
 type Mapper[T any] []T
@@ -23,6 +25,11 @@ func (ts Mapper[T]) Each(fn func(T)) {
 	for _, t := range ts {
 		fn(t)
 	}
+}
+
+// Find returns the first element matching the predicate, or not-ok if none match.
+func (ts Mapper[T]) Find(fn func(T) bool) option.Basic[T] {
+	return Find(ts, fn)
 }
 
 // KeepIf returns a new slice containing the members of ts for which fn returns true.

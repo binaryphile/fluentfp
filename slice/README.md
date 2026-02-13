@@ -51,6 +51,7 @@ names := users.ToString(User.Name)  // Mapper[string]
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
+| `Find` | `.Find(func(T) bool) option.Basic[T]` | First matching element | `admin = slice.From(users).Find(User.IsAdmin)` |
 | `KeepIf` | `.KeepIf(func(T) bool) Mapper[T]` | Keep matching | `actives = slice.From(users).KeepIf(User.IsActive)` |
 | `RemoveIf` | `.RemoveIf(func(T) bool) Mapper[T]` | Remove matching | `current = slice.From(users).RemoveIf(User.IsExpired)` |
 | `TakeFirst` | `.TakeFirst(n int) Mapper[T]` | First n elements | `top10 = slice.From(users).TakeFirst(10)` |
