@@ -24,7 +24,9 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .Convert(fn func(T) T) Mapper[T]       // Map to same type
 .TakeFirst(n int) Mapper[T]            // First n elements
 .Each(fn func(T))                      // Side-effect iteration
+.First() option.Basic[T]               // First element
 .Find(fn func(T) bool) option.Basic[T] // First matching element
+.Any(fn func(T) bool) bool            // True if any element matches
 .Len() int                             // Count elements
 
 // Mapping methods (return Mapper of target type)
@@ -38,10 +40,18 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToInt32(fn func(T) int32) Mapper[int32]
 .ToInt64(fn func(T) int64) Mapper[int64]
 .ToRune(fn func(T) rune) Mapper[rune]
-.ToString(fn func(T) string) Mapper[string]
+.ToString(fn func(T) string) String
 
 // MapperTo[R,T] additional method
 .Map(fn func(T) R) Mapper[R]           // Map to type R
+
+// Float64 terminal methods (Float64 is a defined type, not an alias)
+.Sum() float64                          // Sum all elements
+
+// String terminal methods (String is a defined type, not an alias)
+.Unique() String                        // Remove duplicates, preserving order
+.Contains(target string) bool           // Check membership
+.Len() int                              // Count elements
 
 // Standalone functions
 slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R

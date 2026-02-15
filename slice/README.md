@@ -35,7 +35,7 @@ total := slice.Fold(amounts, 0.0, sumFloat64)
 
 ```go
 users := slice.From(rawUsers)       // Mapper[User]
-names := users.ToString(User.Name)  // Mapper[string]
+names := users.ToString(User.Name)  // String
 ```
 
 ## API Reference
@@ -51,12 +51,14 @@ names := users.ToString(User.Name)  // Mapper[string]
 
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
+| `First` | `.First() option.Basic[T]` | First element | `oldest = slice.From(users).First()` |
 | `Find` | `.Find(func(T) bool) option.Basic[T]` | First matching element | `admin = slice.From(users).Find(User.IsAdmin)` |
+| `Any` | `.Any(func(T) bool) bool` | True if any match | `hasAdmin = slice.From(users).Any(User.IsAdmin)` |
 | `KeepIf` | `.KeepIf(func(T) bool) Mapper[T]` | Keep matching | `actives = slice.From(users).KeepIf(User.IsActive)` |
 | `RemoveIf` | `.RemoveIf(func(T) bool) Mapper[T]` | Remove matching | `current = slice.From(users).RemoveIf(User.IsExpired)` |
 | `TakeFirst` | `.TakeFirst(n int) Mapper[T]` | First n elements | `top10 = slice.From(users).TakeFirst(10)` |
 | `Convert` | `.Convert(func(T) T) Mapper[T]` | Map to same type | `normalized = slice.From(users).Convert(User.Normalize)` |
-| `ToString` | `.ToString(func(T) string) Mapper[string]` | Map to string | `names = slice.From(users).ToString(User.Name)` |
+| `ToString` | `.ToString(func(T) string) String` | Map to string | `names = slice.From(users).ToString(User.Name)` |
 | `ToInt` | `.ToInt(func(T) int) Mapper[int]` | Map to int | `ages = slice.From(users).ToInt(User.Age)` |
 | `Each` | `.Each(func(T))` | Side-effect iteration | `slice.From(users).Each(User.Save)` |
 | `Len` | `.Len() int` | Count elements | `count = slice.From(users).Len()` |
@@ -78,13 +80,33 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `
 | `Unzip3` | `Unzip3[T,A,B,C](...)` | Extract 3 fields | — |
 | `Unzip4` | `Unzip4[T,A,B,C,D](...)` | Extract 4 fields | — |
 
-### Type Aliases
+### Float64 Methods
 
-For use with `make()`: `Any`, `Bool`, `Byte`, `Error`, `Int`, `Rune`, `String`
+`Float64` is a defined type (`[]float64`) with additional methods:
+
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `Sum` | `.Sum() float64` | Sum all elements | `total = slice.From(items).ToFloat64(Item.GetScore).Sum()` |
+
+### String Methods
+
+`String` is a defined type (`[]string`) with additional methods:
+
+| Method | Signature | Purpose | Example |
+|--------|-----------|---------|---------|
+| `Unique` | `.Unique() String` | Remove duplicates | `unique = slice.From(items).ToString(Item.Name).Unique()` |
+| `Contains` | `.Contains(string) bool` | Check membership | `has = slice.From(items).ToString(Item.Name).Contains("foo")` |
+| `Len` | `.Len() int` | Count elements | `count = slice.From(items).ToString(Item.Name).Len()` |
+
+### Types
+
+For use with `make()`: `Any`, `Bool`, `Byte`, `Error`, `Float64`, `Int`, `Rune`, `String`
 
 ```go
 words := make(slice.String, 0, 10)
 ```
+
+`Float64` and `String` are defined types with additional methods. All others are aliases for `Mapper[T]`.
 
 ## Method Expressions
 

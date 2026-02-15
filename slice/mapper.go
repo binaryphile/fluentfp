@@ -46,6 +46,16 @@ func (ts Mapper[T]) First() option.Basic[T] {
 	return option.Of(ts[0])
 }
 
+// Any returns true if fn returns true for any element.
+func (ts Mapper[T]) Any(fn func(T) bool) bool {
+	for _, t := range ts {
+		if fn(t) {
+			return true
+		}
+	}
+	return false
+}
+
 // Find returns the first element matching the predicate, or not-ok if none match.
 func (ts Mapper[T]) Find(fn func(T) bool) option.Basic[T] {
 	for _, t := range ts {
@@ -197,7 +207,7 @@ func (ts Mapper[T]) ToRune(fn func(T) rune) Mapper[rune] {
 }
 
 // ToString returns the result of applying fn to each member of ts.
-func (ts Mapper[T]) ToString(fn func(T) string) Mapper[string] {
+func (ts Mapper[T]) ToString(fn func(T) string) String {
 	results := make([]string, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
