@@ -128,7 +128,7 @@ func (ts Mapper[T]) ToFloat32(fn func(T) float32) Mapper[float32] {
 }
 
 // ToFloat64 returns the result of applying fn to each member of ts.
-func (ts Mapper[T]) ToFloat64(fn func(T) float64) Mapper[float64] {
+func (ts Mapper[T]) ToFloat64(fn func(T) float64) Float64 {
 	results := make([]float64, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
