@@ -119,6 +119,13 @@ func (b Basic[T]) Or(t T) T {
 	return b.t
 }
 
+// OrDo calls fn if the option is not ok.
+func (b Basic[T]) OrDo(fn func()) {
+	if !b.ok {
+		fn()
+	}
+}
+
 // OrCall returns the option's value provided that it is ok, otherwise the result of calling fn.
 func (b Basic[T]) OrCall(fn func() T) (_ T) {
 	if !b.ok {
