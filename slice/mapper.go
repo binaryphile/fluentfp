@@ -27,6 +27,14 @@ func (ts Mapper[T]) Each(fn func(T)) {
 	}
 }
 
+// First returns the first element, or not-ok if the slice is empty.
+func (ts Mapper[T]) First() option.Basic[T] {
+	if len(ts) == 0 {
+		return option.NotOk[T]()
+	}
+	return option.Of(ts[0])
+}
+
 // Find returns the first element matching the predicate, or not-ok if none match.
 func (ts Mapper[T]) Find(fn func(T) bool) option.Basic[T] {
 	for _, t := range ts {

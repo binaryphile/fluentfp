@@ -1,5 +1,7 @@
 package slice
 
+import "github.com/binaryphile/fluentfp/option"
+
 // MapperTo is a fluent slice with one additional method, MapTo, for mapping to a specified type R.
 // If you don't need to map to an arbitrary type, use Mapper instead.
 type MapperTo[R, T any] []T
@@ -16,6 +18,14 @@ func (ts MapperTo[R, T]) Convert(fn func(T) T) MapperTo[R, T] {
 	}
 
 	return results
+}
+
+// First returns the first element, or not-ok if the slice is empty.
+func (ts MapperTo[R, T]) First() option.Basic[T] {
+	if len(ts) == 0 {
+		return option.NotOk[T]()
+	}
+	return option.Of(ts[0])
 }
 
 // Each applies fn to each member of ts.
