@@ -10,6 +10,17 @@ func From[T any](ts []T) Mapper[T] {
 	return ts
 }
 
+// FindAs returns the first element that type-asserts to R, or not-ok if none match.
+// Useful for finding a specific concrete type in a slice of interfaces.
+func FindAs[R, T any](ts []T) option.Basic[R] {
+	for _, t := range ts {
+		if r, ok := any(t).(R); ok {
+			return option.Of(r)
+		}
+	}
+	return option.NotOk[R]()
+}
+
 // Convert returns the result of applying fn to each member of ts.
 func (ts Mapper[T]) Convert(fn func(T) T) Mapper[T] {
 	results := make([]T, len(ts))
