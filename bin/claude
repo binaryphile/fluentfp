@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Wrapper for claude that runs from project root so conversations resume correctly.
+
+set -eu
+
+# Find project root (directory containing flake.nix)
+find_project_root() {
+  local dir="$PWD"
+  while [[ "$dir" != "/" ]]; do
+    [[ -f "$dir/flake.nix" ]] && echo "$dir" && return 0
+    dir=$(dirname "$dir")
+  done
+  return 1
+}
+
+main() {
+  local folder prog root
+  folder=$(cd "$(dirname "$0")"; pwd)
+
+  # Find the real claude, excluding our bin/ directory
+  prog=$(type -Pa claude | grep -v "^$folder/" | head -1)
+
+  # cd to project root if found, then run claude
+  if root=$(find_project_root); then
+    cd "$root"
+  fi
+
+  exec "$prog" "$@"
+}
+
+main "$@"

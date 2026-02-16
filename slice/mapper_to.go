@@ -1,5 +1,7 @@
 package slice
 
+import "github.com/binaryphile/fluentfp/option"
+
 // MapperTo is a fluent slice with one additional method, MapTo, for mapping to a specified type R.
 // If you don't need to map to an arbitrary type, use Mapper instead.
 type MapperTo[R, T any] []T
@@ -16,6 +18,14 @@ func (ts MapperTo[R, T]) Convert(fn func(T) T) MapperTo[R, T] {
 	}
 
 	return results
+}
+
+// First returns the first element, or not-ok if the slice is empty.
+func (ts MapperTo[R, T]) First() option.Basic[T] {
+	if len(ts) == 0 {
+		return option.NotOk[T]()
+	}
+	return option.Of(ts[0])
 }
 
 // Each applies fn to each member of ts.
@@ -133,8 +143,28 @@ func (ts MapperTo[R, T]) ToInt(fn func(T) int) MapperTo[R, int] {
 	return results
 }
 
-// To returns the result of applying fn to each member of ts.
-func (ts MapperTo[R, T]) To(fn func(T) R) Mapper[R] {
+// ToInt32 returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) ToInt32(fn func(T) int32) MapperTo[R, int32] {
+	results := make([]int32, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
+// ToInt64 returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) ToInt64(fn func(T) int64) MapperTo[R, int64] {
+	results := make([]int64, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
+// Map returns the result of applying fn to each member of ts.
+func (ts MapperTo[R, T]) Map(fn func(T) R) Mapper[R] {
 	results := make([]R, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)

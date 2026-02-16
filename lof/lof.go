@@ -1,4 +1,4 @@
-// Package lof provides lower-order functions for use by higher-order functions.
+// Package lof provides utility functions for functional programming.
 package lof
 
 import (
@@ -18,4 +18,15 @@ func Println(s string) {
 // StringLen wraps the len builtin for strings.
 func StringLen(s string) int {
 	return len(s)
+}
+
+// IfNotEmpty returns s and whether s is non-empty.
+// Converts "empty string = absent" returns to Go's comma-ok idiom.
+//
+//	result := cmp.Diff(want, got)
+//	if diff, ok := lof.IfNotEmpty(result); ok {
+//	    t.Errorf("mismatch:\n%s", diff)
+//	}
+func IfNotEmpty(s string) (string, bool) {
+	return s, s != ""
 }

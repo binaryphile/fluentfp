@@ -8,8 +8,19 @@ type Basic[T any] struct {
 
 // factories
 
-// IfProvided returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
-func IfProvided[T comparable](t T) (_ Basic[T]) {
+// IfNotEmpty returns an ok option of s provided that s is not empty, or not-ok otherwise.
+// It is a readable alias for IfNotZero when the type is string.
+func IfNotEmpty(s string) (_ String) {
+	if s == "" {
+		return
+	}
+
+	return Of(s)
+}
+
+// IfNotZero returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
+// Zero values include "" for strings, 0 for numbers, false for bools, etc.
+func IfNotZero[T comparable](t T) (_ Basic[T]) {
 	var zero T
 	if t == zero {
 		return
@@ -35,11 +46,9 @@ func Of[T any](t T) Basic[T] {
 	}
 }
 
-// FromOpt returns an ok option of *what t points at* provided that t is not nil, or not-ok otherwise.
-// It is useful to convert a pseudo-option based on pointers into a formal option.
-// By convention, in consuming code, we suffix a pseudo-option's variable name with an "Opt" suffix to clarify intent,
-// hence "FromOpt".
-func FromOpt[T any](t *T) (_ Basic[T]) {
+// IfNotNil returns an ok option of *what t points at* provided that t is not nil, or not-ok otherwise.
+// It converts a pointer-based pseudo-option (where nil means absent) into a formal option.
+func IfNotNil[T any](t *T) (_ Basic[T]) {
 	if t == nil {
 		return
 	}
@@ -110,6 +119,13 @@ func (b Basic[T]) Or(t T) T {
 	return b.t
 }
 
+// OrDo calls fn if the option is not ok.
+func (b Basic[T]) OrDo(fn func()) {
+	if !b.ok {
+		fn()
+	}
+}
+
 // OrCall returns the option's value provided that it is ok, otherwise the result of calling fn.
 func (b Basic[T]) OrCall(fn func() T) (_ T) {
 	if !b.ok {
@@ -129,14 +145,15 @@ func (b Basic[T]) OrEmpty() (_ T) {
 	return b.t
 }
 
-// OrFalse returns the option's value provided that it is ok, otherwise the zero value for T.
-// It is a more readable alias for OrZero when T is bool.
-func (b Basic[T]) OrFalse() (_ T) {
+// OrFalse returns the option's value provided that it is ok, otherwise false.
+// It is a readable alias for OrZero when the type is bool.
+func (b Basic[T]) OrFalse() bool {
 	if !b.ok {
-		return
+		return false
 	}
 
-	return b.t
+	// Type assert to bool; panics if T is not bool
+	return any(b.t).(bool)
 }
 
 // OrZero returns the option's value provided that it is ok, otherwise the zero value for T.
@@ -239,8 +256,8 @@ func (b Basic[T]) ToOpt() (_ *T) {
 	return &b.t
 }
 
-// ToSame returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToSame(fn func(T) T) (_ Basic[T]) {
+// Convert returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Basic[T]) Convert(fn func(T) T) (_ Basic[T]) {
 	if !b.ok {
 		return
 	}

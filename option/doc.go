@@ -20,9 +20,10 @@ func _() {
 	type _ = Rune
 	type _ = String
 
-	_ = FromOpt[int]
 	_ = Getenv("")
-	_ = IfProvided[int]
+	_ = IfNotEmpty
+	_ = IfNotNil[int]
+	_ = IfNotZero[int]
 	_ = Map(Basic[int]{}, func(int) int { return 0 })
 	_ = New[int]
 	_ = Of[int]

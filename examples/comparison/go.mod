@@ -18,7 +18,7 @@ require (
 )
 
 replace (
-	github.com/binaryphile/fluentfp => /home/ted/GolandProjects/fluentfp
+	github.com/binaryphile/fluentfp => /home/ted/projects/fluentfp
 )
 
 require (

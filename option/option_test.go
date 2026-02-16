@@ -20,42 +20,42 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestIfProvided(t *testing.T) {
+func TestIfNotZero(t *testing.T) {
 	t.Run("non-zero value returns ok option", func(t *testing.T) {
-		opt := IfProvided("hello")
+		opt := IfNotZero("hello")
 		if v, ok := opt.Get(); !ok || v != "hello" {
-			t.Errorf("IfProvided(\"hello\") = (%v, %v), want (\"hello\", true)", v, ok)
+			t.Errorf("IfNotZero(\"hello\") = (%v, %v), want (\"hello\", true)", v, ok)
 		}
 	})
 
 	t.Run("zero value returns not-ok option", func(t *testing.T) {
-		opt := IfProvided("")
+		opt := IfNotZero("")
 		if _, ok := opt.Get(); ok {
-			t.Error("IfProvided(\"\") should be not-ok")
+			t.Error("IfNotZero(\"\") should be not-ok")
 		}
 	})
 
 	t.Run("zero int returns not-ok option", func(t *testing.T) {
-		opt := IfProvided(0)
+		opt := IfNotZero(0)
 		if _, ok := opt.Get(); ok {
-			t.Error("IfProvided(0) should be not-ok")
+			t.Error("IfNotZero(0) should be not-ok")
 		}
 	})
 }
 
-func TestFromOpt(t *testing.T) {
+func TestIfNotNil(t *testing.T) {
 	t.Run("non-nil pointer returns ok option with dereferenced value", func(t *testing.T) {
 		val := 42
-		opt := FromOpt(&val)
+		opt := IfNotNil(&val)
 		if v, ok := opt.Get(); !ok || v != 42 {
-			t.Errorf("FromOpt(&42) = (%v, %v), want (42, true)", v, ok)
+			t.Errorf("IfNotNil(&42) = (%v, %v), want (42, true)", v, ok)
 		}
 	})
 
 	t.Run("nil pointer returns not-ok option", func(t *testing.T) {
-		opt := FromOpt[int](nil)
+		opt := IfNotNil[int](nil)
 		if _, ok := opt.Get(); ok {
-			t.Error("FromOpt(nil) should be not-ok")
+			t.Error("IfNotNil(nil) should be not-ok")
 		}
 	})
 }
@@ -140,6 +140,26 @@ func TestCall(t *testing.T) {
 		opt.Call(func(v int) { called = true })
 		if called {
 			t.Error("Call was invoked on not-ok option")
+		}
+	})
+}
+
+func TestLift(t *testing.T) {
+	t.Run("lifted function calls original when ok", func(t *testing.T) {
+		var received int
+		lifted := Lift(func(v int) { received = v })
+		lifted(Of(42))
+		if received != 42 {
+			t.Errorf("Lift received %v, want 42", received)
+		}
+	})
+
+	t.Run("lifted function does not call original when not-ok", func(t *testing.T) {
+		called := false
+		lifted := Lift(func(v int) { called = true })
+		lifted(New(0, false))
+		if called {
+			t.Error("Lift was invoked on not-ok option")
 		}
 	})
 }

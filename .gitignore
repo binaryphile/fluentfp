@@ -1,0 +1,15 @@
+# Build artifacts
+testbuild
+**/testbuild
+
+# Go build cache (if local)
+*.exe
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store

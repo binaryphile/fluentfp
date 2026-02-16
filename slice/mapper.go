@@ -1,11 +1,24 @@
 package slice
 
+import "github.com/binaryphile/fluentfp/option"
+
 // Mapper is a fluent slice usable anywhere a regular slice is, but provides additional fluent fp methods.
 // Its underlying type is []T.
 type Mapper[T any] []T
 
 func From[T any](ts []T) Mapper[T] {
 	return ts
+}
+
+// FindAs returns the first element that type-asserts to R, or not-ok if none match.
+// Useful for finding a specific concrete type in a slice of interfaces.
+func FindAs[R, T any](ts []T) option.Basic[R] {
+	for _, t := range ts {
+		if r, ok := any(t).(R); ok {
+			return option.Of(r)
+		}
+	}
+	return option.NotOk[R]()
 }
 
 // Convert returns the result of applying fn to each member of ts.
@@ -23,6 +36,34 @@ func (ts Mapper[T]) Each(fn func(T)) {
 	for _, t := range ts {
 		fn(t)
 	}
+}
+
+// First returns the first element, or not-ok if the slice is empty.
+func (ts Mapper[T]) First() option.Basic[T] {
+	if len(ts) == 0 {
+		return option.NotOk[T]()
+	}
+	return option.Of(ts[0])
+}
+
+// Any returns true if fn returns true for any element.
+func (ts Mapper[T]) Any(fn func(T) bool) bool {
+	for _, t := range ts {
+		if fn(t) {
+			return true
+		}
+	}
+	return false
+}
+
+// Find returns the first element matching the predicate, or not-ok if none match.
+func (ts Mapper[T]) Find(fn func(T) bool) option.Basic[T] {
+	for _, t := range ts {
+		if fn(t) {
+			return option.Of(t)
+		}
+	}
+	return option.NotOk[T]()
 }
 
 // KeepIf returns a new slice containing the members of ts for which fn returns true.
@@ -116,7 +157,7 @@ func (ts Mapper[T]) ToFloat32(fn func(T) float32) Mapper[float32] {
 }
 
 // ToFloat64 returns the result of applying fn to each member of ts.
-func (ts Mapper[T]) ToFloat64(fn func(T) float64) Mapper[float64] {
+func (ts Mapper[T]) ToFloat64(fn func(T) float64) Float64 {
 	results := make([]float64, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)
@@ -135,6 +176,26 @@ func (ts Mapper[T]) ToInt(fn func(T) int) Mapper[int] {
 	return results
 }
 
+// ToInt32 returns the result of applying fn to each member of ts.
+func (ts Mapper[T]) ToInt32(fn func(T) int32) Mapper[int32] {
+	results := make([]int32, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
+// ToInt64 returns the result of applying fn to each member of ts.
+func (ts Mapper[T]) ToInt64(fn func(T) int64) Mapper[int64] {
+	results := make([]int64, len(ts))
+	for i, t := range ts {
+		results[i] = fn(t)
+	}
+
+	return results
+}
+
 // ToRune returns the result of applying fn to each member of ts.
 func (ts Mapper[T]) ToRune(fn func(T) rune) Mapper[rune] {
 	results := make([]rune, len(ts))
@@ -146,7 +207,7 @@ func (ts Mapper[T]) ToRune(fn func(T) rune) Mapper[rune] {
 }
 
 // ToString returns the result of applying fn to each member of ts.
-func (ts Mapper[T]) ToString(fn func(T) string) Mapper[string] {
+func (ts Mapper[T]) ToString(fn func(T) string) String {
 	results := make([]string, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)

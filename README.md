@@ -1,165 +1,271 @@
-# FluentFP: Pragmatic Functional Programming in Go
+# fluentfp
 
-**FluentFP** is a collection of Go packages designed to bring a handful of functional
-programming concepts to Go from a Go practitioner’s standpoint. It is entirely focused on
-writing clear, economical Go code.
+**Fluent** functional programming for Go: fewer bugs, less code, predictable performance.
 
-Each package makes small but tangible readability improvements in some area of Go.  Taken
-together, they harmonize into something more, dramatically enhancing readability.
+> **Summary:** Eliminate control structures, eliminate the bugs they enable.
+> Mixed codebases see 26% complexity reduction; pure pipelines drop 95%.
+> The win isn't lines saved—it's bugs that become unwritable.
 
-The library is structured into several modules:
+fluentfp is a small set of composable utilities for data transformation and type safety in Go.
 
--   `slice`: use collection operations like map and filter on slices, [chaining method
-    calls](https://en.wikipedia.org/wiki/Method_chaining) in a fluent style
--   `option`: enforce checking for the existence of a value before being able to access it
-    using this container type
--   `must`: modify fallible functions so they no longer return `err`, allowing them to be
-    used with slice collection methods
--   `ternary`: write if-then-else conditionals on a single line, similar to the
-    `cond ? a : b` ternary operator in other languages
+Fluent operations chain method calls on a single line—no intermediate variables, no loop scaffolding.
 
-## Key Features
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for complete API documentation.
 
--   **Fluent Method Chaining**: Code readability is improved by clear intention and reduced
-    nesting.
--   **Type-Safe Generics**: Generics in Go 1.18+ enable type-agnostic containers while
-    ensuring type safety.
--   **Interoperable with Go’s idioms**: Common Go idioms are supported, such as using range
-    to iterate over a fluent slice or comma-ok conditional assignment for unwrapping values
-    from options
+## Quick Start
 
-See the individual package READMEs for details by clicking the headings below.
-
-## Installation
-
-To get started with **FluentFP**:
-
-``` bash
+```bash
 go get github.com/binaryphile/fluentfp
 ```
 
-Then import the desired modules:
+```go
+// Before: loop mechanics interleaved with intent
+var names []string
+for _, u := range users {
+    if u.IsActive() {
+        names = append(names, u.Name)
+    }
+}
 
-``` go
-import "github.com/binaryphile/fluentfp/option"
-import "github.com/binaryphile/fluentfp/slice"
+// After: just intent
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
-## Modules Overview
+## The Problem
 
-### 1. [`slice`](slice/README.md)
+Loop mechanics create bugs regardless of developer skill:
 
-A package providing a fluent interface for common slice operations like filtering, mapping,
-and more.
+- **Accumulator errors**: forgot to increment, wrong variable
+- **Defer in loop**: resources pile up until function returns
+- **Index typos**: `i+i` instead of `i+1`
+- **Ignored errors**: `_ = fn()` silently continues when "impossible" errors occur
 
-**Highlights**:
+C-style loops add off-by-one errors: `i <= n` instead of `i < n`.
 
--   Fluent method chaining with `Mapper[T any]` type
--   Interchangeable with native slices
--   Methods of the form `ToType` for mapping to many built-in types
--   Methods `KeepIf` and `RemoveIf` for filtering
--   Create with the factory function `slice.From`
+These bugs compile, pass review, and look correct. They continue to appear in highly-reviewed, very public projects. If the construct allows an error, it will eventually happen.
 
-``` go
-ints := []int{0,1}
-strings := slice.From(ints).  // convert to Mapper[int]
-    ToString(strconv.Itoa)    // then convert each integer to its string
+## The Solution
 
-// isNonzero returns true if the integer is greater than zero.
-isNonzero := func(i int) bool { return i > 0 }
-nonzeros := slice.From(ints).KeepIf(isNonzero)
+*Correctness by construction*: design code so errors can't occur.
 
-one := nonzeros[0] // fluent slices are still slices
-```
+| Bug Class | Why It Happens | fluentfp Elimination |
+|-----------|----------------|---------------------|
+| Accumulator error | Manual state tracking | `Fold` manages state |
+| Defer in loop | Loop body accumulates | No loop body |
+| Index typo | Manual index math | Predicates operate on values |
+| Off-by-one (C-style) | Manual bounds | Iterate collection, not indices |
+| Ignored error | `_ =` discards error | `must.BeNil` enforces invariant |
 
--    Map to arbitrary types with the `MapperTo[R, T any]` type, which have a method `To` that returns type `R`
--    Create with the factory function `slice.To[R any]`
+## Measurable Impact
+
+| Codebase Type | Code Reduction | Complexity Reduction |
+|---------------|----------------|---------------------|
+| Mixed (typical) | 12% | 26% |
+| Pure pipeline | 47% | 95% |
+
+*Complexity measured via `scc` (cyclomatic complexity approximation). See [methodology](methodology.md#code-metrics-tool-scc).*
+
+## Performance
+
+| Operation | Loop | Chain | Result |
+|-----------|------|-------|--------|
+| Filter only | 5.6 μs | 5.5 μs | **Equal** |
+| Filter + Map | 3.1 μs | 7.6 μs | Loop 2.5× faster |
+| Count only | 0.26 μs | 7.6 μs | Loop 29× faster |
+
+Single operations equal properly-written loops (both pre-allocate). In practice, many loops use naive append for simplicity—chains beat those. Multi-operation chains allocate per operation. See [full benchmarks](methodology.md#benchmark-results).
+
+## When to Use fluentfp
+
+**High yield** (adopt broadly):
+- Data pipelines, ETL, report generators
+- Filter/map/fold patterns
+- Field extraction from collections
+
+**Medium yield** (adopt selectively):
+- API handlers with data transformation
+- Config validation
+
+**Low yield** (probably skip):
+- I/O-heavy code with minimal transformation
+- Graph/tree traversal
+- Streaming/channel-based pipelines
+
+## When to Use Loops
+
+- **Channel consumption**: `for r := range ch`
+- **Complex control flow**: break, continue, early return
+- **Index-dependent logic**: when you need `i` for more than indexing
+
+## Parallelism Readiness
+
+Pure functions + immutable data = safe parallelism.
+
+**Note:** fluentfp does not provide parallel operations. But the patterns it encourages—pure transforms, no shared state—are exactly what makes code *parallel-ready* when you need it.
 
 ```go
-type User struct {} // an arbitrary type
+// With errgroup (idiomatic Go)
+import "golang.org/x/sync/errgroup"
 
-func UserFromId(userId int) User {
-	// fetch from database
+var g errgroup.Group
+results := make([]Result, len(items))
+for i, item := range items {
+    i, item := i, item  // capture by value for closure
+    g.Go(func() error {
+        results[i] = transform(item)  // Safe: transform is pure, i is unique
+        return nil
+    })
+}
+g.Wait()
+```
+
+**Benchmarked crossover (Go, 8 cores):**
+
+| N | Sequential | Parallel | Speedup | Verdict |
+|---|------------|----------|---------|---------|
+| 100 | 5.6μs | 9.3μs | 0.6× | Sequential wins |
+| 1,000 | 56μs | 40μs | 1.4× | Parallel starts winning |
+| 10,000 | 559μs | 200μs | 2.8× | Parallel wins |
+| 100,000 | 5.6ms | 1.4ms | 4.0× | Parallel wins decisively |
+
+**When to parallelize:**
+- N > 1K items AND CPU-bound transform → yes
+- N < 500 OR transform < 100ns → no (overhead dominates)
+- I/O-bound (HTTP calls, disk) → yes (waiting is free to parallelize)
+
+**Key insight:** The discipline investment—writing pure transforms—pays off when you need parallelism and don't have to refactor first.
+
+*Reproduce these benchmarks: `go test -bench=. -benchmem ./examples/`*
+
+## Packages
+
+| Package | Purpose | Key Functions |
+|---------|---------|---------------|
+| [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
+| [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfNotZero`, `IfNotNil` |
+| [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
+| [must](must/) | Fallible funcs → HOF args | `Get`, `BeNil`, `Of` |
+| [value](value/) | Conditional value selection | `Of().When().Or()` |
+| [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
+| [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
+
+## Installation
+
+```bash
+go get github.com/binaryphile/fluentfp
+```
+
+```go
+import "github.com/binaryphile/fluentfp/slice"
+import "github.com/binaryphile/fluentfp/option"
+```
+
+## Package Highlights
+
+### slice
+
+Fluent collection operations with method chaining:
+
+```go
+// Filter and extract
+actives := slice.From(users).KeepIf(User.IsActive)
+names := slice.From(users).ToString(User.GetName)
+
+// Map to arbitrary types
+users := slice.MapTo[User](ids).Map(FetchUser)
+
+// Reduce
+total := slice.Fold(amounts, 0.0, sumFloat64)
+```
+
+### option
+
+Eliminate nil panics with explicit optionality:
+
+```go
+// Create
+opt := option.Of(user)           // always ok
+opt := option.IfNotZero(name)    // ok if non-zero (comparable types)
+opt := option.IfNotNil(ptr)      // ok if not nil (pointer types)
+
+// Extract
+user, ok := opt.Get()            // comma-ok
+user := opt.Or(defaultUser)      // with fallback
+```
+
+### either
+
+Sum types for values that are one of two possible types:
+
+```go
+// Create
+fail := either.Left[string, int]("fail")
+ok42 := either.Right[string, int](42)
+
+// Extract with comma-ok
+if fortyTwo, ok := ok42.Get(); ok {
+    fmt.Println(fortyTwo) // 42
 }
 
-userIds := []int{0,1}
-users := slice.To[User](userIds).To(UserFromId)
+// Fold: handle both cases exhaustively
+// formatLeft returns an error message.
+formatLeft := func(err string) string { return "Error: " + err }
+// formatRight returns a success message.
+formatRight := func(n int) string { return fmt.Sprintf("Got: %d", n) }
+
+msg := either.Fold(ok42, formatLeft, formatRight)   // "Got: 42"
+msg = either.Fold(fail, formatLeft, formatRight)    // "Error: fail"
 ```
 
-### 2. [`option`](option/README.md)
+### must
 
-A package to handle optional values by enforcing validation before access, enhancing code
-safety.
+Make error invariants explicit. Every `_ = fn()` should be `must.BeNil(fn())`:
 
-**Highlights**:
-
--   Provides option types for the built-ins such as `option.String`, `option.Int`, etc.
--   Methods `To[Type]` for mapping
--   Method `Or` for extracting a value or alternative
-
-**Example**:
-
-``` go
-okOption := option.Of(0)  // put 0 in the container and make it "ok"
-zero := okOption.Or(1)    // return the value if ok, otherwise return 1
-if zero, ok := okOption.Get(); ok {
-    // work with the value
-}
+```go
+_ = os.Setenv("KEY", value)           // Silent corruption if error
+must.BeNil(os.Setenv("KEY", value))   // Invariant enforced
 ```
 
-### 3. [`must`](must/README.md)
+Also wraps fallible functions for HOF use:
 
-A package to convert functions that might return an error into ones that don’t, allowing use
-with other fluentfp modules. Other functions related to error handling as well.
-
-**Highlights**:
-
--   Avoid error handling in fluent expressions
--   Usable where panics are the correct failure mode
-
-**Example**:
-
-``` go
-strings := []string{"1","2"}
-atoi := must.Of(strconv.Atoi)          // create a "must" version of Atoi
-ints := slice.From(strings).ToInt(atoi)  // convert to ints, panic if error
-
-// other functions
-err := file.Close()
-must.BeNil(err)  // shorten if err != nil { panic(err) } checks
-
-errors := []error{nil, nil}
-errors.Each(must.BeNil) // check all errors
-
-contents := must.Get(os.ReadFile("config.json"))  // panic if file read fails
-home := must.Getenv("HOME")  // panic if $HOME is empty or unset
+```go
+mustAtoi := must.Of(strconv.Atoi)
+ints := slice.From(strings).ToInt(mustAtoi)
 ```
 
-### 4. [`ternary`](ternary/README.md)
+### value
 
-A package that provides a fluent ternary conditional operation for Go.
+Value-first conditional selection:
 
-**Highlights**:
+```go
+// "value of CurrentTick when CurrentTick < 7, or 7"
+days := value.Of(tick).When(tick < 7).Or(7)
 
--   Readable and concise conditional expressions
-
-**Example**:
-
-``` go
-import t "github.com/binaryphile/fluentfp/ternary"
-
-True := t.If[string](true).Then("true").Else("false")
+// Lazy evaluation for expensive computations
+config := value.OfCall(loadFromDB).When(useCache).Or(defaultConfig)
 ```
 
-## Future Enhancements
+## The Familiarity Discount
 
-Planned additions to make FluentFP more comprehensive:
+A `for` loop you've seen 10,000 times feels instant to parse—but only because you've amortized the cognitive load through repetition. fluentfp expresses intent without mechanics; the simplicity is inherent, not learned. Be aware of this discount when comparing approaches.
 
-- [x] `ToFloat64` and `ToFloat32` methods for slice package (v0.5.0)
-- [x] `Fold`/`Reduce` for accumulating operations (v0.6.0)
-- [x] `Unzip2`/`Unzip3`/`Unzip4` for extracting multiple fields in one pass (v0.6.0)
-- [ ] `Zip` function for parallel slice iteration
+## Further Reading
+
+- [Full Analysis](analysis.md) - Technical deep-dive with examples
+- [Methodology](methodology.md) - How claims were measured
+- [Nil Safety](nil-safety.md) - The billion-dollar mistake and Go
+- [Naming Functions](naming-in-hof.md) - Function naming patterns for HOF use
+- [Library Comparison](comparison.md) - How fluentfp compares to alternatives
+
+## Recent Additions
+
+- **v0.14.0**: `value` package replaces `ternary` — value-first conditional selection
+- **v0.12.0**: **BREAKING** — `MapperTo.To` renamed to `MapperTo.Map` for clarity
+- **v0.8.0**: `either` package (Left/Right sum types), `ToInt32`/`ToInt64` (slice package)
+- **v0.7.0**: `IfNotZero` for comparable types (option package)
+- **v0.6.0**: `Fold`, `Unzip2/3/4`, `Zip`/`ZipWith` (pair package)
+- **v0.5.0**: `ToFloat64`, `ToFloat32`
 
 ## License
 
-FluentFP is licensed under the MIT License. See [LICENSE](LICENSE) for more details.
+fluentfp is licensed under the MIT License. See [LICENSE](LICENSE) for more details.
