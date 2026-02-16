@@ -1,6 +1,9 @@
 package slice
 
-import "github.com/binaryphile/fluentfp/option"
+import (
+	"github.com/binaryphile/fluentfp/either"
+	"github.com/binaryphile/fluentfp/option"
+)
 
 // MapperTo is a fluent slice with one additional method, MapTo, for mapping to a specified type R.
 // If you don't need to map to an arbitrary type, use Mapper instead.
@@ -8,6 +11,16 @@ type MapperTo[R, T any] []T
 
 func MapTo[R, T any](ts []T) MapperTo[R, T] {
 	return ts
+}
+
+// Clone returns a shallow copy of the slice with independent backing array.
+func (ts MapperTo[R, T]) Clone() MapperTo[R, T] {
+	if ts == nil {
+		return nil
+	}
+	c := make([]T, len(ts))
+	copy(c, ts)
+	return c
 }
 
 // Convert returns the result of applying fn to each member of ts.
@@ -50,6 +63,15 @@ func (ts MapperTo[R, T]) KeepIf(fn func(T) bool) MapperTo[R, T] {
 // Len returns the length of the slice.
 func (ts MapperTo[T, R]) Len() int {
 	return len(ts)
+}
+
+// Single returns Right(element) if exactly one element exists,
+// or Left(count) if zero or more than one.
+func (ts MapperTo[R, T]) Single() either.Either[int, T] {
+	if len(ts) == 1 {
+		return either.Right[int, T](ts[0])
+	}
+	return either.Left[int, T](len(ts))
 }
 
 // RemoveIf returns a new slice containing members for which fn returns false.

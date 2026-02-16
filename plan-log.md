@@ -2065,3 +2065,39 @@ README examples should be self-documenting—naming wrappers after their values 
 [x] CLAUDE.md updated (evidence: grep "value.Of" CLAUDE.md)
 [x] ternary removed (evidence: ls ternary/ fails)
 [x] Example created (evidence: go run examples/value.go works)
+2026-02-15T22:00:00Z | Contract: fluentfp new methods
+[ ] String.ToSet()
+[ ] Mapper.Clone() + MapperTo.Clone()
+[ ] SortBy + SortByDesc (standalone)
+[ ] Mapper.Single() + MapperTo.Single() (returns Either)
+[ ] Tests for all new methods
+[ ] doc.go updated
+[ ] slice/README.md updated
+[ ] CLAUDE.md updated
+2026-02-15T22:00:00Z | Contract: fluentfp new methods
+[ ] String.ToSet()
+[ ] Mapper.Clone() + MapperTo.Clone()
+[ ] SortBy + SortByDesc (standalone)
+[ ] Mapper.Single() + MapperTo.Single() (returns Either)
+[ ] Tests for all new methods
+[ ] doc.go updated
+[ ] slice/README.md updated
+[ ] CLAUDE.md updated
+2026-02-15T22:00:00Z | Contract: fluentfp new methods
+[ ] String.ToSet()
+[ ] Mapper.Clone() + MapperTo.Clone()
+[ ] SortBy + SortByDesc (standalone)
+[ ] Mapper.Single() + MapperTo.Single() (returns Either)
+[ ] Tests for all new methods
+[ ] doc.go updated
+[ ] slice/README.md updated
+[ ] CLAUDE.md updated
+2026-02-15T23:30:00Z | Completion: fluentfp new methods
+[x] String.ToSet() (types.go:51-58)
+[x] Mapper.Clone() + MapperTo.Clone() (mapper.go:62-70, mapper_to.go:16-24)
+[x] SortBy + SortByDesc (sort.go, slices.SortFunc + cmp.Compare)
+[x] Mapper.Single() + MapperTo.Single() (mapper.go:72-79, mapper_to.go:70-75)
+[x] Tests pass (go test -race -count=1 ./slice/... OK, Khorikov-compliant)
+[x] doc.go updated (7 entries, alphabetical)
+[x] slice/README.md updated (Mapper, Standalone, String tables + MapperTo note + K cmp.Ordered)
+[x] CLAUDE.md updated (Clone, Single, ToSet, SortBy, SortByDesc with constraints)

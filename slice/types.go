@@ -47,3 +47,12 @@ func (ss String) Contains(target string) bool {
 func (ss String) Len() int {
 	return len(ss)
 }
+
+// ToSet returns a map with each string as a key set to true.
+func (ss String) ToSet() map[string]bool {
+	set := make(map[string]bool, len(ss))
+	for _, s := range ss {
+		set[s] = true
+	}
+	return set
+}

@@ -27,6 +27,8 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .First() option.Basic[T]               // First element
 .Find(fn func(T) bool) option.Basic[T] // First matching element
 .Any(fn func(T) bool) bool            // True if any element matches
+.Clone() Mapper[T]                     // Shallow copy with independent backing array
+.Single() either.Either[int, T]        // Right if exactly one; Left(count) otherwise
 .Len() int                             // Count elements
 
 // Mapping methods (return Mapper of target type)
@@ -52,8 +54,11 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .Unique() String                        // Remove duplicates, preserving order
 .Contains(target string) bool           // Check membership
 .Len() int                              // Count elements
+.ToSet() map[string]bool                // Convert to set for membership checks
 
 // Standalone functions
+slice.SortBy[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T]    // Sorted copy, ascending by key
+slice.SortByDesc[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] // Sorted copy, descending by key
 slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R
 slice.Unzip2[T, A, B](ts []T, fa func(T) A, fb func(T) B) (Mapper[A], Mapper[B])
 slice.Unzip3[T, A, B, C](...)

@@ -54,6 +54,8 @@ names := users.ToString(User.Name)  // String
 | `First` | `.First() option.Basic[T]` | First element | `oldest = slice.From(users).First()` |
 | `Find` | `.Find(func(T) bool) option.Basic[T]` | First matching element | `admin = slice.From(users).Find(User.IsAdmin)` |
 | `Any` | `.Any(func(T) bool) bool` | True if any match | `hasAdmin = slice.From(users).Any(User.IsAdmin)` |
+| `Clone` | `.Clone() Mapper[T]` | Shallow copy | `copy = slice.From(users).Clone()` |
+| `Single` | `.Single() either.Either[int, T]` | Right if exactly one; Left(count) otherwise | `result = slice.From(matches).Single()` |
 | `KeepIf` | `.KeepIf(func(T) bool) Mapper[T]` | Keep matching | `actives = slice.From(users).KeepIf(User.IsActive)` |
 | `RemoveIf` | `.RemoveIf(func(T) bool) Mapper[T]` | Remove matching | `current = slice.From(users).RemoveIf(User.IsExpired)` |
 | `TakeFirst` | `.TakeFirst(n int) Mapper[T]` | First n elements | `top10 = slice.From(users).TakeFirst(10)` |
@@ -67,6 +69,8 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `
 
 ### MapperTo Additional Method
 
+MapperTo has all Mapper methods above, plus:
+
 | Method | Signature | Purpose | Example |
 |--------|-----------|---------|---------|
 | `Map` | `.Map(func(T) R) Mapper[R]` | Map to type R | `users = slice.MapTo[User](ids).Map(FetchUser)` |
@@ -75,6 +79,8 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `
 
 | Function | Signature | Purpose | Example |
 |----------|-----------|---------|---------|
+| `SortBy` | `SortBy[T any, K cmp.Ordered]([]T, func(T) K) Mapper[T]` | Sorted copy, ascending by key | `sorted = slice.SortBy(users, User.GetAge)` |
+| `SortByDesc` | `SortByDesc[T any, K cmp.Ordered]([]T, func(T) K) Mapper[T]` | Sorted copy, descending by key | `sorted = slice.SortByDesc(users, User.GetAge)` |
 | `Fold` | `Fold[T,R]([]T, R, func(R,T) R) R` | Reduce to single value | See [Fold](#fold) |
 | `Unzip2` | `Unzip2[T,A,B]([]T, func(T)A, func(T)B) (Mapper[A], Mapper[B])` | Extract 2 fields | `names, ages = slice.Unzip2(users, User.Name, User.Age)` |
 | `Unzip3` | `Unzip3[T,A,B,C](...)` | Extract 3 fields | — |
@@ -97,6 +103,7 @@ Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `
 | `Unique` | `.Unique() String` | Remove duplicates | `unique = slice.From(items).ToString(Item.Name).Unique()` |
 | `Contains` | `.Contains(string) bool` | Check membership | `has = slice.From(items).ToString(Item.Name).Contains("foo")` |
 | `Len` | `.Len() int` | Count elements | `count = slice.From(items).ToString(Item.Name).Len()` |
+| `ToSet` | `.ToSet() map[string]bool` | Convert to set | `set = slice.From(items).ToString(Item.Name).ToSet()` |
 
 ### Types
 

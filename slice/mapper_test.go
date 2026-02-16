@@ -215,6 +215,59 @@ func TestStringContains(t *testing.T) {
 	}
 }
 
+func TestClone(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		var s Mapper[int]
+		got := s.Clone()
+		if got != nil {
+			t.Errorf("Clone() = %v, want nil", got)
+		}
+	})
+
+	t.Run("non-empty", func(t *testing.T) {
+		s := From([]int{1, 2, 3})
+		got := s.Clone()
+		if !reflect.DeepEqual([]int(got), []int{1, 2, 3}) {
+			t.Errorf("Clone() = %v, want [1 2 3]", got)
+		}
+	})
+
+	t.Run("independent backing array", func(t *testing.T) {
+		s := From([]int{1, 2, 3})
+		got := s.Clone()
+		got[0] = 99
+		if s[0] != 1 {
+			t.Errorf("Clone() shares backing array: original[0] = %d, want 1", s[0])
+		}
+	})
+}
+
+func TestSingle(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		s := From([]int{})
+		got := s.Single()
+		if count, ok := got.GetLeft(); !ok || count != 0 {
+			t.Errorf("Single() on empty = %v, want Left(0)", got)
+		}
+	})
+
+	t.Run("one element", func(t *testing.T) {
+		s := From([]int{42})
+		got := s.Single()
+		if val, ok := got.Get(); !ok || val != 42 {
+			t.Errorf("Single() on [42] = %v, want Right(42)", got)
+		}
+	})
+
+	t.Run("multiple elements", func(t *testing.T) {
+		s := From([]int{1, 2, 3})
+		got := s.Single()
+		if count, ok := got.GetLeft(); !ok || count != 3 {
+			t.Errorf("Single() on [1,2,3] = %v, want Left(3)", got)
+		}
+	})
+}
+
 func TestTakeFirst(t *testing.T) {
 	tests := []struct {
 		name  string

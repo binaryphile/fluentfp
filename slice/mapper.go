@@ -1,6 +1,9 @@
 package slice
 
-import "github.com/binaryphile/fluentfp/option"
+import (
+	"github.com/binaryphile/fluentfp/either"
+	"github.com/binaryphile/fluentfp/option"
+)
 
 // Mapper is a fluent slice usable anywhere a regular slice is, but provides additional fluent fp methods.
 // Its underlying type is []T.
@@ -54,6 +57,25 @@ func (ts Mapper[T]) Any(fn func(T) bool) bool {
 		}
 	}
 	return false
+}
+
+// Clone returns a shallow copy of the slice with independent backing array.
+func (ts Mapper[T]) Clone() Mapper[T] {
+	if ts == nil {
+		return nil
+	}
+	c := make([]T, len(ts))
+	copy(c, ts)
+	return c
+}
+
+// Single returns Right(element) if exactly one element exists,
+// or Left(count) if zero or more than one.
+func (ts Mapper[T]) Single() either.Either[int, T] {
+	if len(ts) == 1 {
+		return either.Right[int, T](ts[0])
+	}
+	return either.Left[int, T](len(ts))
 }
 
 // Find returns the first element matching the predicate, or not-ok if none match.
