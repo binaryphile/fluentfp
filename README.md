@@ -65,6 +65,83 @@ These bugs compile, pass review, and look correct. They continue to appear in hi
 
 *Complexity measured via `scc` (cyclomatic complexity approximation). See [methodology](methodology.md#code-metrics-tool-scc).*
 
+## Real-World Usage
+
+These numbers come from real projects. Here's what the code looks like in practice.
+
+### era — Semantic Memory for AI Agents
+
+[era](https://github.com/binaryphile/era) is a CLI and MCP server for AI agent memory backed by SQLite with vector search. It imports one package: `slice`.
+
+**Tag filtering** — the same three-line idiom appears identically in both the in-memory test index and the SQLite-vec production index:
+
+```go
+filterSet := slice.String(opts.Tags).ToSet()
+inFilterSet := func(tag string) bool { return filterSet[tag] }
+
+// "do any of this memory's tags match the filter?"
+if len(opts.Tags) > 0 && !slice.From(m.Tags).Any(inFilterSet) {
+    continue
+}
+```
+
+**Top-K retrieval** — sort by score descending, take the best results:
+
+```go
+slice.SortByDesc(results, func(r era.Result) float64 { return r.Score }).TakeFirst(limit)
+```
+
+One package, four call sites, one consistent idiom across two completely different storage backends.
+
+### sofdevsim — Software Development Simulator
+
+[sofdevsim](https://github.com/binaryphile/sofdevsim-2026) is a TUI-based simulation with DORA metrics, event sourcing, and office animations. It imports five packages across 37 files — each mapped to a distinct domain problem:
+
+**Exhaustive mode dispatch** — seven `either.Fold` calls form the TUI's rendering strategy, compiler-enforced for both modes:
+
+```go
+header := either.Fold(a.mode,
+    func(eng EngineMode) HeaderVM { ... },
+    func(_ ClientMode) HeaderVM { ... },
+)
+```
+
+**Single-pass multi-field extraction** — four DORA metrics for sparklines, one pass instead of four loops:
+
+```go
+leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(dora.History,
+    DORASnapshot.GetLeadTimeAvg,
+    DORASnapshot.GetDeployFrequency,
+    DORASnapshot.GetMTTR,
+    DORASnapshot.GetChangeFailRate,
+)
+```
+
+**Immutable updates** — six methods update one developer in a slice without mutation:
+
+```go
+return OfficeState{
+    Animations: slice.From(s.Animations).Convert(applyState),
+}
+```
+
+**Invariant enforcement** — errors in deterministic runs are bugs, not recoverable conditions:
+
+```go
+eng = must.Get(eng.AddDeveloper("dev-1", "Alice", 1.0))
+eng = must.Get(eng.StartSprint())
+```
+
+**Conditional value selection** — Go's missing ternary, stated as English:
+
+```go
+days := value.Of(sim.CurrentTick).When(sim.CurrentTick < 7).Or(7)
+```
+
+Additional patterns include `option.Lift` for conditional logic on optional values and `slice.From().ToString()` for rendering transforms (12 call sites across the TUI).
+
+Where FP doesn't fit — early exits, complex state machines — the codebase uses imperative loops with comments citing the specific guide section that says not to. The discipline to leave a tool on the shelf is as important as knowing when to reach for it.
+
 ## Performance
 
 | Operation | Loop | Chain | Result |
