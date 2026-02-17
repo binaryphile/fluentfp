@@ -27,27 +27,6 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 
 ## Look What You Can Write
 
-### Exhaustive Sum Types
-Add a third case — the compiler breaks the build until you handle it.
-```go
-msg := either.Fold(result,
-    func(err string) string { return "Error: " + err },
-    func(val int) string    { return fmt.Sprintf("Got: %d", val) },
-)
-```
-
-### Nil Safety
-```go
-name := option.Of(user).Map(User.GetProfile).Map(Profile.GetNickname).Or("Guest")
-```
-
-### Invariant Enforcement
-Silent `_ = fn()` failures become explicit panics.
-```go
-must.BeNil(os.Setenv("PORT", port))
-port := must.Get(strconv.Atoi(os.Getenv("PORT")))
-```
-
 ### Conditional Initialization
 ```go
 vm := HeaderVM{
@@ -55,6 +34,19 @@ vm := HeaderVM{
     Color:  value.Of("red").When(critical).Or("green"),
     Icon:   value.Of("!").When(critical).Or("✓"),
 }
+```
+
+### Environment Configuration
+```go
+port := option.Getenv("PORT").Or("8080")
+```
+
+### Invariant Enforcement
+```go
+err := os.Setenv("KEY", value)
+must.BeNil(err)
+
+port := must.Get(strconv.Atoi(os.Getenv("PORT")))
 ```
 
 ## Why It Exists
