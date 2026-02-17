@@ -8,6 +8,8 @@ See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for complet
 
 ## Quick Start
 
+Requires Go 1.21+.
+
 ```bash
 go get github.com/binaryphile/fluentfp
 ```
