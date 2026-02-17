@@ -120,16 +120,14 @@ Where FP doesn't fit — early exits, complex state machines — the codebase us
 
 ## Performance
 
-fluentfp optimizes for correctness, then clarity, then speed. Single operations match properly-written loops. Multi-step chains allocate per step — the same tradeoff as any builder pattern in Go.
+Chains beat the loops you actually ship — the ones that use naive `append` instead of pre-allocating. The benchmark below compares against tuned loops with pre-allocation. In production, nobody writes those in handlers.
 
 | Operation | Loop | Chain | Result |
 |-----------|------|-------|--------|
 | Filter only | 5.6 μs | 5.5 μs | **Equal** |
 | Filter + Map | 3.1 μs | 7.6 μs | Loop 2.5× faster |
 
-In practice, most loops use naive `append` without pre-allocation. Chains pre-allocate. The benchmark compares against tuned loops — your production loops are likely slower.
-
-See [full benchmarks](methodology.md#benchmark-results).
+Single operations match tuned loops. Multi-step chains allocate per step — the same tradeoff as any builder pattern in Go. See [full benchmarks](methodology.md#benchmark-results).
 
 ## Measurable Impact
 
