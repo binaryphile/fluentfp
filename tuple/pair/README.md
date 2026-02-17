@@ -1,48 +1,33 @@
-# pair: tuple type and zip functions
+# pair
 
-Combine two slices element-by-element. A **pair** holds two values of potentially different types.
+Combine parallel slices without index math.
+
+Slices must be equal length — these are parallel data, not ragged collections. `X[V1, V2]` holds two values, accessed via `.V1` and `.V2`.
 
 ```go
-pairs := pair.Zip(names, scores)  // []pair.X[string, int]
+pairs := pair.Zip(names, scores)  // []X[string, int]
 ```
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/tuple/pair) for complete API documentation.
-
-## Quick Start
+## What It Looks Like
 
 ```go
-import "github.com/binaryphile/fluentfp/tuple/pair"
-
-// Zip two slices into pairs
-pairs := pair.Zip(names, ages)
-for _, p := range pairs {
+// Zip and iterate
+for _, p := range pair.Zip(names, ages) {
     fmt.Printf("%s is %d\n", p.V1, p.V2)
 }
+```
 
+```go
 // Transform while zipping
 users := pair.ZipWith(names, ages, NewUser)
 ```
 
-## Types
+## Operations
 
-`X[V1, V2]` holds two values. Access via `.V1` and `.V2` fields.
+- `Of[V1, V2](V1, V2) X[V1, V2]` — create a pair
+- `Zip[V1, V2]([]V1, []V2) []X[V1, V2]` — combine slices into pairs
+- `ZipWith[A, B, R]([]A, []B, func(A, B) R) []R` — combine and transform
 
-## API Reference
+Zip and ZipWith panic if slice lengths differ.
 
-| Function | Signature | Purpose | Example |
-|----------|-----------|---------|---------|
-| `Of` | `Of[V1,V2](V1, V2) X[V1,V2]` | Create pair | `p = pair.Of("alice", 30)` |
-| `Zip` | `Zip[V1,V2]([]V1, []V2) []X[V1,V2]` | Combine slices | `pairs = pair.Zip(names, ages)` |
-| `ZipWith` | `ZipWith[A,B,R]([]A, []B, func(A,B)R) []R` | Combine and transform | `users = pair.ZipWith(names, ages, NewUser)` |
-
-Both `Zip` and `ZipWith` panic if slices have different lengths.
-
-## When NOT to Use pair
-
-- **More than two values** — Use a named struct instead
-- **Semantically meaningful fields** — `User{Name, Age}` beats `X[string, int]`
-- **Single slice iteration** — Just use `for range`
-
-## See Also
-
-For extracting multiple fields from a single slice, see [slice.Unzip2/3/4](../../slice/).
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/tuple/pair) for complete API documentation, the [main README](../../README.md) for installation, and [slice.Unzip](../../slice/) for the inverse operation.
