@@ -63,14 +63,16 @@ Loops force you to manage state, bounds, and mutation manually — four failure 
 
 ## Performance
 
-Single-pass operations match tuned loops. Multi-step chains allocate per stage — same tradeoff as any builder pattern in Go. If you're counting nanoseconds, write a loop.
+Chains pre-allocate. Most hand-written loops don't. You get faster code as a side effect of writing clearer code.
 
-| Operation | Loop | Chain | Result |
-|-----------|------|-------|--------|
+The benchmarks below compare against tuned loops *with* pre-allocation — the ceiling, not the floor:
+
+| Operation | Loop (pre-allocated) | Chain | Result |
+|-----------|---------------------|-------|--------|
 | Filter only | 5.6 μs | 5.5 μs | **Equal** |
 | Filter + Map | 3.1 μs | 7.6 μs | Loop 2.5× faster |
 
-Benchmarks compare against pre-allocated loops. In production, most loops use naive `append` — chains beat those. See [full benchmarks](methodology.md#benchmark-results).
+Single-pass operations match tuned loops. Multi-step chains allocate per stage — same tradeoff as any builder pattern in Go. If you're counting nanoseconds, write a loop. See [full benchmarks](methodology.md#benchmark-results).
 
 ## Measurable Impact
 
