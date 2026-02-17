@@ -51,66 +51,36 @@ Remove the mechanics and the bugs have nowhere to live. *Correctness by construc
 
 ## Real-World Usage
 
-These numbers come from real projects. Here's what the code looks like in practice.
+### [era](https://github.com/binaryphile/era) — Semantic Memory for AI Agents
 
-### era — Semantic Memory for AI Agents
-
-[era](https://github.com/binaryphile/era) is a CLI and MCP server for AI agent memory backed by SQLite with vector search. It imports one package: `slice`.
-
-**Tag filtering** — the same three-line idiom appears identically in both the in-memory test index and the SQLite-vec production index:
+One package (`slice`), four call sites, identical idiom across in-memory and SQLite-vec backends:
 
 ```go
 filterSet := slice.String(opts.Tags).ToSet()
 inFilterSet := func(tag string) bool { return filterSet[tag] }
 
-// "do any of this memory's tags match the filter?"
 if len(opts.Tags) > 0 && !slice.From(m.Tags).Any(inFilterSet) {
     continue
 }
 ```
 
-**Top-K retrieval** — sort by score descending, take the best results:
+Also: `SortByDesc(...).TakeFirst(limit)` for top-K retrieval.
+
+### [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) — Software Development Simulator
+
+Five packages, 37 files. Each mapped to a distinct domain problem:
 
 ```go
-slice.SortByDesc(results, func(r era.Result) float64 { return r.Score }).TakeFirst(limit)
-```
-
-One package, four call sites, one consistent idiom across two completely different storage backends.
-
-### sofdevsim — Software Development Simulator
-
-[sofdevsim](https://github.com/binaryphile/sofdevsim-2026) is a TUI-based simulation with DORA metrics, event sourcing, and office animations. It imports five packages across 37 files — each mapped to a distinct domain problem:
-
-**Exhaustive mode dispatch** — seven `either.Fold` calls form the TUI's rendering strategy, compiler-enforced for both modes:
-
-```go
+// Exhaustive mode dispatch — compiler-enforced for both modes
 header := either.Fold(a.mode,
     func(eng EngineMode) HeaderVM { ... },
     func(_ ClientMode) HeaderVM { ... },
 )
 ```
 
-**Single-pass multi-field extraction** — four DORA metrics for sparklines, one pass instead of four loops:
+Also: `Unzip4` for single-pass multi-field extraction, `must.Get` for invariant enforcement, `Convert` for immutable updates, `value.Of().When().Or()` for conditional selection, `option.Lift` for conditional logic on optionals, `ToString` for rendering (12 TUI call sites).
 
-```go
-leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(dora.History,
-    DORASnapshot.GetLeadTimeAvg,
-    DORASnapshot.GetDeployFrequency,
-    DORASnapshot.GetMTTR,
-    DORASnapshot.GetChangeFailRate,
-)
-```
-
-**Invariant enforcement** — errors in deterministic runs are bugs, not recoverable conditions:
-
-```go
-eng = must.Get(eng.AddDeveloper("dev-1", "Alice", 1.0))
-eng = must.Get(eng.StartSprint())
-```
-
-Additional patterns: immutable slice updates with `Convert`, conditional value selection with `value.Of().When().Or()`, `option.Lift` for conditional logic on optional values, and `ToString` for rendering transforms (12 call sites across the TUI).
-
-Where FP doesn't fit — early exits, complex state machines — the codebase uses imperative loops with comments citing the specific guide section that says not to. The discipline to leave a tool on the shelf is as important as knowing when to reach for it.
+Where FP doesn't fit — early exits, complex state machines — the codebase uses imperative loops with comments citing the specific guide section that says not to.
 
 ## When to Use Each
 
@@ -138,46 +108,6 @@ Single operations match tuned loops. Multi-step chains allocate per step — the
 
 *Complexity measured via `scc` (cyclomatic complexity approximation). See [methodology](methodology.md#code-metrics-tool-scc).*
 
-## Parallelism Readiness
-
-Pure functions + immutable data = safe parallelism.
-
-**Note:** fluentfp does not provide parallel operations. But the patterns it encourages—pure transforms, no shared state—are exactly what makes code *parallel-ready* when you need it.
-
-```go
-// With errgroup (idiomatic Go)
-import "golang.org/x/sync/errgroup"
-
-var g errgroup.Group
-results := make([]Result, len(items))
-for i, item := range items {
-    i, item := i, item  // capture by value for closure
-    g.Go(func() error {
-        results[i] = transform(item)  // Safe: transform is pure, i is unique
-        return nil
-    })
-}
-g.Wait()
-```
-
-**Benchmarked crossover (Go, 8 cores):**
-
-| N | Sequential | Parallel | Speedup | Verdict |
-|---|------------|----------|---------|---------|
-| 100 | 5.6μs | 9.3μs | 0.6× | Sequential wins |
-| 1,000 | 56μs | 40μs | 1.4× | Parallel starts winning |
-| 10,000 | 559μs | 200μs | 2.8× | Parallel wins |
-| 100,000 | 5.6ms | 1.4ms | 4.0× | Parallel wins decisively |
-
-**When to parallelize:**
-- N > 1K items AND CPU-bound transform → yes
-- N < 500 OR transform < 100ns → no (overhead dominates)
-- I/O-bound (HTTP calls, disk) → yes (waiting is free to parallelize)
-
-**Key insight:** The discipline investment—writing pure transforms—pays off when you need parallelism and don't have to refactor first.
-
-*Reproduce these benchmarks: `go test -bench=. -benchmem ./examples/`*
-
 ## Packages
 
 | Package | Purpose | Key Functions |
@@ -190,100 +120,26 @@ g.Wait()
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 | [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
 
-## Installation
-
-```bash
-go get github.com/binaryphile/fluentfp
-```
+## Package Examples
 
 ```go
-import "github.com/binaryphile/fluentfp/slice"
-import "github.com/binaryphile/fluentfp/option"
-```
-
-## Package Highlights
-
-### slice
-
-Fluent collection operations with method chaining:
-
-```go
-// Filter and extract
-actives := slice.From(users).KeepIf(User.IsActive)
-names := slice.From(users).ToString(User.GetName)
-
-// Map to arbitrary types
-users := slice.MapTo[User](ids).Map(FetchUser)
-
-// Reduce
+// slice — filter, extract, reduce
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 total := slice.Fold(amounts, 0.0, sumFloat64)
-```
 
-### option
+// option — nil safety with explicit optionality
+opt := option.IfNotZero(name)       // ok if non-zero
+user := opt.Or(defaultUser)         // value or fallback
 
-Eliminate nil panics with explicit optionality:
+// either — sum types, exhaustive matching
+msg := either.Fold(result, formatErr, formatOk)
 
-```go
-// Create
-opt := option.Of(user)           // always ok
-opt := option.IfNotZero(name)    // ok if non-zero (comparable types)
-opt := option.IfNotNil(ptr)      // ok if not nil (pointer types)
+// must — error invariant enforcement
+must.BeNil(os.Setenv("KEY", value)) // panics if error, replaces _ =
+ints := slice.From(strs).ToInt(must.Of(strconv.Atoi))
 
-// Extract
-user, ok := opt.Get()            // comma-ok
-user := opt.Or(defaultUser)      // with fallback
-```
-
-### either
-
-Sum types for values that are one of two possible types:
-
-```go
-// Create
-fail := either.Left[string, int]("fail")
-ok42 := either.Right[string, int](42)
-
-// Extract with comma-ok
-if fortyTwo, ok := ok42.Get(); ok {
-    fmt.Println(fortyTwo) // 42
-}
-
-// Fold: handle both cases exhaustively
-// formatLeft returns an error message.
-formatLeft := func(err string) string { return "Error: " + err }
-// formatRight returns a success message.
-formatRight := func(n int) string { return fmt.Sprintf("Got: %d", n) }
-
-msg := either.Fold(ok42, formatLeft, formatRight)   // "Got: 42"
-msg = either.Fold(fail, formatLeft, formatRight)    // "Error: fail"
-```
-
-### must
-
-Make error invariants explicit. Every `_ = fn()` should be `must.BeNil(fn())`:
-
-```go
-_ = os.Setenv("KEY", value)           // Silent corruption if error
-must.BeNil(os.Setenv("KEY", value))   // Invariant enforced
-```
-
-Also wraps fallible functions for HOF use:
-
-```go
-mustAtoi := must.Of(strconv.Atoi)
-ints := slice.From(strings).ToInt(mustAtoi)
-```
-
-### value
-
-Value-first conditional selection:
-
-```go
-// "value of CurrentTick when CurrentTick < 7, or 7"
+// value — conditional selection (Go's missing ternary)
 days := value.Of(tick).When(tick < 7).Or(7)
-
-// Lazy evaluation for expensive computations
-config := value.OfCall(loadFromDB).When(useCache).Or(defaultConfig)
 ```
 
 ## The Familiarity Discount
