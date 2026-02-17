@@ -1,245 +1,86 @@
-# slice: fluent collection operations
+# slice
 
-Eliminate loop bugs with type-safe collection operations. Method expressions make pipelines read like intent—**fluent** operations chain method calls on a single line, no intermediate variables, no loop scaffolding.
+Replace loop scaffolding with type-safe collection chains.
 
-```go
-actives := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
-```
-
-See the [main README](../README.md) for when to use fluentfp and performance characteristics. See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation. For function naming patterns, see [Naming Functions for Higher-Order Functions](../naming-in-hof.md).
-
-## Quick Start
-
-```bash
-go get github.com/binaryphile/fluentfp
-```
+- **Interchangeable** (assignable) — `Mapper[T]` has underlying type `[]T`. No conversion needed in either direction.
+- **Generics** — 100% type-safe. No `any`, no reflection, no type assertions.
+- **Method expressions** — pass `User.IsActive` directly. No wrapper closures.
+- **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
 
 ```go
-import "github.com/binaryphile/fluentfp/slice"
-
-// Filter and extract
-names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
-
-// Map to arbitrary type
-users := slice.MapTo[User](emails).Map(UserFromEmail)
-
-// Reduce
-total := slice.Fold(amounts, 0.0, sumFloat64)
-```
-
-## Types
-
-`Mapper[T]` wraps a slice for fluent operations. Create with `From()`, chain methods, use as a regular slice.
-
-`MapperTo[R,T]` adds `.Map()` for mapping to arbitrary type R. Create with `MapTo[R]()`.
-
-```go
-users := slice.From(rawUsers)       // Mapper[User]
-names := users.ToString(User.Name)  // String
-```
-
-## API Reference
-
-### Factory Functions
-
-| Function | Signature | Purpose | Example |
-|----------|-----------|---------|---------|
-| `From` | `From[T]([]T) Mapper[T]` | Create Mapper from slice | `slice.From(users)` |
-| `MapTo` | `MapTo[R,T]([]T) MapperTo[R,T]` | Create MapperTo for type R | `slice.MapTo[User](ids)` |
-
-### Mapper Methods
-
-| Method | Signature | Purpose | Example |
-|--------|-----------|---------|---------|
-| `First` | `.First() option.Basic[T]` | First element | `oldest = slice.From(users).First()` |
-| `Find` | `.Find(func(T) bool) option.Basic[T]` | First matching element | `admin = slice.From(users).Find(User.IsAdmin)` |
-| `Any` | `.Any(func(T) bool) bool` | True if any match | `hasAdmin = slice.From(users).Any(User.IsAdmin)` |
-| `Clone` | `.Clone() Mapper[T]` | Shallow copy | `copy = slice.From(users).Clone()` |
-| `Single` | `.Single() either.Either[int, T]` | Right if exactly one; Left(count) otherwise | `result = slice.From(matches).Single()` |
-| `KeepIf` | `.KeepIf(func(T) bool) Mapper[T]` | Keep matching | `actives = slice.From(users).KeepIf(User.IsActive)` |
-| `RemoveIf` | `.RemoveIf(func(T) bool) Mapper[T]` | Remove matching | `current = slice.From(users).RemoveIf(User.IsExpired)` |
-| `TakeFirst` | `.TakeFirst(n int) Mapper[T]` | First n elements | `top10 = slice.From(users).TakeFirst(10)` |
-| `Convert` | `.Convert(func(T) T) Mapper[T]` | Map to same type | `normalized = slice.From(users).Convert(User.Normalize)` |
-| `ToString` | `.ToString(func(T) string) String` | Map to string | `names = slice.From(users).ToString(User.Name)` |
-| `ToInt` | `.ToInt(func(T) int) Mapper[int]` | Map to int | `ages = slice.From(users).ToInt(User.Age)` |
-| `Each` | `.Each(func(T))` | Side-effect iteration | `slice.From(users).Each(User.Save)` |
-| `Len` | `.Len() int` | Count elements | `count = slice.From(users).Len()` |
-
-Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToFloat32`, `ToFloat64`, `ToInt32`, `ToInt64`, `ToRune`
-
-### MapperTo Additional Method
-
-MapperTo has all Mapper methods above, plus:
-
-| Method | Signature | Purpose | Example |
-|--------|-----------|---------|---------|
-| `Map` | `.Map(func(T) R) Mapper[R]` | Map to type R | `users = slice.MapTo[User](ids).Map(FetchUser)` |
-
-### Standalone Functions
-
-| Function | Signature | Purpose | Example |
-|----------|-----------|---------|---------|
-| `SortBy` | `SortBy[T any, K cmp.Ordered]([]T, func(T) K) Mapper[T]` | Sorted copy, ascending by key | `sorted = slice.SortBy(users, User.GetAge)` |
-| `SortByDesc` | `SortByDesc[T any, K cmp.Ordered]([]T, func(T) K) Mapper[T]` | Sorted copy, descending by key | `sorted = slice.SortByDesc(users, User.GetAge)` |
-| `Fold` | `Fold[T,R]([]T, R, func(R,T) R) R` | Reduce to single value | See [Fold](#fold) |
-| `Unzip2` | `Unzip2[T,A,B]([]T, func(T)A, func(T)B) (Mapper[A], Mapper[B])` | Extract 2 fields | `names, ages = slice.Unzip2(users, User.Name, User.Age)` |
-| `Unzip3` | `Unzip3[T,A,B,C](...)` | Extract 3 fields | — |
-| `Unzip4` | `Unzip4[T,A,B,C,D](...)` | Extract 4 fields | — |
-
-### Float64 Methods
-
-`Float64` is a defined type (`[]float64`) with additional methods:
-
-| Method | Signature | Purpose | Example |
-|--------|-----------|---------|---------|
-| `Sum` | `.Sum() float64` | Sum all elements | `total = slice.From(items).ToFloat64(Item.GetScore).Sum()` |
-
-### String Methods
-
-`String` is a defined type (`[]string`) with additional methods:
-
-| Method | Signature | Purpose | Example |
-|--------|-----------|---------|---------|
-| `Unique` | `.Unique() String` | Remove duplicates | `unique = slice.From(items).ToString(Item.Name).Unique()` |
-| `Contains` | `.Contains(string) bool` | Check membership | `has = slice.From(items).ToString(Item.Name).Contains("foo")` |
-| `Len` | `.Len() int` | Count elements | `count = slice.From(items).ToString(Item.Name).Len()` |
-| `ToSet` | `.ToSet() map[string]bool` | Convert to set | `set = slice.From(items).ToString(Item.Name).ToSet()` |
-
-### Types
-
-For use with `make()`: `Any`, `Bool`, `Byte`, `Error`, `Float64`, `Int`, `Rune`, `String`
-
-```go
-words := make(slice.String, 0, 10)
-```
-
-`Float64` and `String` are defined types with additional methods. All others are aliases for `Mapper[T]`.
-
-## Method Expressions
-
-Method expressions let you pass methods directly to higher-order functions:
-
-```go
-slice.From(users).KeepIf(User.IsActive)  // User.IsActive is func(User) bool
-```
-
-**Receiver type must match slice element type.** Value receivers work with `[]T`; pointer receivers require `[]*T`:
-
-```go
-// Works: value receiver + value slice
-func (u User) IsActive() bool { return u.Active }
-slice.From(users).KeepIf(User.IsActive)  // ✓
-
-// Fails: pointer receiver + value slice
-func (u *User) IsActive() bool { return u.Active }
-slice.From(users).KeepIf(User.IsActive)  // ✗ type mismatch
-```
-
-## Pipeline Formatting
-
-**Single operation** — one line:
-
-```go
-names := slice.From(users).ToString(User.GetName)
-```
-
-**Multiple operations** — one per line:
-
-```go
-result := slice.From(items).
-    KeepIf(Item.IsValid).
-    RemoveIf(Item.IsExpired).
-    ToInt(Item.Score)
-```
-
-**Split at conceptual boundaries** when chains get long:
-
-```go
-validCurrent := slice.From(items).
-    KeepIf(Item.IsValid).
-    RemoveIf(Item.IsExpired)
-scores := validCurrent.
-    ToInt(Item.Score).
-    KeepIf(aboveThreshold)
-```
-
-## Patterns
-
-### Type Alias for Domain Slices
-
-```go
-type SliceOfUsers = slice.Mapper[User]
-
-var users SliceOfUsers = fetchUsers()
-actives := users.KeepIf(User.IsActive)
-```
-
-Avoids repeated `slice.From()` calls.
-
-### Method Expression Chaining
-
-```go
-devices := slice.From(rawDevices).
-    Convert(Device.Normalize).
-    KeepIf(Device.IsValid)
-```
-
-### Field Extraction
-
-```go
-macs := devices.ToString(Device.GetMAC)
-```
-
-### Counting
-
-```go
-activeCount := slice.From(users).KeepIf(User.IsActive).Len()
-```
-
-**Note:** Allocates intermediate slice. For hot paths, use a manual loop.
-
-### Fold
-
-```go
-// sumFloat64 adds two float64 values.
-sumFloat64 := func(acc, n float64) float64 { return acc + n }
-total := slice.Fold(amounts, 0.0, sumFloat64)
-
-// indexByMAC adds a device to the map keyed by its MAC address.
-indexByMAC := func(m map[string]Device, d Device) map[string]Device {
-    m[d.MAC] = d
-    return m
+// Before: 5 lines of mechanics around 1 line of intent
+var names []string
+for _, u := range users {
+    if u.IsActive() {
+        names = append(names, u.Name)
+    }
 }
-byMAC := slice.Fold(devices, make(map[string]Device), indexByMAC)
+
+// After: intent only
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
-### Unzip
-
-Extract multiple fields in one pass (more efficient than separate `ToX` calls):
+## What It Looks Like
 
 ```go
+// Ranking
+top5 := slice.SortByDesc(players, Player.Score).TakeFirst(5)
+```
+
+```go
+// Tag filtering (allowlist semantics — empty filter matches all)
+if !slice.String(m.Tags).Matches(filter.Tags) {
+    continue
+}
+```
+
+```go
+// Type mapping
+users := slice.MapTo[User](ids).Map(FetchUser)
+```
+
+```go
+// Multi-field extraction in one pass
 leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
-    Record.GetLeadTime,
-    Record.GetDeployFreq,
-    Record.GetMTTR,
-    Record.GetChangeFailRate,
+    Record.LeadTime, Record.DeployFreq, Record.MTTR, Record.ChangeFailRate,
 )
 ```
 
-## When NOT to Use slice
+```go
+// Reduce to map
+byMAC := slice.Fold(devices, make(map[string]Device), addDevice)
+```
 
-- **Early exit needed** — `KeepIf` iterates entire slice; use loop with `break` for first match
-- **Accumulating into maps** — No fluent equivalent; use `Fold` or a loop
-- **Performance-critical hot paths** — Profile first; each chain operation allocates
-- **Single simple operation** — `for _, u := range users` may be clearer than `slice.From(users).Each(...)`
+## It's Just a Slice
 
-## When Loops Are Necessary
+`Mapper[T]` is a defined type with underlying type `[]T`. Go's assignability rules make them interchangeable — no conversion ceremony to get values in or out.
 
-- **Channel consumption**: `for r := range ch`
-- **Complex control flow**: break, continue, early return
-- **Index-dependent logic**: comparing adjacent elements, position-aware output
+```go
+func activeNames(users []User) []string {
+    names := slice.From(users).
+        KeepIf(User.IsActive).
+        ToString(User.Name)     // Mapper[string]
+    names.Each(lof.Println)
+    return names                // assigns to []string — no conversion
+}
+```
 
-## See Also
+- `From()` is a type-cast, not a copy
+- `append()`, `len()`, index, `range` all work directly on Mappers
 
-- For zipping slices together, see [pair](../tuple/pair/)
-- For library comparison, see [comparison.md](../comparison.md)
+Other Go FP libraries can't do this:
+- **go-linq**, **fuego**: 6+ lines of `[]any` → `[]string` with type assertions to get results out
+- **gofp**: conversion loops on both ends — `[]User` → `[]any` in, `[]any` → `[]string` out
+
+See [comparison](../comparison.md) for the full library comparison.
+
+## Operations
+
+`From` creates `Mapper[T]`. `MapTo[R]` creates `MapperTo[R,T]` — all Mapper methods plus `Map` for arbitrary type mapping. `String` (`[]string`) and `Float64` (`[]float64`) are separate defined types with additional methods.
+
+- **Filter**: `KeepIf`, `RemoveIf`, `TakeFirst`
+- **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
+- **Transform**: `Convert`, `Map` (MapperTo), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `SortBy`, `SortByDesc`
+- **Aggregate**: `Fold`, `Len`, `Sum` (Float64), `ToSet` (String), `Each`, `Unzip2`/`3`/`4`
+
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation and the [main README](../README.md) for installation and performance characteristics.

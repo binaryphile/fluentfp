@@ -25,7 +25,12 @@ for _, u := range users {                  // iteration
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
-## Look What You Can Write
+- **Interchangeable** (assignable) — `Mapper[T]` has underlying type `[]T`. No conversion needed in either direction.
+- **Generics** — 100% type-safe. No `any`, no reflection, no type assertions.
+- **Method expressions** — pass `User.IsActive` directly. No wrapper closures.
+- **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
+
+## What It Looks Like
 
 ### Conditional Initialization
 ```go
