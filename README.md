@@ -25,7 +25,7 @@ for _, u := range users {                  // iteration
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
-Every closing brace marks a nesting level — and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity. Fewer braces, lower complexity score.
+Seven lines become one — a 7× reduction. Every closing brace marks a nesting level, and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity.
 
 - **Interchangeable** (assignable) — `Mapper[T]` has underlying type `[]T`. No conversion needed in either direction.
 - **Generics** — 100% type-safe. No `any`, no reflection, no type assertions.
@@ -58,7 +58,7 @@ port := must.Get(strconv.Atoi(os.Getenv("PORT")))
 
 ## Why It Exists
 
-Loops force you to manage state, bounds, and mutation manually — four failure modes before you've expressed your actual logic.
+Go's mechanical patterns — loops, nil checks, ignored errors — each carry bug classes that fluentfp eliminates structurally.
 
 | Bug Class | With Loops | With fluentfp |
 |-----------|-----------|---------------|
@@ -70,16 +70,16 @@ Loops force you to manage state, bounds, and mutation manually — four failure 
 
 ## Performance
 
-Chains pre-allocate their storage slice. Most hand-written loops don't. Fewer allocations means less GC pressure — and you get that as a side effect of writing clearer code.
+Most loops use `var out []T` with `append`, which re-allocates as the slice grows. Chains pre-allocate automatically.
 
-| Operation | Naive Loop | Chain | Tuned Loop |
-|-----------|-----------|-------|------------|
-| Filter only | 10 allocs | **1 alloc** | 1 alloc |
-| Filter + Map | 10 allocs | **2 allocs** | 1 alloc |
+| Operation | Append Loop | Chain |
+|-----------|------------|-------|
+| Filter only | 10 allocs | **1 alloc** |
+| Filter + Map | 10 allocs | **2 allocs** |
 
-*1000 elements. Naive = `var out []T` with `append`. Tuned = `make([]T, 0, len(input))`. See [full benchmarks](methodology.md#benchmark-results).*
+*1000 elements. See [full benchmarks](methodology.md#benchmark-results).*
 
-Single-pass chains match tuned loops at 1 allocation. Multi-step chains pay per stage but still cut allocations 5× compared to append loops. For single-pass chains, throughput is comparable — the bottleneck is the work inside your predicate, not the chain machinery.
+You could pre-allocate manually with `make([]T, 0, len(input))` — but almost nobody does. Chains give you that optimization as a side effect of writing clearer code. Multi-step chains pay one allocation per stage; throughput is comparable since the bottleneck is the work inside your predicate, not the chain machinery.
 
 ## Measurable Impact
 
@@ -88,7 +88,7 @@ Single-pass chains match tuned loops at 1 allocation. Multi-step chains pay per 
 | Mixed (typical) | 12% | 26% |
 | Pure pipeline | 47% | 95% |
 
-*Complexity measured via `scc` (cyclomatic complexity approximation). See [methodology](methodology.md#code-metrics-tool-scc).*
+*Individual loops see up to 7× line reduction (as above). Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#code-metrics-tool-scc).*
 
 ## Real-World Usage
 

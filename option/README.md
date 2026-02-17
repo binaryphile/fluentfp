@@ -3,17 +3,17 @@
 Optional values that move absence checks from runtime to the type system.
 
 ```go
-// Before: six lines to safely extract a map value with a default
-var token string
-if t, ok := headers["Authorization"]; ok {
-    token = t
-} else {
+// Before: four lines to safely extract a map value with a default
+token, ok := headers["Authorization"]
+if !ok {
     token = "none"
 }
 
 // After
 token := option.Lookup(headers, "Authorization").Or("none")
 ```
+
+Four lines become one.
 
 ## What It Looks Like
 

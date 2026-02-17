@@ -13,6 +13,8 @@ err := os.Setenv("PATH", newPath)
 must.BeNil(err)
 ```
 
+When you do handle the error, `must.BeNil` replaces the three-line `if err != nil` block with one. `must.Get` goes further — four lines (declare, call, check, panic) become one.
+
 ## What It Looks Like
 
 ```go

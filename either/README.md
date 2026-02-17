@@ -18,6 +18,8 @@ case Guest:
 view := either.Fold(user, Admin.Dashboard, Guest.Landing)
 ```
 
+Six lines become one.
+
 ## What It Looks Like
 
 ```go

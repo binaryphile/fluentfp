@@ -8,7 +8,7 @@ Replace loop scaffolding with type-safe collection chains.
 - **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
 
 ```go
-// Before: 5 lines of mechanics around 1 line of intent
+// Before: 4 lines of scaffolding, 2 closing braces, 1 line of intent
 var names []string
 for _, u := range users {
     if u.IsActive() {
@@ -19,6 +19,8 @@ for _, u := range users {
 // After: intent only
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
+
+Seven lines become one.
 
 ## What It Looks Like
 
