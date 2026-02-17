@@ -51,36 +51,24 @@ Remove the mechanics and the bugs have nowhere to live. *Correctness by construc
 
 ## Real-World Usage
 
-### [era](https://github.com/binaryphile/era) — Semantic Memory for AI Agents
-
-One package (`slice`), four call sites, identical idiom across in-memory and SQLite-vec backends:
+Used in production in [era](https://github.com/binaryphile/era) (semantic memory CLI) and [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) (TUI simulator with DORA metrics and event sourcing). Between them: 40+ files, ~90 call sites, and every pattern from tag filtering to exhaustive mode dispatch to crisis-detection state machines.
 
 ```go
+// Tag filtering — identical idiom across two storage backends (era)
 filterSet := slice.String(opts.Tags).ToSet()
 inFilterSet := func(tag string) bool { return filterSet[tag] }
-
 if len(opts.Tags) > 0 && !slice.From(m.Tags).Any(inFilterSet) {
     continue
 }
-```
 
-Also: `SortByDesc(...).TakeFirst(limit)` for top-K retrieval.
-
-### [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) — Software Development Simulator
-
-Five packages, 37 files. Each mapped to a distinct domain problem:
-
-```go
-// Exhaustive mode dispatch — compiler-enforced for both modes
+// Exhaustive mode dispatch — compiler-enforced (sofdevsim)
 header := either.Fold(a.mode,
     func(eng EngineMode) HeaderVM { ... },
     func(_ ClientMode) HeaderVM { ... },
 )
 ```
 
-Also: `Unzip4` for single-pass multi-field extraction, `must.Get` for invariant enforcement, `Convert` for immutable updates, `value.Of().When().Or()` for conditional selection, `option.Lift` for conditional logic on optionals, `ToString` for rendering (12 TUI call sites).
-
-Where FP doesn't fit — early exits, complex state machines — the codebase uses imperative loops with comments citing the specific guide section that says not to.
+Each project imports only what it needs. era uses one package (`slice`) for collection filtering and sorting. sofdevsim uses five (`slice`, `option`, `either`, `must`, `value`) across rendering, metrics, API serialization, and animation state. Same library, different surface area — take what fits your domain.
 
 ## When to Use Each
 
