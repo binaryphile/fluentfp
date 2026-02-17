@@ -15,7 +15,7 @@ go get github.com/binaryphile/fluentfp
 ```
 
 ```go
-// Before: 4 lines of scaffolding, 2 closing braces, 1 line of intent
+// Before: 3 lines of scaffolding, 2 closing braces, 1 line of intent
 var names []string                         // state
 for _, u := range users {                  // iteration
     if u.IsActive() {                      // predicate
@@ -27,9 +27,11 @@ for _, u := range users {                  // iteration
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
-Seven lines become one — a 7× reduction. Every closing brace marks a nesting level, and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity.
+Six lines become one.
 
-- **Interchangeable** (assignable) — `Mapper[T]` has underlying type `[]T`. No conversion needed in either direction.
+Every closing brace marks a nesting level, and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity.
+
+- **Interchangeable** ([assignable](https://go.dev/ref/spec#Assignability)) — pass `[]User` in, get `[]string` back. No wrapping, no unwrapping.
 - **Generics** — 100% type-safe. No `any`, no reflection, no type assertions.
 - **Method expressions** — pass `User.IsActive` directly. No wrapper closures.
 - **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
@@ -90,7 +92,7 @@ You could pre-allocate manually with `make([]T, 0, len(input))` — but almost n
 | Mixed (typical) | 12% | 26% |
 | Pure pipeline | 47% | 95% |
 
-*Individual loops see up to 7× line reduction (as above). Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#code-metrics-tool-scc).*
+*Individual loops see up to 6× line reduction (as above). Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#code-metrics-tool-scc).*
 
 ## Real-World Usage
 
