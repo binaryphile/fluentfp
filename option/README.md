@@ -1,132 +1,75 @@
-# option: nil-safe optional values
+# option
 
-Represent values that may be absent. Options enforce checking before use—nil panics become compile-time errors.
-
-An option is either **ok** (has a value) or **not-ok** (absent).
+Optional values that move absence checks from runtime to the type system.
 
 ```go
-host := config.GetHost().Or("localhost")  // default if absent
+// Before: six lines to safely extract a map value with a default
+var token string
+if t, ok := headers["Authorization"]; ok {
+    token = t
+} else {
+    token = "none"
+}
+
+// After
+token := option.Lookup(headers, "Authorization").Or("none")
 ```
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation. For the full discussion of nil safety, see [Nil Safety in Go](../nil-safety.md). For function naming patterns, see [Naming Functions for Higher-Order Functions](../naming-in-hof.md).
-
-## Quick Start
+## What It Looks Like
 
 ```go
-import "github.com/binaryphile/fluentfp/option"
+// Environment with default
+port := option.Getenv("PORT").Or("8080")
+```
 
-// Create options
-helloOption := option.Of("hello")       // ok
-notOkString := option.NotOkString       // not-ok
+```go
+// Conditional pipeline
+name := userOption.KeepOkIf(User.IsActive).ToString(User.Name).Or("unknown")
+```
 
-// Extract with defaults
-hello := helloOption.Or("fallback")
-fallback := notOkString.Or("fallback")
-
-// Check and extract
-if hello, ok := helloOption.Get(); ok {
-    // use hello
+```go
+// Comma-ok extraction
+if user, ok := userOption.Get(); ok {
+    fmt.Println(user.Name)
 }
 ```
 
-## Types
-
-`Basic[T]` holds an optional value—either "ok" (has value) or "not-ok" (absent).
-
-Type aliases `String`, `Int`, `Bool` are shorthand for `Basic[string]`, `Basic[int]`, etc. See [Type Aliases](#type-aliases) for the full list.
-
-## API Reference
-
-### Constructors
-
-| Function | Signature | Purpose | Example |
-|----------|-----------|---------|---------|
-| `Of` | `Of[T](T) Basic[T]` | Create ok option | `option.Of(user)` |
-| `New` | `New[T](T, bool) Basic[T]` | From value + ok flag | `option.New(val, ok)` |
-| `NotOk` | `NotOk[T]() Basic[T]` | Create not-ok option | `option.NotOk[User]()` |
-| `IfNotZero` | `IfNotZero[T comparable](T) Basic[T]` | Not-ok if zero value | `option.IfNotZero(count)` |
-| `IfNotEmpty` | `IfNotEmpty(string) String` | Not-ok if empty (string alias) | `option.IfNotEmpty(name)` |
-| `IfNotNil` | `IfNotNil[T](*T) Basic[T]` | Not-ok if nil | `option.IfNotNil(userPtr)` |
-| `Getenv` | `Getenv(string) String` | From env var | `option.Getenv("PORT")` |
-
-**Pseudo-options:** Go APIs sometimes use `*T` (nil = absent) or zero values (empty string, 0, false, etc.) as pseudo-options. `IfNotNil` and `IfNotZero` convert these to formal options. `IfNotEmpty` is a readable alias for `IfNotZero` when the type is string.
-
-### Extraction Methods
-
-| Method | Signature | Purpose | Example |
-|--------|-----------|---------|---------|
-| `.Get` | `.Get() (T, bool)` | Comma-ok unwrap | `user, ok := userOption.Get()` |
-| `.IsOk` | `.IsOk() bool` | Check if ok | `if nameOption.IsOk()` |
-| `.MustGet` | `.MustGet() T` | Value or panic | `user = userOption.MustGet()` |
-| `.Or` | `.Or(T) T` | Value or default | `port = portOption.Or("8080")` |
-| `.OrCall` | `.OrCall(func() T) T` | Lazy default | `port = portOption.OrCall(findPort)` |
-| `.OrZero` | `.OrZero() T` | Value or zero | `name = nameOption.OrZero()` |
-| `.OrEmpty` | `.OrEmpty() T` | Alias for strings | `name = nameOption.OrEmpty()` |
-| `.OrFalse` | `.OrFalse() bool` | For option.Bool | `enabled = flagOption.OrFalse()` |
-| `.ToOpt` | `.ToOpt() *T` | Convert to pointer | `ptr = userOption.ToOpt()` |
-
-### Filtering Methods
-
-| Method | Signature | Purpose | Example |
-|--------|-----------|---------|---------|
-| `.KeepOkIf` | `.KeepOkIf(func(T) bool) Basic[T]` | Not-ok if false | `active = userOption.KeepOkIf(User.IsActive)` |
-| `.ToNotOkIf` | `.ToNotOkIf(func(T) bool) Basic[T]` | Not-ok if true | `valid = userOption.ToNotOkIf(User.IsExpired)` |
-
-### Mapping Methods
-
-| Method | Signature | Purpose | Example |
-|--------|-----------|---------|---------|
-| `.Convert` | `.Convert(func(T) T) Basic[T]` | Transform, same type | `normalized = userOption.Convert(User.Normalize)` |
-| `.ToString` | `.ToString(func(T) string) String` | Transform to string | `name = userOption.ToString(User.Name)` |
-| `.ToInt` | `.ToInt(func(T) int) Int` | Transform to int | `age = userOption.ToInt(User.Age)` |
-| `Map` | `Map[T,R](Basic[T], func(T)R) Basic[R]` | Transform to any type | `role = option.Map(userOption, User.Role)` |
-
-Other `To[Type]` methods: `ToAny`, `ToBool`, `ToByte`, `ToError`, `ToRune`
-
-### Side Effects
-
-| Method | Signature | Purpose | Example |
-|--------|-----------|---------|---------|
-| `.Call` | `.Call(func(T))` | Execute if ok | `userOption.Call(User.Save)` |
-| `Lift` | `Lift[T](func(T)) func(Basic[T])` | Create named function accepting option | `saveUser := option.Lift(User.Save); saveUser(userOpt)` |
-
-### Type Aliases
-
-Pre-defined types: `String`, `Int`, `Bool`, `Error`, `Any`, `Byte`, `Rune`
-
-Pre-defined not-ok values: `NotOkString`, `NotOkInt`, `NotOkBool`, `NotOkError`, `NotOkAny`, `NotOkByte`, `NotOkRune`
-
-## When NOT to Use option
-
-- **Go idiom `(T, error)`** — Don't replace error returns with option
-- **Performance-critical paths** — Option adds a bool field; profile first
-- **Simple nil checks** — If `if ptr != nil` is clear, don't over-engineer
-- **When error context matters** — Option loses why something is absent
-
-## Patterns
-
-### Tri-State Boolean
+```go
+// Side effect — fires only if ok
+userOption.IfOk(User.Save)
+```
 
 ```go
+// Tri-state boolean — option.Bool is Basic[bool]
 type ScanResult struct {
     IsConnected option.Bool  // true, false, or unknown
 }
-
 connected := result.IsConnected.OrFalse()  // unknown → false
 ```
 
-### Nullable Database Fields
+## One Type for All of Go's "Maybe" Patterns
 
-```go
-func (r Record) GetHost() option.String {
-    return option.IfNotZero(r.NullableHost.String)
-}
-```
+Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`), and comma-ok returns (`map` lookup, type assertion). All three let you skip the check and use the value directly — the failure shows up at runtime, not compile time.
 
-### Advanced: Domain Option Types
+`Basic[T]` unifies them. Factory functions bridge each Go pattern into a single chainable type:
 
-For domain-specific behavior (conditional lifecycle management, dependency injection), see the [advanced option example](../examples/advanced_option.go).
+- `IfNotNil(ptr)` — pointer-based absence
+- `IfNotZero(count)`, `IfNotEmpty(name)` — zero-value absence
+- `Lookup(m, key)`, `New(val, ok)` — comma-ok absence
+- `Getenv("PORT")` — environment variable absence
 
-## See Also
+Once you have a `Basic[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepOkIf(valid)`, `.ToString(format)`, `.Get()`.
 
-For typed failure values instead of absent, see [either](../either/).
+## Operations
+
+`Basic[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null).
+
+- **Create**: `Of`, `New`, `NotOk`, `IfNotZero`, `IfNotEmpty`, `IfNotNil`, `Getenv`, `Lookup`
+- **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse`
+- **Transform**: `Convert`, `Map`, `ToString`, `ToInt`, other `To*`, `ToOpt`
+- **Filter**: `KeepOkIf`, `ToNotOkIf`
+- **Side effects**: `IfOk`, `IfNotOk`, `Lift`
+
+For domain-specific option types with conditional method dispatch, see the [advanced option example](../examples/advanced_option.go).
+
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation, the [main README](../README.md) for installation, and [Nil Safety in Go](../nil-safety.md) for the full discussion.
