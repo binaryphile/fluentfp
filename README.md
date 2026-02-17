@@ -1,14 +1,8 @@
 # fluentfp
 
-**Fluent** functional programming for Go: fewer bugs, less code, predictable performance.
+**Fluent functional programming for Go.**
 
-> **Summary:** Eliminate control structures, eliminate the bugs they enable.
-> Mixed codebases see 26% complexity reduction; pure pipelines drop 95%.
-> The win isn't lines saved—it's bugs that become unwritable.
-
-fluentfp is a small set of composable utilities for data transformation and type safety in Go.
-
-Fluent operations chain method calls on a single line—no intermediate variables, no loop scaffolding.
+Chain type-safe operations on slices, options, and sum types — no loop scaffolding, no intermediate variables, no reflection. The bugs you can't write are the bugs you'll never debug.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for complete API documentation.
 
@@ -19,51 +13,41 @@ go get github.com/binaryphile/fluentfp
 ```
 
 ```go
-// Before: loop mechanics interleaved with intent
-var names []string
-for _, u := range users {
-    if u.IsActive() {
-        names = append(names, u.Name)
+// Before: 5 lines of mechanics around 1 line of intent
+var names []string                         // state
+for _, u := range users {                  // iteration
+    if u.IsActive() {                      // predicate
+        names = append(names, u.Name)      // accumulation
     }
 }
 
-// After: just intent
+// After: intent only
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
 ## The Problem
 
-Loop mechanics create bugs regardless of developer skill:
+Loops mix intent with mechanics. Every loop manually manages state, bounds, mutation, and control flow — four failure modes before you've expressed your actual logic.
 
 - **Accumulator errors**: forgot to increment, wrong variable
 - **Defer in loop**: resources pile up until function returns
 - **Index typos**: `i+i` instead of `i+1`
+- **Off-by-one**: `i <= n` instead of `i < n`
 - **Ignored errors**: `_ = fn()` silently continues when "impossible" errors occur
 
-C-style loops add off-by-one errors: `i <= n` instead of `i < n`.
-
-These bugs compile, pass review, and look correct. They continue to appear in highly-reviewed, very public projects. If the construct allows an error, it will eventually happen.
+These bugs compile, pass review, and ship. They recur in every codebase because the construct permits them.
 
 ## The Solution
 
-*Correctness by construction*: design code so errors can't occur.
+Remove the mechanics and the bugs have nowhere to live. *Correctness by construction* — design code so errors can't occur.
 
-| Bug Class | Why It Happens | fluentfp Elimination |
-|-----------|----------------|---------------------|
-| Accumulator error | Manual state tracking | `Fold` manages state |
+| Bug Class | With Loops | With fluentfp |
+|-----------|-----------|---------------|
+| Accumulator error | You manage state | `Fold` manages state |
 | Defer in loop | Loop body accumulates | No loop body |
-| Index typo | Manual index math | Predicates operate on values |
-| Off-by-one (C-style) | Manual bounds | Iterate collection, not indices |
-| Ignored error | `_ =` discards error | `must.BeNil` enforces invariant |
-
-## Measurable Impact
-
-| Codebase Type | Code Reduction | Complexity Reduction |
-|---------------|----------------|---------------------|
-| Mixed (typical) | 12% | 26% |
-| Pure pipeline | 47% | 95% |
-
-*Complexity measured via `scc` (cyclomatic complexity approximation). See [methodology](methodology.md#code-metrics-tool-scc).*
+| Index typo | You manage index math | Predicates operate on values |
+| Off-by-one | You manage bounds | Iterate collection, not indices |
+| Ignored error | `_ = fn()` silent failure | `must.BeNil(fn())` explicit invariant |
 
 ## Real-World Usage
 
@@ -117,14 +101,6 @@ leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(dora.History,
 )
 ```
 
-**Immutable updates** — six methods update one developer in a slice without mutation:
-
-```go
-return OfficeState{
-    Animations: slice.From(s.Animations).Convert(applyState),
-}
-```
-
 **Invariant enforcement** — errors in deterministic runs are bugs, not recoverable conditions:
 
 ```go
@@ -132,47 +108,37 @@ eng = must.Get(eng.AddDeveloper("dev-1", "Alice", 1.0))
 eng = must.Get(eng.StartSprint())
 ```
 
-**Conditional value selection** — Go's missing ternary, stated as English:
-
-```go
-days := value.Of(sim.CurrentTick).When(sim.CurrentTick < 7).Or(7)
-```
-
-Additional patterns include `option.Lift` for conditional logic on optional values and `slice.From().ToString()` for rendering transforms (12 call sites across the TUI).
+Additional patterns: immutable slice updates with `Convert`, conditional value selection with `value.Of().When().Or()`, `option.Lift` for conditional logic on optional values, and `ToString` for rendering transforms (12 call sites across the TUI).
 
 Where FP doesn't fit — early exits, complex state machines — the codebase uses imperative loops with comments citing the specific guide section that says not to. The discipline to leave a tool on the shelf is as important as knowing when to reach for it.
 
+## When to Use Each
+
+**Use fluentfp for:** filter/map/fold, field extraction, data pipelines, API transforms, immutable updates, conditional value selection.
+
+**Use a loop for:** channel consumption (`for r := range ch`), complex control flow (break, continue, early return), index-dependent logic.
+
 ## Performance
+
+fluentfp optimizes for correctness, then clarity, then speed. Single operations match properly-written loops. Multi-step chains allocate per step — the same tradeoff as any builder pattern in Go.
 
 | Operation | Loop | Chain | Result |
 |-----------|------|-------|--------|
 | Filter only | 5.6 μs | 5.5 μs | **Equal** |
 | Filter + Map | 3.1 μs | 7.6 μs | Loop 2.5× faster |
-| Count only | 0.26 μs | 7.6 μs | Loop 29× faster |
 
-Single operations equal properly-written loops (both pre-allocate). In practice, many loops use naive append for simplicity—chains beat those. Multi-operation chains allocate per operation. See [full benchmarks](methodology.md#benchmark-results).
+In practice, most loops use naive `append` without pre-allocation. Chains pre-allocate. The benchmark compares against tuned loops — your production loops are likely slower.
 
-## When to Use fluentfp
+See [full benchmarks](methodology.md#benchmark-results).
 
-**High yield** (adopt broadly):
-- Data pipelines, ETL, report generators
-- Filter/map/fold patterns
-- Field extraction from collections
+## Measurable Impact
 
-**Medium yield** (adopt selectively):
-- API handlers with data transformation
-- Config validation
+| Codebase Type | Code Reduction | Complexity Reduction |
+|---------------|----------------|---------------------|
+| Mixed (typical) | 12% | 26% |
+| Pure pipeline | 47% | 95% |
 
-**Low yield** (probably skip):
-- I/O-heavy code with minimal transformation
-- Graph/tree traversal
-- Streaming/channel-based pipelines
-
-## When to Use Loops
-
-- **Channel consumption**: `for r := range ch`
-- **Complex control flow**: break, continue, early return
-- **Index-dependent logic**: when you need `i` for more than indexing
+*Complexity measured via `scc` (cyclomatic complexity approximation). See [methodology](methodology.md#code-metrics-tool-scc).*
 
 ## Parallelism Readiness
 
