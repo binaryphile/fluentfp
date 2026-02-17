@@ -39,7 +39,7 @@ Every `_ = fn()` is a hidden invariant — you're assuming the error won't happe
 
 `must` makes the assumption explicit. If it's wrong, you find out immediately.
 
-Don't recover from `must` panics. An invariant violation means the program is in a state you didn't anticipate — recovering and continuing from that state is how silent corruption happens.
+Don't recover from `must` panics. An invariant violation means the program is in a state you didn't anticipate — recovering and continuing from that state is how silent corruption happens. If you're tempted to recover, the operation isn't an invariant — use `(T, error)` returns and handle the error explicitly.
 
 **Convention:** For error-only returns, keep the `err` assignment — it reads like Go:
 

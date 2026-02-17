@@ -1,61 +1,38 @@
-# lof: lower-order function wrappers
+# lof
 
-Utility functions for functional programming. Wraps Go builtins for HOF use, plus helpers for common patterns.
+Go builtins wrapped as passable functions for collection chains.
 
-A **lower-order function** is the flip side of a higher-order function—the function being passed, not the one receiving it.
-
-Go builtins like `len` are operators, not functions—you can't pass `len` to `ToInt`. lof wraps them as passable functions.
+`len` and `fmt.Println` are operators, not functions — you can't pass them to higher-order methods. lof bridges the gap.
 
 ```go
-names.Each(lof.Println)  // print each name
+names.Each(lof.Println)
 ```
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/lof) for complete API documentation.
-
-## Quick Start
+## What It Looks Like
 
 ```go
-import (
-    "github.com/binaryphile/fluentfp/lof"
-    "github.com/binaryphile/fluentfp/slice"
-)
-
-names := slice.From(users).ToString(User.Name)
-names.Each(lof.Println)  // print each name
-
-// When type has no Len() method, lof.Len bridges the gap
-type Report struct { Pages []Page }
-
-// pageCount returns the number of pages in a report.
-pageCount := func(r Report) int { return lof.Len(r.Pages) }
-pageCounts := slice.From(reports).ToInt(pageCount)
+// Slice lengths
+pageCounts := slice.From(reports).ToInt(lof.Len)
 ```
 
-## API Reference
-
-| Function | Signature | Purpose | Example |
-|----------|-----------|---------|---------|
-| `Len` | `Len[T]([]T) int` | Wrap `len` for slices | `lengths = items.ToInt(lof.Len)` |
-| `StringLen` | `StringLen(string) int` | Wrap `len` for strings | `lens = names.ToInt(lof.StringLen)` |
-| `Println` | `Println(string)` | Wrap `fmt.Println` | `names.Each(lof.Println)` |
-| `IfNotEmpty` | `IfNotEmpty(string) (string, bool)` | Comma-ok for strings | `diff, ok := lof.IfNotEmpty(result)` |
-
-## IfNotEmpty: Comma-ok for Empty Strings
-
-Some functions use empty string as "absent" (e.g., `cmp.Diff` returns `""` when equal). `IfNotEmpty` converts this to Go's comma-ok idiom.
+```go
+// String lengths
+charCounts := names.ToInt(lof.StringLen)
+```
 
 ```go
+// Comma-ok for empty strings — converts "" to (s, false)
 result := cmp.Diff(want, got)
 if diff, ok := lof.IfNotEmpty(result); ok {
     t.Errorf("mismatch:\n%s", diff)
 }
 ```
 
-## When NOT to Use lof
+## Operations
 
-- **Method expressions exist** — `User.Name` beats wrapping a getter
-- **Direct calls work** — If you're not in a HOF chain, just call `len()` or `fmt.Println()`
+- `Len[T]([]T) int` — wrap `len` for slices
+- `StringLen(string) int` — wrap `len` for strings
+- `Println(string)` — wrap `fmt.Println`
+- `IfNotEmpty(string) (string, bool)` — comma-ok for empty strings
 
-## See Also
-
-For the HOF methods that consume these wrappers, see [slice](../slice/).
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/lof) for complete API documentation, the [main README](../README.md) for installation, and [slice](../slice/) for the collection methods that consume these wrappers.
