@@ -31,7 +31,7 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```go
 vm := HeaderVM{
     Title:  title,
-    Color:  value.Of("red").When(critical).Or("green"),
+    Color:  value.Of(warn).When(critical).Or(calm),
     Icon:   value.Of("!").When(critical).Or("✓"),
 }
 ```
@@ -63,7 +63,7 @@ Loops force you to manage state, bounds, and mutation manually — four failure 
 
 ## Performance
 
-Chains pre-allocate. Most hand-written loops don't. You get fewer allocations as a side effect of writing clearer code.
+Chains pre-allocate. Most hand-written loops don't. Fewer allocations means less GC pressure — and you get that as a side effect of writing clearer code.
 
 | Operation | Naive Loop | Chain | Tuned Loop |
 |-----------|-----------|-------|------------|
