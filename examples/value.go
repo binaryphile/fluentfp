@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main demonstrates the value package for conditional value selection.
 package main
 

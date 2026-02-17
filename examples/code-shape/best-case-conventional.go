@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 // Report generator module - processes employee data for quarterly reports.

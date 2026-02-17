@@ -26,6 +26,16 @@ func Lift[T any](fn func(T)) func(Basic[T]) {
 	}
 }
 
+// Lookup returns an ok option of the value at key in m, or not-ok if the key is absent.
+func Lookup[K comparable, V any](m map[K]V, key K) (_ Basic[V]) {
+	v, ok := m[key]
+	if !ok {
+		return
+	}
+
+	return Of(v)
+}
+
 func NotOk[T any]() (_ Basic[T]) {
 	return
 }

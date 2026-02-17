@@ -1,6 +1,8 @@
+//go:build ignore
+
 // parallel_bench_test.go - Benchmark parallel vs sequential map
 //
-// Run: go test -bench=. -benchmem ./examples/
+// Run: go test -run=^$ -bench=. -benchmem -tags ignore ./examples/
 //
 // These benchmarks demonstrate the crossover point where parallelism helps.
 // Results will vary by CPU core count and transform cost.

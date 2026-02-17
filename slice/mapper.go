@@ -88,6 +88,16 @@ func (ts Mapper[T]) Find(fn func(T) bool) option.Basic[T] {
 	return option.NotOk[T]()
 }
 
+// IndexWhere returns the index of the first element matching the predicate, or not-ok if none match.
+func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Basic[int] {
+	for i, t := range ts {
+		if fn(t) {
+			return option.Of(i)
+		}
+	}
+	return option.NotOk[int]()
+}
+
 // KeepIf returns a new slice containing the members of ts for which fn returns true.
 // It is the complement of RemoveIf.
 func (ts Mapper[T]) KeepIf(fn func(T) bool) Mapper[T] {
