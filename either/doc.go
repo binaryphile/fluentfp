@@ -3,8 +3,8 @@
 // Convention: Left represents failure/error, Right represents success.
 // Mnemonic: "Right is right" (correct).
 //
-// Either is right-biased: Map, MustGet, Call, GetOr operate on the Right value.
-// Use MapLeft, MustGetLeft, CallLeft, LeftOr for Left-side operations.
+// Either is right-biased: Map, MustGet, IfRight, GetOr operate on the Right value.
+// Use MapLeft, MustGetLeft, IfLeft, LeftOr for Left-side operations.
 package either
 
 // Compile-time API verification
