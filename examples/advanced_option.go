@@ -107,7 +107,7 @@ func OpenClientAsOption(users string) ClientOption {
 
 // Close closes the Client if ok.
 func (o ClientOption) Close() {
-	o.Call(Client.Close)
+	o.IfOk(Client.Close)
 }
 
 // === DOMAIN TYPES ===

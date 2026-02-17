@@ -77,19 +77,19 @@ func main() {
 	asString := either.Map(ok42, intToString)
 	fmt.Println("As string:", asString.GetOr("")) // As string: 42
 
-	// === Side Effects with Call ===
+	// === Side Effects with IfRight/IfLeft ===
 
-	// Call executes a function only if Right
+	// IfRight executes a function only if Right
 	// printValue prints a value to stdout.
 	printValue := func(n int) { fmt.Println("Calling with:", n) }
-	ok42.Call(printValue)  // Calling with: 42
-	fail.Call(printValue)  // (nothing printed)
+	ok42.IfRight(printValue)  // Calling with: 42
+	fail.IfRight(printValue)  // (nothing printed)
 
-	// CallLeft executes a function only if Left
+	// IfLeft executes a function only if Left
 	// logError logs an error message.
 	logError := func(err string) { fmt.Println("Error logged:", err) }
-	fail.CallLeft(logError) // Error logged: fail
-	ok42.CallLeft(logError) // (nothing printed)
+	fail.IfLeft(logError) // Error logged: fail
+	ok42.IfLeft(logError) // (nothing printed)
 
 	// === Practical Example: Parse with Error Context ===
 

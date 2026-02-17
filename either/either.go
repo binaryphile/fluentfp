@@ -83,17 +83,17 @@ func (e Either[L, R]) MustGetLeft() L {
 	return e.left
 }
 
-// Call applies fn to the Right value if e is Right.
+// IfRight applies fn to the Right value if e is Right.
 // If e is Left, does nothing.
-func (e Either[L, R]) Call(fn func(R)) {
+func (e Either[L, R]) IfRight(fn func(R)) {
 	if e.isRight {
 		fn(e.right)
 	}
 }
 
-// CallLeft applies fn to the Left value if e is Left.
+// IfLeft applies fn to the Left value if e is Left.
 // If e is Right, does nothing.
-func (e Either[L, R]) CallLeft(fn func(L)) {
+func (e Either[L, R]) IfLeft(fn func(L)) {
 	if !e.isRight {
 		fn(e.left)
 	}

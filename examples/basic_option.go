@@ -89,10 +89,10 @@ func main() {
 
 	// === Checking and Side Effects ===
 
-	// Call executes a function only if ok
+	// IfOk executes a function only if ok
 	// printInt prints an integer.
 	printInt := func(i int) { fmt.Println("called with:", i) }
-	fortyTwoOption.Call(printInt) // called with: 42
+	fortyTwoOption.IfOk(printInt) // called with: 42
 
 	// KeepOkIf keeps ok only if predicate passes
 	// isAdult reports whether age is 18 or older.

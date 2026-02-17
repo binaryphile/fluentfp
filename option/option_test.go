@@ -124,22 +124,22 @@ func TestMustGet(t *testing.T) {
 
 // --- Side Effect ---
 
-func TestCall(t *testing.T) {
+func TestIfOk(t *testing.T) {
 	t.Run("ok option calls function with value", func(t *testing.T) {
 		var received int
 		opt := Of(42)
-		opt.Call(func(v int) { received = v })
+		opt.IfOk(func(v int) { received = v })
 		if received != 42 {
-			t.Errorf("Call received %v, want 42", received)
+			t.Errorf("IfOk received %v, want 42", received)
 		}
 	})
 
 	t.Run("not-ok option does not call function", func(t *testing.T) {
 		called := false
 		opt := New(0, false)
-		opt.Call(func(v int) { called = true })
+		opt.IfOk(func(v int) { called = true })
 		if called {
-			t.Error("Call was invoked on not-ok option")
+			t.Error("IfOk was invoked on not-ok option")
 		}
 	})
 }

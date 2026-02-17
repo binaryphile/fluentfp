@@ -58,8 +58,8 @@ func IfNotNil[T any](t *T) (_ Basic[T]) {
 
 // methods
 
-// Call applies fn to the option's value provided that the option is ok.
-func (b Basic[T]) Call(fn func(T)) {
+// IfOk applies fn to the option's value provided that the option is ok.
+func (b Basic[T]) IfOk(fn func(T)) {
 	if !b.ok {
 		return
 	}
@@ -119,8 +119,8 @@ func (b Basic[T]) Or(t T) T {
 	return b.t
 }
 
-// OrDo calls fn if the option is not ok.
-func (b Basic[T]) OrDo(fn func()) {
+// IfNotOk calls fn if the option is not ok.
+func (b Basic[T]) IfNotOk(fn func()) {
 	if !b.ok {
 		fn()
 	}

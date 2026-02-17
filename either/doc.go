@@ -34,6 +34,6 @@ func _() {
 	_ = MapLeft[int, string, bool]
 
 	// Side effects
-	_ = Either[int, string].Call
-	_ = Either[int, string].CallLeft
+	_ = Either[int, string].IfRight
+	_ = Either[int, string].IfLeft
 }

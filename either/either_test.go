@@ -175,44 +175,44 @@ func TestMustGetLeft(t *testing.T) {
 	})
 }
 
-// TestCall tests side-effect execution for Right values.
-func TestCall(t *testing.T) {
+// TestIfRight tests side-effect execution for Right values.
+func TestIfRight(t *testing.T) {
 	t.Run("Right calls function", func(t *testing.T) {
 		called := false
 		e := Right[string, int](42)
-		e.Call(func(i int) { called = true })
+		e.IfRight(func(i int) { called = true })
 		if !called {
-			t.Error("Call() should invoke function for Right")
+			t.Error("IfRight() should invoke function for Right")
 		}
 	})
 
 	t.Run("Left does not call function", func(t *testing.T) {
 		called := false
 		e := Left[string, int]("error")
-		e.Call(func(i int) { called = true })
+		e.IfRight(func(i int) { called = true })
 		if called {
-			t.Error("Call() should not invoke function for Left")
+			t.Error("IfRight() should not invoke function for Left")
 		}
 	})
 }
 
-// TestCallLeft tests side-effect execution for Left values.
-func TestCallLeft(t *testing.T) {
+// TestIfLeft tests side-effect execution for Left values.
+func TestIfLeft(t *testing.T) {
 	t.Run("Left calls function", func(t *testing.T) {
 		called := false
 		e := Left[string, int]("error")
-		e.CallLeft(func(s string) { called = true })
+		e.IfLeft(func(s string) { called = true })
 		if !called {
-			t.Error("CallLeft() should invoke function for Left")
+			t.Error("IfLeft() should invoke function for Left")
 		}
 	})
 
 	t.Run("Right does not call function", func(t *testing.T) {
 		called := false
 		e := Right[string, int](42)
-		e.CallLeft(func(s string) { called = true })
+		e.IfLeft(func(s string) { called = true })
 		if called {
-			t.Error("CallLeft() should not invoke function for Right")
+			t.Error("IfLeft() should not invoke function for Right")
 		}
 	})
 }
