@@ -13,7 +13,7 @@ go get github.com/binaryphile/fluentfp
 ```
 
 ```go
-// Before: 5 lines of mechanics around 1 line of intent
+// Before: 4 lines of scaffolding, 2 closing braces, 1 line of intent
 var names []string                         // state
 for _, u := range users {                  // iteration
     if u.IsActive() {                      // predicate
@@ -24,6 +24,8 @@ for _, u := range users {                  // iteration
 // After: intent only
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
+
+Every closing brace marks a nesting level — and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity. Fewer braces, lower complexity score.
 
 - **Interchangeable** (assignable) — `Mapper[T]` has underlying type `[]T`. No conversion needed in either direction.
 - **Generics** — 100% type-safe. No `any`, no reflection, no type assertions.
