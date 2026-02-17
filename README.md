@@ -63,7 +63,7 @@ Loops force you to manage state, bounds, and mutation manually — four failure 
 
 ## Performance
 
-Chains pre-allocate. Most hand-written loops don't. Fewer allocations means less GC pressure — and you get that as a side effect of writing clearer code.
+Chains pre-allocate their storage slice. Most hand-written loops don't. Fewer allocations means less GC pressure — and you get that as a side effect of writing clearer code.
 
 | Operation | Naive Loop | Chain | Tuned Loop |
 |-----------|-----------|-------|------------|
