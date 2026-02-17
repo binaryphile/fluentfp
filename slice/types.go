@@ -58,6 +58,12 @@ func (ss String) ContainsAny(targets []string) bool {
 	return false
 }
 
+// Matches returns true if ss contains any element in filter.
+// Returns true if filter is empty (no constraint).
+func (ss String) Matches(filter []string) bool {
+	return len(filter) == 0 || ss.ContainsAny(filter)
+}
+
 // Len returns the length of the slice.
 func (ss String) Len() int {
 	return len(ss)

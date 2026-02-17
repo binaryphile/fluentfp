@@ -88,9 +88,9 @@ Single-pass chains match tuned loops at 1 allocation. Multi-step chains pay per 
 Used in production in [era](https://codeberg.org/binaryphile/era) (semantic memory CLI) and [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) (TUI simulator with DORA metrics and event sourcing). Between them: 40+ files, ~90 call sites, every pattern from tag filtering to exhaustive mode dispatch to crisis-detection state machines.
 
 ```go
-// Tag filtering — identical helper across two storage backends
-func tagsMatch(memTags, filterTags []string) bool {
-    return len(filterTags) == 0 || slice.String(memTags).ContainsAny(filterTags)
+// Tag filtering — identical idiom across two storage backends
+if !slice.String(m.Tags).Matches(opts.Tags) {
+    continue
 }
 ```
 
