@@ -108,7 +108,7 @@ Each project imports only what it needs. era uses one package (`slice`). sofdevs
 | [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
 | [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfNotZero`, `IfNotNil` |
 | [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
-| [must](must/) | Fallible funcs → HOF args | `Get`, `BeNil`, `Of` |
+| [must](must/) | Invariant enforcement | `Get`, `BeNil`, `Of` |
 | [value](value/) | Conditional value selection | `Of().When().Or()` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 | [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
