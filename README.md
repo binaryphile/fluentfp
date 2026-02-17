@@ -49,27 +49,6 @@ Remove the mechanics and the bugs have nowhere to live. *Correctness by construc
 | Off-by-one | You manage bounds | Iterate collection, not indices |
 | Ignored error | `_ = fn()` silent failure | `must.BeNil(fn())` explicit invariant |
 
-## Real-World Usage
-
-Used in production in [era](https://github.com/binaryphile/era) (semantic memory CLI) and [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) (TUI simulator with DORA metrics and event sourcing). Between them: 40+ files, ~90 call sites, and every pattern from tag filtering to exhaustive mode dispatch to crisis-detection state machines.
-
-```go
-// Tag filtering — identical idiom across two storage backends (era)
-filterSet := slice.String(opts.Tags).ToSet()
-inFilterSet := func(tag string) bool { return filterSet[tag] }
-if len(opts.Tags) > 0 && !slice.From(m.Tags).Any(inFilterSet) {
-    continue
-}
-
-// Exhaustive mode dispatch — compiler-enforced (sofdevsim)
-header := either.Fold(a.mode,
-    func(eng EngineMode) HeaderVM { ... },
-    func(_ ClientMode) HeaderVM { ... },
-)
-```
-
-Each project imports only what it needs. era uses one package (`slice`) for collection filtering and sorting. sofdevsim uses five (`slice`, `option`, `either`, `must`, `value`) across rendering, metrics, API serialization, and animation state. Same library, different surface area — take what fits your domain.
-
 ## When to Use Each
 
 **Use fluentfp for:** filter/map/fold, field extraction, data pipelines, API transforms, immutable updates, conditional value selection.
@@ -95,6 +74,27 @@ Single operations match tuned loops. Multi-step chains allocate per step — the
 | Pure pipeline | 47% | 95% |
 
 *Complexity measured via `scc` (cyclomatic complexity approximation). See [methodology](methodology.md#code-metrics-tool-scc).*
+
+## Real-World Usage
+
+Used in production in [era](https://codeberg.org/binaryphile/era) (semantic memory CLI) and [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) (TUI simulator with DORA metrics and event sourcing). Between them: 40+ files, ~90 call sites, and every pattern from tag filtering to exhaustive mode dispatch to crisis-detection state machines.
+
+```go
+// Tag filtering — identical idiom across two storage backends (era)
+filterSet := slice.String(opts.Tags).ToSet()
+inFilterSet := func(tag string) bool { return filterSet[tag] }
+if len(opts.Tags) > 0 && !slice.From(m.Tags).Any(inFilterSet) {
+    continue
+}
+
+// Exhaustive mode dispatch — compiler-enforced (sofdevsim)
+header := either.Fold(a.mode,
+    func(eng EngineMode) HeaderVM { ... },
+    func(_ ClientMode) HeaderVM { ... },
+)
+```
+
+Each project imports only what it needs. era uses one package (`slice`) for collection filtering and sorting. sofdevsim uses five (`slice`, `option`, `either`, `must`, `value`) across rendering, metrics, API serialization, and animation state. Same library, different surface area — take what fits your domain.
 
 ## Packages
 
