@@ -36,6 +36,38 @@ Every closing brace marks a nesting level, and nesting depth is how tools like [
 - **Method expressions** — pass `User.IsActive` directly. No wrapper closures.
 - **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
 
+### Interchangeable Types
+
+```go
+// The chain returns Mapper[string], but the function returns []string — no conversion
+func activeNames(users []User) []string {
+    return slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
+}
+```
+
+`Mapper[T]` is defined as `type Mapper[T any] []T`. Go's [assignability rules](https://go.dev/ref/spec#Assignability) let a defined type and its underlying type interchange freely — that's why no conversion is needed. Other Go FP libraries use `[]any` internally, requiring type assertions on both ends. See [comparison](comparison.md).
+
+Full treatment in [It's Just a Slice](slice/#its-just-a-slice).
+
+### Method Expressions
+
+Go lets you reference a method by its type name, creating a function value where the receiver becomes the first argument:
+
+```go
+func (u User) IsActive() bool  // method
+func(User) bool                // method expression: User.IsActive
+```
+
+`KeepIf` expects `func(T) bool` — `User.IsActive` is exactly that:
+
+```go
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
+```
+
+Without method expressions, every predicate needs a wrapper: `func(u User) bool { return u.IsActive() }`. For `[]*User` slices, the expression is `(*User).IsActive`.
+
+See [naming patterns](naming-in-hof.md) for when to use method expressions vs named functions vs closures.
+
 ## What It Looks Like
 
 ### Conditional Initialization
