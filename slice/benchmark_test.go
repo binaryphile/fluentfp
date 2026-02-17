@@ -60,6 +60,24 @@ func benchFilterChain(b *testing.B, n int) {
 	}
 }
 
+// Case 1b: Filter only - naive loop (no pre-allocation)
+
+func BenchmarkFilter_NaiveLoop_1000(b *testing.B) { benchFilterNaiveLoop(b, 1000) }
+
+func benchFilterNaiveLoop(b *testing.B, n int) {
+	users := makeUsers(n)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var result []benchUser // naive: no pre-allocation
+		for _, u := range users {
+			if u.Active {
+				result = append(result, u)
+			}
+		}
+		_ = result
+	}
+}
+
 // Case 2: Filter + Map - KeepIf + ToString vs fused loop
 
 func BenchmarkFilterMap_Loop_100(b *testing.B)   { benchFilterMapLoop(b, 100) }
@@ -89,6 +107,24 @@ func benchFilterMapChain(b *testing.B, n int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		result := From(users).KeepIf(benchUser.IsActive).ToString(benchUser.GetName)
+		_ = result
+	}
+}
+
+// Case 2b: Filter + Map - naive loop (no pre-allocation)
+
+func BenchmarkFilterMap_NaiveLoop_1000(b *testing.B) { benchFilterMapNaiveLoop(b, 1000) }
+
+func benchFilterMapNaiveLoop(b *testing.B, n int) {
+	users := makeUsers(n)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var result []string // naive: no pre-allocation
+		for _, u := range users {
+			if u.Active {
+				result = append(result, u.Name)
+			}
+		}
 		_ = result
 	}
 }
