@@ -43,6 +43,21 @@ func (ss String) Contains(target string) bool {
 	return false
 }
 
+// ContainsAny returns true if ss contains any element in targets.
+// Returns false if either slice is empty.
+func (ss String) ContainsAny(targets []string) bool {
+	if len(targets) == 0 {
+		return false
+	}
+	set := String(targets).ToSet()
+	for _, s := range ss {
+		if set[s] {
+			return true
+		}
+	}
+	return false
+}
+
 // Len returns the length of the slice.
 func (ss String) Len() int {
 	return len(ss)
