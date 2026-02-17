@@ -2,7 +2,7 @@
 
 **Fluent functional programming for Go.**
 
-Chain type-safe operations on slices, options, and sum types — no loop scaffolding, no intermediate variables, no reflection. The bugs you can't write are the bugs you'll never debug.
+The thinnest abstraction that eliminates mechanical bugs from Go. Chain type-safe operations on slices, options, and sum types — no loop scaffolding, no intermediate variables, no reflection.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for complete API documentation.
 
@@ -25,21 +25,41 @@ for _, u := range users {                  // iteration
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
-## The Problem
+## Look What You Can Write
 
-Loops mix intent with mechanics. Every loop manually manages state, bounds, mutation, and control flow — four failure modes before you've expressed your actual logic.
+### Exhaustive Sum Types
+Add a third case — the compiler breaks the build until you handle it.
+```go
+msg := either.Fold(result,
+    func(err string) string { return "Error: " + err },
+    func(val int) string    { return fmt.Sprintf("Got: %d", val) },
+)
+```
 
-- **Accumulator errors**: forgot to increment, wrong variable
-- **Defer in loop**: resources pile up until function returns
-- **Index typos**: `i+i` instead of `i+1`
-- **Off-by-one**: `i <= n` instead of `i < n`
-- **Ignored errors**: `_ = fn()` silently continues when "impossible" errors occur
+### Nil Safety
+```go
+name := option.Of(user).Map(User.GetProfile).Map(Profile.GetNickname).Or("Guest")
+```
 
-These bugs compile, pass review, and ship. They recur in every codebase because the construct permits them.
+### Invariant Enforcement
+Silent `_ = fn()` failures become explicit panics.
+```go
+must.BeNil(os.Setenv("PORT", port))
+port := must.Get(strconv.Atoi(os.Getenv("PORT")))
+```
 
-## The Solution
+### Conditional Initialization
+```go
+vm := HeaderVM{
+    Title:  title,
+    Color:  value.Of("red").When(critical).Or("green"),
+    Icon:   value.Of("!").When(critical).Or("✓"),
+}
+```
 
-Remove the mechanics and the bugs have nowhere to live. *Correctness by construction* — design code so errors can't occur.
+## Why It Exists
+
+Loops force you to manage state, bounds, and mutation manually — four failure modes before you've expressed your actual logic.
 
 | Bug Class | With Loops | With fluentfp |
 |-----------|-----------|---------------|
@@ -47,24 +67,18 @@ Remove the mechanics and the bugs have nowhere to live. *Correctness by construc
 | Defer in loop | Loop body accumulates | No loop body |
 | Index typo | You manage index math | Predicates operate on values |
 | Off-by-one | You manage bounds | Iterate collection, not indices |
-| Ignored error | `_ = fn()` silent failure | `must.BeNil(fn())` explicit invariant |
-
-## When to Use Each
-
-**Use fluentfp for:** filter/map/fold, field extraction, data pipelines, API transforms, immutable updates, conditional value selection.
-
-**Use a loop for:** channel consumption (`for r := range ch`), complex control flow (break, continue, early return), index-dependent logic.
+| Ignored error | `_ = fn()` | `must.BeNil(fn())` |
 
 ## Performance
 
-Chains beat the loops you actually ship — the ones that use naive `append` instead of pre-allocating. The benchmark below compares against tuned loops with pre-allocation. In production, nobody writes those in handlers.
+Single-pass operations match tuned loops. Multi-step chains allocate per stage — same tradeoff as any builder pattern in Go. If you're counting nanoseconds, write a loop.
 
 | Operation | Loop | Chain | Result |
 |-----------|------|-------|--------|
 | Filter only | 5.6 μs | 5.5 μs | **Equal** |
 | Filter + Map | 3.1 μs | 7.6 μs | Loop 2.5× faster |
 
-Single operations match tuned loops. Multi-step chains allocate per step — the same tradeoff as any builder pattern in Go. See [full benchmarks](methodology.md#benchmark-results).
+Benchmarks compare against pre-allocated loops. In production, most loops use naive `append` — chains beat those. See [full benchmarks](methodology.md#benchmark-results).
 
 ## Measurable Impact
 
@@ -77,24 +91,18 @@ Single operations match tuned loops. Multi-step chains allocate per step — the
 
 ## Real-World Usage
 
-Used in production in [era](https://codeberg.org/binaryphile/era) (semantic memory CLI) and [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) (TUI simulator with DORA metrics and event sourcing). Between them: 40+ files, ~90 call sites, and every pattern from tag filtering to exhaustive mode dispatch to crisis-detection state machines.
+Used in production in [era](https://codeberg.org/binaryphile/era) (semantic memory CLI) and [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) (TUI simulator with DORA metrics and event sourcing). Between them: 40+ files, ~90 call sites, every pattern from tag filtering to exhaustive mode dispatch to crisis-detection state machines.
 
 ```go
-// Tag filtering — identical idiom across two storage backends (era)
+// Tag filtering — identical idiom across two storage backends
 filterSet := slice.String(opts.Tags).ToSet()
 inFilterSet := func(tag string) bool { return filterSet[tag] }
 if len(opts.Tags) > 0 && !slice.From(m.Tags).Any(inFilterSet) {
     continue
 }
-
-// Exhaustive mode dispatch — compiler-enforced (sofdevsim)
-header := either.Fold(a.mode,
-    func(eng EngineMode) HeaderVM { ... },
-    func(_ ClientMode) HeaderVM { ... },
-)
 ```
 
-Each project imports only what it needs. era uses one package (`slice`) for collection filtering and sorting. sofdevsim uses five (`slice`, `option`, `either`, `must`, `value`) across rendering, metrics, API serialization, and animation state. Same library, different surface area — take what fits your domain.
+Each project imports only what it needs. era uses one package (`slice`). sofdevsim uses five (`slice`, `option`, `either`, `must`, `value`). Same library, different surface area — take what fits your domain.
 
 ## Packages
 
@@ -108,31 +116,7 @@ Each project imports only what it needs. era uses one package (`slice`) for coll
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 | [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
 
-## Package Examples
-
-```go
-// slice — filter, extract, reduce
-names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
-total := slice.Fold(amounts, 0.0, sumFloat64)
-
-// option — nil safety with explicit optionality
-opt := option.IfNotZero(name)       // ok if non-zero
-user := opt.Or(defaultUser)         // value or fallback
-
-// either — sum types, exhaustive matching
-msg := either.Fold(result, formatErr, formatOk)
-
-// must — error invariant enforcement
-must.BeNil(os.Setenv("KEY", value)) // panics if error, replaces _ =
-ints := slice.From(strs).ToInt(must.Of(strconv.Atoi))
-
-// value — conditional selection (Go's missing ternary)
-days := value.Of(tick).When(tick < 7).Or(7)
-```
-
-## The Familiarity Discount
-
-A `for` loop you've seen 10,000 times feels instant to parse—but only because you've amortized the cognitive load through repetition. fluentfp expresses intent without mechanics; the simplicity is inherent, not learned. Be aware of this discount when comparing approaches.
+Zero reflection. Zero global state. Zero build tags. Just Go code that compiles and stays compiled.
 
 ## Further Reading
 
