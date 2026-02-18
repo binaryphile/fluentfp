@@ -137,6 +137,24 @@ func TestAny(t *testing.T) {
 	}
 }
 
+func TestStringEach(t *testing.T) {
+	t.Run("collects all elements in order", func(t *testing.T) {
+		var got []string
+		String{"a", "b", "c"}.Each(func(s string) { got = append(got, s) })
+		want := []string{"a", "b", "c"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Each() collected %v, want %v", got, want)
+		}
+	})
+	t.Run("empty slice", func(t *testing.T) {
+		var got []string
+		String{}.Each(func(s string) { got = append(got, s) })
+		if len(got) != 0 {
+			t.Errorf("Each() on empty collected %v, want empty", got)
+		}
+	})
+}
+
 func TestStringUnique(t *testing.T) {
 	tests := []struct {
 		name  string

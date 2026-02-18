@@ -102,7 +102,7 @@ user := slice.From(users).Find(User.IsActive).Or(defaultUser)
 
 **Find — lo:**
 ```go
-user, ok := lo.Find(users, func(u User, _ int) bool { return u.IsActive() })
+user, ok := lo.Find(users, func(u User) bool { return u.IsActive() })
 if !ok {
     user = defaultUser
 }

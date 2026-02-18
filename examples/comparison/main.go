@@ -2,6 +2,7 @@
 
 // Package main demonstrates 10 Go FP libraries doing the same task:
 // filter active users, extract names, print them, return as []string.
+// Then compares operations beyond filter+map: Find, Reduce, chaining, Unzip.
 //
 // Run: go run examples/comparison/main.go
 // See comparison.md for summary table and benchmarks.
@@ -64,9 +65,9 @@ func main() {
 		printActiveNames := func(users []User) []string { // signature automatically converts return type
 			names := slice.From(users).
 				KeepIf(User.IsActive).
-				ToString(User.Name) // returns slice.Mapper[string]
+				ToString(User.Name) // returns slice.String
 			names.Each(lof.Println) // from lower-order function helper package lof
-			return names            // signature converts slice.Mapper[string] to []string
+			return names            // signature converts slice.String to []string
 		}
 		printActiveNames(users)
 	}
@@ -252,6 +253,99 @@ func main() {
 		}
 		printActiveNames(users)
 	}
+
+	// --- Beyond Filter+Map ---
+	// Additional operations comparing fluentfp against the strongest competitor.
+
+	chainUsers := []User{
+		{name: "Ren", active: true, age: 25},
+		{name: "Stimpy", active: false, age: 30},
+		{name: "Ren", active: true, age: 28}, // duplicate name for Unique/Distinct demo
+	}
+
+	// === Find: fluentfp vs lo ===
+	fmt.Print("\n--- Find ---\n")
+
+	fmt.Print("\nfluentfp Find\n")
+	{
+		user := slice.From(users).Find(User.IsActive).Or(User{name: "nobody"})
+		fmt.Println(user.Name())
+	}
+
+	fmt.Print("\nlo Find\n")
+	{
+		user, ok := lo.Find(users, func(u User) bool { return u.IsActive() })
+		if !ok {
+			user = User{name: "nobody"}
+		}
+		fmt.Println(user.Name())
+	}
+
+	// === Reduce: fluentfp vs lo ===
+	fmt.Print("\n--- Reduce ---\n")
+
+	fmt.Print("\nfluentfp Fold\n")
+	{
+		total := slice.Fold(chainUsers, 0, func(sum int, u User) int { return sum + u.Age() })
+		fmt.Println("total age:", total)
+	}
+
+	fmt.Print("\nlo Reduce\n")
+	{
+		total := lo.Reduce(chainUsers, func(sum int, u User, _ int) int { return sum + u.Age() }, 0)
+		fmt.Println("total age:", total)
+	}
+
+	// === Chaining: fluentfp vs go-linq ===
+	fmt.Print("\n--- Multi-step chain ---\n")
+
+	fmt.Print("\nfluentfp chain\n")
+	{
+		names := slice.From(chainUsers).
+			KeepIf(User.IsActive).
+			ToString(User.Name).
+			Unique()
+		names.Each(lof.Println)
+	}
+
+	fmt.Print("\ngo-linq chain\n")
+	{
+		userIsActive := func(user any) bool { return user.(User).IsActive() }
+		getName := func(user any) any { return user.(User).Name() }
+		var results []any
+		linq.From(chainUsers).
+			Where(userIsActive).
+			Select(getName).
+			Distinct().
+			ToSlice(&results)
+		names := make([]string, len(results))
+		for i, r := range results {
+			names[i] = r.(string)
+		}
+		for _, name := range names {
+			fmt.Println(name)
+		}
+	}
+
+	// === Unzip: fluentfp (unique) ===
+	// Extracts multiple fields in a single O(n) traversal.
+	// No other library has Unzip — lo requires one pass per field.
+	fmt.Print("\n--- Multi-field extraction ---\n")
+
+	fmt.Print("\nfluentfp Unzip2 (1 pass)\n")
+	{
+		names, ages := slice.Unzip2(chainUsers, User.Name, User.Age)
+		fmt.Println("names:", []string(names))
+		fmt.Println("ages:", []int(ages))
+	}
+
+	fmt.Print("\nlo Map (2 separate passes)\n")
+	{
+		names := lo.Map(chainUsers, func(u User, _ int) string { return u.Name() })
+		ages := lo.Map(chainUsers, func(u User, _ int) int { return u.Age() })
+		fmt.Println("names:", names)
+		fmt.Println("ages:", ages)
+	}
 }
 
 // User definition
@@ -259,6 +353,7 @@ func main() {
 type User struct {
 	active bool
 	name   string
+	age    int
 }
 
 func (u User) Name() string {
@@ -267,4 +362,8 @@ func (u User) Name() string {
 
 func (u User) IsActive() bool {
 	return u.active
+}
+
+func (u User) Age() int {
+	return u.age
 }

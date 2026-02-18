@@ -64,6 +64,13 @@ func (ss String) Matches(filter []string) bool {
 	return len(filter) == 0 || ss.ContainsAny(filter)
 }
 
+// Each calls fn for every element.
+func (ss String) Each(fn func(string)) {
+	for _, s := range ss {
+		fn(s)
+	}
+}
+
 // Len returns the length of the slice.
 func (ss String) Len() int {
 	return len(ss)
