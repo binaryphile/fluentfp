@@ -2,7 +2,7 @@
 
 Replace loop scaffolding with type-safe collection chains.
 
-- **Interchangeable** (assignable) — `Mapper[T]` has underlying type `[]T`. No conversion needed in either direction.
+- **Interchangeable** — `Mapper[T]` is `[]T`. Index, `range`, `append`, `len` all work. Pass to or return from any function expecting `[]T`.
 - **Generics** — 100% type-safe. No `any`, no reflection, no type assertions.
 - **Method expressions** — pass `User.IsActive` directly. No wrapper closures.
 - **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
@@ -55,20 +55,29 @@ byMAC := slice.Fold(devices, make(map[string]Device), addDevice)
 
 ## It's Just a Slice
 
-`Mapper[T]` is a defined type with underlying type `[]T`. Go's assignability rules make them interchangeable — no conversion ceremony to get values in or out.
+`Mapper[T]` is `[]T`. Use it anywhere you'd use a slice:
 
 ```go
 func activeNames(users []User) []string {
     names := slice.From(users).
         KeepIf(User.IsActive).
-        ToString(User.Name)     // Mapper[string]
+        ToString(User.Name)     // returns String ([]string)
     names.Each(lof.Println)
-    return names                // assigns to []string — no conversion
+    return names                // return as []string
+}
+```
+
+```go
+result := slice.From(users).KeepIf(User.IsActive)
+fmt.Println(result[0])         // index
+fmt.Println(len(result))       // len
+result = append(result, extra) // append
+for _, u := range result {     // range
+    process(u)
 }
 ```
 
 - `From()` is a type-cast, not a copy
-- `append()`, `len()`, index, `range` all work directly on Mappers
 - Nil-safe: `From(nil).KeepIf(...).ToString(...)` returns an empty slice — Go's range over nil is zero iterations
 
 Other Go FP libraries can't do this:

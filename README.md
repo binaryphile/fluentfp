@@ -33,7 +33,7 @@ That's a **fluent chain** — each step returns a value you can call the next me
 
 Every closing brace marks a nesting level, and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity.
 
-- **Interchangeable** ([assignable](https://go.dev/ref/spec#Assignability)) — pass `[]User` in, get `[]string` back. No wrapping, no unwrapping.
+- **Interchangeable** — pass `[]User` in, get `[]string` back. No wrapping, no unwrapping.
 - **Generics** — 100% type-safe. No `any`, no reflection, no type assertions.
 - **Method expressions** — pass `User.IsActive` directly. No wrapper closures.
 - **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
@@ -47,7 +47,7 @@ func activeNames(users []User) []string {
 }
 ```
 
-`Mapper[T]` is defined as `type Mapper[T any] []T`. Go's [assignability rules](https://go.dev/ref/spec#Assignability) let a defined type and its underlying type interchange freely — that's why no conversion is needed. Other Go FP libraries use `[]any` internally, requiring type assertions on both ends. See [comparison](comparison.md).
+`Mapper[T]` is defined as `type Mapper[T any] []T`. Everything that works on `[]T` works on `Mapper[T]` — index, `range`, `append`, `len`, pass to functions, return from functions. No conversion needed in either direction. Other Go FP libraries use `[]any` internally, requiring type assertions on both ends. See [comparison](comparison.md).
 
 Full treatment in [It's Just a Slice](slice/#its-just-a-slice).
 
@@ -110,16 +110,16 @@ Go's mechanical patterns — loops, nil checks, ignored errors — each carry bu
 
 ## Performance
 
-Most loops use `var out []T` with `append`, which re-allocates as the slice grows. Chains pre-allocate automatically.
+Chains pre-allocate with `make([]T, 0, len(input))` internally — the same thing a well-written loop does. Throughput and allocations are identical to pre-allocated loops.
 
-| Operation | Append Loop | Chain |
-|-----------|------------|-------|
-| Filter only | 10 allocs | **1 alloc** |
-| Filter + Map | 10 allocs | **2 allocs** |
+| Operation | Pre-allocated Loop | Chain |
+|-----------|-------------------|-------|
+| Filter only | 1 alloc | 1 alloc |
+| Filter + Map | 2 allocs | 2 allocs |
 
 *1000 elements. See [full benchmarks](methodology.md#benchmark-results).*
 
-You could pre-allocate manually with `make([]T, 0, len(input))` — but almost nobody does. Chains give you that optimization as a side effect of writing clearer code. Multi-step chains pay one allocation per stage; throughput is comparable since the bottleneck is the work inside your predicate, not the chain machinery.
+Multi-step chains pay one allocation per stage. The bottleneck is the work inside your predicate, not the chain machinery.
 
 ## Measurable Impact
 
