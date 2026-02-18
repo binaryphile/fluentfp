@@ -284,7 +284,7 @@ The [Performance Characteristics](analysis.md#performance-characteristics) secti
 type Mapper[T any] []T
 ```
 
-`Mapper[T]` is a type alias for `[]T`—not a wrapper struct, not a lazy evaluator. Operations execute immediately.
+`Mapper[T]` is a defined type with underlying type `[]T`—not a wrapper struct, not a lazy evaluator. Operations execute immediately.
 
 **KeepIf allocation** (`slice/mapper.go:30-39`):
 ```go

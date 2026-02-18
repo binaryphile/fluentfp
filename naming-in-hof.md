@@ -77,20 +77,21 @@ parsePort := func(s string) int {
 port := hostOpt.ToInt(parsePort)
 ```
 
-### Ternary Lazy Evaluation
+### Value Lazy Evaluation
 
-For `.ThenCall`/`.ElseCall`, name expensive computations:
+For `value.OfCall`, name expensive computations:
 
 ```go
 // Inline for simple expressions
-value := ternary.If[string](cached).Then(cache).ElseCall(func() string {
-    return fetchFromDB()
-})
+result := value.Of(cached).When(cacheHit).Or(fetchFromDB())
+
+// Lazy: expensiveDefault only called when cache misses
+result := value.OfCall(expensiveDefault).When(!cacheHit).Or(cachedValue)
 
 // Named when computation is complex
 // loadConfig reads and parses the config file.
 loadConfig := func() Config { return must.Get(parseConfigFile(path)) }
-cfg := ternary.If[Config](useDefault).Then(defaultCfg).ElseCall(loadConfig)
+cfg := value.OfCall(loadConfig).When(!useDefault).Or(defaultCfg)
 ```
 
 ### Fold Handlers (either package)
@@ -166,5 +167,5 @@ names := actives.ToString(User.Name)
 - **Don't name single field access** — `func(u User) string { return u.Name }` is fine inline
 - **Don't extract predicates for simple `if`** — `if u.IsActive()` beats `if isActive(u)`
 - **Don't name trivial defaults** — `opt.Or("default")` doesn't need `defaultValue := "default"`
-- **Don't abstract one-time ternaries** — `If(x).Then(a).Else(b)` is clear inline
+- **Don't abstract one-time conditionals** — `value.Of(a).When(x).Or(b)` is clear inline
 - **Don't create "utils" packages** — keep named functions near their usage
