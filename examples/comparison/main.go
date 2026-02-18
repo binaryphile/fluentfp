@@ -281,21 +281,6 @@ func main() {
 		fmt.Println(user.Name())
 	}
 
-	// === Reduce: fluentfp vs lo ===
-	fmt.Print("\n--- Reduce ---\n")
-
-	fmt.Print("\nfluentfp Fold\n")
-	{
-		total := slice.Fold(chainUsers, 0, func(sum int, u User) int { return sum + u.Age() })
-		fmt.Println("total age:", total)
-	}
-
-	fmt.Print("\nlo Reduce\n")
-	{
-		total := lo.Reduce(chainUsers, func(sum int, u User, _ int) int { return sum + u.Age() }, 0)
-		fmt.Println("total age:", total)
-	}
-
 	// === Chaining: fluentfp vs go-linq ===
 	fmt.Print("\n--- Multi-step chain ---\n")
 

@@ -89,16 +89,16 @@ Type-safe, supports method expressions, but no fluent chaining or `Each`.
 
 ## Beyond Filter+Map
 
-The filter+map comparison above shows ergonomic differences. The operations below show **structural** differences — how each library handles search results, accumulation, and multi-step chains.
+The filter+map comparison above shows ergonomic differences. The operations below show **structural** differences — how each library handles search results and multi-step chains.
 
-### Find and Reduce — fluentfp vs lo
+### Find — fluentfp vs lo
 
-**Find — fluentfp:**
+**fluentfp:**
 ```go
 user := slice.From(users).Find(User.IsActive).Or(defaultUser)
 ```
 
-**Find — lo:**
+**lo:**
 ```go
 user, ok := lo.Find(users, func(u User) bool { return u.IsActive() })
 if !ok {
@@ -107,18 +107,6 @@ if !ok {
 ```
 
 fluentfp's `Find` returns `option.Basic[T]`, so `.Or()` handles the missing case inline. lo returns `(T, bool)` — idiomatic Go, but requires a separate `if` block for the default.
-
-**Reduce — fluentfp:**
-```go
-total := slice.Fold(orders, 0, func(sum int, o Order) int { return sum + o.Amount() })
-```
-
-**Reduce — lo:**
-```go
-total := lo.Reduce(orders, func(sum int, o Order, _ int) int { return sum + o.Amount() }, 0)
-```
-
-Both work. fluentfp's accumulator takes `func(R, T) R` — no index parameter. lo's takes `func(R, T, int) R` — the index is available when you need it, but most reductions don't.
 
 ### Multi-Step Chains — fluentfp vs go-linq
 
