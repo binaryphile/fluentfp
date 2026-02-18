@@ -86,4 +86,6 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Transform**: `Convert`, `Map` (MapperTo), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `Len`, `Sum` (Float64), `ToSet` (String), `Each`, `Unzip2`/`3`/`4`
 
+`Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
+
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation and the [main README](../README.md) for installation and performance characteristics.
