@@ -64,7 +64,9 @@ func(User) bool                // method expression: User.IsActive
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 ```
 
-Without method expressions, every predicate needs a wrapper: `func(u User) bool { return u.IsActive() }`. For `[]*User` slices, the expression is `(*User).IsActive`.
+Without method expressions, every predicate needs a wrapper: `func(u User) bool { return u.IsActive() }`.
+
+For `[]*User` slices, the method expression is `(*User).IsActive`.
 
 See [naming patterns](naming-in-hof.md) for when to use method expressions vs named functions vs closures.
 
