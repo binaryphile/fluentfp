@@ -61,7 +61,7 @@ func (ts MapperTo[R, T]) KeepIf(fn func(T) bool) MapperTo[R, T] {
 }
 
 // Len returns the length of the slice.
-func (ts MapperTo[T, R]) Len() int {
+func (ts MapperTo[R, T]) Len() int {
 	return len(ts)
 }
 

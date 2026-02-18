@@ -94,7 +94,33 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
 - **Transform**: `Convert`, `Map` (MapperTo), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `Len`, `Sum` (Float64), `ToSet` (String), `Each`, `Unzip2`/`3`/`4`
+- **Parallel**: `ParallelMap`, `ParallelKeepIf`, `ParallelEach`
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
+
+## Parallel Operations
+
+Same API, concurrent execution. The pure-function contract (no shared state in predicates or transforms) makes parallelism safe by construction.
+
+```go
+// CPU-bound transform — 4x speedup at 10k elements
+scores := slice.ParallelMap(users, runtime.GOMAXPROCS(0), ComputeScore)
+
+// Parallel filter chains naturally into sequential operations
+active := slice.From(users).ParallelKeepIf(4, User.IsActive).ToString(User.Name)
+```
+
+Parallel overhead only pays off when `fn` does meaningful work per element. Pure field access won't benefit — CPU-bound transforms and I/O-bound operations will. Benchmarks:
+
+| Operation | Work | 10k elements | Speedup |
+|-----------|------|-------------|---------|
+| ParallelMap | trivial (n*2) | ~2x slower | — |
+| ParallelMap | CPU-bound (50 sin/cos) | ~5x faster | yes |
+| ParallelKeepIf | trivial (n%2) | ~4x slower | — |
+| ParallelKeepIf | CPU-bound | ~4x faster | yes |
+
+Run `go test -bench=BenchmarkParallel -benchmem ./slice/` for numbers on your hardware.
+
+Edge cases: `workers <= 0` panics, `workers == 1` runs sequentially (no goroutine overhead), `workers > len` clamps, nil/empty returns nil.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation and the [main README](../README.md) for installation and performance characteristics.
