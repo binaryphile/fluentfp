@@ -26,12 +26,10 @@ Compare fluentfp to popular Go FP libraries. Task: filter active users, extract 
 
 Each example shows idiomatic usage for that library. fluentfp uses method expressions (`User.IsActive`) directly. Other libraries require wrapper functions.
 
-### fluentfp (4 lines)
+### fluentfp (2 lines)
 
 ```go
-names := slice.From(users).
-    KeepIf(User.IsActive).
-    ToString(User.Name)
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 names.Each(lof.Println)
 ```
 
