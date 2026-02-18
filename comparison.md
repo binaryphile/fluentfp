@@ -89,6 +89,87 @@ for _, name := range names {
 
 Type-safe, supports method expressions, but no fluent chaining or `Each`.
 
+## Beyond Filter+Map
+
+The filter+map comparison above shows ergonomic differences. The operations below show **structural** differences — how each library handles search results, accumulation, and multi-step chains.
+
+### Find and Reduce — fluentfp vs lo
+
+**Find — fluentfp:**
+```go
+user := slice.From(users).Find(User.IsActive).Or(defaultUser)
+```
+
+**Find — lo:**
+```go
+user, ok := lo.Find(users, func(u User, _ int) bool { return u.IsActive() })
+if !ok {
+    user = defaultUser
+}
+```
+
+fluentfp's `Find` returns `option.Basic[T]`, so `.Or()` handles the missing case inline. lo returns `(T, bool)` — idiomatic Go, but requires a separate `if` block for the default.
+
+**Reduce — fluentfp:**
+```go
+total := slice.Fold(orders, 0, func(sum int, o Order) int { return sum + o.Amount() })
+```
+
+**Reduce — lo:**
+```go
+total := lo.Reduce(orders, func(sum int, o Order, _ int) int { return sum + o.Amount() }, 0)
+```
+
+Both work. fluentfp's accumulator takes `func(R, T) R` — no index parameter. lo's takes `func(R, T, int) R` — the index is available when you need it, but most reductions don't.
+
+### Multi-Step Chains — fluentfp vs go-linq
+
+Only two libraries support chaining. Both handle a filter → transform → deduplicate pipeline differently.
+
+**fluentfp:**
+```go
+names := slice.From(users).
+    KeepIf(User.IsActive).
+    ToString(User.Name).
+    Unique()
+```
+
+**go-linq:**
+```go
+userIsActive := func(user any) bool { return user.(User).IsActive() }
+getName := func(user any) any { return user.(User).Name() }
+var results []any
+linq.From(users).
+    Where(userIsActive).
+    Select(getName).
+    Distinct().
+    ToSlice(&results)
+names := make([]string, len(results))
+for i, r := range results {
+    names[i] = r.(string)
+}
+```
+
+fluentfp chains are type-safe throughout — no `any` wrappers, no type assertions, and the result assigns directly to `[]string`. go-linq's strength is lazy evaluation: intermediate slices aren't materialized, which matters when collections are large. fluentfp evaluates eagerly — each step allocates.
+
+### Multi-Field Extraction — fluentfp (unique)
+
+No other library has `Unzip`. When you need multiple fields from the same slice, fluentfp extracts them in one pass.
+
+**fluentfp:**
+```go
+names, ages, scores := slice.Unzip3(students, Student.Name, Student.Age, Student.Score)
+```
+
+**lo (3 separate passes):**
+```go
+names := lo.Map(students, func(s Student, _ int) string { return s.Name() })
+ages := lo.Map(students, func(s Student, _ int) int { return s.Age() })
+scores := lo.Map(students, func(s Student, _ int) float64 { return s.Score() })
+```
+
+Niche operation — most codebases won't need it. But when you do, one call with method expressions replaces three calls with wrapper closures. `Unzip3` also traverses the input once instead of three times.
+
 ## Performance
 
 ### Benchmark Results
@@ -140,9 +221,12 @@ See [methodology.md § Performance Analysis](methodology.md#i-performance-analys
 
 ## When to Use a Different Library
 
-- **Need broad adoption** — `lo` has 17k+ stars and wide community support
-- **Need lazy evaluation** — `go-linq` supports deferred execution
-- **Already using one** — Consistency matters more than marginal gains
+| Use Case | Library | Why |
+|----------|---------|-----|
+| Broad adoption | samber/lo | 17k+ stars, wide community support |
+| Lazy evaluation | go-linq | Deferred execution avoids materializing large intermediates |
+| Pre-generics codebase | go-funk | Works without Go 1.18+ |
+| Already using one | — | Consistency matters more than marginal gains |
 
 ## Recommendation
 

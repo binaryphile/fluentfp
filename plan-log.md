@@ -2101,3 +2101,7 @@ README examples should be self-documenting—naming wrappers after their values 
 [x] doc.go updated (7 entries, alphabetical)
 [x] slice/README.md updated (Mapper, Standalone, String tables + MapperTo note + K cmp.Ordered)
 [x] CLAUDE.md updated (Clone, Single, ToSet, SortBy, SortByDesc with constraints)
+2026-02-18T00:40:29Z | Contract: Phase 3 - Expand comparison.md
+[ ] 3 new operation head-to-heads (callback sigs, chaining, Unzip)
+[ ] Competitor strengths named in each evaluation
+[ ] No fabricated data
