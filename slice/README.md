@@ -69,6 +69,7 @@ func activeNames(users []User) []string {
 
 - `From()` is a type-cast, not a copy
 - `append()`, `len()`, index, `range` all work directly on Mappers
+- Nil-safe: `From(nil).KeepIf(...).ToString(...)` returns an empty slice — Go's range over nil is zero iterations
 
 Other Go FP libraries can't do this:
 - **go-linq**, **fuego**: 6+ lines of `[]any` → `[]string` with type assertions to get results out
