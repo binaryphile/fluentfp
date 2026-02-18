@@ -29,6 +29,8 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 
 Six lines become one.
 
+That's a **fluent chain** — each step returns a value you can call the next method on, so the whole pipeline reads as a single expression: filter, then transform.
+
 Every closing brace marks a nesting level, and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity.
 
 - **Interchangeable** ([assignable](https://go.dev/ref/spec#Assignability)) — pass `[]User` in, get `[]string` back. No wrapping, no unwrapping.
