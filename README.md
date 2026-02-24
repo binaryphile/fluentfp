@@ -47,7 +47,7 @@ func activeNames(users []User) []string {
 }
 ```
 
-`Mapper[T]` is defined as `type Mapper[T any] []T`. Everything that works on `[]T` works on `Mapper[T]` — index, `range`, `append`, `len`, pass to functions, return from functions. No conversion needed in either direction. Other Go FP libraries use `[]any` internally, requiring type assertions on both ends. See [comparison](comparison.md).
+`Mapper[T]` is defined as `type Mapper[T any] []T`. Everything that works on `[]T` works on `Mapper[T]` — index, `range`, `append`, `len`, pass to functions, return from functions. No conversion needed in either direction. Keep `[]T` in your function signatures and use `From()` at the point of use — fluentfp stays an implementation detail. Other Go FP libraries use `[]any` internally, requiring type assertions on both ends. See [comparison](comparison.md).
 
 Full treatment in [It's Just a Slice](slice/#its-just-a-slice).
 
@@ -76,10 +76,10 @@ See [naming patterns](naming-in-hof.md) for when to use method expressions vs na
 
 ### Conditional Initialization
 ```go
-vm := HeaderVM{
-    Title:  title,
-    Color:  value.Of(warn).When(critical).Or(calm),
-    Icon:   value.Of("!").When(critical).Or("✓"),
+return Alert{
+    Message: msg,
+    Level:   value.Of("critical").When(overdue).Or("info"),
+    Icon:    value.Of("!").When(overdue).Or("✓"),
 }
 ```
 
@@ -106,7 +106,7 @@ Go's mechanical patterns — loops, nil checks, ignored errors — each carry bu
 | Defer in loop | Loop body accumulates | No loop body |
 | Index typo | You manage index math | Predicates operate on values |
 | Off-by-one | You manage bounds | Iterate collection, not indices |
-| Ignored error | `_ = fn()` | `must.BeNil(fn())` |
+| Ignored error | `_ = fn()` | `err := fn()`<br>`must.BeNil(err)` |
 
 ## Performance
 
@@ -119,7 +119,7 @@ Chains pre-allocate with `make([]T, 0, len(input))` internally — the same thin
 
 *1000 elements. See [full benchmarks](methodology.md#benchmark-results).*
 
-Multi-step chains pay one allocation per stage. The bottleneck is the work inside your predicate, not the chain machinery.
+Multi-step chains pay one allocation per stage. Execution time varies — single-stage chains match raw loops, but multi-stage chains add overhead from intermediate slices and function call indirection. If you're counting nanoseconds, use a raw loop.
 
 ## Measurable Impact
 
@@ -130,18 +130,29 @@ Multi-step chains pay one allocation per stage. The bottleneck is the work insid
 
 *Individual loops see up to 6× line reduction (as above). Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#code-metrics-tool-scc).*
 
-## Real-World Usage
+## Adopt What Fits
 
-Used in production in [era](https://codeberg.org/binaryphile/era) (semantic memory CLI) and [sofdevsim](https://github.com/binaryphile/sofdevsim-2026) (TUI simulator with DORA metrics and event sourcing). Between them: 40+ files, ~90 call sites, every pattern from tag filtering to exhaustive mode dispatch to crisis-detection state machines.
+Packages are independent — import one or all. A CLI might use only `slice` and `must`. A domain with sum-type state might add `either` and `option`. Same library, different surface area.
+
+## When to Use Loops
+
+The filter+map chain in Quick Start is a mechanical loop — iteration scaffolding around a predicate and a transform. fluentfp replaces those.
+
+It doesn't try to replace loops that do structural work. The most common: mutation in place.
 
 ```go
-// Tag filtering — identical idiom across two storage backends
-if !slice.String(m.Tags).Matches(opts.Tags) {
-    continue
+// Find by ID, update, break — fluentfp operates on copies, not originals
+for i := range items {
+    if items[i].ID == target {
+        items[i].Status = "done"
+        break
+    }
 }
 ```
 
-Each project imports only what it needs. era uses one package (`slice`). sofdevsim uses five (`slice`, `option`, `either`, `must`, `value`). Same library, different surface area — take what fits your domain.
+fluentfp builds new slices from old ones (functional transforms). This loop modifies an element in the original slice by index — a fundamentally different operation.
+
+Channel consumption (`for msg := range ch`), complex control flow (early return, labeled break), and performance-critical hot paths also stay as loops.
 
 ## Packages
 
@@ -155,7 +166,7 @@ Each project imports only what it needs. era uses one package (`slice`). sofdevs
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 | [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
 
-Zero reflection. Zero global state. Zero build tags. Just Go code that compiles and stays compiled.
+Zero reflection. Zero global state. Zero build tags.
 
 ## Further Reading
 

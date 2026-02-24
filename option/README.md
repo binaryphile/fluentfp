@@ -47,6 +47,15 @@ type ScanResult struct {
 connected := result.IsConnected.OrFalse()  // unknown → false
 ```
 
+```go
+// Nullable field — return option instead of zero value
+func (r Record) Host() option.String {
+    return option.IfNotZero(r.host)
+}
+// Caller decides how to handle absence
+addr := record.Host().Or("localhost")
+```
+
 ## One Type for All of Go's "Maybe" Patterns
 
 Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`), and comma-ok returns (`map` lookup, type assertion). All three let you skip the check and use the value directly — the failure shows up at runtime, not compile time.

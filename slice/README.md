@@ -43,10 +43,24 @@ users := slice.MapTo[User](ids).Map(FetchUser)
 
 ```go
 // Multi-field extraction in one pass
-leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
-    Record.LeadTime, Record.DeployFreq, Record.MTTR, Record.ChangeFailRate,
+prices, quantities, discounts, taxes := slice.Unzip4(orders,
+    Order.Price, Order.Quantity, Order.Discount, Order.Tax,
 )
 ```
+
+`Order.Price` is a [method expression](https://go.dev/ref/spec#Method_expressions) — Go turns the method into a `func(Order) float64`, which is exactly what Unzip expects. This works when your types have accessor methods. Without them, named functions work in the same position:
+
+```go
+// With accessor methods
+prices, qtys := slice.Unzip2(orders, Order.Price, Order.Quantity)
+
+// Without — named functions instead
+getPrice := func(o Order) float64 { return o.Price() }
+getQty := func(o Order) int { return o.Qty() }
+prices, qtys := slice.Unzip2(orders, getPrice, getQty)
+```
+
+Method expressions read as intent at the call site — `Order.Price` vs reading a function body. They pay off when multiple sites extract the same field. For one-off use, named functions avoid the extra method.
 
 ```go
 // Reduce to map
@@ -59,11 +73,9 @@ byMAC := slice.Fold(devices, make(map[string]Device), addDevice)
 
 ```go
 func activeNames(users []User) []string {
-    names := slice.From(users).
-        KeepIf(User.IsActive).
-        ToString(User.Name)     // returns String ([]string)
+    names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
     names.Each(lof.Println)
-    return names                // return as []string
+    return names  // return as []string — no conversion needed
 }
 ```
 
@@ -77,7 +89,8 @@ for _, u := range result {     // range
 }
 ```
 
-- `From()` is a type-cast, not a copy
+- Keep `[]T` in your function signatures, not `Mapper[T]` — use `From()` at the point of use. This keeps fluentfp as an implementation detail; callers don't need to import it.
+- `From()` is a type conversion (copies the slice header, shares the backing array — `append` to either may mutate the other if capacity remains)
 - Nil-safe: `From(nil).KeepIf(...).ToString(...)` returns an empty slice — Go's range over nil is zero iterations
 
 Other Go FP libraries can't do this:

@@ -24,9 +24,9 @@ Six lines become one.
 
 ```go
 // Mode dispatch — either isn't just for errors
-tick := either.Fold(a.mode,
-    func(e EngineMode) int { return e.Tick },
-    func(c ClientMode) int { return c.Tick },
+timeout := either.Fold(config,
+    func(l LocalConfig) int { return l.Timeout },
+    func(r RemoteConfig) int { return r.Timeout },
 )
 ```
 
@@ -56,6 +56,23 @@ result.IfRight(Repo.Save)
 - No default/fallback branch — every state is explicitly handled
 
 Go's control flow doesn't enforce that all variants are handled. `Fold` does.
+
+## Either as Architecture
+
+A single `Either[L, R]` type can flow through multiple dispatch sites. Each `Fold` handles both cases — every new dispatch site must account for both. Change either type's interface and the compiler catches every site that needs updating.
+
+Consider an application with two modes — setup and running. The mode flows through the entire render path:
+
+```go
+type AppState = either.Either[Setup, Running]
+
+// Multiple sites, all exhaustive
+title   := either.Fold(state, Setup.Title, Running.Title)
+canEdit := either.Fold(state, Setup.CanEdit, Running.CanEdit)
+view    := either.Fold(state, Setup.Render, Running.Render)
+```
+
+Every site that touches `AppState` must handle both cases. The compiler enforces this everywhere `Fold` appears.
 
 ## Operations
 

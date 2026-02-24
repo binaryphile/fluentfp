@@ -2139,3 +2139,17 @@ Commit: f48f401
 [x] Written analysis delivered in conversation
 [x] Real code snippets from both projects cited
 [x] Boundaries and limitations identified with evidence
+2026-02-24T15:43:03Z | Contract: Generalize README examples
+[ ] Main README "Real-World Usage" uses general examples
+[ ] slice/README.md Unzip4 uses general types
+[ ] either/README.md mode dispatch uses general types
+2026-02-24T16:21:46Z | Contract: Integrate evaluation findings into READMEs
+[ ] Main README: "When to Use Loops" (mutation boundary) + trimmed "Adopt What Fits" + generalized
+[ ] slice/README: method expression trade-off with language feature explanation + generalized Unzip
+[ ] either/README: architectural multi-site dispatch with motivating scenario + generalized mode dispatch
+[ ] option/README: option-as-return-type example (API-verified)
+2026-02-24T16:25:01Z | Completion: Integrate evaluation findings into READMEs
+[x] Main README: "When to Use Loops" (mutation boundary) + trimmed "Adopt What Fits" + generalized
+[x] slice/README: method expression trade-off with language feature explanation + generalized Unzip
+[x] either/README: architectural multi-site dispatch with motivating scenario + generalized mode dispatch
+[x] option/README: option-as-return-type example (API-verified)
