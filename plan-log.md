@@ -2105,3 +2105,37 @@ README examples should be self-documenting—naming wrappers after their values 
 [ ] 3 new operation head-to-heads (callback sigs, chaining, Unzip)
 [ ] Competitor strengths named in each evaluation
 [ ] No fabricated data
+2026-02-18T01:00:00Z | Completion: Phase 3 - Expand comparison.md
+[x] 3 new operation head-to-heads (Find, Reduce, chaining + Unzip)
+[x] Competitor strengths named in each evaluation
+[x] No fabricated data
+Commits: 10b57a1, 8061073
+2026-02-18T03:00:00Z | Contract: Phase 1 - Parallel Mapper (from stream+parallelism design)
+[ ] forBatches helper (batch-chunking, edge cases)
+[ ] ParallelMap, ParallelKeepIf, ParallelEach on Mapper[T]
+[ ] ParallelMap, ParallelKeepIf, ParallelEach on MapperTo[R,T]
+[ ] Tests (Khorikov-rebalanced: 15 tests, race-free)
+[ ] Benchmarks (trivial + CPU-bound, 3 sizes)
+[ ] Godoc examples
+[ ] README update with benchmark table
+[ ] Fix MapperTo Len() type-param bug
+[ ] Remove dead exp/iterable/
+2026-02-18T03:30:00Z | Completion: Phase 1 - Parallel Mapper
+[x] forBatches helper (parallel.go:8-33, 25 lines, 4 edge cases)
+[x] Mapper parallel methods (parallel.go:35-89)
+[x] MapperTo parallel methods (parallel_to.go:1-57)
+[x] Tests: 15 tests, race-free, Khorikov-rebalanced (parallel_test.go)
+[x] Benchmarks: ~5x speedup on CPU-bound at 10k elements (benchmark_parallel_test.go)
+[x] Godoc examples (example_parallel_test.go)
+[x] README with parallel section + benchmark table (slice/README.md)
+[x] MapperTo Len() bug fixed (mapper_to.go:64)
+[x] exp/iterable/ removed
+Commit: f48f401
+2026-02-24T15:31:57Z | Contract: fluentfp practice assessment
+[ ] Written analysis with evidence from sofdevsim-2026 and era
+[ ] Real code snippets with file:line references
+[ ] Honest assessment of boundaries and limitations
+2026-02-24T15:33:07Z | Completion: fluentfp practice assessment
+[x] Written analysis delivered in conversation
+[x] Real code snippets from both projects cited
+[x] Boundaries and limitations identified with evidence
