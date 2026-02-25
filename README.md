@@ -30,9 +30,7 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 
 **"What about performance?"** Single-stage chains match raw loops — same pre-allocation, same throughput, same allocations. Multi-stage chains add overhead from intermediate slices. If you're in a hot path counting nanoseconds, use a loop. The other 95% of your loops aren't hot paths.
 
-**"Go already has generics, I can write my own."** You can. And then you maintain it. And then your colleague writes a slightly different version. And then you have two. fluentfp is 7 packages, zero reflection, zero global state, and you import only the ones you use.
-
-**It knows where to stop.** Mutation in place, channel consumption, performance-critical hot paths — those stay as loops. fluentfp replaces the mechanical work. What's left is intentional. That's what makes it trustworthy rather than clever.
+**It works with Go, not against it.** Results, while Mappers, can be passed as normal slices and become normal slices when you do — callers never import fluentfp. Options use comma-ok (`.Get() (T, bool)`), the same pattern as map lookups and type assertions. Expressions resolve to values that fit inside struct literals. Mutation, channels, and hot paths stay as loops. fluentfp fills the gaps in Go's toolbox without fighting Go's design.
 
 ## Quick Start
 
@@ -96,8 +94,15 @@ See [naming patterns](naming-in-hof.md) for when to use method expressions vs na
 ## What It Looks Like
 
 ### Struct Returns
+
+Go struct literals already let you build and return a value in one statement — fluentfp keeps it that way when fields are conditional.
+
+<table>
+<tr><th>Before</th><th>After</th></tr>
+<tr>
+<td>
+
 ```go
-// Before: pre-compute each field, then assemble
 var level string
 if overdue {
     level = "critical"
@@ -110,9 +115,17 @@ if overdue {
 } else {
     icon = "✓"
 }
-return Alert{Message: msg, Level: level, Icon: icon}
+return Alert{
+    Message: msg,
+    Level:   level,
+    Icon:    icon,
+}
+```
 
-// After: every field resolves inline
+</td>
+<td>
+
+```go
 return Alert{
     Message: msg,
     Level:   value.Of("critical").When(overdue).Or("info"),
@@ -120,22 +133,33 @@ return Alert{
 }
 ```
 
-Go struct literals already let you build and return a value in one statement — fluentfp keeps it that way when fields are conditional.
+</td>
+</tr>
+</table>
 
 ### Set Construction
+
+`ToSet` converts any `[]T` (where T is comparable) to `map[T]bool` for O(1) membership checks — useful when you'll test multiple values against the same list.
+
 ```go
-allowed := slice.ToSet(cfg.AllowedRoles)
-if allowed[user.Role] {
-    grant(user)
-}
+allowedRoles := slice.ToSet(cfg.AllowedRoles) // map[string]bool — missing keys return false
+// hasAllowedRole reports whether the user's role is in the allowed set.
+hasAllowedRole := func(u User) bool { return allowedRoles[u.Role] }
+allowedUsers := slice.From(users).KeepIf(hasAllowedRole)
 ```
 
 ### Environment Configuration
+
+Missing environment variable? Fall back to a default. `Getenv` returns an option — `.Or()` resolves it.
+
 ```go
 port := option.Getenv("PORT").Or("8080")
 ```
 
 ### Invariant Enforcement
+
+`must` is for things that should never fail — misconfiguration, programmer errors. If they do, panic immediately instead of propagating a corrupt state.
+
 ```go
 err := os.Setenv("KEY", value)
 must.BeNil(err)
