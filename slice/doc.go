@@ -48,6 +48,7 @@ func _() {
 	_ = SortByDesc[int, int]
 
 	_ = Fold[int, int]
+	_ = ToSet[int]
 	_ = Unzip2[int, int, int]
 	_ = Unzip3[int, int, int, int]
 	_ = Unzip4[int, int, int, int, int]

@@ -78,9 +78,5 @@ func (ss String) Len() int {
 
 // ToSet returns a map with each string as a key set to true.
 func (ss String) ToSet() map[string]bool {
-	set := make(map[string]bool, len(ss))
-	for _, s := range ss {
-		set[s] = true
-	}
-	return set
+	return ToSet([]string(ss))
 }
