@@ -63,6 +63,14 @@ prices, qtys := slice.Unzip2(orders, getPrice, getQty)
 Method expressions read as intent at the call site — `Order.Price` vs reading a function body. They pay off when multiple sites extract the same field. For one-off use, named functions avoid the extra method.
 
 ```go
+// Set construction for O(1) lookup — works with any comparable type
+allowed := slice.ToSet(cfg.AllowedRoles)
+if allowed[user.Role] {
+    grant(user)
+}
+```
+
+```go
 // Reduce to map
 byMAC := slice.Fold(devices, make(map[string]Device), addDevice)
 ```
@@ -106,7 +114,7 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Filter**: `KeepIf`, `RemoveIf`, `TakeFirst`
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
 - **Transform**: `Convert`, `Map` (MapperTo), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `SortBy`, `SortByDesc`
-- **Aggregate**: `Fold`, `Len`, `Sum` (Float64), `ToSet` (String), `Each`, `Unzip2`/`3`/`4`
+- **Aggregate**: `Fold`, `Len`, `Sum` (Float64), `ToSet`, `Each`, `Unzip2`/`3`/`4`
 - **Parallel**: `ParallelMap`, `ParallelKeepIf`, `ParallelEach`
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.

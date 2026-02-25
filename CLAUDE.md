@@ -57,6 +57,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToSet() map[string]bool                // Convert to set for membership checks
 
 // Standalone functions
+slice.ToSet[T comparable](ts []T) map[T]bool                           // Convert slice to set for O(1) lookup
 slice.SortBy[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T]    // Sorted copy, ascending by key
 slice.SortByDesc[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] // Sorted copy, descending by key
 slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R

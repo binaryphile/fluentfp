@@ -55,8 +55,6 @@ for _, u := range users {                  // iteration
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
 ```
 
-Six lines become one.
-
 That's a **fluent chain** — each step returns a value you can call the next method on, so the whole pipeline reads as a single expression: filter, then transform.
 
 Every closing brace marks a nesting level, and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity.
@@ -123,6 +121,14 @@ return Alert{
 ```
 
 Go struct literals already let you build and return a value in one statement — fluentfp keeps it that way when fields are conditional.
+
+### Set Construction
+```go
+allowed := slice.ToSet(cfg.AllowedRoles)
+if allowed[user.Role] {
+    grant(user)
+}
+```
 
 ### Environment Configuration
 ```go
