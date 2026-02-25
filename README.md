@@ -6,6 +6,34 @@ The thinnest abstraction that eliminates mechanical bugs from Go. Chain type-saf
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for complete API documentation.
 
+## Why fluentfp
+
+Look at any Go codebase. Find a loop that filters a slice or extracts a field. Count the lines. You'll get six — variable declaration, for-range, if, append, two closing braces. One of those lines is your intent. The rest is scaffolding.
+
+fluentfp makes that one line:
+
+```go
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
+```
+
+**"So it's like go-linq."** No. go-linq gives you `[]any` back. You cast it, hope you got the type right, and find out at runtime if you didn't. fluentfp's `Mapper[T]` is defined as `[]T` — the result has methods but is still a `[]string`. Index it, range it, pass it to `strings.Join`, return it from a function typed `[]string`. No conversion. No unwrapping. Your function signatures don't change. fuego and gofp have the same `[]any` problem. fluentfp uses generics end-to-end. If it compiles, the types are right.
+
+**"I can write a loop in 30 seconds."** Sure. And in those 30 seconds you can typo an index variable, forget to initialize the accumulator, get an off-by-one, or silently shadow a variable in a nested loop. These aren't hypothetical — they're the bug classes that code review catches every week. fluentfp doesn't reduce them. It makes them structurally impossible. You can't get an off-by-one in a predicate because there's no index.
+
+**Method expressions eliminate wrapper closures.** Go lets you reference a method by its type name — `User.IsActive` becomes `func(User) bool`, with the receiver as the first argument. Pass it directly. No `func(u User) bool { return u.IsActive() }`. Chains read like intent: filter active, extract names.
+
+**`must` enforces invariants that should never fail.** `must.BeNil(err)` panics — and that's the point. It's for programmer errors and misconfiguration, not recoverable failures. You can't silently ignore an error with `_ = fn()` when `must.BeNil` forces you to either handle it or declare it an invariant. The distinction is explicit in the code.
+
+**`either.Fold` gives Go exhaustive pattern matching.** Go's type switches silently compile when you forget a case. You can lint for it, but linters are configuration — they can be turned off, forgotten, or never turned on. Fold requires both handlers — miss one and it doesn't compile. Use it at ten dispatch sites across your codebase and you have exhaustive matching the compiler enforces everywhere.
+
+**`option.Basic[T]` unifies Go's three different ways of saying "maybe."** Nil pointers, zero values, and comma-ok returns all become one chainable type. `.Or("default")` replaces four lines of if-not-ok-then-assign-else-assign. Return an `option.String` from a method and the caller decides how to handle absence at the call site, not inside the method.
+
+**"What about performance?"** Single-stage chains match raw loops — same pre-allocation, same throughput, same allocations. Multi-stage chains add overhead from intermediate slices. If you're in a hot path counting nanoseconds, use a loop. The other 95% of your loops aren't hot paths.
+
+**"Go already has generics, I can write my own."** You can. And then you maintain it. And then your colleague writes a slightly different version. And then you have two. fluentfp is 7 packages, zero reflection, zero global state, and you import only the ones you use.
+
+**It knows where to stop.** Mutation in place, channel consumption, performance-critical hot paths — those stay as loops. fluentfp replaces the mechanical work. What's left is intentional. That's what makes it trustworthy rather than clever.
+
 ## Quick Start
 
 Requires Go 1.21+.
@@ -33,11 +61,6 @@ That's a **fluent chain** — each step returns a value you can call the next me
 
 Every closing brace marks a nesting level, and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity.
 
-- **Interchangeable** — pass `[]User` in, get `[]string` back. No wrapping, no unwrapping.
-- **Generics** — 100% type-safe. No `any`, no reflection, no type assertions.
-- **Method expressions** — pass `User.IsActive` directly. No wrapper closures.
-- **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
-
 ### Interchangeable Types
 
 ```go
@@ -47,7 +70,7 @@ func activeNames(users []User) []string {
 }
 ```
 
-`Mapper[T]` is defined as `type Mapper[T any] []T`. Everything that works on `[]T` works on `Mapper[T]` — index, `range`, `append`, `len`, pass to functions, return from functions. No conversion needed in either direction. Keep `[]T` in your function signatures and use `From()` at the point of use — fluentfp stays an implementation detail. Other Go FP libraries use `[]any` internally, requiring type assertions on both ends. See [comparison](comparison.md).
+`Mapper[T]` is defined as `type Mapper[T any] []T`. Everything that works on `[]T` works on `Mapper[T]` — index, `range`, `append`, `len`, pass to functions, return from functions. No conversion needed in either direction. Keep `[]T` in your function signatures and use `From()` at the point of use — fluentfp stays an implementation detail. See [comparison](comparison.md).
 
 Full treatment in [It's Just a Slice](slice/#its-just-a-slice).
 
@@ -74,14 +97,32 @@ See [naming patterns](naming-in-hof.md) for when to use method expressions vs na
 
 ## What It Looks Like
 
-### Conditional Initialization
+### Struct Returns
 ```go
+// Before: pre-compute each field, then assemble
+var level string
+if overdue {
+    level = "critical"
+} else {
+    level = "info"
+}
+var icon string
+if overdue {
+    icon = "!"
+} else {
+    icon = "✓"
+}
+return Alert{Message: msg, Level: level, Icon: icon}
+
+// After: every field resolves inline
 return Alert{
     Message: msg,
     Level:   value.Of("critical").When(overdue).Or("info"),
     Icon:    value.Of("!").When(overdue).Or("✓"),
 }
 ```
+
+Go struct literals already let you build and return a value in one statement — fluentfp keeps it that way when fields are conditional.
 
 ### Environment Configuration
 ```go
@@ -95,18 +136,6 @@ must.BeNil(err)
 
 port := must.Get(strconv.Atoi(os.Getenv("PORT")))
 ```
-
-## Why It Exists
-
-Go's mechanical patterns — loops, nil checks, ignored errors — each carry bug classes that fluentfp eliminates structurally.
-
-| Bug Class | With Loops | With fluentfp |
-|-----------|-----------|---------------|
-| Accumulator error | You manage state | `Fold` manages state |
-| Defer in loop | Loop body accumulates | No loop body |
-| Index typo | You manage index math | Predicates operate on values |
-| Off-by-one | You manage bounds | Iterate collection, not indices |
-| Ignored error | `_ = fn()` | `err := fn()`<br>`must.BeNil(err)` |
 
 ## Performance
 

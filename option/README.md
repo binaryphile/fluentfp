@@ -40,6 +40,30 @@ userOption.IfOk(User.Save)
 ```
 
 ```go
+// Before: three separate absence checks, then assemble
+host := record.RawHost()
+if host == "" {
+    host = "localhost"
+}
+port := os.Getenv("PORT")
+if port == "" {
+    port = "8080"
+}
+name, ok := labels["name"]
+if !ok {
+    name = "default"
+}
+return Config{Host: host, Port: port, Name: name}
+
+// After: every field resolves inline
+return Config{
+    Host: record.Host().Or("localhost"),
+    Port: option.Getenv("PORT").Or("8080"),
+    Name: option.Lookup(labels, "name").Or("default"),
+}
+```
+
+```go
 // Tri-state boolean — option.Bool is Basic[bool]
 type ScanResult struct {
     IsConnected option.Bool  // true, false, or unknown

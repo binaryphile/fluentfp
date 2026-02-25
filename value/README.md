@@ -19,12 +19,31 @@ Five lines become one.
 
 ## What It Looks Like
 
-### Struct Initialization
+### Struct Returns
+
+Go struct literals let you build and return a value in one statement — `value.Of` keeps it that way when fields are conditional:
+
 ```go
-vm := HeaderVM{
-    Title:  title,
-    Color:  value.Of(warn).When(critical).Or(calm),
-    Icon:   value.Of("!").When(critical).Or("✓"),
+// Before: pre-compute each field, then assemble
+var level string
+if overdue {
+    level = "critical"
+} else {
+    level = "info"
+}
+var icon string
+if overdue {
+    icon = "!"
+} else {
+    icon = "✓"
+}
+return Alert{Message: msg, Level: level, Icon: icon}
+
+// After: every field resolves inline
+return Alert{
+    Message: msg,
+    Level:   value.Of("critical").When(overdue).Or("info"),
+    Icon:    value.Of("!").When(overdue).Or("✓"),
 }
 ```
 
