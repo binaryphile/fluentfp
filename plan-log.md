@@ -2153,3 +2153,15 @@ Commit: f48f401
 [x] slice/README: method expression trade-off with language feature explanation + generalized Unzip
 [x] either/README: architectural multi-site dispatch with motivating scenario + generalized mode dispatch
 [x] option/README: option-as-return-type example (API-verified)
+2026-02-28T06:27:15Z | Contract: Add Max/Min to Int and Float64
+[ ] Int is concrete type with Max, Min, Sum
+[ ] Float64 has Max, Min
+[ ] ToInt() returns Int
+[ ] Max/Min return option.Basic[T]
+[ ] Tests pass, examples compile
+2026-02-28T06:50:08Z | Completion: Add Max/Min to Int and Float64
+[x] Int is concrete type with Max, Min, Sum
+[x] Float64 has Max, Min
+[x] ToInt() returns Int
+[x] Max/Min return option.Basic[T]
+[x] Tests pass, examples compile

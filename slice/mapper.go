@@ -199,7 +199,7 @@ func (ts Mapper[T]) ToFloat64(fn func(T) float64) Float64 {
 }
 
 // ToInt returns the result of applying fn to each member of ts.
-func (ts Mapper[T]) ToInt(fn func(T) int) Mapper[int] {
+func (ts Mapper[T]) ToInt(fn func(T) int) Int {
 	results := make([]int, len(ts))
 	for i, t := range ts {
 		results[i] = fn(t)

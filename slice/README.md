@@ -109,12 +109,12 @@ See [comparison](../comparison.md) for the full library comparison.
 
 ## Operations
 
-`From` creates `Mapper[T]`. `MapTo[R]` creates `MapperTo[R,T]` — all Mapper methods plus `Map` for arbitrary type mapping. `String` (`[]string`) and `Float64` (`[]float64`) are separate defined types with additional methods.
+`From` creates `Mapper[T]`. `MapTo[R]` creates `MapperTo[R,T]` — all Mapper methods plus `Map` for arbitrary type mapping. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
 - **Filter**: `KeepIf`, `RemoveIf`, `TakeFirst`
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
 - **Transform**: `Convert`, `Map` (MapperTo), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `SortBy`, `SortByDesc`
-- **Aggregate**: `Fold`, `Len`, `Sum` (Float64), `ToSet`, `Each`, `Unzip2`/`3`/`4`
+- **Aggregate**: `Fold`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `Each`, `Unzip2`/`3`/`4`
 - **Parallel**: `ParallelMap`, `ParallelKeepIf`, `ParallelEach`
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.

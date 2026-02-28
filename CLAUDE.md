@@ -37,8 +37,8 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToByte(fn func(T) byte) Mapper[byte]
 .ToError(fn func(T) error) Mapper[error]
 .ToFloat32(fn func(T) float32) Mapper[float32]
-.ToFloat64(fn func(T) float64) Mapper[float64]
-.ToInt(fn func(T) int) Mapper[int]
+.ToFloat64(fn func(T) float64) Float64
+.ToInt(fn func(T) int) Int
 .ToInt32(fn func(T) int32) Mapper[int32]
 .ToInt64(fn func(T) int64) Mapper[int64]
 .ToRune(fn func(T) rune) Mapper[rune]
@@ -49,6 +49,13 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 
 // Float64 terminal methods (Float64 is a defined type, not an alias)
 .Sum() float64                          // Sum all elements
+.Max() option.Basic[float64]            // Largest element
+.Min() option.Basic[float64]            // Smallest element
+
+// Int terminal methods (Int is a defined type, not an alias)
+.Sum() int                              // Sum all elements
+.Max() option.Basic[int]                // Largest element
+.Min() option.Basic[int]                // Smallest element
 
 // String terminal methods (String is a defined type, not an alias)
 .Unique() String                        // Remove duplicates, preserving order
@@ -441,7 +448,7 @@ When multiple methods share **identical logic**, test ONE representative:
 | must | 100% | All domain (conditional + panic) |
 | value | 100% | All domain code paths tested |
 | option | 51.9% | Domain tested, trivial aliases untested |
-| slice | 28.8% | Domain tested, ToX methods trivial |
+| slice | 60.2% | Domain tested, ToX methods trivial |
 | lof | 0.0% | All trivial wrappers - acceptable |
 
 ### Go Test Style

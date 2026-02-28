@@ -1,5 +1,7 @@
 package slice
 
+import "github.com/binaryphile/fluentfp/option"
+
 type Any = Mapper[any]
 type Bool = Mapper[bool]
 type Byte = Mapper[byte]
@@ -16,7 +18,73 @@ func (fs Float64) Sum() float64 {
 	return sum
 }
 
-type Int = Mapper[int]
+// Max returns the largest element, or not-ok if the slice is empty.
+func (fs Float64) Max() option.Basic[float64] {
+	if len(fs) == 0 {
+		return option.NotOk[float64]()
+	}
+	m := fs[0]
+	for _, v := range fs[1:] {
+		if v > m {
+			m = v
+		}
+	}
+	return option.Of(m)
+}
+
+// Min returns the smallest element, or not-ok if the slice is empty.
+func (fs Float64) Min() option.Basic[float64] {
+	if len(fs) == 0 {
+		return option.NotOk[float64]()
+	}
+	m := fs[0]
+	for _, v := range fs[1:] {
+		if v < m {
+			m = v
+		}
+	}
+	return option.Of(m)
+}
+
+type Int []int
+
+// Sum returns the sum of all elements.
+func (is Int) Sum() int {
+	var sum int
+	for _, v := range is {
+		sum += v
+	}
+	return sum
+}
+
+// Max returns the largest element, or not-ok if the slice is empty.
+func (is Int) Max() option.Basic[int] {
+	if len(is) == 0 {
+		return option.NotOk[int]()
+	}
+	m := is[0]
+	for _, v := range is[1:] {
+		if v > m {
+			m = v
+		}
+	}
+	return option.Of(m)
+}
+
+// Min returns the smallest element, or not-ok if the slice is empty.
+func (is Int) Min() option.Basic[int] {
+	if len(is) == 0 {
+		return option.NotOk[int]()
+	}
+	m := is[0]
+	for _, v := range is[1:] {
+		if v < m {
+			m = v
+		}
+	}
+	return option.Of(m)
+}
+
 type Rune = Mapper[rune]
 type String []string
 

@@ -44,6 +44,13 @@ func _() {
 
 	_ = String.ToSet
 
+	_ = Float64.Max
+	_ = Float64.Min
+
+	_ = Int.Max
+	_ = Int.Min
+	_ = Int.Sum
+
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
 
