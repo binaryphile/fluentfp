@@ -235,22 +235,21 @@ func TestStringContains(t *testing.T) {
 
 func TestIntMax(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  Int
-		wantOk bool
-		want   int
+		name  string
+		input Int
+		want  int
 	}{
-		{name: "empty", input: Int{}, wantOk: false},
-		{name: "single element", input: Int{42}, wantOk: true, want: 42},
-		{name: "multiple elements", input: Int{3, 7, 2, 9, 1}, wantOk: true, want: 9},
-		{name: "negative numbers", input: Int{-5, -1, -8, -3}, wantOk: true, want: -1},
-		{name: "all same", input: Int{4, 4, 4}, wantOk: true, want: 4},
+		{name: "empty", input: Int{}, want: 0},
+		{name: "single element", input: Int{42}, want: 42},
+		{name: "multiple elements", input: Int{3, 7, 2, 9, 1}, want: 9},
+		{name: "negative numbers", input: Int{-5, -1, -8, -3}, want: -1},
+		{name: "all same", input: Int{4, 4, 4}, want: 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.input.Max()
-			if val, ok := got.Get(); ok != tt.wantOk || (ok && val != tt.want) {
-				t.Errorf("Max() = (%v, %v), want (%v, %v)", val, ok, tt.want, tt.wantOk)
+			if got != tt.want {
+				t.Errorf("Max() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -258,22 +257,21 @@ func TestIntMax(t *testing.T) {
 
 func TestIntMin(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  Int
-		wantOk bool
-		want   int
+		name  string
+		input Int
+		want  int
 	}{
-		{name: "empty", input: Int{}, wantOk: false},
-		{name: "single element", input: Int{42}, wantOk: true, want: 42},
-		{name: "multiple elements", input: Int{3, 7, 2, 9, 1}, wantOk: true, want: 1},
-		{name: "negative numbers", input: Int{-5, -1, -8, -3}, wantOk: true, want: -8},
-		{name: "all same", input: Int{4, 4, 4}, wantOk: true, want: 4},
+		{name: "empty", input: Int{}, want: 0},
+		{name: "single element", input: Int{42}, want: 42},
+		{name: "multiple elements", input: Int{3, 7, 2, 9, 1}, want: 1},
+		{name: "negative numbers", input: Int{-5, -1, -8, -3}, want: -8},
+		{name: "all same", input: Int{4, 4, 4}, want: 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.input.Min()
-			if val, ok := got.Get(); ok != tt.wantOk || (ok && val != tt.want) {
-				t.Errorf("Min() = (%v, %v), want (%v, %v)", val, ok, tt.want, tt.wantOk)
+			if got != tt.want {
+				t.Errorf("Min() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -301,22 +299,21 @@ func TestIntSum(t *testing.T) {
 
 func TestFloat64Max(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  Float64
-		wantOk bool
-		want   float64
+		name  string
+		input Float64
+		want  float64
 	}{
-		{name: "empty", input: Float64{}, wantOk: false},
-		{name: "single element", input: Float64{3.14}, wantOk: true, want: 3.14},
-		{name: "multiple elements", input: Float64{1.1, 5.5, 2.2, 4.4}, wantOk: true, want: 5.5},
-		{name: "negative numbers", input: Float64{-1.5, -0.5, -3.0}, wantOk: true, want: -0.5},
-		{name: "all same", input: Float64{2.0, 2.0, 2.0}, wantOk: true, want: 2.0},
+		{name: "empty", input: Float64{}, want: 0},
+		{name: "single element", input: Float64{3.14}, want: 3.14},
+		{name: "multiple elements", input: Float64{1.1, 5.5, 2.2, 4.4}, want: 5.5},
+		{name: "negative numbers", input: Float64{-1.5, -0.5, -3.0}, want: -0.5},
+		{name: "all same", input: Float64{2.0, 2.0, 2.0}, want: 2.0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.input.Max()
-			if val, ok := got.Get(); ok != tt.wantOk || (ok && val != tt.want) {
-				t.Errorf("Max() = (%v, %v), want (%v, %v)", val, ok, tt.want, tt.wantOk)
+			if got != tt.want {
+				t.Errorf("Max() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -324,22 +321,21 @@ func TestFloat64Max(t *testing.T) {
 
 func TestFloat64Min(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  Float64
-		wantOk bool
-		want   float64
+		name  string
+		input Float64
+		want  float64
 	}{
-		{name: "empty", input: Float64{}, wantOk: false},
-		{name: "single element", input: Float64{3.14}, wantOk: true, want: 3.14},
-		{name: "multiple elements", input: Float64{1.1, 5.5, 2.2, 4.4}, wantOk: true, want: 1.1},
-		{name: "negative numbers", input: Float64{-1.5, -0.5, -3.0}, wantOk: true, want: -3.0},
-		{name: "all same", input: Float64{2.0, 2.0, 2.0}, wantOk: true, want: 2.0},
+		{name: "empty", input: Float64{}, want: 0},
+		{name: "single element", input: Float64{3.14}, want: 3.14},
+		{name: "multiple elements", input: Float64{1.1, 5.5, 2.2, 4.4}, want: 1.1},
+		{name: "negative numbers", input: Float64{-1.5, -0.5, -3.0}, want: -3.0},
+		{name: "all same", input: Float64{2.0, 2.0, 2.0}, want: 2.0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.input.Min()
-			if val, ok := got.Get(); ok != tt.wantOk || (ok && val != tt.want) {
-				t.Errorf("Min() = (%v, %v), want (%v, %v)", val, ok, tt.want, tt.wantOk)
+			if got != tt.want {
+				t.Errorf("Min() = %v, want %v", got, tt.want)
 			}
 		})
 	}

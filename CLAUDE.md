@@ -49,13 +49,13 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 
 // Float64 terminal methods (Float64 is a defined type, not an alias)
 .Sum() float64                          // Sum all elements
-.Max() option.Basic[float64]            // Largest element
-.Min() option.Basic[float64]            // Smallest element
+.Max() float64                          // Largest element (zero if empty)
+.Min() float64                          // Smallest element (zero if empty)
 
 // Int terminal methods (Int is a defined type, not an alias)
 .Sum() int                              // Sum all elements
-.Max() option.Basic[int]                // Largest element
-.Min() option.Basic[int]                // Smallest element
+.Max() int                              // Largest element (zero if empty)
+.Min() int                              // Smallest element (zero if empty)
 
 // String terminal methods (String is a defined type, not an alias)
 .Unique() String                        // Remove duplicates, preserving order

@@ -1,7 +1,5 @@
 package slice
 
-import "github.com/binaryphile/fluentfp/option"
-
 type Any = Mapper[any]
 type Bool = Mapper[bool]
 type Byte = Mapper[byte]
@@ -18,10 +16,10 @@ func (fs Float64) Sum() float64 {
 	return sum
 }
 
-// Max returns the largest element, or not-ok if the slice is empty.
-func (fs Float64) Max() option.Basic[float64] {
+// Max returns the largest element, or zero if the slice is empty.
+func (fs Float64) Max() float64 {
 	if len(fs) == 0 {
-		return option.NotOk[float64]()
+		return 0
 	}
 	m := fs[0]
 	for _, v := range fs[1:] {
@@ -29,13 +27,13 @@ func (fs Float64) Max() option.Basic[float64] {
 			m = v
 		}
 	}
-	return option.Of(m)
+	return m
 }
 
-// Min returns the smallest element, or not-ok if the slice is empty.
-func (fs Float64) Min() option.Basic[float64] {
+// Min returns the smallest element, or zero if the slice is empty.
+func (fs Float64) Min() float64 {
 	if len(fs) == 0 {
-		return option.NotOk[float64]()
+		return 0
 	}
 	m := fs[0]
 	for _, v := range fs[1:] {
@@ -43,7 +41,7 @@ func (fs Float64) Min() option.Basic[float64] {
 			m = v
 		}
 	}
-	return option.Of(m)
+	return m
 }
 
 type Int []int
@@ -57,10 +55,10 @@ func (is Int) Sum() int {
 	return sum
 }
 
-// Max returns the largest element, or not-ok if the slice is empty.
-func (is Int) Max() option.Basic[int] {
+// Max returns the largest element, or zero if the slice is empty.
+func (is Int) Max() int {
 	if len(is) == 0 {
-		return option.NotOk[int]()
+		return 0
 	}
 	m := is[0]
 	for _, v := range is[1:] {
@@ -68,13 +66,13 @@ func (is Int) Max() option.Basic[int] {
 			m = v
 		}
 	}
-	return option.Of(m)
+	return m
 }
 
-// Min returns the smallest element, or not-ok if the slice is empty.
-func (is Int) Min() option.Basic[int] {
+// Min returns the smallest element, or zero if the slice is empty.
+func (is Int) Min() int {
 	if len(is) == 0 {
-		return option.NotOk[int]()
+		return 0
 	}
 	m := is[0]
 	for _, v := range is[1:] {
@@ -82,7 +80,7 @@ func (is Int) Min() option.Basic[int] {
 			m = v
 		}
 	}
-	return option.Of(m)
+	return m
 }
 
 type Rune = Mapper[rune]

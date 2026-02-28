@@ -237,6 +237,8 @@ Zero reflection. Zero global state. Zero build tags.
 
 ## Recent Additions
 
+- **v0.24.0**: **BREAKING** — `Max()`, `Min()` return plain values (zero if empty) instead of `option.Basic[T]`
+- **v0.23.0**: `Int` converted from alias to defined type. `Max()`, `Min()`, `Sum()` on `Int`; `Max()`, `Min()` on `Float64`
 - **v0.14.0**: `value` package replaces `ternary` — value-first conditional selection
 - **v0.12.0**: **BREAKING** — `MapperTo.To` renamed to `MapperTo.Map` for clarity
 - **v0.8.0**: `either` package (Left/Right sum types), `ToInt32`/`ToInt64` (slice package)
