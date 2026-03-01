@@ -68,6 +68,7 @@ slice.ToSet[T comparable](ts []T) map[T]bool                           // Conver
 slice.SortBy[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T]    // Sorted copy, ascending by key
 slice.SortByDesc[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] // Sorted copy, descending by key
 slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R
+slice.MapAccum[T, R, S](ts []T, init S, fn func(S, T) (S, R)) (S, Mapper[R])  // Fold + collect outputs
 slice.Unzip2[T, A, B](ts []T, fa func(T) A, fb func(T) B) (Mapper[A], Mapper[B])
 slice.Unzip3[T, A, B, C](...)
 slice.Unzip4[T, A, B, C, D](...)

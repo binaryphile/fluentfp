@@ -2165,3 +2165,11 @@ Commit: f48f401
 [x] ToInt() returns Int
 [x] Max/Min return option.Basic[T]
 [x] Tests pass, examples compile
+2026-03-01T06:58:21Z | Contract: Add MapAccum to slice package
+[ ] MapAccum implementation
+[ ] Tests pass
+[ ] Documentation updated (CLAUDE.md, doc.go, slice/README.md)
+2026-03-01T07:04:24Z | Completion: Add MapAccum to slice package
+[x] MapAccum implementation
+[x] Tests pass
+[x] Documentation updated (CLAUDE.md, doc.go, slice/README.md)

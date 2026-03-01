@@ -75,6 +75,16 @@ if allowed[user.Role] {
 byMAC := slice.Fold(devices, make(map[string]Device), addDevice)
 ```
 
+```go
+// Number items starting from 1 — state is the counter, output is the labeled string
+// number returns the next counter and a formatted label.
+number := func(n int, item Item) (int, string) {
+    return n + 1, fmt.Sprintf("%d. %s", n, item.Name)
+}
+_, numbered := slice.MapAccum(items, 1, number)
+// ["1. Apples", "2. Bread", "3. Milk"]
+```
+
 ## It's Just a Slice
 
 `Mapper[T]` is `[]T`. Use it anywhere you'd use a slice:
@@ -114,7 +124,7 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Filter**: `KeepIf`, `RemoveIf`, `TakeFirst`
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
 - **Transform**: `Convert`, `Map` (MapperTo), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `SortBy`, `SortByDesc`
-- **Aggregate**: `Fold`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `Each`, `Unzip2`/`3`/`4`
+- **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `Each`, `Unzip2`/`3`/`4`
 - **Parallel**: `ParallelMap`, `ParallelKeepIf`, `ParallelEach`
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
