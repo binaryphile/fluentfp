@@ -74,6 +74,36 @@ slice.MapAccum[T, R, S](ts []T, init S, fn func(S, T) (S, R)) (S, Mapper[R])  //
 slice.Unzip2[T, A, B](ts []T, fa func(T) A, fb func(T) B) (Mapper[A], Mapper[B])
 slice.Unzip3[T, A, B, C](...)
 slice.Unzip4[T, A, B, C, D](...)
+
+// Parallel operations
+slice.ParallelMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
+.ParallelKeepIf(workers int, fn func(T) bool) Mapper[T]  // method on Mapper and MapperTo
+.ParallelEach(workers int, fn func(T))                     // method on Mapper and MapperTo
+
+// ParallelMap is standalone (not a method) because it returns Mapper[R] —
+// Go can't infer R from Mapper[T]'s receiver. Same reason Fold and MapAccum are standalone.
+// MapperTo[R, T].ParallelMap IS a method because both type params are on the receiver.
+```
+
+### Parallel Patterns
+
+```go
+// workers semantics: workers=1 runs sequentially (no goroutine overhead),
+// workers > len(input) clamps to len(input), workers <= 0 panics.
+// Nil/empty input returns empty (not nil), consistent with sequential methods.
+
+// When parallel pays off: I/O-bound transforms (HTTP calls, DB lookups),
+// CPU-bound transforms on large slices. NOT worth it for trivial transforms
+// on small slices — goroutine overhead dominates.
+
+// Typical usage
+results := slice.ParallelMap(slice.From(urls), 8, fetchURL)
+
+// Method form on Mapper
+actives := slice.From(users).ParallelKeepIf(4, User.IsExpensiveCheck)
+
+// Side-effects (e.g., sending notifications)
+slice.From(users).ParallelEach(4, notifyUser)
 ```
 
 ### slice Patterns

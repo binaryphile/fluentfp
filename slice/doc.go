@@ -15,6 +15,8 @@ func _() {
 	_ = Mapper[int].FlatMap
 	_ = Mapper[int].KeepIf
 	_ = Mapper[int].Len
+	_ = Mapper[int].ParallelEach
+	_ = Mapper[int].ParallelKeepIf
 	_ = Mapper[int].RemoveIf
 	_ = Mapper[int].Single
 	_ = Mapper[int].TakeFirst
@@ -33,6 +35,9 @@ func _() {
 	_ = MapperTo[int, int].KeepIf
 	_ = MapperTo[int, int].Len
 	_ = MapperTo[int, int].Map
+	_ = MapperTo[int, int].ParallelEach
+	_ = MapperTo[int, int].ParallelKeepIf
+	_ = MapperTo[int, int].ParallelMap
 	_ = MapperTo[int, int].RemoveIf
 	_ = MapperTo[int, int].Single
 	_ = MapperTo[int, int].TakeFirst
@@ -58,6 +63,7 @@ func _() {
 
 	_ = Fold[int, int]
 	_ = MapAccum[int, int, int]
+	_ = ParallelMap[int, int]
 	_ = ToSet[int]
 	_ = Unzip2[int, int, int]
 	_ = Unzip3[int, int, int, int]

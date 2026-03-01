@@ -24,8 +24,11 @@ func TestParallelMap(t *testing.T) {
 
 	t.Run("empty slice", func(t *testing.T) {
 		got := ParallelMap(Mapper[int](nil), 4, double)
-		if got != nil {
-			t.Errorf("ParallelMap(nil) = %v, want nil", got)
+		if len(got) != 0 {
+			t.Errorf("result length = %d, want 0", len(got))
+		}
+		if got == nil {
+			t.Error("result is nil, want non-nil empty slice")
 		}
 	})
 
@@ -67,8 +70,11 @@ func TestParallelKeepIf(t *testing.T) {
 
 	t.Run("empty slice", func(t *testing.T) {
 		got := Mapper[int](nil).ParallelKeepIf(4, isEven)
-		if got != nil {
-			t.Errorf("ParallelKeepIf(nil) = %v, want nil", got)
+		if len(got) != 0 {
+			t.Errorf("result length = %d, want 0", len(got))
+		}
+		if got == nil {
+			t.Error("result is nil, want non-nil empty slice")
 		}
 	})
 
@@ -143,8 +149,11 @@ func TestMapperToParallelMap(t *testing.T) {
 
 	t.Run("nil slice", func(t *testing.T) {
 		got := MapTo[int]([]Item(nil)).ParallelMap(2, getScore)
-		if got != nil {
-			t.Errorf("MapperTo.ParallelMap(nil) = %v, want nil", got)
+		if len(got) != 0 {
+			t.Errorf("result length = %d, want 0", len(got))
+		}
+		if got == nil {
+			t.Error("result is nil, want non-nil empty slice")
 		}
 	})
 }
@@ -157,12 +166,24 @@ func TestMapperToParallelKeepIf(t *testing.T) {
 	isActive := func(i Item) bool { return i.Active }
 	getName := func(i Item) string { return i.Name }
 
-	items := []Item{{"a", true}, {"b", false}, {"c", true}}
-	got := []string(MapTo[string](items).ParallelKeepIf(2, isActive).Map(getName))
-	want := []string{"a", "c"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("MapperTo.ParallelKeepIf + Map = %v, want %v", got, want)
-	}
+	t.Run("filters and chains", func(t *testing.T) {
+		items := []Item{{"a", true}, {"b", false}, {"c", true}}
+		got := []string(MapTo[string](items).ParallelKeepIf(2, isActive).Map(getName))
+		want := []string{"a", "c"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("MapperTo.ParallelKeepIf + Map = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("empty slice", func(t *testing.T) {
+		got := MapTo[string]([]Item(nil)).ParallelKeepIf(2, isActive)
+		if len(got) != 0 {
+			t.Errorf("result length = %d, want 0", len(got))
+		}
+		if got == nil {
+			t.Error("result is nil, want non-nil empty slice")
+		}
+	})
 }
 
 func TestMapperToParallelEach(t *testing.T) {

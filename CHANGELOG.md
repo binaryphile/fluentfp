@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.27.0
+
+- Fix parallel operations to return non-nil empty slices for nil/empty input, matching sequential method behavior
+- Remove redundant panic checks in `ParallelKeepIf` (both `Mapper` and `MapperTo`)
+- Add parallel operations to doc.go export verifications and CLAUDE.md API docs
+
 ## v0.26.0
 
 - **FlatMap** on `Mapper[T]` and `MapperTo[R,T]` — expand each element into zero or more outputs, concatenate in order

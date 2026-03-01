@@ -157,6 +157,6 @@ Parallel overhead only pays off when `fn` does meaningful work per element. Pure
 
 Run `go test -bench=BenchmarkParallel -benchmem ./slice/` for numbers on your hardware.
 
-Edge cases: `workers <= 0` panics, `workers == 1` runs sequentially (no goroutine overhead), `workers > len` clamps, nil/empty returns nil.
+Edge cases: `workers <= 0` panics, `workers == 1` runs sequentially (no goroutine overhead), `workers > len` clamps, nil/empty input returns empty (not nil).
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation and the [main README](../README.md) for installation and performance characteristics.

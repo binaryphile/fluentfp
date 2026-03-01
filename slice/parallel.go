@@ -36,7 +36,7 @@ func forBatches(n, workers int, fn func(batchIdx, start, end int)) {
 // number of worker goroutines. Order is preserved. The fn must be safe for concurrent use.
 func ParallelMap[T, R any](m Mapper[T], workers int, fn func(T) R) Mapper[R] {
 	if len(m) == 0 {
-		return nil
+		return Mapper[R]{}
 	}
 	results := make([]R, len(m))
 	forBatches(len(m), workers, func(_, start, end int) {
@@ -51,13 +51,9 @@ func ParallelMap[T, R any](m Mapper[T], workers int, fn func(T) R) Mapper[R] {
 // using the specified number of worker goroutines. Order is preserved.
 func (m Mapper[T]) ParallelKeepIf(workers int, fn func(T) bool) Mapper[T] {
 	if len(m) == 0 {
-		return nil
+		return Mapper[T]{}
 	}
-	w := min(workers, len(m))
-	if w <= 0 {
-		panic("fluentfp: workers must be > 0")
-	}
-	batchResults := make([][]T, w)
+	batchResults := make([][]T, min(workers, len(m)))
 	forBatches(len(m), workers, func(idx, start, end int) {
 		var result []T
 		for j := start; j < end; j++ {

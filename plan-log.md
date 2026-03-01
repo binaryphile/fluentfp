@@ -2191,3 +2191,13 @@ Commit: f48f401
 [ ] value.Of inside justified loop added to "When to Use Loops"
 2026-03-01T17:58:47Z | Completion: Phase 2 - Guide example
 [x] value.Of inside justified loop added to "When to Use Loops" (separator pattern with index-dependent logic)
+2026-03-01T19:32:08Z | Contract: Parallel operations cleanup
+[ ] Nil → empty consistency (4 functions)
+[ ] Redundant panic checks removed (2 functions)
+[ ] Tests updated (3 assertions + 1 new test)
+[ ] doc.go + CLAUDE.md + README updated
+2026-03-01T19:36:20Z | Completion: Parallel operations cleanup
+[x] Nil → empty consistency (4 functions: ParallelMap, ParallelKeepIf on both Mapper and MapperTo)
+[x] Redundant panic checks removed (2 functions: Mapper.ParallelKeepIf, MapperTo.ParallelKeepIf)
+[x] Tests updated (3 assertions updated + 1 new MapperTo.ParallelKeepIf empty test)
+[x] doc.go + CLAUDE.md + README updated (6 exports, parallel patterns section, edge case fix)

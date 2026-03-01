@@ -4,7 +4,7 @@ package slice
 // number of worker goroutines. Order is preserved. The fn must be safe for concurrent use.
 func (ts MapperTo[R, T]) ParallelMap(workers int, fn func(T) R) Mapper[R] {
 	if len(ts) == 0 {
-		return nil
+		return Mapper[R]{}
 	}
 	results := make([]R, len(ts))
 	forBatches(len(ts), workers, func(_, start, end int) {
@@ -19,13 +19,9 @@ func (ts MapperTo[R, T]) ParallelMap(workers int, fn func(T) R) Mapper[R] {
 // using the specified number of worker goroutines. Order is preserved.
 func (ts MapperTo[R, T]) ParallelKeepIf(workers int, fn func(T) bool) MapperTo[R, T] {
 	if len(ts) == 0 {
-		return nil
+		return MapperTo[R, T]{}
 	}
-	w := min(workers, len(ts))
-	if w <= 0 {
-		panic("fluentfp: workers must be > 0")
-	}
-	batchResults := make([][]T, w)
+	batchResults := make([][]T, min(workers, len(ts)))
 	forBatches(len(ts), workers, func(idx, start, end int) {
 		var result []T
 		for j := start; j < end; j++ {
