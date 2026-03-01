@@ -2187,3 +2187,7 @@ Commit: f48f401
 [x] Tests for both types pass (13 subtests: 9 Mapper + 4 MapperTo, includes adversarial ordering)
 [x] doc.go, CLAUDE.md, slice/README.md, analysis.md updated (7 files total)
 [x] CLAUDE.md branching strategy simplified to main-only (removed develop branch references)
+2026-03-01T17:58:41Z | Contract: Phase 2 - Guide example
+[ ] value.Of inside justified loop added to "When to Use Loops"
+2026-03-01T17:58:47Z | Completion: Phase 2 - Guide example
+[x] value.Of inside justified loop added to "When to Use Loops" (separator pattern with index-dependent logic)

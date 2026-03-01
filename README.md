@@ -213,6 +213,19 @@ fluentfp builds new slices from old ones (functional transforms). This loop modi
 
 Channel consumption (`for msg := range ch`), complex control flow (early return, labeled break), and performance-critical hot paths also stay as loops.
 
+But fluentfp helpers still compose inside justified loops:
+
+```go
+// Build results that need index-dependent logic — loop is necessary,
+// but value.Of keeps the conditional assignment as a single expression
+for i, item := range items {
+    results = append(results, Result{
+        Name:      item.Name,
+        Separator: value.Of(", ").When(i > 0).OrEmpty(),
+    })
+}
+```
+
 ## Packages
 
 | Package | Purpose | Key Functions |
