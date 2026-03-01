@@ -71,6 +71,11 @@ if allowed[user.Role] {
 ```
 
 ```go
+// Expand each department into its members — one-to-many, then flatten
+allEmployees := slice.From(departments).FlatMap(Department.Employees)
+```
+
+```go
 // Reduce to map
 byMAC := slice.Fold(devices, make(map[string]Device), addDevice)
 ```
@@ -123,7 +128,7 @@ See [comparison](../comparison.md) for the full library comparison.
 
 - **Filter**: `KeepIf`, `RemoveIf`, `TakeFirst`
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
-- **Transform**: `Convert`, `Map` (MapperTo), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `SortBy`, `SortByDesc`
+- **Transform**: `Convert`, `FlatMap`, `Map` (MapperTo), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `Each`, `Unzip2`/`3`/`4`
 - **Parallel**: `ParallelMap`, `ParallelKeepIf`, `ParallelEach`
 

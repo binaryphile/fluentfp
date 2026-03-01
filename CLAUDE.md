@@ -22,6 +22,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .KeepIf(fn func(T) bool) Mapper[T]     // Filter: keep matching
 .RemoveIf(fn func(T) bool) Mapper[T]   // Filter: remove matching
 .Convert(fn func(T) T) Mapper[T]       // Map to same type
+.FlatMap(fn func(T) []T) Mapper[T]     // Expand + concat
 .TakeFirst(n int) Mapper[T]            // First n elements
 .Each(fn func(T))                      // Side-effect iteration
 .First() option.Basic[T]               // First element
@@ -44,8 +45,9 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToRune(fn func(T) rune) Mapper[rune]
 .ToString(fn func(T) string) String
 
-// MapperTo[R,T] additional method
+// MapperTo[R,T] additional methods
 .Map(fn func(T) R) Mapper[R]           // Map to type R
+.FlatMap(fn func(T) []R) Mapper[R]     // Expand + concat
 
 // Float64 terminal methods (Float64 is a defined type, not an alias)
 .Sum() float64                          // Sum all elements
@@ -464,7 +466,5 @@ Run with coverage: `go test -cover ./...`
 ## Branching Strategy: Trunk-Based Development
 
 - **Single trunk**: `main` is the only long-lived branch
-- **develop branch**: For in-progress work before PR to main
-- **Small, frequent commits**: Commit directly to develop when working
-- **PR to main**: Create PR when ready to release
+- **Small, frequent commits**: Commit directly to main
 - **Tag releases**: Use semantic versioning (v0.6.0, etc.)

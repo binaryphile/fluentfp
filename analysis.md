@@ -441,7 +441,7 @@ A named function like `completedAfterCutoff` lets you skip the first two and rea
 **Interoperability is frictionless.** fluentfp slices are native slices — index, `range`, `append`, `len`, pass to functions, return from functions. Use fluentfp for one transformation in an otherwise imperative function without ceremony.
 
 **Bounded API surface.** Each package solves specific patterns cleanly:
-- `slice`: KeepIf, RemoveIf, Convert, ToX, Each, Fold—no FlatMap/GroupBy sprawl
+- `slice`: KeepIf, RemoveIf, Convert, ToX, Each, Fold, FlatMap—no GroupBy sprawl (FlatMap stays in slice-land; GroupBy returns `map[K][]V`, breaking fluent chains)
 - `option`: Of, Get, Or—no monadic bind chains
 - `must`: Get, BeNil, Of—three functions
 - `value`: Of, When, Or

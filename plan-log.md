@@ -2173,3 +2173,17 @@ Commit: f48f401
 [x] MapAccum implementation
 [x] Tests pass
 [x] Documentation updated (CLAUDE.md, doc.go, slice/README.md)
+2026-03-01T17:44:27Z | Contract: Phase 1 - FlatMap on Mapper and MapperTo
+[ ] Mapper[T].FlatMap implemented
+[ ] MapperTo[R,T].FlatMap implemented
+[ ] Nil semantics match KeepIf (empty, not nil)
+[ ] Tests for both types pass
+[ ] doc.go, CLAUDE.md, slice/README.md, analysis.md updated
+[ ] CLAUDE.md branching strategy simplified to main-only
+2026-03-01T17:55:22Z | Completion: Phase 1 - FlatMap
+[x] Mapper[T].FlatMap implemented (mapper.go:91-99, make([]T, 0, len(ts)), godoc with 3 guarantees)
+[x] MapperTo[R,T].FlatMap implemented (mapper_to.go:51-59, returns Mapper[R] matching Map)
+[x] Nil semantics match KeepIf (make not var, tested: nil_receiver_returns_empty on both types)
+[x] Tests for both types pass (13 subtests: 9 Mapper + 4 MapperTo, includes adversarial ordering)
+[x] doc.go, CLAUDE.md, slice/README.md, analysis.md updated (7 files total)
+[x] CLAUDE.md branching strategy simplified to main-only (removed develop branch references)

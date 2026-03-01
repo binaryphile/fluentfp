@@ -12,6 +12,7 @@ func _() {
 	_ = Mapper[int].Clone
 	_ = Mapper[int].Convert
 	_ = Mapper[int].Each
+	_ = Mapper[int].FlatMap
 	_ = Mapper[int].KeepIf
 	_ = Mapper[int].Len
 	_ = Mapper[int].RemoveIf
@@ -28,6 +29,7 @@ func _() {
 	_ = MapperTo[int, int].Clone
 	_ = MapperTo[int, int].Convert
 	_ = MapperTo[int, int].Each
+	_ = MapperTo[int, int].FlatMap
 	_ = MapperTo[int, int].KeepIf
 	_ = MapperTo[int, int].Len
 	_ = MapperTo[int, int].Map

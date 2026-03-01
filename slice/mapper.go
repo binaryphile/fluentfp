@@ -88,6 +88,16 @@ func (ts Mapper[T]) Find(fn func(T) bool) option.Basic[T] {
 	return option.NotOk[T]()
 }
 
+// FlatMap applies fn to each element, concatenating the resulting slices in iteration order.
+// Nil slices returned by fn are treated as empty. The result is always non-nil.
+func (ts Mapper[T]) FlatMap(fn func(T) []T) Mapper[T] {
+	results := make([]T, 0, len(ts))
+	for _, t := range ts {
+		results = append(results, fn(t)...)
+	}
+	return results
+}
+
 // IndexWhere returns the index of the first element matching the predicate, or not-ok if none match.
 func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Basic[int] {
 	for i, t := range ts {

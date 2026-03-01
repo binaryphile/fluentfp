@@ -48,6 +48,16 @@ func (ts MapperTo[R, T]) Each(fn func(T)) {
 	}
 }
 
+// FlatMap applies fn to each element, concatenating the resulting slices in iteration order.
+// Nil slices returned by fn are treated as empty. The result is always non-nil.
+func (ts MapperTo[R, T]) FlatMap(fn func(T) []R) Mapper[R] {
+	results := make([]R, 0, len(ts))
+	for _, t := range ts {
+		results = append(results, fn(t)...)
+	}
+	return results
+}
+
 // KeepIf returns a new slice containing the members of ts for which fn returns true.
 // It is the complement of RemoveIf.
 func (ts MapperTo[R, T]) KeepIf(fn func(T) bool) MapperTo[R, T] {
