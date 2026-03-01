@@ -13,13 +13,16 @@ func _() {
 	_ = Mapper[int].Convert
 	_ = Mapper[int].Each
 	_ = Mapper[int].FlatMap
+	_ = Mapper[int].IndexWhere
 	_ = Mapper[int].KeepIf
 	_ = Mapper[int].Len
 	_ = Mapper[int].ParallelEach
 	_ = Mapper[int].ParallelKeepIf
 	_ = Mapper[int].RemoveIf
+	_ = Mapper[int].Reverse
 	_ = Mapper[int].Single
-	_ = Mapper[int].TakeFirst
+	_ = Mapper[int].Take
+	_ = Mapper[int].TakeLast
 	_ = Mapper[int].ToAny
 	_ = Mapper[int].ToBool
 	_ = Mapper[int].ToByte
@@ -39,8 +42,10 @@ func _() {
 	_ = MapperTo[int, int].ParallelKeepIf
 	_ = MapperTo[int, int].ParallelMap
 	_ = MapperTo[int, int].RemoveIf
+	_ = MapperTo[int, int].Reverse
 	_ = MapperTo[int, int].Single
-	_ = MapperTo[int, int].TakeFirst
+	_ = MapperTo[int, int].Take
+	_ = MapperTo[int, int].TakeLast
 	_ = MapperTo[int, int].ToAny
 	_ = MapperTo[int, int].ToBool
 	_ = MapperTo[int, int].ToByte
@@ -61,10 +66,13 @@ func _() {
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
 
+	_ = FindAs[int, int]
 	_ = Fold[int, int]
 	_ = MapAccum[int, int, int]
 	_ = ParallelMap[int, int]
 	_ = ToSet[int]
+	_ = ToSetBy[int, int]
+	_ = UniqueBy[int, int]
 	_ = Unzip2[int, int, int]
 	_ = Unzip3[int, int, int, int]
 	_ = Unzip4[int, int, int, int, int]

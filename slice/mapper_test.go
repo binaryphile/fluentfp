@@ -394,7 +394,7 @@ func TestSingle(t *testing.T) {
 	})
 }
 
-func TestTakeFirst(t *testing.T) {
+func TestTake(t *testing.T) {
 	tests := []struct {
 		name  string
 		input []int
@@ -426,6 +426,12 @@ func TestTakeFirst(t *testing.T) {
 			want:  []int{},
 		},
 		{
+			name:  "negative n",
+			input: []int{1, 2, 3},
+			n:     -1,
+			want:  []int{},
+		},
+		{
 			name:  "empty slice",
 			input: []int{},
 			n:     5,
@@ -434,10 +440,116 @@ func TestTakeFirst(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := From(tt.input).TakeFirst(tt.n)
+			got := From(tt.input).Take(tt.n)
 			if !reflect.DeepEqual([]int(got), tt.want) {
-				t.Errorf("TakeFirst(%d) = %v, want %v", tt.n, got, tt.want)
+				t.Errorf("Take(%d) = %v, want %v", tt.n, got, tt.want)
 			}
 		})
 	}
+}
+
+func TestTakeLast(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []int
+		n     int
+		want  []int
+	}{
+		{
+			name:  "n less than length",
+			input: []int{1, 2, 3, 4, 5},
+			n:     3,
+			want:  []int{3, 4, 5},
+		},
+		{
+			name:  "n equals length",
+			input: []int{1, 2, 3},
+			n:     3,
+			want:  []int{1, 2, 3},
+		},
+		{
+			name:  "n greater than length",
+			input: []int{1, 2, 3},
+			n:     10,
+			want:  []int{1, 2, 3},
+		},
+		{
+			name:  "n is zero",
+			input: []int{1, 2, 3},
+			n:     0,
+			want:  []int{},
+		},
+		{
+			name:  "negative n",
+			input: []int{1, 2, 3},
+			n:     -1,
+			want:  []int{},
+		},
+		{
+			name:  "empty slice",
+			input: []int{},
+			n:     5,
+			want:  []int{},
+		},
+		{
+			name:  "nil slice",
+			input: nil,
+			n:     3,
+			want:  nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).TakeLast(tt.n)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("TakeLast(%d) = %v, want %v", tt.n, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReverse(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []int
+		want  []int
+	}{
+		{
+			name:  "multiple elements",
+			input: []int{1, 2, 3, 4, 5},
+			want:  []int{5, 4, 3, 2, 1},
+		},
+		{
+			name:  "single element",
+			input: []int{42},
+			want:  []int{42},
+		},
+		{
+			name:  "empty slice",
+			input: []int{},
+			want:  []int{},
+		},
+		{
+			name:  "nil slice",
+			input: nil,
+			want:  []int{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).Reverse()
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("Reverse() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("independent backing array", func(t *testing.T) {
+		original := From([]int{1, 2, 3})
+		reversed := original.Reverse()
+		reversed[0] = 99
+		if original[0] != 1 {
+			t.Errorf("mutating reversed changed original: got %d, want 1", original[0])
+		}
+	})
 }

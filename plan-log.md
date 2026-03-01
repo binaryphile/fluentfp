@@ -2201,3 +2201,17 @@ Commit: f48f401
 [x] Redundant panic checks removed (2 functions: Mapper.ParallelKeepIf, MapperTo.ParallelKeepIf)
 [x] Tests updated (3 assertions updated + 1 new MapperTo.ParallelKeepIf empty test)
 [x] doc.go + CLAUDE.md + README updated (6 exports, parallel patterns section, edge case fix)
+2026-03-01T22:38:16Z | Contract: API expansion v0.28.0
+[ ] TakeFirst→Take rename (breaking)
+[ ] TakeLast + Reverse methods
+[ ] UniqueBy standalone
+[ ] ToSetBy standalone
+[ ] Doc gaps: IndexWhere, FindAs in CLAUDE.md
+[ ] All docs updated
+2026-03-01T23:26:13Z | Completion: API expansion v0.28.0
+[x] TakeFirst→Take rename (breaking) — mapper.go:152, mapper_to.go:109, all 14 refs updated, negative-n clamp added
+[x] TakeLast + Reverse methods — mapper.go:162-167/130-137, mapper_to.go:119-124/88-95, 12 test cases
+[x] UniqueBy standalone — unique_by.go, 5 test cases
+[x] ToSetBy standalone — to_set_by.go, 4 test cases
+[x] Doc gaps: IndexWhere, FindAs in CLAUDE.md and doc.go
+[x] All docs updated — CLAUDE.md, doc.go, README.md, CHANGELOG.md, methodology.md, examples/slice_basics.go

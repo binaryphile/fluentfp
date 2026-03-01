@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.28.0
+
+- **BREAKING**: Rename `TakeFirst` to `Take` — aligns with universal convention (Kotlin, Scala, Rust, samber/lo)
+- Fix `Take` panic on negative n — now clamps to 0
+- **TakeLast** on `Mapper` and `MapperTo` — last n elements as subslice view
+- **Reverse** on `Mapper` and `MapperTo` — new slice in reverse order
+- **UniqueBy** — dedup by extracted key, preserving first occurrence
+- **ToSetBy** — build `map[K]bool` from extracted keys
+- Add `IndexWhere` and `FindAs` to doc.go and CLAUDE.md (existed in code, missing from docs)
+
 ## v0.27.0
 
 - Fix parallel operations to return non-nil empty slices for nil/empty input, matching sequential method behavior

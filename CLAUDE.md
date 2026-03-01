@@ -23,10 +23,13 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .RemoveIf(fn func(T) bool) Mapper[T]   // Filter: remove matching
 .Convert(fn func(T) T) Mapper[T]       // Map to same type
 .FlatMap(fn func(T) []T) Mapper[T]     // Expand + concat
-.TakeFirst(n int) Mapper[T]            // First n elements
+.Take(n int) Mapper[T]                 // First n elements
+.TakeLast(n int) Mapper[T]            // Last n elements
+.Reverse() Mapper[T]                  // New slice in reverse order
 .Each(fn func(T))                      // Side-effect iteration
 .First() option.Basic[T]               // First element
 .Find(fn func(T) bool) option.Basic[T] // First matching element
+.IndexWhere(fn func(T) bool) option.Basic[int] // Index of first match
 .Any(fn func(T) bool) bool            // True if any element matches
 .Clone() Mapper[T]                     // Shallow copy with independent backing array
 .Single() either.Either[int, T]        // Right if exactly one; Left(count) otherwise
@@ -66,7 +69,10 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToSet() map[string]bool                // Convert to set for membership checks
 
 // Standalone functions
+slice.FindAs[R, T any](ts []T) option.Basic[R]                         // First element that type-asserts to R
 slice.ToSet[T comparable](ts []T) map[T]bool                           // Convert slice to set for O(1) lookup
+slice.ToSetBy[T any, K comparable](ts []T, fn func(T) K) map[K]bool   // Set from extracted keys
+slice.UniqueBy[T any, K comparable](ts []T, fn func(T) K) Mapper[T]   // Dedup by key, preserving order
 slice.SortBy[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T]    // Sorted copy, ascending by key
 slice.SortByDesc[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] // Sorted copy, descending by key
 slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R
@@ -449,7 +455,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 
 **fluentfp-specific domain code:**
 - `slice.KeepIf`, `slice.RemoveIf` - conditional inclusion logic
-- `slice.TakeFirst` - boundary handling (`if n > len`)
+- `slice.Take`, `slice.TakeLast` - boundary handling (`if n > len`, negative n)
 - `slice.Fold`, `slice.Unzip2/3/4` - accumulation and multi-output logic
 - `option.New`, `option.IfNotZero`, `option.IfNotNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction

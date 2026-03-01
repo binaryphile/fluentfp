@@ -84,6 +84,16 @@ func (ts MapperTo[R, T]) Single() either.Either[int, T] {
 	return either.Left[int, T](len(ts))
 }
 
+// Reverse returns a new slice with elements in reverse order.
+func (ts MapperTo[R, T]) Reverse() MapperTo[R, T] {
+	results := make([]T, len(ts))
+	for i, t := range ts {
+		results[len(ts)-1-i] = t
+	}
+
+	return results
+}
+
 // RemoveIf returns a new slice containing members for which fn returns false.
 // It is the complement of KeepIf.
 func (ts MapperTo[R, T]) RemoveIf(fn func(T) bool) MapperTo[R, T] {
@@ -96,13 +106,21 @@ func (ts MapperTo[R, T]) RemoveIf(fn func(T) bool) MapperTo[R, T] {
 	return results
 }
 
-// TakeFirst returns the first n members of ts.
-func (ts MapperTo[R, T]) TakeFirst(n int) MapperTo[R, T] {
+// Take returns the first n members of ts.
+func (ts MapperTo[R, T]) Take(n int) MapperTo[R, T] {
+	n = max(0, n)
 	if n > len(ts) {
 		n = len(ts)
 	}
 
 	return ts[:n]
+}
+
+// TakeLast returns the last n members of ts.
+func (ts MapperTo[R, T]) TakeLast(n int) MapperTo[R, T] {
+	n = max(0, n)
+
+	return ts[max(0, len(ts)-n):]
 }
 
 // ToAny returns the result of applying fn to each member of ts.

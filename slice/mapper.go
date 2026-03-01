@@ -126,6 +126,16 @@ func (ts Mapper[T]) Len() int {
 	return len(ts)
 }
 
+// Reverse returns a new slice with elements in reverse order.
+func (ts Mapper[T]) Reverse() Mapper[T] {
+	results := make([]T, len(ts))
+	for i, t := range ts {
+		results[len(ts)-1-i] = t
+	}
+
+	return results
+}
+
 // RemoveIf returns a new slice containing members for which fn returns false.
 // It is the complement of KeepIf.
 func (ts Mapper[T]) RemoveIf(fn func(T) bool) Mapper[T] {
@@ -139,13 +149,21 @@ func (ts Mapper[T]) RemoveIf(fn func(T) bool) Mapper[T] {
 	return results
 }
 
-// TakeFirst returns the first n elements of ts.
-func (ts Mapper[T]) TakeFirst(n int) Mapper[T] {
+// Take returns the first n elements of ts.
+func (ts Mapper[T]) Take(n int) Mapper[T] {
+	n = max(0, n)
 	if n > len(ts) {
 		n = len(ts)
 	}
 
 	return ts[:n]
+}
+
+// TakeLast returns the last n elements of ts.
+func (ts Mapper[T]) TakeLast(n int) Mapper[T] {
+	n = max(0, n)
+
+	return ts[max(0, len(ts)-n):]
 }
 
 // ToAny returns the result of applying fn to each member of ts.

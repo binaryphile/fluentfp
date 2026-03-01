@@ -47,7 +47,7 @@ func main() {
 
 	// === Utilities ===
 
-	first2 := validPosts.TakeFirst(2)
+	first2 := validPosts.Take(2)
 	fmt.Println("first 2 posts:", len(first2)) // first 2 posts: 2
 
 	count := validPosts.Len()

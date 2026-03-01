@@ -301,9 +301,10 @@ func (ts Mapper[T]) KeepIf(fn func(T) bool) Mapper[T] {
 
 Every `KeepIf` call allocates a new slice. Chaining `KeepIf(...).ToString(...)` produces two allocations.
 
-**Exception: TakeFirst** (`slice/mapper.go:60-66`):
+**Exception: Take** (`slice/mapper.go`):
 ```go
-func (ts Mapper[T]) TakeFirst(n int) Mapper[T] {
+func (ts Mapper[T]) Take(n int) Mapper[T] {
+    n = max(0, n)
     if n > len(ts) {
         n = len(ts)
     }
@@ -311,7 +312,7 @@ func (ts Mapper[T]) TakeFirst(n int) Mapper[T] {
 }
 ```
 
-`TakeFirst` returns a slice view, not a copy. This is the only non-allocating filter operation.
+`Take` and `TakeLast` return slice views, not copies. They are the only non-allocating filter operations.
 
 ### Implications
 
@@ -320,7 +321,9 @@ func (ts Mapper[T]) TakeFirst(n int) Mapper[T] {
 | `slice.From(xs)` | 0 (type conversion) |
 | `.KeepIf(...)` | 1 |
 | `.ToString(...)` | 1 |
-| `.TakeFirst(n)` | 0 |
+| `.Take(n)` | 0 |
+| `.TakeLast(n)` | 0 |
+| `.Reverse()` | 1 |
 | `Fold(...)` | 0 (accumulator only) |
 
 A 3-operation chain like `From(xs).KeepIf(p).Convert(f).ToString(g)` allocates 3 slices. A fused manual loop allocates 1.
