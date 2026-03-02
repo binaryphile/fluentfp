@@ -2215,3 +2215,19 @@ Commit: f48f401
 [x] ToSetBy standalone — to_set_by.go, 4 test cases
 [x] Doc gaps: IndexWhere, FindAs in CLAUDE.md and doc.go
 [x] All docs updated — CLAUDE.md, doc.go, README.md, CHANGELOG.md, methodology.md, examples/slice_basics.go
+2026-03-02T00:20:00Z | Contract: Create docs/use-cases.md
+[ ] docs/ directory created
+[ ] System scope with in/out list
+[ ] 5 system invariants
+[ ] System-in-use story (no implementation details)
+[ ] Actor-goal list with characterization
+[ ] 6 use cases with Cockburn sections + Sub-Variations
+[ ] Zero implementation details in MSS steps
+2026-03-02T01:00:30Z | Completion: docs/use-cases.md
+[x] docs/ directory created
+[x] System scope with in/out list
+[x] 5 system invariants
+[x] System-in-use story (no implementation details)
+[x] Actor-goal list with characterization
+[x] 6 use cases with Cockburn sections + Sub-Variations
+[x] Zero implementation details in MSS steps
