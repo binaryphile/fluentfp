@@ -2231,3 +2231,19 @@ Commit: f48f401
 [x] Actor-goal list with characterization
 [x] 6 use cases with Cockburn sections + Sub-Variations
 [x] Zero implementation details in MSS steps
+2026-03-02T03:51:15Z | Contract: Create docs/design.md
+[ ] Update go.mod to latest Go version (prerequisite, separate commit)
+[ ] Package structure diagram (mermaid)
+[ ] 9 design decisions (D1-D9) with rationale + alternatives
+[ ] Allocation model with methodology.md cross-reference
+[ ] Safety properties (nil, thread, zero-value) with nil-safety.md cross-reference
+[ ] Cross-package connections with WHY table
+[ ] No overlap — references companion docs
+2026-03-02T03:58:22Z | Completion: docs/design.md
+[x] Update go.mod to latest Go version (prerequisite, separate commit)
+[x] Package structure diagram (mermaid)
+[x] 9 design decisions (D1-D9) with rationale + alternatives
+[x] Allocation model with methodology.md cross-reference
+[x] Safety properties (nil, thread, zero-value) with nil-safety.md cross-reference
+[x] Cross-package connections with WHY table
+[x] No overlap — references companion docs
