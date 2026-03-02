@@ -70,6 +70,12 @@ func (ts Mapper[T]) Every(fn func(T) bool) bool {
 	return true
 }
 
+// None returns true if fn returns false for every element.
+// Returns true for an empty slice (no elements match).
+func (ts Mapper[T]) None(fn func(T) bool) bool {
+	return !ts.Any(fn)
+}
+
 // Clone returns a shallow copy of the slice with independent backing array.
 func (ts Mapper[T]) Clone() Mapper[T] {
 	if ts == nil {

@@ -2263,3 +2263,13 @@ Commit: f48f401
 [x] Every method on Mapper[T] with tests
 [x] Contains standalone function with tests
 [x] doc.go, CLAUDE.md, README, feature-gaps updated
+2026-03-02T07:33:16Z | Contract: Phase 1 - None + Compact
+[ ] None method on Mapper[T] with tests (5 cases incl nil)
+[ ] Compact standalone function with tests (8 cases incl pointers/structs)
+[ ] Use case extensions (UC-2 2i, UC-1 2g, 1a + Sub-Variations)
+[ ] Doc updates (feature-gaps with exact text, CLAUDE.md, README, doc.go)
+2026-03-02T07:38:10Z | Completion: Phase 1 - None + Compact
+[x] None method — !Any(fn), 5 test cases pass
+[x] Compact standalone — removes zero values, 8 test cases pass
+[x] Use case extensions added (UC-2 2i, UC-1 2g, 1a, Sub-Variations)
+[x] All docs updated with exact text

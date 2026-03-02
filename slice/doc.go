@@ -15,6 +15,7 @@ func _() {
 	_ = Mapper[int].Each
 	_ = Mapper[int].Every
 	_ = Mapper[int].Find
+	_ = Mapper[int].None
 	_ = Mapper[int].First
 	_ = Mapper[int].FlatMap
 	_ = Mapper[int].IndexWhere
@@ -67,6 +68,7 @@ func _() {
 	_ = Int.Min
 	_ = Int.Sum
 
+	_ = Compact[int]
 	_ = Contains[int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]

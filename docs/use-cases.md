@@ -64,10 +64,11 @@
 - 2d. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error.
 - 2e. Developer needs transformations applied concurrently: System applies transformations concurrently, preserving element order in the result.
 - 2f. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
+- 2g. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements.
 - 4a. Developer needs to apply a side effect to each element rather than produce a new collection: System calls the function for every element in order.
 
 **Sub-Variations:**
-- Filtering: inclusion-based or exclusion-based criteria
+- Filtering: inclusion-based, exclusion-based, or zero-value removal
 - Type conversion: to built-in types or to arbitrary types
 - Sorting: ascending or descending by extracted key
 - Deduplication: by identity or by extracted key
@@ -93,7 +94,7 @@
 3. System processes the collection and returns the result.
 
 **Extensions:**
-- 1a. Collection is empty: System returns the appropriate empty result — zero for sums/counts, absence for lookups, initial value for accumulations, false for any-match checks, true for all-match checks, false for membership checks.
+- 1a. Collection is empty: System returns the appropriate empty result — zero for sums/counts, absence for lookups, initial value for accumulations, false for any-match checks, true for all-match checks, true for no-match checks, false for membership checks.
 - 2a. Developer searches for first matching element: System returns the match or indicates absence.
 - 2b. Developer searches for the first element matching a specific type: System returns the first type-compatible match or indicates absence.
 - 2c. Developer expects exactly one element: System returns it or indicates the actual count.
@@ -102,11 +103,12 @@
 - 2f. Developer needs to convert the collection to a set for membership checks: System returns a set of the elements or extracted keys.
 - 2g. Developer checks whether all elements satisfy a criterion: System tests every element and returns true only if all match.
 - 2h. Developer checks whether a specific value exists in the collection: System tests membership and returns true if found.
+- 2i. Developer checks that no elements satisfy a criterion: System tests every element and returns true only if none match.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
 - Element search: first element, first matching, first type-compatible, index of first matching
-- Condition checks: any match, all match, membership
+- Condition checks: any match, all match, no match, membership
 - Multi-field extraction: 2, 3, or 4 fields simultaneously
 
 ---

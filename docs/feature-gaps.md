@@ -24,13 +24,13 @@ Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = mo
 | GroupBy | Group elements by key → `map[K][]V` | lo, underscore, fp-go | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | Defer |
 | Contains | Membership check for any `comparable` | lo, underscore, fp-go | `String.Contains` for strings only; `.Any(eq)` for others | Standalone — needs `T comparable` constraint | **Done** |
 | KeyBy | Build `map[K]V` from slice + key fn | lo | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | Defer |
-| Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Method (chainable) — returns `Mapper[T]` | Skip |
+| Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Standalone — needs `T comparable` for zero check | **Done** |
 | Flatten | Flatten `[][]T` → `[]T` | lo, underscore, fp-go | `FlatMap` with identity function | Standalone — `Mapper[T any]` can't constrain `T` to `[]U`; needs `Flatten[T](tss [][]T) []T` | Defer |
 | Chunk | Split slice into fixed-size batches | lo, underscore | None | Standalone (returns `[][]T`) | Add |
 | Partition | Split into matches/non-matches | lo, fp-go | Two `KeepIf`/`RemoveIf` passes | Standalone (returns tuple `([]T, []T)`) | Add |
 | Last | Last element as option | lo, fp-go | `TakeLast(1)` then index, or `Fold` | Method (terminal) — returns `option.Basic[T]`, same as `.First()` | Add |
 | CountBy | Count elements per group → `map[K]int` | lo | `Fold` with counting map | Standalone (returns map, needs `K comparable`) | Defer |
-| Every/None | All/no elements match predicate | lo, underscore, fp-go | `!Any(pred)` for None; no direct Every | Method (terminal) — returns bool, same as `.Any()` | Every: **Done**; None: Skip |
+| Every/None | All/no elements match predicate | lo, underscore, fp-go | `!Any(pred)` for None; no direct Every | Method (terminal) — returns bool, same as `.Any()` | **Done** |
 
 ## Differentiators (fluentfp features not in competitors)
 
@@ -67,8 +67,6 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 **Every** — `Mapper[T].Every(fn func(T) bool) bool`. Method on Mapper, complement to `.Any()`. Returns true for empty slice (vacuous truth).
 
-### Skipped (2)
+**None** — `Mapper[T].None(fn func(T) bool) bool`. Complement to `.Any()`, returns true if no elements match. Returns true for empty slice. Trivial implementation (`!Any`) but eliminates negation at call sites and completes the Any/Every/None triad.
 
-**Compact** — `KeepIf(isNotZero)` with a one-line predicate. Adding `Compact` saves one line but adds API surface for minimal gain.
-
-**None** — `!slice.From(ts).Any(pred)`. Trivial negation of existing method.
+**Compact** — `Compact[T comparable](ts []T) Mapper[T]`. Standalone function (Go requires `comparable` for `!=` against zero value — cannot be method on `Mapper[T any]`). Removes zero-value elements.

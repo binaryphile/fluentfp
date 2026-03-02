@@ -126,8 +126,8 @@ See [comparison](../comparison.md) for the full library comparison.
 
 `From` creates `Mapper[T]`. `MapTo[R]` creates `MapperTo[R,T]` — all Mapper methods plus `Map` for arbitrary type mapping. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
-- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`
-- **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
+- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `Compact`
+- **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
 - **Transform**: `Convert`, `FlatMap`, `Map` (MapperTo), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `UniqueBy`, `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`
 - **Parallel**: `ParallelMap`, `ParallelKeepIf`, `ParallelEach`

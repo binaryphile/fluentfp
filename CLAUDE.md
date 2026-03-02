@@ -32,6 +32,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .IndexWhere(fn func(T) bool) option.Basic[int] // Index of first match
 .Any(fn func(T) bool) bool            // True if any element matches
 .Every(fn func(T) bool) bool          // True if all elements match (vacuous truth when empty)
+.None(fn func(T) bool) bool           // True if no elements match (vacuous truth when empty)
 .Clone() Mapper[T]                     // Shallow copy with independent backing array
 .Single() either.Either[int, T]        // Right if exactly one; Left(count) otherwise
 .Len() int                             // Count elements
@@ -70,6 +71,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToSet() map[string]bool                // Convert to set for membership checks
 
 // Standalone functions
+slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
 slice.FindAs[R, T any](ts []T) option.Basic[R]                         // First element that type-asserts to R
 slice.Contains[T comparable](ts []T, target T) bool                     // Check membership
 slice.ToSet[T comparable](ts []T) map[T]bool                           // Convert slice to set for O(1) lookup
