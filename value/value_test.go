@@ -102,6 +102,64 @@ func TestOfCall_When_Or_returns_fallback_when_false(t *testing.T) {
 	}
 }
 
+func TestCoalesce(t *testing.T) {
+	t.Run("first non-zero string", func(t *testing.T) {
+		got := value.Coalesce("", "fallback")
+		if got != "fallback" {
+			t.Errorf("got %q, want %q", got, "fallback")
+		}
+	})
+
+	t.Run("override wins", func(t *testing.T) {
+		got := value.Coalesce("override", "fallback")
+		if got != "override" {
+			t.Errorf("got %q, want %q", got, "override")
+		}
+	})
+
+	t.Run("first of three", func(t *testing.T) {
+		got := value.Coalesce("", "", "third")
+		if got != "third" {
+			t.Errorf("got %q, want %q", got, "third")
+		}
+	})
+
+	t.Run("all zero", func(t *testing.T) {
+		got := value.Coalesce("", "")
+		if got != "" {
+			t.Errorf("got %q, want %q", got, "")
+		}
+	})
+
+	t.Run("single non-zero", func(t *testing.T) {
+		got := value.Coalesce("only")
+		if got != "only" {
+			t.Errorf("got %q, want %q", got, "only")
+		}
+	})
+
+	t.Run("single zero", func(t *testing.T) {
+		got := value.Coalesce("")
+		if got != "" {
+			t.Errorf("got %q, want %q", got, "")
+		}
+	})
+
+	t.Run("no args", func(t *testing.T) {
+		got := value.Coalesce[string]()
+		if got != "" {
+			t.Errorf("got %q, want %q", got, "")
+		}
+	})
+
+	t.Run("int zero vs non-zero", func(t *testing.T) {
+		got := value.Coalesce(0, 42)
+		if got != 42 {
+			t.Errorf("got %d, want 42", got)
+		}
+	})
+}
+
 func TestOf_When_OrCall_lazy_fallback(t *testing.T) {
 	fallbackCalled := false
 	fallback := func() int {

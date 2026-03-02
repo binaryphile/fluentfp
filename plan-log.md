@@ -2281,3 +2281,13 @@ Commit: f48f401
 [x] Entry 11: Nomad write amplification added
 [x] Entry 1 updated to use None (code + "What changed")
 [x] Intro updated, trade-off renumbered to 12
+2026-03-02T17:19:47Z | Contract: Add value.Coalesce
+[ ] Coalesce function in value/value.go
+[ ] Tests in value/value_test.go
+[ ] Docs: README, CLAUDE.md, use-cases.md
+[ ] Showcase Entry 11 updated
+2026-03-02T20:43:51Z | Completion: Add value.Coalesce
+[x] Coalesce function in value/value.go
+[x] Tests in value/value_test.go
+[x] Docs: README, CLAUDE.md, use-cases.md
+[x] Showcase Entry 11 updated

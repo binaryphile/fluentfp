@@ -247,6 +247,7 @@ import "github.com/binaryphile/fluentfp/value"
 // Value-first conditional selection
 value.Of(v).When(cond).Or(fallback)        // Eager
 value.OfCall(fn).When(cond).Or(fallback)   // Lazy preferred value
+value.Coalesce[T comparable](vals ...T) T  // First non-zero value
 ```
 
 ### value Patterns

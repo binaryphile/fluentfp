@@ -222,7 +222,9 @@
 
 **Extensions:**
 - 2a. Preferred value is expensive to compute: System defers computation until condition confirmed true. If false, expensive computation never runs.
+- 1a. Developer needs the first non-zero value from a sequence of candidates: System evaluates candidates in order and returns the first non-zero, or zero if all are zero.
 
 **Sub-Variations:**
 - Eager: value computed before condition check (cheap values)
 - Lazy: value computed only when condition true (expensive computations)
+- Coalesce: first non-zero from candidates (zero = absent)

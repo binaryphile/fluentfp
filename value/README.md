@@ -60,6 +60,17 @@ result := value.OfCall(expensiveDefault).When(!cache.Hit()).Or(cache.Value())
 
 `OfCall` wraps a `func() T` and only evaluates it if the condition is true. Use it when the conditional value is expensive to compute.
 
+### First Non-Zero (Coalesce)
+```go
+// Config merge: use override if set, otherwise keep default
+result.Region = value.Coalesce(override.Region, defaults.Region)
+
+// Multi-level fallback
+host := value.Coalesce(envHost, configHost, "localhost")
+```
+
+`Coalesce` returns the first non-zero value from its arguments, or zero if all are zero. It requires `comparable` (same constraint as `slice.Compact`). Use it when the condition is "non-zero" and you don't need the option intermediary.
+
 ## Composition
 
 `.Or()` isn't part of value — it comes from `option.Basic[T]`. The chain works because `.When()` returns an option:
@@ -76,9 +87,9 @@ value creates the condition. option resolves it. The packages compose.
 
 | | `value` | `option` |
 |---|---|---|
-| **Intent** | **Select** between two values | **Handle** a potentially absent value |
-| **Trigger** | Explicit boolean condition | Value's own existence/validity |
-| **Pattern** | A or B | A or nothing |
+| **Intent** | **Select** between values | **Handle** a potentially absent value |
+| **Trigger** | Explicit condition or zero-value check | Value's own existence/validity |
+| **Pattern** | A or B (condition) / first non-zero (coalesce) | A or nothing |
 
 ```go
 // value: both alternatives are known
@@ -96,5 +107,6 @@ port := option.Getenv("PORT").Or("8080")
 - `Cond[T].When(bool) option.Basic[T]` — ok if true, not-ok if false
 - `OfCall(func() T) LazyCond[T]` — wrap a function (lazy)
 - `LazyCond[T].When(bool) option.Basic[T]` — evaluate only if true
+- `Coalesce[T comparable](vals ...T) T` — first non-zero value
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/value) for complete API documentation, the [main README](../README.md) for installation, and [option](../option/) for absent values without conditions.

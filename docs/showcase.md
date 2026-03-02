@@ -391,15 +391,15 @@ if b.RetryInterval != 0 {
 
 **fluentfp** (same 6 fields):
 ```go
-result.AuthoritativeRegion = option.IfNotZero(b.AuthoritativeRegion).Or(s.AuthoritativeRegion)
-result.EncryptKey = option.IfNotZero(b.EncryptKey).Or(s.EncryptKey)
-result.BootstrapExpect = option.IfNotZero(b.BootstrapExpect).Or(s.BootstrapExpect)
-result.RaftProtocol = option.IfNotZero(b.RaftProtocol).Or(s.RaftProtocol)
-result.HeartbeatGrace = option.IfNotZero(b.HeartbeatGrace).Or(s.HeartbeatGrace)
-result.RetryInterval = option.IfNotZero(b.RetryInterval).Or(s.RetryInterval)
+result.AuthoritativeRegion = value.Coalesce(b.AuthoritativeRegion, s.AuthoritativeRegion)
+result.EncryptKey           = value.Coalesce(b.EncryptKey, s.EncryptKey)
+result.BootstrapExpect      = value.Coalesce(b.BootstrapExpect, s.BootstrapExpect)
+result.RaftProtocol         = value.Coalesce(b.RaftProtocol, s.RaftProtocol)
+result.HeartbeatGrace       = value.Coalesce(b.HeartbeatGrace, s.HeartbeatGrace)
+result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Nomad's `ServerConfig.Merge` merges a user-provided config over server defaults — each field follows the same "use override if set, keep default otherwise" pattern. Each 3-line `if-not-zero-then-assign` block becomes a single expression: 18 lines → 6 in this sample, 144 → 48 across the full method. `option.IfNotZero` captures that intent directly and works uniformly across `string`, `int`, and `time.Duration` fields — all have meaningful zero values. *Note: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks — those would use `option.IfNotNil` instead. The pattern shown covers the dominant case.*
+**What changed:** Nomad's `ServerConfig.Merge` merges a user-provided config over server defaults — each field follows the same "use override if set, keep default otherwise" pattern. Each 3-line `if-not-zero-then-assign` block becomes a single expression: 18 lines → 6 in this sample, 144 → 48 across the full method. `value.Coalesce` returns the first non-zero argument — "override if set, default otherwise" in one word. The pattern works uniformly across `string`, `int`, and `time.Duration` fields — all have meaningful zero values. *Note: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks — those would use `option.IfNotNil` instead. The pattern shown covers the dominant case.*
 
 ---
 

@@ -19,6 +19,18 @@ func (c Cond[T]) When(ok bool) option.Basic[T] {
 	return option.New(c.v, ok)
 }
 
+// Coalesce returns the first non-zero value, or zero if all are zero.
+func Coalesce[T comparable](vals ...T) (_ T) {
+	var zero T
+	for _, v := range vals {
+		if v != zero {
+			return v
+		}
+	}
+
+	return
+}
+
 // LazyCond holds a function for deferred value computation.
 type LazyCond[T any] struct {
 	fn func() T
