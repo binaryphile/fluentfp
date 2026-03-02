@@ -112,10 +112,10 @@ isVisible := func(c docker.APIContainers) bool {
     isCoredock := strings.Contains(c.Image, "coredock")
     return !isIgnored && !isCoredock && c.State == "running"
 }
-return []docker.APIContainers(slice.From(containers).KeepIf(isVisible)), nil
+return slice.From(containers).KeepIf(isVisible), nil
 ```
 
-**What changed:** Replaced go-funk's runtime type assertion (`.([]docker.APIContainers)`, which panics if wrong) with a compile-time type conversion (`[]docker.APIContainers(...)`). Both require a boundary expression when leaving the fluent chain, but fluentfp's is checked by the compiler — go-funk's is checked at runtime.
+**What changed:** Eliminated go-funk's runtime type assertion (`.([]docker.APIContainers)`, which panics if wrong). fluentfp's `Mapper[T]` is directly assignable to `[]T` — no conversion or assertion needed at the boundary.
 
 ---
 
@@ -139,15 +139,13 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 ```go
 // excludeModerate removes MODERATE-severity vulnerabilities from a source.
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
-    sv.Vulnerabilities = []model.Vulnerability(
-        slice.From(sv.Vulnerabilities).RemoveIf(Vulnerability.IsModerate))
+    sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(Vulnerability.IsModerate)
     return sv
 }
-res.Sources = []model.SourceVulnerability(
-    slice.From(cv.Sources).Convert(excludeModerate))
+res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed:** Two runtime type assertions (`.([]model.Vulnerability)`, `.([]model.SourceVulnerability)`) replaced with compile-time type conversions (`[]model.Vulnerability(...)`, `[]model.SourceVulnerability(...)`). Both still require a boundary expression, but fluentfp's conversions are checked by the compiler — go-funk's assertions panic at runtime if wrong. The nested `funk.Filter` inside `funk.Map` becomes a named function with a clear domain name.
+**What changed:** Two runtime type assertions (`.([]model.Vulnerability)`, `.([]model.SourceVulnerability)`) eliminated entirely. fluentfp's `Mapper[T]` is directly assignable to `[]T` — no conversion or assertion at the boundary. The nested `funk.Filter` inside `funk.Map` becomes a named function with a clear domain name.
 
 ---
 
@@ -227,7 +225,7 @@ formatSectionLabel := func(s StyleSection) string {
 // toSummary builds a summary from a group of duplicate sections.
 toSummary := func(group []StyleSection) SectionSummary {
     names := slice.From(group).ToString(formatSectionLabel)
-    return SectionSummary{Names: []string(names), ...}
+    return SectionSummary{Names: names, ...}
 }
 groups := duplicates.Convert(toSummary)
 ```
@@ -264,9 +262,9 @@ formatTime := func(m *LineGraphMetaData) string {
     t := strings.ReplaceAll(m.Time, "T", " ")
     return strings.ReplaceAll(t, "Z", "")
 }
-xAxis := []string(slice.From(graph).
+xAxis := slice.From(graph).
     KeepIf(matchesDimension).
-    ToString(formatTime))
+    ToString(formatTime)
 ```
 
 **What changed:** Two `interface{}` parameters and two `i.(*LineGraphMetaData)` type assertions eliminated. The chain is type-safe from input to output. Named functions make the domain intent clear.
