@@ -218,6 +218,6 @@ See [methodology.md § Performance Analysis](methodology.md#i-performance-analys
 
 Use fluentfp when you need all four criteria. Use lo if you need the most popular/maintained option and don't mind wrapper functions.
 
-See [examples/comparison/main.go](examples/comparison/main.go) for full executable comparison with additional libraries.
+See [examples/comparison/main.go](examples/comparison/main.go) for full executable comparison with additional libraries. See [docs/showcase.md](docs/showcase.md) for before/after rewrites of real-world code from GitHub projects.
 
 *Star counts approximate as of 2025.*

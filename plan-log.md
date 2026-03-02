@@ -2247,3 +2247,11 @@ Commit: f48f401
 [x] Safety properties (nil, thread, zero-value) with nil-safety.md cross-reference
 [x] Cross-package connections with WHY table
 [x] No overlap — references companion docs
+2026-03-02T04:54:13Z | Contract: Competing library research
+[ ] docs/feature-gaps.md - feature gap analysis with design-fit assessment
+[ ] docs/showcase.md - 6+ verified before/after rewrite pairs
+[ ] Showcase rewrites use fluentfp's actual API; includes one trade-off entry
+2026-03-02T05:30:08Z | Completion: Competing library research
+[x] docs/feature-gaps.md (71 lines, prioritized table with design-fit, differentiators section)
+[x] docs/showcase.md (9 verified before/after pairs from real GitHub repos)
+[x] Showcase rewrites use fluentfp API; includes trade-off entry (#9)
