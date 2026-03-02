@@ -1,6 +1,6 @@
 # Real-World Rewrite Showcase
 
-A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — index wrapper noise, type assertions, inside-out nesting, or `interface{}` casts — that fluentfp eliminates.
+A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — index wrapper noise, type assertions, inside-out nesting, `interface{}` casts, or verbose imperative boilerplate — that fluentfp eliminates.
 
 This is a showcase, not a balanced analysis. It intentionally highlights where fluentfp improves on competitors. For an honest gap analysis of what fluentfp lacks, see [feature-gaps.md](feature-gaps.md). For a synthetic library comparison, see [comparison.md](../comparison.md).
 
@@ -26,10 +26,10 @@ return types.Bool(len(lo.Filter(statuses, func(i models.PlaybookActionStatus, _ 
 isFailed := func(s models.PlaybookActionStatus) bool {
     return s == models.PlaybookActionStatusFailed
 }
-return types.Bool(!slice.From(statuses).Any(isFailed))
+return types.Bool(slice.From(statuses).None(isFailed))
 ```
 
-**What changed:** Eliminated `_ int` wrapper. `Any` replaces `len(Filter(...)) == 0` — reads as intent ("any failed?") instead of mechanism ("filter, count, compare to zero").
+**What changed:** Eliminated `_ int` wrapper. `None` replaces `len(Filter(...)) == 0` — reads as intent ("none failed?") instead of mechanism ("filter, count, compare to zero"). The original checks emptiness by negation (length equals zero); `None` states the condition directly.
 
 ---
 
@@ -362,7 +362,48 @@ c.IPPrefixesIgnore = parseCSV(ipPrefixesIgnore)
 
 ---
 
-### 11. Trade-off: Explicit type parameter — fluentfp vs lo
+### 11. Config merge write amplification — hashicorp/nomad
+
+**Source:** [command/agent/config.go#L1707-L1902](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L1707-L1902)
+**Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
+
+**Original** (6 of 48 — representative sample):
+```go
+if b.AuthoritativeRegion != "" {
+    result.AuthoritativeRegion = b.AuthoritativeRegion
+}
+if b.EncryptKey != "" {
+    result.EncryptKey = b.EncryptKey
+}
+if b.BootstrapExpect != 0 {
+    result.BootstrapExpect = b.BootstrapExpect
+}
+if b.RaftProtocol != 0 {
+    result.RaftProtocol = b.RaftProtocol
+}
+if b.HeartbeatGrace != 0 {
+    result.HeartbeatGrace = b.HeartbeatGrace
+}
+if b.RetryInterval != 0 {
+    result.RetryInterval = b.RetryInterval
+}
+```
+
+**fluentfp** (same 6 fields):
+```go
+result.AuthoritativeRegion = option.IfNotZero(b.AuthoritativeRegion).Or(s.AuthoritativeRegion)
+result.EncryptKey = option.IfNotZero(b.EncryptKey).Or(s.EncryptKey)
+result.BootstrapExpect = option.IfNotZero(b.BootstrapExpect).Or(s.BootstrapExpect)
+result.RaftProtocol = option.IfNotZero(b.RaftProtocol).Or(s.RaftProtocol)
+result.HeartbeatGrace = option.IfNotZero(b.HeartbeatGrace).Or(s.HeartbeatGrace)
+result.RetryInterval = option.IfNotZero(b.RetryInterval).Or(s.RetryInterval)
+```
+
+**What changed:** Nomad's `ServerConfig.Merge` merges a user-provided config over server defaults — each field follows the same "use override if set, keep default otherwise" pattern. Each 3-line `if-not-zero-then-assign` block becomes a single expression: 18 lines → 6 in this sample, 144 → 48 across the full method. `option.IfNotZero` captures that intent directly and works uniformly across `string`, `int`, and `time.Duration` fields — all have meaningful zero values. *Note: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks — those would use `option.IfNotNil` instead. The pattern shown covers the dominant case.*
+
+---
+
+### 12. Trade-off: Explicit type parameter — fluentfp vs lo
 
 **Pain point:** fluentfp requires explicit type parameter where lo infers it
 

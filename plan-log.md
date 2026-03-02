@@ -2273,3 +2273,11 @@ Commit: f48f401
 [x] Compact standalone — removes zero values, 8 test cases pass
 [x] Use case extensions added (UC-2 2i, UC-1 2g, 1a, Sub-Variations)
 [x] All docs updated with exact text
+2026-03-02T07:44:41Z | Contract: Phase 2 - Showcase entries
+[ ] Entry 11: Nomad write amplification with option.IfNotZero
+[ ] Entry 1 updated to use None (code + "What changed")
+[ ] Intro updated, trade-off renumbered to 12
+2026-03-02T07:47:55Z | Completion: Phase 2 - Showcase entries
+[x] Entry 11: Nomad write amplification added
+[x] Entry 1 updated to use None (code + "What changed")
+[x] Intro updated, trade-off renumbered to 12
