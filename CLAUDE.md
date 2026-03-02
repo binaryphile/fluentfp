@@ -31,6 +31,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .Find(fn func(T) bool) option.Basic[T] // First matching element
 .IndexWhere(fn func(T) bool) option.Basic[int] // Index of first match
 .Any(fn func(T) bool) bool            // True if any element matches
+.Every(fn func(T) bool) bool          // True if all elements match (vacuous truth when empty)
 .Clone() Mapper[T]                     // Shallow copy with independent backing array
 .Single() either.Either[int, T]        // Right if exactly one; Left(count) otherwise
 .Len() int                             // Count elements
@@ -70,6 +71,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 
 // Standalone functions
 slice.FindAs[R, T any](ts []T) option.Basic[R]                         // First element that type-asserts to R
+slice.Contains[T comparable](ts []T, target T) bool                     // Check membership
 slice.ToSet[T comparable](ts []T) map[T]bool                           // Convert slice to set for O(1) lookup
 slice.ToSetBy[T any, K comparable](ts []T, fn func(T) K) map[K]bool   // Set from extracted keys
 slice.UniqueBy[T any, K comparable](ts []T, fn func(T) K) Mapper[T]   // Dedup by key, preserving order
@@ -263,9 +265,10 @@ config := value.OfCall(loadFromDB).When(useCache).Or(defaultConfig)
 ```go
 import "github.com/binaryphile/fluentfp/lof"
 
-lof.Println(s string)      // Wraps fmt.Println for Each
-lof.Len(ts []T) int        // Wraps len
-lof.StringLen(s string) int // Wraps len for strings
+lof.Println(s string)                   // Wraps fmt.Println for Each
+lof.Len(ts []T) int                     // Wraps len
+lof.StringLen(s string) int             // Wraps len for strings
+lof.IsNotEmpty(s string) bool           // Predicate for KeepIf on string slices
 lof.IfNotEmpty(s string) (string, bool) // Comma-ok for "empty = absent" returns
 ```
 

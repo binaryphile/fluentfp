@@ -20,6 +20,11 @@ func StringLen(s string) int {
 	return len(s)
 }
 
+// IsNotEmpty returns true if s is non-empty.
+func IsNotEmpty(s string) bool {
+	return s != ""
+}
+
 // IfNotEmpty returns s and whether s is non-empty.
 // Converts "empty string = absent" returns to Go's comma-ok idiom.
 //

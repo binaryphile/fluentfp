@@ -9,9 +9,13 @@ package slice
 func _() {
 	_ = From[int]
 
+	_ = Mapper[int].Any
 	_ = Mapper[int].Clone
 	_ = Mapper[int].Convert
 	_ = Mapper[int].Each
+	_ = Mapper[int].Every
+	_ = Mapper[int].Find
+	_ = Mapper[int].First
 	_ = Mapper[int].FlatMap
 	_ = Mapper[int].IndexWhere
 	_ = Mapper[int].KeepIf
@@ -63,6 +67,7 @@ func _() {
 	_ = Int.Min
 	_ = Int.Sum
 
+	_ = Contains[int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
 

@@ -59,6 +59,17 @@ func (ts Mapper[T]) Any(fn func(T) bool) bool {
 	return false
 }
 
+// Every returns true if fn returns true for every element.
+// Returns true for an empty slice (vacuous truth).
+func (ts Mapper[T]) Every(fn func(T) bool) bool {
+	for _, t := range ts {
+		if !fn(t) {
+			return false
+		}
+	}
+	return true
+}
+
 // Clone returns a shallow copy of the slice with independent backing array.
 func (ts Mapper[T]) Clone() Mapper[T] {
 	if ts == nil {

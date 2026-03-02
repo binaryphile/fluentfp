@@ -93,17 +93,20 @@
 3. System processes the collection and returns the result.
 
 **Extensions:**
-- 1a. Collection is empty: System returns the appropriate empty result — zero for sums/counts, absence for lookups, initial value for accumulations, false for condition checks.
+- 1a. Collection is empty: System returns the appropriate empty result — zero for sums/counts, absence for lookups, initial value for accumulations, false for any-match checks, true for all-match checks, false for membership checks.
 - 2a. Developer searches for first matching element: System returns the match or indicates absence.
 - 2b. Developer searches for the first element matching a specific type: System returns the first type-compatible match or indicates absence.
 - 2c. Developer expects exactly one element: System returns it or indicates the actual count.
 - 2d. Developer needs multiple fields extracted simultaneously: System returns one collection per field.
 - 2e. Developer needs to accumulate state while also producing per-element output: System processes elements in order and returns both the final accumulated value and the per-element outputs.
 - 2f. Developer needs to convert the collection to a set for membership checks: System returns a set of the elements or extracted keys.
+- 2g. Developer checks whether all elements satisfy a criterion: System tests every element and returns true only if all match.
+- 2h. Developer checks whether a specific value exists in the collection: System tests membership and returns true if found.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
 - Element search: first element, first matching, first type-compatible, index of first matching
+- Condition checks: any match, all match, membership
 - Multi-field extraction: 2, 3, or 4 fields simultaneously
 
 ---

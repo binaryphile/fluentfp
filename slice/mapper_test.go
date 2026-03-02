@@ -137,6 +137,45 @@ func TestAny(t *testing.T) {
 	}
 }
 
+func TestEvery(t *testing.T) {
+	isEven := func(n int) bool { return n%2 == 0 }
+
+	tests := []struct {
+		name  string
+		input []int
+		want  bool
+	}{
+		{
+			name:  "empty slice",
+			input: []int{},
+			want:  true,
+		},
+		{
+			name:  "none match",
+			input: []int{1, 3, 5},
+			want:  false,
+		},
+		{
+			name:  "some match",
+			input: []int{2, 3, 4},
+			want:  false,
+		},
+		{
+			name:  "all match",
+			input: []int{2, 4, 6},
+			want:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).Every(isEven)
+			if got != tt.want {
+				t.Errorf("Every() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStringEach(t *testing.T) {
 	t.Run("collects all elements in order", func(t *testing.T) {
 		var got []string

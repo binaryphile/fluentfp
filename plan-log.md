@@ -2255,3 +2255,11 @@ Commit: f48f401
 [x] docs/feature-gaps.md (71 lines, prioritized table with design-fit, differentiators section)
 [x] docs/showcase.md (9 verified before/after pairs from real GitHub repos)
 [x] Showcase rewrites use fluentfp API; includes trade-off entry (#9)
+2026-03-02T06:09:01Z | Contract: Implement Every and Contains
+[ ] Every method on Mapper[T] with tests
+[ ] Contains standalone function with tests
+[ ] doc.go, CLAUDE.md, README, feature-gaps updated
+2026-03-02T06:12:24Z | Completion: Every and Contains
+[x] Every method on Mapper[T] with tests
+[x] Contains standalone function with tests
+[x] doc.go, CLAUDE.md, README, feature-gaps updated

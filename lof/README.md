@@ -25,5 +25,7 @@ charCounts := names.ToInt(lof.StringLen)
 - `Len[T]([]T) int` — wrap `len` for slices
 - `StringLen(string) int` — wrap `len` for strings
 - `Println(string)` — wrap `fmt.Println`
+- `IsNotEmpty(string) bool` — predicate for `KeepIf` on string slices
+- `IfNotEmpty(string) (string, bool)` — comma-ok for `option.New`
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/lof) for complete API documentation, the [main README](../README.md) for installation, and [slice](../slice/) for the collection methods that consume these wrappers.
