@@ -142,10 +142,12 @@
 - 3b. Developer needs a side effect only when absent: System calls the function only when absent; does nothing when present.
 - 3c. Developer needs to filter an already-present value: System applies filter, converting to absent if not met.
 - 3d. Fallback is expensive to compute: System evaluates fallback only when absent.
+- 2c. Value is present but needs transformation to a different type: System checks presence and transforms in one step, returning absence if the original was absent.
 
 **Sub-Variations:**
 - Specialized variants for common value types (string, int, bool, error)
 - Construction from: direct value, value-and-presence pair, pointer, zero-value check
+- Create + transform: check presence and map to a new type in one call (zero-value, empty-string, nil-pointer variants)
 
 ---
 

@@ -38,10 +38,10 @@ func main() {
 	}
 
 	useCache := true
-	result := value.Lazy(expensiveCall).When(useCache).Or("default")
+	result := value.LazyOf(expensiveCall).When(useCache).Or("default")
 	fmt.Printf("useCache=%t, result: %s\n", useCache, result)
 
 	useCache = false
-	result = value.Lazy(expensiveCall).When(useCache).Or("default")
+	result = value.LazyOf(expensiveCall).When(useCache).Or("default")
 	fmt.Printf("useCache=%t, result: %s\n", useCache, result)
 }

@@ -144,8 +144,8 @@ check := &structs.HealthCheck{
     Node:           a.config.NodeName,
     CheckID:        types.CheckID(checkID),
     Name:           option.IfNotEmpty(chkType.Name).Or(defaultName),
-    Interval:       value.Lazy(chkType.Interval.String).When(chkType.Interval != 0).Or(""),
-    Timeout:        value.Lazy(chkType.Timeout.String).When(chkType.Timeout != 0).Or(""),
+    Interval:       option.MapNotZero(chkType.Interval, time.Duration.String).Or(""),
+    Timeout:        option.MapNotZero(chkType.Timeout, time.Duration.String).Or(""),
     Status:         option.IfNotEmpty(chkType.Status).Or(api.HealthCritical),
     Notes:          chkType.Notes,
     ServiceID:      service.ID,
@@ -156,7 +156,7 @@ check := &structs.HealthCheck{
 }
 ```
 
-**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNotEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `value.Lazy().When().Or()` handles "call this when the condition holds, else use fallback" (`Interval`, `Timeout`) — `Lazy` takes a method value and only calls it when `.When()` is true, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNotEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.MapNotZero` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All four conditional fields now use the `option` package. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 ---
 
@@ -218,8 +218,10 @@ formatSectionLabel := func(s StyleSection) string {
 
 // toSummary builds a summary from a group of duplicate sections.
 toSummary := func(group []StyleSection) SectionSummary {
-    names := slice.From(group).ToString(formatSectionLabel)
-    return SectionSummary{Names: names, ...}
+    return SectionSummary{
+        Names: slice.From(group).ToString(formatSectionLabel),
+        ...
+    }
 }
 ```
 
@@ -382,6 +384,6 @@ These rewrites share a pattern: fluentfp replaces *incidental structure* (type a
 
 **Good fit:** Codebases that look like the examples above — repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
-**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `Lazy`, `Coalesce`, `IfOk`) that reads clearly once learned but has an onboarding cost.
+**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `LazyOf`, `Coalesce`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 
 **Not a replacement for loops:** As noted in the introduction, a `for` loop with 4–6 lines and zero abstraction is often the right choice. fluentfp targets the cases where loops accumulate ceremony faster than clarity.

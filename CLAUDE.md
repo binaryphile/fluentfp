@@ -176,6 +176,11 @@ option.IfNotZero(t T) Basic[T]         // Ok if not zero value ("", 0, false, et
 option.IfNotEmpty(s string) String     // Ok if non-empty (string alias for IfNotZero)
 option.IfNotNil(ptr *T) Basic[T]       // From pointer (nil = not-ok)
 
+// Create + transform (check presence and map in one call)
+option.MapNotZero(t T, fn func(T) R) Basic[R]       // If not zero, apply fn
+option.MapNotEmpty(s string, fn func(string) R) Basic[R]  // If non-empty, apply fn
+option.MapNotNil(ptr *T, fn func(T) R) Basic[R]     // If non-nil, deref and apply fn
+
 // Using options
 .Get() (T, bool)                       // Comma-ok unwrap
 .Or(t T) T                             // Value or default
@@ -247,7 +252,7 @@ import "github.com/binaryphile/fluentfp/value"
 
 // Value-first conditional selection
 value.Of(v).When(cond).Or(fallback)          // Eager
-value.Lazy(fn).When(cond).Or(fallback)       // Lazy preferred value
+value.LazyOf(fn).When(cond).Or(fallback)       // Lazy preferred value
 value.Coalesce[T comparable](vals ...T) T  // First non-zero value
 ```
 
@@ -261,7 +266,7 @@ days := value.Of(sim.CurrentTick).When(sim.CurrentTick < 7).Or(7)
 status := value.Of("complete").When(done).Or("pending")
 
 // Lazy evaluation for expensive computations
-config := value.Lazy(loadFromDB).When(useCache).Or(defaultConfig)
+config := value.LazyOf(loadFromDB).When(useCache).Or(defaultConfig)
 ```
 
 ### lof Package (Lower-Order Functions)
@@ -485,7 +490,7 @@ When multiple methods share **identical logic**, test ONE representative:
 - `slice.From`, `slice.MapTo` - just return input
 - `option.Of`, `option.NotOk` - just construct struct
 - `option.Get`, `option.IsOk` - just return fields
-- `value.Of`, `value.Lazy` - just store values
+- `value.Of`, `value.LazyOf` - just store values
 - `value.When` (on Cond) - trivial delegation to option.New
 
 ### Coverage Baseline (2026-01-03)

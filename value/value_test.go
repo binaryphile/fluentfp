@@ -43,14 +43,14 @@ func TestOf_When_Or_returns_fallback_when_false(t *testing.T) {
 	}
 }
 
-func TestLazy_When_true_calls_fn(t *testing.T) {
+func TestLazyOf_When_true_calls_fn(t *testing.T) {
 	callCount := 0
 	fn := func() int {
 		callCount++
 		return 42
 	}
 
-	result := value.Lazy(fn).When(true)
+	result := value.LazyOf(fn).When(true)
 
 	if callCount != 1 {
 		t.Errorf("fn called %d times, want 1", callCount)
@@ -64,14 +64,14 @@ func TestLazy_When_true_calls_fn(t *testing.T) {
 	}
 }
 
-func TestLazy_When_false_does_not_call_fn(t *testing.T) {
+func TestLazyOf_When_false_does_not_call_fn(t *testing.T) {
 	callCount := 0
 	fn := func() int {
 		callCount++
 		return 42
 	}
 
-	result := value.Lazy(fn).When(false)
+	result := value.LazyOf(fn).When(false)
 
 	if callCount != 0 {
 		t.Errorf("fn called %d times, want 0", callCount)
@@ -82,20 +82,20 @@ func TestLazy_When_false_does_not_call_fn(t *testing.T) {
 	}
 }
 
-func TestLazy_When_Or_returns_value_when_true(t *testing.T) {
+func TestLazyOf_When_Or_returns_value_when_true(t *testing.T) {
 	fn := func() int { return 42 }
 
-	got := value.Lazy(fn).When(true).Or(0)
+	got := value.LazyOf(fn).When(true).Or(0)
 
 	if got != 42 {
 		t.Errorf("got %d, want 42", got)
 	}
 }
 
-func TestLazy_When_Or_returns_fallback_when_false(t *testing.T) {
+func TestLazyOf_When_Or_returns_fallback_when_false(t *testing.T) {
 	fn := func() int { return 42 }
 
-	got := value.Lazy(fn).When(false).Or(99)
+	got := value.LazyOf(fn).When(false).Or(99)
 
 	if got != 99 {
 		t.Errorf("got %d, want 99", got)

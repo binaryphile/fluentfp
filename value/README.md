@@ -55,10 +55,10 @@ timeout := value.Of(requested).When(requested > 0).Or(defaultTimeout)
 ### Lazy Evaluation
 ```go
 // expensiveDefault is only called when the cache misses
-result := value.Lazy(expensiveDefault).When(!cache.Hit()).Or(cache.Value())
+result := value.LazyOf(expensiveDefault).When(!cache.Hit()).Or(cache.Value())
 ```
 
-`Lazy` wraps a `func() T` and only evaluates it if the condition is true. Use it when the conditional value is expensive to compute.
+`LazyOf` wraps a `func() T` and only evaluates it if the condition is true. Use it when the conditional value is expensive to compute.
 
 ### First Non-Zero (Coalesce)
 ```go
@@ -105,7 +105,7 @@ port := option.Getenv("PORT").Or("8080")
 
 - `Of(T) Cond[T]` — wrap a value
 - `Cond[T].When(bool) option.Basic[T]` — ok if true, not-ok if false
-- `Lazy(func() T) LazyCond[T]` — wrap a function (lazy)
+- `LazyOf(func() T) LazyCond[T]` — wrap a function (lazy)
 - `LazyCond[T].When(bool) option.Basic[T]` — evaluate only if true
 - `Coalesce[T comparable](vals ...T) T` — first non-zero value
 
