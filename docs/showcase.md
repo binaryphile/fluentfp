@@ -65,7 +65,10 @@ func tokenize(s string) []string {
 
 **Extracted:**
 ```go
-splitTokens := func(s string) []string { return regexp.MustCompile("[ .()/:]+").Split(s, -1) }
+// splitTokens returns a Mapper, but lo accepts it as []string since Mapper is a defined type on []string.
+splitTokens := func(s string) slice.Mapper[string] {
+    return slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
+}
 
 // lo-specific — stdlib functions need wrappers for the _ int parameter
 toLower := func(s string, _ int) string { return strings.ToLower(s) }
@@ -83,11 +86,11 @@ func tokenize(s string) []string {
 **fluentfp:**
 ```go
 func tokenize(s string) []string {
-    return slice.From(splitTokens(s)).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
+    return splitTokens(s).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
 }
 ```
 
-**What changed:** Read both aloud. fluentfp: "from split tokens, keep if is not blank, convert to lower." lo: "map split tokens to lower" then "filter tokens, is not blank" — clear, but two statements where fluentfp chains one. lo could also drop the variable with `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)`, but that nests in reverse execution order — filter wraps map wraps split. The other difference is structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly — each extracted function is a one-line wrapper around a stdlib call. fluentfp accepts them as-is.
+**What changed:** Read both aloud. fluentfp: "split tokens, keep if is not blank, convert to lower." lo: "map split tokens to lower" then "filter tokens, is not blank" — clear, but two statements where fluentfp chains one. lo could also drop the variable with `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)`, but that nests in reverse execution order — filter wraps map wraps split. The other difference is structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly — each extracted function is a one-line wrapper around a stdlib call. fluentfp accepts them as-is. *Note the interoperability trick: `splitTokens` returns `slice.Mapper[string]`, which lo accepts as `[]string` since `Mapper` is a defined type on `[]string`. fluentfp chains directly; lo gets implicit conversion.*
 
 ---
 
