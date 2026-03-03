@@ -41,7 +41,7 @@ closedIssues := funk.Filter(issues, Issue.IsClosed).([]model.Issue)
 closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 ```
 
-**What changed (readability flow):** `slice.From(issues).KeepIf(Issue.IsClosed)` reads left-to-right as near-English: "from issues, keep if is closed." Funk's `funk.Filter(issues, Issue.IsClosed).([]model.Issue)` starts the same way but ends with a type assertion that breaks the reading flow. Both libraries benefit equally from the method expression — the difference that remains is the `.([]model.Issue)` suffix. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
+**What changed (readability flow):** Read both aloud. fluentfp: "from issues, keep if is closed." funk: "filter issues, is closed... as slice of model dot issue." Both start well, but funk ends with a type assertion that has no domain meaning — it's bookkeeping for the compiler. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
 
 ---
 
