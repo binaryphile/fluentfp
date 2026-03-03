@@ -84,8 +84,7 @@ func tokenize(s string) []string {
 **fluentfp:**
 ```go
 func tokenize(s string) []string {
-    tokens := slice.From(splitTokens(s, -1))
-    return tokens.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
+    return slice.From(splitTokens(s, -1)).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
 }
 ```
 
