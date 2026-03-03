@@ -231,12 +231,9 @@ linq.From(styleList).
 **fluentfp (GroupBy via Fold — more verbose but type-safe):**
 ```go
 grouped := slice.Fold(styleList, make(map[string][]StyleSection), groupByHash)
-
-duplicates := slice.SortByDesc(
-    slice.From(maps.Values(grouped)).KeepIf(hasDuplicates),
-    groupSize)
-
-groups := duplicates.Convert(toSummary)
+withDuplicates := slice.From(maps.Values(grouped)).KeepIf(hasDuplicates)
+sorted := slice.SortByDesc(withDuplicates, groupSize)
+groups := sorted.Convert(toSummary)
 ```
 
 **What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. The functions can't be typed as `func(StyleSection) string` because go-linq's API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `maps.Values` loses go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
