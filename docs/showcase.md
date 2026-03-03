@@ -8,7 +8,7 @@ The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
 
-### —. Three lines of ceremony for one comparison — a-grasso/deprec
+### —. Callback and assertion ceremony on a one-liner — a-grasso/deprec
 
 **Source:** [cores/processing.go#L31](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L31)
 **Library:** go-funk | **Pain point:** Every funk call needs `.([]Type)` suffix
@@ -117,9 +117,13 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 
 **fluentfp:**
 ```go
+// isModerateSeverity returns true if the vulnerability has MODERATE severity.
+isModerateSeverity := func(v model.Vulnerability) bool {
+    return v.Severity == "MODERATE"
+}
 // excludeModerate removes MODERATE-severity vulnerabilities from a source.
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
-    sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(Vulnerability.IsModerate)
+    sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(isModerateSeverity)
     return sv
 }
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
@@ -250,7 +254,7 @@ groups := duplicates.Convert(toSummary)
 
 ### —. Type continuity through the pipeline — erda-project/erda
 
-**Source:** [linegraph.go#L43-L50](https://github.com/erda-project/erda/blob/65455005860d02a814798cb2d6b77e6412658cfc/internal/apps/msp/apm/service/common/model/linegraph.go#L34-L50)
+**Source:** [linegraph.go#L34-L50](https://github.com/erda-project/erda/blob/65455005860d02a814798cb2d6b77e6412658cfc/internal/apps/msp/apm/service/common/model/linegraph.go#L34-L50)
 **Library:** go-linq | **Pain point:** Type information erased between pipeline stages
 
 **Original:**
