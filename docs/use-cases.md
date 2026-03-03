@@ -65,6 +65,7 @@
 - 2e. Developer needs transformations applied concurrently: System applies transformations concurrently, preserving element order in the result.
 - 2f. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
 - 2g. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements.
+- 2h. Developer needs to split a collection into fixed-size batches: System divides the collection into sub-collections of the specified size; the last batch may be smaller.
 - 4a. Developer needs to apply a side effect to each element rather than produce a new collection: System calls the function for every element in order.
 
 **Sub-Variations:**
@@ -72,6 +73,7 @@
 - Type conversion: to built-in types or to arbitrary types
 - Sorting: ascending or descending by extracted key
 - Deduplication: by identity or by extracted key
+- Batching: by fixed size
 
 ---
 

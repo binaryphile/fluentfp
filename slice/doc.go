@@ -68,6 +68,7 @@ func _() {
 	_ = Int.Min
 	_ = Int.Sum
 
+	_ = Chunk[int]
 	_ = Compact[int]
 	_ = Contains[int]
 	_ = SortBy[int, int]

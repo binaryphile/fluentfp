@@ -26,7 +26,7 @@ Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = mo
 | KeyBy | Build `map[K]V` from slice + key fn | lo | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | Defer |
 | Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Standalone — needs `T comparable` for zero check | **Done** |
 | Flatten | Flatten `[][]T` → `[]T` | lo, underscore, fp-go | `FlatMap` with identity function | Standalone — `Mapper[T any]` can't constrain `T` to `[]U`; needs `Flatten[T](tss [][]T) []T` | Defer |
-| Chunk | Split slice into fixed-size batches | lo, underscore | None | Standalone (returns `[][]T`) | Add |
+| Chunk | Split slice into fixed-size batches | lo, underscore | None | Standalone (returns `[][]T`) | **Done** |
 | Partition | Split into matches/non-matches | lo, fp-go | Two `KeepIf`/`RemoveIf` passes | Standalone (returns tuple `([]T, []T)`) | Add |
 | Last | Last element as option | lo, fp-go | `TakeLast(1)` then index, or `Fold` | Method (terminal) — returns `option.Basic[T]`, same as `.First()` | Add |
 | CountBy | Count elements per group → `map[K]int` | lo | `Fold` with counting map | Standalone (returns map, needs `K comparable`) | Defer |
@@ -47,9 +47,7 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 ## Analysis
 
-### Recommended to Add (3)
-
-**Chunk** — No workaround exists. Returns `[][]T`, so it must be a standalone function: `Chunk[T any](ts []T, size int) [][]T`. Common in batch-processing patterns.
+### Recommended to Add (2)
 
 **Partition** — Two-pass workaround (`KeepIf` + `RemoveIf`) traverses the slice twice. A standalone `Partition[T any](ts []T, fn func(T) bool) ([]T, []T)` is a single pass. Frequently used for splitting valid/invalid, active/inactive, etc.
 
@@ -62,6 +60,8 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 **Flatten** — The workaround `FlatMap(identity)` doesn't work cleanly because `Mapper[T any]` doesn't constrain `T` to be a slice type. A standalone `Flatten[T any](tss [][]T) []T` works but breaks the fluent chain. Defer until the use case is encountered in practice.
 
 ### Implemented
+
+**Chunk** — `Chunk[T any](ts []T, size int) [][]T`. Standalone function (returns `[][]T`, not `Mapper`). Splits a slice into sub-slices of at most `size` elements. Panics if `size <= 0`.
 
 **Contains** — `slice.Contains[T comparable](ts []T, target T) bool`. Standalone function (cannot be a method on `Mapper[T any]` because `T` isn't constrained to `comparable`).
 
