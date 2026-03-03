@@ -140,8 +140,8 @@ check := &structs.HealthCheck{
     Node:           a.config.NodeName,
     CheckID:        types.CheckID(checkID),
     Name:           option.IfNotEmpty(chkType.Name).Or(defaultName),
-    Interval:       value.Of(chkType.Interval.String()).When(chkType.Interval != 0).Or(""),
-    Timeout:        value.Of(chkType.Timeout.String()).When(chkType.Timeout != 0).Or(""),
+    Interval:       value.OfCall(chkType.Interval.String).When(chkType.Interval != 0).Or(""),
+    Timeout:        value.OfCall(chkType.Timeout.String).When(chkType.Timeout != 0).Or(""),
     Status:         option.IfNotEmpty(chkType.Status).Or(api.HealthCritical),
     Notes:          chkType.Notes,
     ServiceID:      service.ID,
@@ -152,7 +152,7 @@ check := &structs.HealthCheck{
 }
 ```
 
-**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNotEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `value.Of().When().Or()` handles "compute this when the condition holds, else use fallback" (`Interval`, `Timeout`). All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks. *Caveat: This is not a drop-in replacement. `value.Of` evaluates eagerly — `.String()` is called even when the condition is false, destroying the short-circuit guard in the original. For `.String()` the cost is trivial, but this is a real limitation of the pattern: any expression with side effects or meaningful cost requires `value.OfCall(chkType.Interval.String)` instead, which adds a closure.*
+**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNotEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `value.OfCall().When().Or()` handles "call this when the condition holds, else use fallback" (`Interval`, `Timeout`) — `OfCall` takes a method value and only calls it when `.When()` is true, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 ---
 
