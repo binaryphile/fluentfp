@@ -1,6 +1,6 @@
 # Real-World Rewrite Showcase
 
-A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — index wrapper noise, type assertions, inside-out nesting, `interface{}` casts, or verbose imperative boilerplate — that fluentfp eliminates.
+A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — callback ceremony, type assertions, inside-out nesting, `interface{}` casts, or verbose imperative boilerplate — that fluentfp eliminates.
 
 This is a showcase, not a balanced analysis. It intentionally highlights where fluentfp improves on competitors. For an honest gap analysis of what fluentfp lacks, see [feature-gaps.md](feature-gaps.md). For a synthetic library comparison, see [comparison.md](../comparison.md).
 
@@ -8,7 +8,94 @@ The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
 
-### —. Filter + Map with double type assertion — ActiveState/cli
+### —. Three lines of ceremony for one comparison — a-grasso/deprec
+
+**Source:** [cores/processing.go#L27](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L27)
+**Library:** go-funk | **Pain point:** Every funk call needs `.([]Type)` suffix
+
+**Original:**
+```go
+closedIssues := funk.Filter(issues, func(i model.Issue) bool {
+    return i.State == model.IssueStateClosed
+}).([]model.Issue)
+```
+
+**fluentfp:**
+```go
+closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
+```
+
+**What changed:** The simplest possible filter — one field comparison — still takes four parsing steps in funk because of the callback/assertion ceremony. fluentfp collapses it to one: `KeepIf(Issue.IsClosed)`. The method expression *is* the predicate — there's nothing to unwrap. This does require that domain types define predicate methods, but that's a design practice worth adopting regardless of library choice.
+
+---
+
+### —. Callback wrapper noise — ananthakumaran/paisa
+
+**Source:** [internal/prediction/tf_idf.go](https://github.com/ananthakumaran/paisa/blob/55da8fdacff6c7202133dff01e2d1e2b3a1619ba/internal/prediction/tf_idf.go)
+**Library:** samber/lo | **Pain point:** stdlib functions wrapped in callbacks just to satisfy `_ int`
+
+**Original:**
+```go
+func tokenize(s string) []string {
+    tokens := regexp.MustCompile("[./()/:]+ ").Split(s, -1)
+    tokens = lo.Map(tokens, func(s string, _ int) string {
+        return strings.ToLower(s)
+    })
+    return lo.Filter(tokens, func(s string, _ int) bool {
+        return strings.TrimSpace(s) != ""
+    })
+}
+```
+
+**fluentfp:**
+```go
+func tokenize(s string) []string {
+    tokens := slice.From(regexp.MustCompile("[./()/:]+ ").Split(s, -1))
+    return tokens.Convert(strings.ToLower).KeepIf(lof.IsNotBlank)
+}
+```
+
+**What changed:** Two stdlib functions — `strings.ToLower` and a whitespace check — each require a full callback wrapper just to add an index parameter that's immediately discarded. fluentfp passes `strings.ToLower` directly and names the predicate `lof.IsNotBlank`. Seven lines of ceremony become one line of intent, at the cost of a `slice.From` wrapper.
+
+---
+
+### —. Repetitive Filter+Map boilerplate — ad-on-is/coredock
+
+**Source:** [internal/config.go#L42-L49](https://github.com/ad-on-is/coredock/blob/c382c2b305be06451caea5c06cfd15fcb07a80d8/internal/config.go#L42-L49)
+**Library:** go-funk | **Pain point:** Eight near-identical lines with type assertions
+
+**Original:**
+```go
+c.Domains = funk.Filter(strings.Split(domains, ","), func(s string) bool { return s != "" }).([]string)
+c.Domains = funk.Map(c.Domains, func(s string) string { return strings.TrimSpace(s) }).([]string)
+c.Networks = funk.Filter(strings.Split(networks, ","), func(s string) bool { return s != "" }).([]string)
+c.Networks = funk.Map(c.Networks, func(s string) string { return strings.TrimSpace(s) }).([]string)
+c.IPPrefixes = funk.Filter(strings.Split(ipPrefixes, ","), func(s string) bool { return s != "" }).([]string)
+c.IPPrefixes = funk.Map(c.IPPrefixes, func(s string) string { return strings.TrimSpace(s) }).([]string)
+c.IPPrefixesIgnore = funk.Filter(strings.Split(ipPrefixesIgnore, ","), func(s string) bool { return s != "" }).([]string)
+c.IPPrefixesIgnore = funk.Map(c.IPPrefixesIgnore, func(s string) string { return strings.TrimSpace(s) }).([]string)
+```
+
+**fluentfp:**
+```go
+// parseCSV splits a comma-separated string into trimmed, non-empty values.
+parseCSV := func(s string) []string {
+	return slice.From(strings.Split(s, ",")).
+		KeepIf(lof.IsNotEmpty).
+		Convert(strings.TrimSpace)
+}
+
+c.Domains = parseCSV(domains)
+c.Networks = parseCSV(networks)
+c.IPPrefixes = parseCSV(ipPrefixes)
+c.IPPrefixesIgnore = parseCSV(ipPrefixesIgnore)
+```
+
+**What changed:** Eight lines of copy-pasted Filter+Map pairs with eight `.([]string)` assertions collapse into four calls to a named helper. go-funk forces two separate calls (Filter then Map) because it cannot chain — each call returns `interface{}` requiring an assertion before the next. fluentfp chains `KeepIf → Convert` fluently. `lof.IsNotEmpty` and `strings.TrimSpace` drop in directly — no wrapper closures needed.
+
+---
+
+### —. Nesting with type assertions — ActiveState/cli
 
 **Source:** [pkg/platform/model/cve.go#L56-L62](https://github.com/ActiveState/cli/blob/37118a4c25e0f9f173fd98aae371da6a755d72d7/pkg/platform/model/cve.go#L56-L62)
 **Library:** go-funk | **Pain point:** `funk.Map` wrapping `funk.Filter`, both needing type assertions
@@ -34,32 +121,66 @@ excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability 
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed:** Two runtime type assertions (`.([]model.Vulnerability)`, `.([]model.SourceVulnerability)`) eliminated entirely. fluentfp's `Mapper[T]` is directly assignable to `[]T` — no conversion or assertion at the boundary. The nested `funk.Filter` inside `funk.Map` becomes a named function with a clear domain name.
+**What changed:** Nesting is the killer. funk.Map containing funk.Filter creates a three-level mental stack with two type assertions to validate on exit. fluentfp's named function `excludeModerate` lets the name carry the intent, so the reader doesn't have to hold the nested implementation in their head while reading the pipeline. The trade-off is indirection — you trust the name or jump to the definition.
 
 ---
 
-### —. go-funk one-liner with assertion — a-grasso/deprec
+### —. Quadruple nesting with 4 type assertions — Ajdorr/cardamom
 
-**Source:** [cores/processing.go#L27](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L27)
-**Library:** go-funk | **Pain point:** Every funk call needs `.([]Type)` suffix
+**Source:** [core/source/services/recipe/service.go#L13-L30](https://github.com/Ajdorr/cardamom/blob/ffc60528fb28c8007b233b88894f9295433de66c/core/source/services/recipe/service.go#L13-L30)
+**Library:** go-funk | **Pain point:** Four nested go-funk calls, four `.(type)` assertions, O(n) membership via reflection
 
 **Original:**
 ```go
-closedIssues := funk.Filter(issues, func(i model.Issue) bool {
-    return i.State == model.IssueStateClosed
-}).([]model.Issue)
+func filterRecipesByIngredients(
+	inventoryItems []m.InventoryItem, recipes []m.Recipe) []m.Recipe {
+
+	completeInventory := addAlwaysAvailableIngredients(
+		funk.Map(inventoryItems, func(i m.InventoryItem) string { return i.Item }).([]string))
+
+	return funk.Filter(recipes,
+		func(r m.Recipe) bool {
+			return funk.Reduce(
+				funk.Map(r.Ingredients, func(i m.RecipeIngredient) bool {
+					return i.Optional || funk.Contains(completeInventory, i.Item)
+				}).([]bool),
+				func(a, b bool) bool { return a && b },
+				true,
+			).(bool)
+		},
+	).([]m.Recipe)
+}
 ```
 
 **fluentfp:**
 ```go
-closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
+func filterRecipesByIngredients(
+	inventoryItems []m.InventoryItem, recipes []m.Recipe) []m.Recipe {
+
+	// getItem returns the item name from an inventory item.
+	getItem := func(i m.InventoryItem) string { return i.Item }
+	items := addAlwaysAvailableIngredients(
+		slice.From(inventoryItems).ToString(getItem))
+	inventory := slice.ToSet(items)
+
+	// isAvailable returns true if the ingredient is optional or in the inventory.
+	isAvailable := func(i m.RecipeIngredient) bool {
+		return i.Optional || inventory[i.Item]
+	}
+	// allIngredientsAvailable returns true if every ingredient in r is available.
+	allIngredientsAvailable := func(r m.Recipe) bool {
+		return slice.From(r.Ingredients).Every(isAvailable)
+	}
+
+	return slice.From(recipes).KeepIf(allIngredientsAvailable)
+}
 ```
 
-**What changed:** 3 lines → 1. Eliminated type assertion. Method expression `Issue.IsClosed` replaces inline closure.
+**What changed:** Four runtime type assertions (`.([]string)`, `.([]bool)`, `.(bool)`, `.([]m.Recipe)`) eliminated. The quadruple nesting `Filter(Reduce(Map(Contains)))` becomes a flat pipeline: extract items → build set → check each recipe. `Every(isAvailable)` replaces the `Reduce(Map(bools), &&, true)` pattern — the intent reads as English: "keep recipes where every ingredient is available." Bonus: `funk.Contains` does O(n) linear scan via reflection on every ingredient of every recipe; `slice.ToSet` gives O(1) map lookup.
 
 ---
 
-### —. `interface{}` epidemic — ruilisi/css-checker
+### —. Parallel type model from `interface{}` — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
 **Library:** go-linq | **Pain point:** Every parameter and return type is `interface{}`
@@ -119,14 +240,14 @@ toSummary := func(group []StyleSection) SectionSummary {
 groups := duplicates.Convert(toSummary)
 ```
 
-**What changed:** All 7 type assertions eliminated — every value is statically typed. The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (this is a real gap — see [feature-gaps.md](feature-gaps.md)). But the downstream filter and sort are concise and type-safe. The go-linq version's `interface{}` parameters are a pre-generics artifact that makes every line a potential runtime panic. *Trade-off: go-linq's `GroupBy` preserves first-appearance key order, which serves as a stable tie-breaker. `maps.Values` loses this — groups with equal size may appear in different order across runs. The primary `SortByDesc` is deterministic, but tie-breaking is not.*
+**What changed:** Every `interface{}` parameter forces you to maintain a parallel type model in your head — mentally substituting the real type at each assertion, with no compile-time safety net. Seven assertions across this pipeline, each a potential runtime panic. fluentfp's generics make types visible in every signature; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `maps.Values` loses go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
 
 ---
 
-### —. `interface{}` in Where+Select — erda-project/erda
+### —. Type continuity through the pipeline — erda-project/erda
 
 **Source:** [linegraph.go#L43-L50](https://github.com/erda-project/erda/blob/65455005860d02a814798cb2d6b77e6412658cfc/internal/apps/msp/apm/service/common/model/linegraph.go#L34-L50)
-**Library:** go-linq | **Pain point:** Pointer type assertions in every callback
+**Library:** go-linq | **Pain point:** Type information erased between pipeline stages
 
 **Original:**
 ```go
@@ -156,98 +277,7 @@ xAxis := slice.From(graph).
     ToString(formatTime)
 ```
 
-**What changed:** Two `interface{}` parameters and two `i.(*LineGraphMetaData)` type assertions eliminated. The chain is type-safe from input to output. Named functions make the domain intent clear.
-
----
-
-### —. Quadruple nesting with 4 type assertions — Ajdorr/cardamom
-
-**Source:** [core/source/services/recipe/service.go#L13-L30](https://github.com/Ajdorr/cardamom/blob/ffc60528fb28c8007b233b88894f9295433de66c/core/source/services/recipe/service.go#L13-L30)
-**Library:** go-funk | **Pain point:** Four nested go-funk calls, four `.(type)` assertions, O(n) membership via reflection
-
-**Original:**
-```go
-func filterRecipesByIngredients(
-	inventoryItems []m.InventoryItem, recipes []m.Recipe) []m.Recipe {
-
-	completeInventory := addAlwaysAvailableIngredients(
-		funk.Map(inventoryItems, func(i m.InventoryItem) string { return i.Item }).([]string))
-
-	return funk.Filter(recipes,
-		func(r m.Recipe) bool {
-			return funk.Reduce(
-				funk.Map(r.Ingredients, func(i m.RecipeIngredient) bool {
-					return i.Optional || funk.Contains(completeInventory, i.Item)
-				}).([]bool),
-				func(a, b bool) bool { return a && b },
-				true,
-			).(bool)
-		},
-	).([]m.Recipe)
-}
-```
-
-**fluentfp:**
-```go
-func filterRecipesByIngredients(
-	inventoryItems []m.InventoryItem, recipes []m.Recipe) []m.Recipe {
-
-	// getItem returns the item name from an inventory item.
-	getItem := func(i m.InventoryItem) string { return i.Item }
-	items := addAlwaysAvailableIngredients(
-		slice.From(inventoryItems).ToString(getItem))
-	inventory := slice.ToSet(items)
-
-	// isAvailable returns true if the ingredient is optional or in the inventory.
-	isAvailable := func(i m.RecipeIngredient) bool {
-		return i.Optional || inventory[i.Item]
-	}
-	// allIngredientsAvailable returns true if every ingredient in r is available.
-	allIngredientsAvailable := func(r m.Recipe) bool {
-		return slice.From(r.Ingredients).Every(isAvailable)
-	}
-
-	return slice.From(recipes).KeepIf(allIngredientsAvailable)
-}
-```
-
-**What changed:** Four runtime type assertions (`.([]string)`, `.([]bool)`, `.(bool)`, `.([]m.Recipe)`) eliminated. The quadruple nesting `Filter(Reduce(Map(Contains)))` becomes a flat pipeline: extract items → build set → check each recipe. `Every(isAvailable)` replaces the `Reduce(Map(bools), &&, true)` pattern — the intent reads as English: "keep recipes where every ingredient is available." Bonus: `funk.Contains` does O(n) linear scan via reflection on every ingredient of every recipe; `slice.ToSet` gives O(1) map lookup.
-
----
-
-### —. Repetitive Filter+Map boilerplate — ad-on-is/coredock
-
-**Source:** [internal/config.go#L42-L49](https://github.com/ad-on-is/coredock/blob/c382c2b305be06451caea5c06cfd15fcb07a80d8/internal/config.go#L42-L49)
-**Library:** go-funk | **Pain point:** Eight near-identical lines with type assertions
-
-**Original:**
-```go
-c.Domains = funk.Filter(strings.Split(domains, ","), func(s string) bool { return s != "" }).([]string)
-c.Domains = funk.Map(c.Domains, func(s string) string { return strings.TrimSpace(s) }).([]string)
-c.Networks = funk.Filter(strings.Split(networks, ","), func(s string) bool { return s != "" }).([]string)
-c.Networks = funk.Map(c.Networks, func(s string) string { return strings.TrimSpace(s) }).([]string)
-c.IPPrefixes = funk.Filter(strings.Split(ipPrefixes, ","), func(s string) bool { return s != "" }).([]string)
-c.IPPrefixes = funk.Map(c.IPPrefixes, func(s string) string { return strings.TrimSpace(s) }).([]string)
-c.IPPrefixesIgnore = funk.Filter(strings.Split(ipPrefixesIgnore, ","), func(s string) bool { return s != "" }).([]string)
-c.IPPrefixesIgnore = funk.Map(c.IPPrefixesIgnore, func(s string) string { return strings.TrimSpace(s) }).([]string)
-```
-
-**fluentfp:**
-```go
-// parseCSV splits a comma-separated string into trimmed, non-empty values.
-parseCSV := func(s string) []string {
-	return slice.From(strings.Split(s, ",")).
-		KeepIf(lof.IsNotEmpty).
-		Convert(strings.TrimSpace)
-}
-
-c.Domains = parseCSV(domains)
-c.Networks = parseCSV(networks)
-c.IPPrefixes = parseCSV(ipPrefixes)
-c.IPPrefixesIgnore = parseCSV(ipPrefixesIgnore)
-```
-
-**What changed:** Eight lines of copy-pasted Filter+Map pairs with eight `.([]string)` assertions collapse into four calls to a named helper. go-funk forces two separate calls (Filter then Map) because it cannot chain — each call returns `interface{}` requiring an assertion before the next. fluentfp chains `KeepIf → Convert` fluently. `lof.IsNotEmpty` and `strings.TrimSpace` drop in directly — no wrapper closures needed.
+**What changed:** The deeper issue isn't just type erasure — it's that type information doesn't *flow* through the pipeline. The same `*LineGraphMetaData` assertion appears in both callbacks because each stage starts from `interface{}` with no memory of what came before. fluentfp's generic chain carries the element type from stage to stage — you establish it once at `slice.From` and it propagates through `KeepIf` into `ToString` without restating it.
 
 ---
 
