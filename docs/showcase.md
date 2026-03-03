@@ -10,7 +10,7 @@ The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ### —. Three lines of ceremony for one comparison — a-grasso/deprec
 
-**Source:** [cores/processing.go#L27](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L27)
+**Source:** [cores/processing.go#L31](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L31)
 **Library:** go-funk | **Pain point:** Every funk call needs `.([]Type)` suffix
 
 **Original:**
@@ -22,10 +22,14 @@ closedIssues := funk.Filter(issues, func(i model.Issue) bool {
 
 **fluentfp:**
 ```go
-closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
+// isClosed returns true if the issue has been closed.
+isClosed := func(i model.Issue) bool {
+    return i.State == model.IssueStateClosed
+}
+closedIssues := slice.From(issues).KeepIf(isClosed)
 ```
 
-**What changed:** The simplest possible filter — one field comparison — still takes four parsing steps in funk because of the callback/assertion ceremony. fluentfp collapses it to one: `KeepIf(Issue.IsClosed)`. The method expression *is* the predicate — there's nothing to unwrap. This does require that domain types define predicate methods, but that's a design practice worth adopting regardless of library choice.
+**What changed:** The simplest possible filter — one field comparison — still takes four parsing steps in funk because of the callback/assertion ceremony. fluentfp needs only the predicate logic: a named function and `KeepIf`. No type assertion, no `.([]model.Issue)` suffix. If the domain type defined an `IsClosed()` method, this would collapse further to `KeepIf(Issue.IsClosed)` — but even without one, the named function reads as intent.
 
 ---
 
@@ -37,7 +41,7 @@ closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 **Original:**
 ```go
 func tokenize(s string) []string {
-    tokens := regexp.MustCompile("[./()/:]+ ").Split(s, -1)
+    tokens := regexp.MustCompile("[ .()/:]+").Split(s, -1)
     tokens = lo.Map(tokens, func(s string, _ int) string {
         return strings.ToLower(s)
     })
@@ -50,7 +54,7 @@ func tokenize(s string) []string {
 **fluentfp:**
 ```go
 func tokenize(s string) []string {
-    tokens := slice.From(regexp.MustCompile("[./()/:]+ ").Split(s, -1))
+    tokens := slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
     return tokens.Convert(strings.ToLower).KeepIf(lof.IsNotBlank)
 }
 ```
@@ -283,7 +287,7 @@ xAxis := slice.From(graph).
 
 ### —. Config merge write amplification — hashicorp/nomad
 
-**Source:** [command/agent/config.go#L1707-L1902](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L1707-L1902)
+**Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
 
 **Original** (6 of 48 — representative sample):
@@ -294,7 +298,7 @@ if b.AuthoritativeRegion != "" {
 if b.EncryptKey != "" {
     result.EncryptKey = b.EncryptKey
 }
-if b.BootstrapExpect != 0 {
+if b.BootstrapExpect > 0 {
     result.BootstrapExpect = b.BootstrapExpect
 }
 if b.RaftProtocol != 0 {
@@ -318,7 +322,7 @@ result.HeartbeatGrace       = value.Coalesce(b.HeartbeatGrace, s.HeartbeatGrace)
 result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Each 3-line `if-not-zero-then-assign` block becomes `value.Coalesce(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. The pattern works uniformly across `string`, `int`, and `time.Duration` fields because all have meaningful zero values. *Note: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks — those would use `option.IfNotNil` instead.*
+**What changed:** Each 3-line `if-not-zero-then-assign` block becomes `value.Coalesce(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. The pattern works uniformly across `string`, `int`, and `time.Duration` fields because all have meaningful zero values. *Caveats: `BootstrapExpect` uses `> 0` (not `!= 0`), so `Coalesce` is not an exact match — it would accept negative values that the original rejects. And ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNotNil` instead.*
 
 ---
 
