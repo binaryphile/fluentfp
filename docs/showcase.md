@@ -1,6 +1,6 @@
 # Real-World Rewrite Showcase
 
-A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — callback ceremony, type assertions, inside-out nesting, `interface{}` casts, or verbose imperative boilerplate — that fluentfp eliminates.
+A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — callback wrappers, `interface{}` casts, inside-out nesting, or verbose imperative boilerplate — that fluentfp eliminates.
 
 This is a showcase, not a balanced analysis. It intentionally highlights where fluentfp improves on competitors. For an honest gap analysis of what fluentfp lacks, see [feature-gaps.md](feature-gaps.md). For a synthetic library comparison, see [comparison.md](../comparison.md).
 
@@ -87,10 +87,16 @@ func tokenize(s string) []string {
 
 **fluentfp:**
 ```go
-tokens := splitTokens(s).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
+tokens := splitTokens(s).Convert(strings.ToLower).KeepIf(lof.IsNotBlank)
 ```
 
-**What changed:** The fluentfp version is a single expression — compact enough to inline at the call site without a `tokenize` function at all. lo still needs a function body: two statements with an intermediate variable, or the nested alternative `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)` which reads in reverse execution order. Read both aloud. fluentfp: "split tokens, keep if is not blank, convert to lower." lo: "map split tokens to lower" then "filter tokens, is not blank." For operations this common, naming ergonomics matter — `KeepIf` and `Convert` say what happens to the elements without requiring FP vocabulary, which lowers the bar for newcomers to the codebase. The other difference is structural: lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice. But when you don't need the index, every callback becomes a wrapper: `strings.ToLower` and `lof.IsNotBlank` can't plug in directly. fluentfp accepts them as-is.
+**What changed:** The fluentfp version is a single expression — compact enough to inline at the call site without a `tokenize` function at all. lo still needs a function body: two statements with an intermediate variable, or the nested alternative `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)` which reads in reverse execution order.
+
+Read both aloud. fluentfp: "split tokens, convert to lower, keep if is not blank." lo: "map split tokens to lower" then "filter tokens, is not blank." For operations this common, naming ergonomics matter — `KeepIf` and `Convert` say what happens to the elements without requiring FP vocabulary, which lowers the bar for newcomers to the codebase.
+
+The other difference is structural: lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice. But when you don't need the index, every callback becomes a wrapper: `strings.ToLower` and `lof.IsNotBlank` can't plug in directly. fluentfp accepts them as-is.
+
+*Editorial note: `.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest.*
 
 *Interoperability note: `splitTokens` returns `slice.Mapper[string]`, which lo accepts as `[]string` since `Mapper` is a defined type on `[]string`. fluentfp chains directly; lo gets implicit conversion.*
 
@@ -240,7 +246,7 @@ linq.From(styleList).
 grouped := slice.Fold(styleList, make(map[string][]StyleSection), groupByHash)
 withDuplicates := slice.From(maps.Values(grouped)).KeepIf(hasDuplicates)
 sorted := slice.SortByDesc(withDuplicates, groupSize)
-groups := sorted.Convert(toSummary)
+groups := slice.MapTo[SectionSummary](sorted).Map(toSummary)
 ```
 
 **What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. The functions can't be typed as `func(StyleSection) string` because go-linq's API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `maps.Values` loses go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
