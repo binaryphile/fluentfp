@@ -10,36 +10,6 @@ The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
 
-### —. Callback wrapper noise — ananthakumaran/paisa
-
-**Source:** [internal/prediction/tf_idf.go](https://github.com/ananthakumaran/paisa/blob/55da8fdacff6c7202133dff01e2d1e2b3a1619ba/internal/prediction/tf_idf.go)
-**Library:** samber/lo | **Pain point:** stdlib functions wrapped in callbacks just to satisfy `_ int`
-
-**Original:**
-```go
-func tokenize(s string) []string {
-    tokens := regexp.MustCompile("[ .()/:]+").Split(s, -1)
-    tokens = lo.Map(tokens, func(s string, _ int) string {
-        return strings.ToLower(s)
-    })
-    return lo.Filter(tokens, func(s string, _ int) bool {
-        return strings.TrimSpace(s) != ""
-    })
-}
-```
-
-**fluentfp:**
-```go
-func tokenize(s string) []string {
-    tokens := slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
-    return tokens.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
-}
-```
-
-**What changed:** lo's API includes an index parameter on every callback for consistency — a deliberate design choice, but one that forces wrapping even simple stdlib functions like `strings.ToLower` in a closure. fluentfp accepts the stdlib function directly. Seven lines of function body become two, at the cost of a `slice.From` wrapper.
-
----
-
 ### —. Assertion ceremony on a one-liner — a-grasso/deprec
 
 **Source:** [cores/processing.go#L31](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L31)
@@ -70,6 +40,36 @@ closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 ```
 
 **What changed:** Both libraries benefit from the method expression — funk gets cleaner too. The difference that remains is the `.([]model.Issue)` type assertion. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
+
+---
+
+### —. Callback wrapper noise — ananthakumaran/paisa
+
+**Source:** [internal/prediction/tf_idf.go](https://github.com/ananthakumaran/paisa/blob/55da8fdacff6c7202133dff01e2d1e2b3a1619ba/internal/prediction/tf_idf.go)
+**Library:** samber/lo | **Pain point:** stdlib functions wrapped in callbacks just to satisfy `_ int`
+
+**Original:**
+```go
+func tokenize(s string) []string {
+    tokens := regexp.MustCompile("[ .()/:]+").Split(s, -1)
+    tokens = lo.Map(tokens, func(s string, _ int) string {
+        return strings.ToLower(s)
+    })
+    return lo.Filter(tokens, func(s string, _ int) bool {
+        return strings.TrimSpace(s) != ""
+    })
+}
+```
+
+**fluentfp:**
+```go
+func tokenize(s string) []string {
+    tokens := slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
+    return tokens.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
+}
+```
+
+**What changed:** lo's API includes an index parameter on every callback for consistency — a deliberate design choice, but one that forces wrapping even simple stdlib functions like `strings.ToLower` in a closure. fluentfp accepts the stdlib function directly. Seven lines of function body become two, at the cost of a `slice.From` wrapper.
 
 ---
 
