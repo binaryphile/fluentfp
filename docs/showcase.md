@@ -6,7 +6,7 @@ This is a showcase, not a balanced analysis. It intentionally highlights where f
 
 These examples compare FP libraries, not FP vs plain Go. In many cases, a `for` loop with 4–6 lines and zero abstraction is a legitimate alternative — and in performance-critical paths, it's the lowest-overhead option. fluentfp optimizes for clarity and composability over allocation-free hot loops. Chaining methods like `KeepIf` and `Convert` may allocate intermediate slices; profile before using in tight inner loops.
 
-The final entry shows a trade-off where a competitor is cleaner than fluentfp.
+The examples below escalate from expression-level readability to architectural patterns. The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
 
@@ -39,7 +39,7 @@ closedIssues := funk.Filter(issues, Issue.IsClosed).([]model.Issue)
 closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 ```
 
-**What changed:** Both libraries benefit from the method expression — funk gets cleaner too. The difference that remains is the `.([]model.Issue)` type assertion. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
+**What changed (readability flow):** `slice.From(issues).KeepIf(Issue.IsClosed)` reads left-to-right as near-English: "from issues, keep if is closed." Funk's `funk.Filter(issues, Issue.IsClosed).([]model.Issue)` starts the same way but ends with a type assertion that breaks the reading flow. Both libraries benefit equally from the method expression — the difference that remains is the `.([]model.Issue)` suffix. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
 
 ---
 
@@ -61,6 +61,18 @@ func tokenize(s string) []string {
 }
 ```
 
+**lo with extraction:**
+```go
+func tokenize(s string) []string {
+    toLower := func(s string, _ int) string { return strings.ToLower(s) }
+    isNotBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
+
+    tokens := regexp.MustCompile("[ .()/:]+").Split(s, -1)
+    tokens = lo.Map(tokens, toLower)
+    return lo.Filter(tokens, isNotBlank)
+}
+```
+
 **fluentfp:**
 ```go
 func tokenize(s string) []string {
@@ -69,7 +81,71 @@ func tokenize(s string) []string {
 }
 ```
 
-**What changed:** lo's API includes an index parameter on every callback for consistency — a deliberate design choice, but one that forces wrapping even simple stdlib functions like `strings.ToLower` in a closure. fluentfp accepts the stdlib function directly. Seven lines of function body become two, at the cost of a `slice.From` wrapper.
+**What changed:** After extraction, lo's pipeline is clean — `lo.Map(tokens, toLower)` reads well. The remaining difference is small but structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly. lo includes the index for consistency (a deliberate design choice that pays off when you need it), but for callbacks that don't use it, each named function is a one-line wrapper around a stdlib call. fluentfp accepts `strings.ToLower` and `lof.IsNotBlank` as-is — seven lines of function body become two, at the cost of a `slice.From` wrapper.
+
+---
+
+### —. Conditional struct fields — hashicorp/consul
+
+**Source:** [agent/agent.go#L2482-L2530](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530)
+**Pain point:** Intermediate variables and post-construction overrides for conditional struct fields
+
+**Original:**
+```go
+name := chkType.Name
+if name == "" {
+    name = fmt.Sprintf("Service '%s' check", service.Service)
+}
+
+var intervalStr string
+var timeoutStr string
+if chkType.Interval != 0 {
+    intervalStr = chkType.Interval.String()
+}
+if chkType.Timeout != 0 {
+    timeoutStr = chkType.Timeout.String()
+}
+
+check := &structs.HealthCheck{
+    Node:           a.config.NodeName,
+    CheckID:        types.CheckID(checkID),
+    Name:           name,
+    Interval:       intervalStr,
+    Timeout:        timeoutStr,
+    Status:         api.HealthCritical,
+    Notes:          chkType.Notes,
+    ServiceID:      service.ID,
+    ServiceName:    service.Service,
+    ServiceTags:    service.Tags,
+    Type:           chkType.Type(),
+    EnterpriseMeta: service.EnterpriseMeta,
+}
+if chkType.Status != "" {
+    check.Status = chkType.Status
+}
+```
+
+**fluentfp:**
+```go
+defaultName := fmt.Sprintf("Service '%s' check", service.Service)
+
+check := &structs.HealthCheck{
+    Node:           a.config.NodeName,
+    CheckID:        types.CheckID(checkID),
+    Name:           option.IfNotEmpty(chkType.Name).Or(defaultName),
+    Interval:       value.Of(chkType.Interval.String()).When(chkType.Interval != 0).Or(""),
+    Timeout:        value.Of(chkType.Timeout.String()).When(chkType.Timeout != 0).Or(""),
+    Status:         option.IfNotEmpty(chkType.Status).Or(api.HealthCritical),
+    Notes:          chkType.Notes,
+    ServiceID:      service.ID,
+    ServiceName:    service.Service,
+    ServiceTags:    service.Tags,
+    Type:           chkType.Type(),
+    EnterpriseMeta: service.EnterpriseMeta,
+}
+```
+
+**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNotEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `value.Of().When().Or()` handles "compute this when the condition holds, else use fallback" (`Interval`, `Timeout`). All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks. *Caveat: This is not a drop-in replacement. `value.Of` evaluates eagerly — `.String()` is called even when the condition is false, destroying the short-circuit guard in the original. For `.String()` the cost is trivial, but this is a real limitation of the pattern: any expression with side effects or meaningful cost requires `value.OfCall(chkType.Interval.String)` instead, which adds a closure.*
 
 ---
 
@@ -115,7 +191,7 @@ excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability 
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed:** Extraction helps both pipelines equally — both are one-liners. But compare what's *inside* `excludeModerate`: funk's version still has an inline callback and `.([]model.Vulnerability)` assertion. fluentfp's version has `RemoveIf(isModerateSeverity)` — a named predicate, no assertion, and the positive name reads naturally with `RemoveIf`.
+**What changed (extraction ergonomics):** Extraction helps both pipelines equally — both are one-liners. But compare what's *inside* `excludeModerate`: funk's version still has an inline callback and `.([]model.Vulnerability)` assertion. fluentfp's version has `RemoveIf(isModerateSeverity)` — a named predicate, no assertion, and the positive name reads naturally with `RemoveIf`.
 
 ---
 
@@ -190,7 +266,7 @@ allIngredientsAvailable := func(r m.Recipe) bool {
 return slice.From(recipes).KeepIf(allIngredientsAvailable)
 ```
 
-**What changed:** Extraction helps both — both pipelines end as one-liners. But compare `allIngredientsAvailable`: funk's is `funk.Reduce(funk.Map(ingredients, isAvailable).([]bool), andReducer, true).(bool)` — Map+Reduce with two type assertions and a reducer callback, just to express "every ingredient is available." fluentfp's is `slice.From(ingredients).Every(isAvailable)`. And `funk.Contains` inside `isAvailable` does O(n) reflection-based linear scan per ingredient per recipe; `slice.ToSet` converts once to a map for O(1) lookup.
+**What changed (algorithmic expressiveness):** Extraction helps both — both pipelines end as one-liners. But compare `allIngredientsAvailable`: funk's is `funk.Reduce(funk.Map(ingredients, isAvailable).([]bool), andReducer, true).(bool)` — Map+Reduce with two type assertions and a reducer callback, just to express "every ingredient is available." fluentfp's is `slice.From(ingredients).Every(isAvailable)`. And `funk.Contains` inside `isAvailable` does O(n) reflection-based linear scan per ingredient per recipe; `slice.ToSet` converts once to a map for O(1) lookup.
 
 ---
 
@@ -310,13 +386,58 @@ if b.RetryInterval != 0 {
 ```go
 result.AuthoritativeRegion = value.Coalesce(b.AuthoritativeRegion, s.AuthoritativeRegion)
 result.EncryptKey           = value.Coalesce(b.EncryptKey, s.EncryptKey)
-result.BootstrapExpect      = value.Coalesce(b.BootstrapExpect, s.BootstrapExpect)
+result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
 result.RaftProtocol         = value.Coalesce(b.RaftProtocol, s.RaftProtocol)
 result.HeartbeatGrace       = value.Coalesce(b.HeartbeatGrace, s.HeartbeatGrace)
 result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Each 3-line `if-not-zero-then-assign` block becomes `value.Coalesce(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. The pattern works uniformly across `string`, `int`, and `time.Duration` fields because all have meaningful zero values. *Caveats: `BootstrapExpect` uses `> 0` (not `!= 0`), so `Coalesce` is not an exact match — it would accept negative values that the original rejects. And ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNotNil` instead.*
+**What changed:** Most fields use `value.Coalesce(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` uses `> 0` (not `!= 0`) in the original, so `Coalesce` would be a semantic change — it would accept negative values the original rejects. That field uses `value.Of().When().Or()` instead, preserving the exact guard. 18 lines → 6 in this sample, 144 → 48 across the full method. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNotNil` instead. And `Coalesce` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
+
+---
+
+### —. Optional subsystem cleanup — etcd-io/etcd
+
+**Source:** [server/etcdserver/server.go#L945-L963](https://github.com/etcd-io/etcd/blob/main/server/etcdserver/server.go#L945-L963)
+**Pain point:** Scattered nil checks for subsystems that may not be initialized
+
+**Original:**
+```go
+func (s *EtcdServer) Cleanup() {
+    // kv, lessor and backend can be nil if running without v3 enabled
+    // or running unit tests.
+    if s.lessor != nil {
+        s.lessor.Stop()
+    }
+    if s.kv != nil {
+        s.kv.Close()
+    }
+    if s.authStore != nil {
+        s.authStore.Close()
+    }
+    if s.be != nil {
+        s.be.Close()
+    }
+    if s.compactor != nil {
+        s.compactor.Stop()
+    }
+}
+```
+
+**fluentfp** — struct fields become `option.Basic[T]` instead of raw interfaces:
+```go
+func (s *EtcdServer) Cleanup() {
+    s.lessor.IfOk(lease.Lessor.Stop)
+    s.kv.IfOk(func(kv mvcc.WatchableKV) { kv.Close() })
+    s.authStore.IfOk(func(as auth.AuthStore) { as.Close() })
+    s.be.IfOk(func(be backend.Backend) { be.Close() })
+    s.compactor.IfOk(v3compactor.Compactor.Stop)
+}
+```
+
+**What changed:** This is not a localized refactor — it's an architectural migration. The struct field types change from raw interfaces to `option.Basic[T]`, which cascades: constructors must wrap values in `option.Of`, and every `if s.kv != nil` elsewhere must become an `IfOk` or `Get` call. The payoff is that **conditionality becomes a property of the type**, not scattered through calling code. The comment in the original — "can be nil if running without v3" — documents exactly the semantic that options encode: presence vs absence. The zero value of `option.Basic[T]{}` is automatically not-ok, so uninitialized fields need no explicit construction.
+
+*Caveats: The ergonomic improvement is uneven. `Stop()` methods are void, so method expressions like `lease.Lessor.Stop` work directly with `IfOk` — genuinely cleaner. But `Close()` methods return `error` (ignored in the original), so they need `func(kv Type) { kv.Close() }` wrappers that aren't shorter than the original `if != nil` blocks. The win for those is consistency, not brevity. For types with multiple conditional methods, fluentfp's [advanced option pattern](../examples/advanced_option.go) embeds `option.Basic[T]` in a domain type that exposes unconditional methods — each method internally delegates via `IfOk`.*
 
 ---
 
