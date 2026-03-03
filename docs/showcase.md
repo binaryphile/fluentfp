@@ -52,17 +52,19 @@ closedIssues := funk.Filter(issues, func(i model.Issue) bool {
 }).([]model.Issue)
 ```
 
-**fluentfp:**
+**Given a method on the domain type:**
 ```go
-// isClosed returns true if the issue has been closed.
-// With an IsClosed() method on the type, this collapses to KeepIf(Issue.IsClosed).
-isClosed := func(i model.Issue) bool {
-    return i.State == model.IssueStateClosed
+func (i Issue) IsClosed() bool {
+    return i.State == IssueStateClosed
 }
-closedIssues := slice.From(issues).KeepIf(isClosed)
 ```
 
-**What changed:** You could extract a named predicate in funk too — naming isn't library-specific. But the `.([]model.Issue)` type assertion at the end is. fluentfp's generics eliminate the assertion entirely, so the predicate and `KeepIf` are all that remain.
+**fluentfp:**
+```go
+closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
+```
+
+**What changed:** The method expression *is* the predicate — no callback, no assertion. funk requires both a closure wrapper and a `.([]model.Issue)` cast even for a single field comparison. fluentfp's generics eliminate the assertion, and Go's method expressions eliminate the closure.
 
 ---
 
