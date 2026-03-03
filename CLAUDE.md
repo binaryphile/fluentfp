@@ -273,6 +273,7 @@ lof.Println(s string)                   // Wraps fmt.Println for Each
 lof.Len(ts []T) int                     // Wraps len
 lof.StringLen(s string) int             // Wraps len for strings
 lof.IsNotEmpty(s string) bool           // Predicate for KeepIf on string slices
+lof.IsNotBlank(s string) bool           // True if s contains non-whitespace characters
 lof.IfNotEmpty(s string) (string, bool) // Comma-ok for "empty = absent" returns
 ```
 

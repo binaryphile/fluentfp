@@ -8,118 +8,7 @@ The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
 
-### 1. Index wrapper noise — flanksource/mission-control
-
-**Source:** [playbook/runner/cel.go#L39-L41](https://github.com/flanksource/mission-control/blob/13a696d9c9d2d043baf5f127cb2c45edb3286dde/playbook/runner/cel.go#L39-L41)
-**Library:** samber/lo | **Pain point:** `_ int` required in every callback
-
-**Original:**
-```go
-return types.Bool(len(lo.Filter(statuses, func(i models.PlaybookActionStatus, _ int) bool {
-    return i == models.PlaybookActionStatusFailed
-})) == 0)
-```
-
-**fluentfp:**
-```go
-// isFailed returns true if the status indicates failure.
-isFailed := func(s models.PlaybookActionStatus) bool {
-    return s == models.PlaybookActionStatusFailed
-}
-return types.Bool(slice.From(statuses).None(isFailed))
-```
-
-**What changed:** Eliminated `_ int` wrapper. `None` replaces `len(Filter(...)) == 0` — reads as intent ("none failed?") instead of mechanism ("filter, count, compare to zero"). The original checks emptiness by negation (length equals zero); `None` states the condition directly.
-
----
-
-### 2. Double `_ int` in Reduce — kubernetes-sigs/karpenter
-
-**Source:** [pkg/controllers/disruption/types.go#L277](https://github.com/kubernetes-sigs/karpenter/blob/35cafa54792e1016fc292d0b942c346205754fb8/pkg/controllers/disruption/types.go#L277)
-**Library:** samber/lo | **Pain point:** `lo.Reduce` requires TWO unused parameters
-
-**Original:**
-```go
-podCount := lo.Reduce(c.Candidates, func(_ int, cd *Candidate, _ int) int {
-    return len(cd.reschedulablePods)
-}, 0)
-```
-
-**fluentfp:**
-```go
-// countReschedulablePods sums the reschedulable pod count across candidates.
-countReschedulablePods := func(acc int, cd *Candidate) int {
-    return acc + len(cd.reschedulablePods)
-}
-podCount := slice.Fold(c.Candidates, 0, countReschedulablePods)
-```
-
-**What changed:** `lo.Reduce` forces two `_ int` parameters (the accumulator and the element index) that are never used. `Fold` takes `func(R, T) R` — just the accumulator and element. Also fixed a likely bug in the original: it returns `len(cd.reschedulablePods)` ignoring the accumulator, so it only returns the last candidate's count. `Fold` makes the accumulation pattern explicit. *Caveat: if the original's "last value only" behavior was intentional, this rewrite changes semantics. The showcase assumes the author intended summation, which `Fold` makes unambiguous.*
-
----
-
-### 3. Inside-out nesting — go-saas/kit
-
-**Source:** [sys/private/service/menu.go#L100-L102](https://github.com/go-saas/kit/blob/8e55a6f58fa1e5f3ae8d7aeff025b38f8fed8a93/sys/private/service/menu.go#L100-L102)
-**Library:** samber/lo | **Pain point:** Triple-nested `lo.UniqBy(lo.Map(lo.FlatMap(...)))` reads inside-out
-
-**Original:**
-```go
-rl := lo.UniqBy(lo.Map(lo.FlatMap(waitForCheckerRequirements,
-    func(t lo.Tuple2[string, []biz.MenuPermissionRequirement], _ int) []biz.MenuPermissionRequirement {
-        return t.B
-    }), requirementConv), requirementKeyFunc)
-```
-
-**fluentfp:**
-```go
-// extractRequirements returns the permission requirements from a tuple.
-extractRequirements := func(t lo.Tuple2[string, []biz.MenuPermissionRequirement]) []biz.MenuPermissionRequirement {
-    return t.B
-}
-rl := slice.UniqueBy(
-    slice.From(waitForCheckerRequirements).
-        FlatMap(extractRequirements).
-        Convert(requirementConv),
-    requirementKeyFunc)
-```
-
-**What changed:** The inner pipeline `FlatMap → Convert` reads left-to-right instead of inside-out `lo.Map(lo.FlatMap(...))`. Eliminated `_ int` wrapper. This is a *partial* improvement: `UniqueBy` is a standalone function (needs `K comparable` per D9) so it still wraps the chain. The nesting depth drops from 3 levels to 1, but the outermost call remains non-fluent — a real limitation of fluentfp's current API surface.
-
----
-
-### 4. Type assertion chains — ad-on-is/coredock
-
-**Source:** [internal/docker.go#L91-L100](https://github.com/ad-on-is/coredock/blob/c382c2b305be06451caea5c06cfd15fcb07a80d8/internal/docker.go#L91-L100)
-**Library:** go-funk | **Pain point:** `funk.Filter` returns `interface{}`, forcing type assertions
-
-**Original:**
-```go
-return funk.Filter(containers, func(c docker.APIContainers) bool {
-    labels := c.Labels
-    _, isIgnored := labels["coredock.ignore"]
-    isCoredock := strings.Contains(c.Image, "coredock")
-    isRunning := c.State == "running"
-    return !isIgnored && !isCoredock && isRunning
-}).([]docker.APIContainers), nil
-```
-
-**fluentfp:**
-```go
-// isVisible returns true if the container should appear in the dock.
-isVisible := func(c docker.APIContainers) bool {
-    _, isIgnored := c.Labels["coredock.ignore"]
-    isCoredock := strings.Contains(c.Image, "coredock")
-    return !isIgnored && !isCoredock && c.State == "running"
-}
-return slice.From(containers).KeepIf(isVisible), nil
-```
-
-**What changed:** Eliminated go-funk's runtime type assertion (`.([]docker.APIContainers)`, which panics if wrong). fluentfp's `Mapper[T]` is directly assignable to `[]T` — no conversion or assertion needed at the boundary.
-
----
-
-### 5. Filter + Map with double type assertion — ActiveState/cli
+### —. Filter + Map with double type assertion — ActiveState/cli
 
 **Source:** [pkg/platform/model/cve.go#L56-L62](https://github.com/ActiveState/cli/blob/37118a4c25e0f9f173fd98aae371da6a755d72d7/pkg/platform/model/cve.go#L56-L62)
 **Library:** go-funk | **Pain point:** `funk.Map` wrapping `funk.Filter`, both needing type assertions
@@ -149,7 +38,7 @@ res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 
 ---
 
-### 6. go-funk one-liner with assertion — a-grasso/deprec
+### —. go-funk one-liner with assertion — a-grasso/deprec
 
 **Source:** [cores/processing.go#L27](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L27)
 **Library:** go-funk | **Pain point:** Every funk call needs `.([]Type)` suffix
@@ -170,7 +59,7 @@ closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 
 ---
 
-### 7. `interface{}` epidemic — ruilisi/css-checker
+### —. `interface{}` epidemic — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
 **Library:** go-linq | **Pain point:** Every parameter and return type is `interface{}`
@@ -234,7 +123,7 @@ groups := duplicates.Convert(toSummary)
 
 ---
 
-### 8. `interface{}` in Where+Select — erda-project/erda
+### —. `interface{}` in Where+Select — erda-project/erda
 
 **Source:** [linegraph.go#L43-L50](https://github.com/erda-project/erda/blob/65455005860d02a814798cb2d6b77e6412658cfc/internal/apps/msp/apm/service/common/model/linegraph.go#L34-L50)
 **Library:** go-linq | **Pain point:** Pointer type assertions in every callback
@@ -271,7 +160,7 @@ xAxis := slice.From(graph).
 
 ---
 
-### 9. Quadruple nesting with 4 type assertions — Ajdorr/cardamom
+### —. Quadruple nesting with 4 type assertions — Ajdorr/cardamom
 
 **Source:** [core/source/services/recipe/service.go#L13-L30](https://github.com/Ajdorr/cardamom/blob/ffc60528fb28c8007b233b88894f9295433de66c/core/source/services/recipe/service.go#L13-L30)
 **Library:** go-funk | **Pain point:** Four nested go-funk calls, four `.(type)` assertions, O(n) membership via reflection
@@ -326,7 +215,7 @@ func filterRecipesByIngredients(
 
 ---
 
-### 10. Repetitive Filter+Map boilerplate — ad-on-is/coredock
+### —. Repetitive Filter+Map boilerplate — ad-on-is/coredock
 
 **Source:** [internal/config.go#L42-L49](https://github.com/ad-on-is/coredock/blob/c382c2b305be06451caea5c06cfd15fcb07a80d8/internal/config.go#L42-L49)
 **Library:** go-funk | **Pain point:** Eight near-identical lines with type assertions
@@ -362,7 +251,7 @@ c.IPPrefixesIgnore = parseCSV(ipPrefixesIgnore)
 
 ---
 
-### 11. Config merge write amplification — hashicorp/nomad
+### —. Config merge write amplification — hashicorp/nomad
 
 **Source:** [command/agent/config.go#L1707-L1902](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L1707-L1902)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
@@ -399,11 +288,11 @@ result.HeartbeatGrace       = value.Coalesce(b.HeartbeatGrace, s.HeartbeatGrace)
 result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Nomad's `ServerConfig.Merge` merges a user-provided config over server defaults — each field follows the same "use override if set, keep default otherwise" pattern. Each 3-line `if-not-zero-then-assign` block becomes a single expression: 18 lines → 6 in this sample, 144 → 48 across the full method. `value.Coalesce` returns the first non-zero argument — "override if set, default otherwise" in one word. The pattern works uniformly across `string`, `int`, and `time.Duration` fields — all have meaningful zero values. *Note: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks — those would use `option.IfNotNil` instead. The pattern shown covers the dominant case.*
+**What changed:** Each 3-line `if-not-zero-then-assign` block becomes `value.Coalesce(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. The pattern works uniformly across `string`, `int`, and `time.Duration` fields because all have meaningful zero values. *Note: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks — those would use `option.IfNotNil` instead.*
 
 ---
 
-### 12. Trade-off: Explicit type parameter — fluentfp vs lo
+### —. Trade-off: Explicit type parameter — fluentfp vs lo
 
 **Pain point:** fluentfp requires explicit type parameter where lo infers it
 

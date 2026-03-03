@@ -3,6 +3,7 @@ package lof
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Len wraps the len builtin for slices.
@@ -23,6 +24,11 @@ func StringLen(s string) int {
 // IsNotEmpty returns true if s is non-empty.
 func IsNotEmpty(s string) bool {
 	return s != ""
+}
+
+// IsNotBlank returns true if s contains non-whitespace characters.
+func IsNotBlank(s string) bool {
+	return strings.TrimSpace(s) != ""
 }
 
 // IfNotEmpty returns s and whether s is non-empty.
