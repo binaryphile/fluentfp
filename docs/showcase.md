@@ -172,39 +172,37 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 }).([]model.SourceVulnerability)
 ```
 
-**go-funk extracted functions:**
-```go
-excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
-    sv.Vulnerabilities = funk.Filter(sv.Vulnerabilities, func(v model.Vulnerability) bool {
-        return v.Severity != "MODERATE"
-    }).([]model.Vulnerability)
-    return sv
-}
-```
-
-**go-funk:**
-```go
-res.Sources = funk.Map(cv.Sources, excludeModerate).([]model.SourceVulnerability)
-```
-
-**fluentfp extracted functions:**
+**Extracted:**
 ```go
 // isModerateSeverity returns true if the vulnerability has MODERATE severity.
 isModerateSeverity := func(v model.Vulnerability) bool {
     return v.Severity == "MODERATE"
 }
+```
+
+**go-funk:**
+```go
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
-    sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(isModerateSeverity)
+    sv.Vulnerabilities = funk.Filter(sv.Vulnerabilities, func(v model.Vulnerability) bool {
+        return !isModerateSeverity(v)
+    }).([]model.Vulnerability)
     return sv
 }
+
+res.Sources = funk.Map(cv.Sources, excludeModerate).([]model.SourceVulnerability)
 ```
 
 **fluentfp:**
 ```go
+excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
+    sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(isModerateSeverity)
+    return sv
+}
+
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed (extraction ergonomics):** Extraction helps both pipelines equally — both are one-liners. But compare what's *inside* `excludeModerate`: funk's version still has an inline callback and `.([]model.Vulnerability)` assertion. fluentfp's version has `RemoveIf(isModerateSeverity)` — a named predicate, no assertion, and the positive name reads naturally with `RemoveIf`.
+**What changed (extraction ergonomics):** With a shared `isModerateSeverity` predicate, the difference moves inside `excludeModerate`. funk has no `Reject`/`RemoveIf`, so it wraps the predicate in `func(v) bool { return !isModerateSeverity(v) }` plus a `.([]model.Vulnerability)` assertion. fluentfp's `RemoveIf(isModerateSeverity)` uses the predicate directly — no negation wrapper, no assertion.
 
 ---
 
