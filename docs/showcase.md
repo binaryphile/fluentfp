@@ -309,20 +309,18 @@ func (s *EtcdServer) Cleanup() {
 }
 ```
 
-**fluentfp** — struct fields become `option.Basic[T]` instead of raw interfaces:
+**fluentfp** — each subsystem gets a wrapper type that embeds `option.Basic[T]` and exposes unconditional methods (e.g., `LessorOption` wraps `option.Basic[lease.Lessor]` and adds a `Stop()` that delegates via `IfOk`). The struct fields change from raw interfaces to these wrapper types. See [advanced_option.go](../examples/advanced_option.go) for the full pattern.
 ```go
 func (s *EtcdServer) Cleanup() {
-    s.lessor.IfOk(lease.Lessor.Stop)
-    s.kv.IfOk(func(kv mvcc.WatchableKV) { kv.Close() })
-    s.authStore.IfOk(func(as auth.AuthStore) { as.Close() })
-    s.be.IfOk(func(be backend.Backend) { be.Close() })
-    s.compactor.IfOk(v3compactor.Compactor.Stop)
+    s.lessor.Stop()
+    s.kv.Close()
+    s.authStore.Close()
+    s.be.Close()
+    s.compactor.Stop()
 }
 ```
 
-**What changed:** This is not a localized refactor — it's an architectural migration. The struct field types change from raw interfaces to `option.Basic[T]`, which cascades: constructors must wrap values in `option.Of`, and every `if s.kv != nil` elsewhere must become an `IfOk` or `Get` call. The payoff is that **conditionality becomes a property of the type**, not scattered through calling code. The comment in the original — "can be nil if running without v3" — documents exactly the semantic that options encode: presence vs absence. The zero value of `option.Basic[T]{}` is automatically not-ok, so uninitialized fields need no explicit construction.
-
-*Caveats: The ergonomic improvement is uneven. `Stop()` methods are void, so method expressions like `lease.Lessor.Stop` work directly with `IfOk` — genuinely cleaner. But `Close()` methods return `error` (ignored in the original), so they need `func(kv Type) { kv.Close() }` wrappers that aren't shorter than the original `if != nil` blocks. The win for those is consistency, not brevity. For types with multiple conditional methods, fluentfp's [advanced option pattern](../examples/advanced_option.go) embeds `option.Basic[T]` in a domain type that exposes unconditional methods — each method internally delegates via `IfOk`.*
+**What changed:** The nil checks are gone entirely — not replaced with `IfOk`, just gone. Each wrapper type's method internally calls the underlying subsystem only when present. The comment in the original — "can be nil if running without v3" — documents exactly the semantic that options encode: presence vs absence. The zero value of an option wrapper is automatically not-ok, so uninitialized fields need no explicit construction. This is not a localized refactor — it's an architectural migration. The struct field types change, constructors must wrap values, and every `if s.kv != nil` elsewhere must move into the wrapper type. The payoff scales with the number of call sites: each nil check disappears from calling code and lives in one place inside the wrapper.
 
 ---
 
