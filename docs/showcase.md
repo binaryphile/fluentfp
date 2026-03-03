@@ -8,11 +8,11 @@ These examples compare FP libraries, not FP vs plain Go. In many cases, a `for` 
 
 Where the original code uses inline anonymous functions, we extract them into named functions before comparing pipelines. This is standard refactoring that any developer would do regardless of library choice — it shouldn't count as a library advantage. Separating the extraction step makes the real difference visible: what changes in the pipeline itself, after both sides have had the same cleanup applied.
 
-The examples below escalate from expression-level readability to architectural patterns. The final entry shows a trade-off where a competitor is cleaner than fluentfp.
+The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
 
-### —. Assertion ceremony on a one-liner — a-grasso/deprec
+### Assertion ceremony on a one-liner — a-grasso/deprec
 
 **Source:** [cores/processing.go#L31](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L31)
 **Library:** go-funk | **Pain point:** Every funk call needs `.([]Type)` suffix
@@ -45,7 +45,7 @@ closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 
 ---
 
-### —. Callback wrapper noise — ananthakumaran/paisa
+### Callback wrapper noise — ananthakumaran/paisa
 
 **Source:** [internal/prediction/tf_idf.go](https://github.com/ananthakumaran/paisa/blob/55da8fdacff6c7202133dff01e2d1e2b3a1619ba/internal/prediction/tf_idf.go)
 **Library:** samber/lo | **Pain point:** stdlib functions wrapped in callbacks just to satisfy `_ int`
@@ -91,7 +91,7 @@ func tokenize(s string) []string {
 
 ---
 
-### —. Conditional struct fields — hashicorp/consul
+### Conditional struct fields — hashicorp/consul
 
 **Source:** [agent/agent.go#L2482-L2530](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530)
 **Pain point:** Intermediate variables and post-construction overrides for conditional struct fields
@@ -155,7 +155,7 @@ check := &structs.HealthCheck{
 
 ---
 
-### —. Parallel type model from `interface{}` — ruilisi/css-checker
+### Parallel type model from `interface{}` — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
 **Library:** go-linq | **Pain point:** Every parameter and return type is `interface{}`
@@ -240,7 +240,7 @@ groups := sorted.Convert(toSummary)
 
 ---
 
-### —. Config merge write amplification — hashicorp/nomad
+### Config merge write amplification — hashicorp/nomad
 
 **Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
@@ -281,58 +281,7 @@ result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
 
 ---
 
-### —. Optional listener cleanup — nats-io/nats-server
-
-**Source:** [server/server.go — Shutdown()](https://github.com/nats-io/nats-server/blob/main/server/server.go)
-**Pain point:** Seven identical nil-check-close blocks for optional `net.Listener` fields
-
-**Original** (7 of 7 — all `net.Listener`, each enabled by a different feature):
-```go
-if s.listener != nil {
-    s.listener.Close()
-    s.listener = nil
-}
-if s.mqtt.listener != nil {
-    s.mqtt.listener.Close()
-    s.mqtt.listener = nil
-}
-if s.leafNodeListener != nil {
-    s.leafNodeListener.Close()
-    s.leafNodeListener = nil
-}
-if s.routeListener != nil {
-    s.routeListener.Close()
-    s.routeListener = nil
-}
-if s.gatewayListener != nil {
-    s.gatewayListener.Close()
-    s.gatewayListener = nil
-}
-if s.http != nil {
-    s.http.Close()
-    s.http = nil
-}
-if s.profiler != nil {
-    s.profiler.Close()
-}
-```
-
-**fluentfp** — one `ListenerOption` type wraps `option.Basic[net.Listener]` and adds a `Close()` method that delegates via `IfOk`. All seven struct fields change from `net.Listener` to `ListenerOption`. See [advanced_option.go](../examples/advanced_option.go) for the full pattern.
-```go
-s.listener.Close()
-s.mqtt.listener.Close()
-s.leafNodeListener.Close()
-s.routeListener.Close()
-s.gatewayListener.Close()
-s.http.Close()
-s.profiler.Close()
-```
-
-**What changed:** Seven 3-line nil-check blocks become seven unconditional calls. Because all fields share the same type, one `ListenerOption` wrapper serves all seven — the pattern pays for one type definition and reuses it everywhere. The nil checks aren't replaced with `IfOk` calls; they live inside `ListenerOption.Close()`, written once. The zero value of `ListenerOption{}` is automatically not-ok, so fields for disabled features need no explicit construction. This is an architectural migration — struct field types change and constructors must wrap listeners in `option.Of` — but the payoff scales: every nil check on every listener across the codebase disappears into the wrapper.
-
----
-
-### —. Trade-off: Explicit type parameter — fluentfp vs lo
+### Trade-off: Explicit type parameter — fluentfp vs lo
 
 **Pain point:** fluentfp requires explicit type parameter where lo infers it
 
