@@ -124,7 +124,7 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 }).([]model.SourceVulnerability)
 ```
 
-**Named functions (trivial enough that the names suffice at the call site):**
+**Named functions (shared by both rewrites):**
 ```go
 // isModerateSeverity returns true if the vulnerability has MODERATE severity.
 isModerateSeverity := func(v model.Vulnerability) bool {
@@ -137,12 +137,17 @@ excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability 
 }
 ```
 
+**go-funk with named functions:**
+```go
+res.Sources = funk.Map(cv.Sources, excludeModerate).([]model.SourceVulnerability)
+```
+
 **fluentfp:**
 ```go
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed:** You could extract `excludeModerate` in funk too — but the two `.(type)` assertions would remain, and the inner `funk.Filter` still returns `interface{}` requiring a cast before assignment. fluentfp's generics eliminate both assertions. The named functions are trivial — `isModerateSeverity` checks one field, `excludeModerate` removes matching items — so the pipeline reads as intent without jumping to definitions. The trade-off is indirection when the names aren't self-evident.
+**What changed:** Both versions benefit equally from extracting named functions — the nesting flattens either way. The difference that remains is the `.([]model.SourceVulnerability)` assertion. And inside `excludeModerate`, funk still needs `.([]model.Vulnerability)` on the inner filter, while fluentfp's `RemoveIf` returns a typed slice directly.
 
 ---
 
@@ -173,7 +178,7 @@ func filterRecipesByIngredients(
 }
 ```
 
-**Named functions:**
+**Named functions (shared by both rewrites):**
 ```go
 // getItem returns the item name from an inventory item.
 getItem := func(i m.InventoryItem) string { return i.Item }
@@ -189,6 +194,15 @@ allIngredientsAvailable := func(r m.Recipe) bool {
 }
 ```
 
+**go-funk with named functions:**
+```go
+items := addAlwaysAvailableIngredients(
+	funk.Map(inventoryItems, getItem).([]string))
+inventory := slice.ToSet(items)
+
+return funk.Filter(recipes, allIngredientsAvailable).([]m.Recipe)
+```
+
 **fluentfp:**
 ```go
 items := addAlwaysAvailableIngredients(slice.From(inventoryItems).ToString(getItem))
@@ -197,7 +211,7 @@ inventory := slice.ToSet(items)
 return slice.From(recipes).KeepIf(allIngredientsAvailable)
 ```
 
-**What changed:** Four runtime type assertions (`.([]string)`, `.([]bool)`, `.(bool)`, `.([]m.Recipe)`) eliminated. The quadruple nesting `Filter(Reduce(Map(Contains)))` becomes a flat pipeline: extract items → build set → check each recipe. `Every(isAvailable)` replaces the `Reduce(Map(bools), &&, true)` pattern — the intent reads as English: "keep recipes where every ingredient is available." Bonus: `funk.Contains` does O(n) linear scan via reflection on every ingredient of every recipe; `slice.ToSet` gives O(1) map lookup.
+**What changed:** With named functions, both versions flatten to two lines of pipeline. The remaining differences: funk needs `.([]string)` and `.([]m.Recipe)` assertions; fluentfp doesn't. And `funk.Contains` does O(n) linear scan via reflection on every ingredient of every recipe; `slice.ToSet` gives O(1) map lookup.
 
 ---
 
@@ -229,7 +243,23 @@ linq.From(styleList).GroupBy(func(script interface{}) interface{} {
     }).ToSlice(&groups)
 ```
 
-**Named functions:**
+**go-linq with named functions** (callbacks still require `interface{}` signatures):
+```go
+getHash := func(script interface{}) interface{} { return script.(StyleSection).valueHash }
+identity := func(script interface{}) interface{} { return script }
+hasDuplicates := func(group interface{}) bool { return len(group.(linq.Group).Group) > 1 }
+groupSize := func(group interface{}) interface{} { return len(group.(linq.Group).Group) }
+toSummary := func(group linq.Group) interface{} { ... }
+
+linq.From(styleList).
+    GroupBy(getHash, identity).
+    Where(hasDuplicates).
+    OrderByDescending(groupSize).
+    SelectT(toSummary).
+    ToSlice(&groups)
+```
+
+**Named functions (fluentfp):**
 ```go
 // groupByHash groups style sections by their value hash.
 groupByHash := func(m map[string][]StyleSection, s StyleSection) map[string][]StyleSection {
@@ -266,7 +296,7 @@ duplicates := slice.SortByDesc(
 groups := duplicates.Convert(toSummary)
 ```
 
-**What changed:** Every `interface{}` parameter forces you to maintain a parallel type model in your head — mentally substituting the real type at each assertion, with no compile-time safety net. Seven assertions across this pipeline, each a potential runtime panic. fluentfp's generics make types visible in every signature; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `maps.Values` loses go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
+**What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. The functions can't be typed as `func(StyleSection) string` because go-linq's API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `maps.Values` loses go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
 
 ---
 
@@ -287,7 +317,21 @@ linq.From(graph).Where(func(i interface{}) bool {
 }).ToSlice(&xAxis)
 ```
 
-**Named functions:**
+**go-linq with named functions** (callbacks still require `interface{}` signatures):
+```go
+matchesDimension := func(i interface{}) bool {
+    return i.(*LineGraphMetaData).Dimension == line.Dimensions[0]
+}
+formatTime := func(i interface{}) interface{} {
+    t := i.(*LineGraphMetaData).Time
+    t = strings.ReplaceAll(t, "T", " ")
+    return strings.ReplaceAll(t, "Z", "")
+}
+
+linq.From(graph).Where(matchesDimension).Select(formatTime).ToSlice(&xAxis)
+```
+
+**Named functions (fluentfp):**
 ```go
 // matchesDimension returns true if the metadata matches the target dimension.
 matchesDimension := func(m *LineGraphMetaData) bool {
@@ -306,7 +350,7 @@ formatTime := func(m *LineGraphMetaData) string {
 xAxis := slice.From(graph).KeepIf(matchesDimension).ToString(formatTime)
 ```
 
-**What changed:** The deeper issue isn't just type erasure — it's that type information doesn't *flow* through the pipeline. The same `*LineGraphMetaData` assertion appears in both callbacks because each stage starts from `interface{}` with no memory of what came before. fluentfp's generic chain carries the element type from stage to stage — you establish it once at `slice.From` and it propagates through `KeepIf` into `ToString` without restating it.
+**What changed:** With named functions, both pipelines are one-liners. But compare the function signatures: go-linq's `matchesDimension` takes `interface{}` and asserts `*LineGraphMetaData` inside; fluentfp's takes `*LineGraphMetaData` directly. The type information doesn't *flow* through go-linq's pipeline — each stage starts from `interface{}` with no memory of what came before. fluentfp's generic chain carries the element type from `slice.From` through `KeepIf` into `ToString` without restating it.
 
 ---
 
