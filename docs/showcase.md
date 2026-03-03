@@ -171,13 +171,16 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 }).([]model.SourceVulnerability)
 ```
 
-**Extracted (go-funk):**
+**Extracted:**
 ```go
 // isModerateSeverity returns true if the vulnerability has MODERATE severity.
 isModerateSeverity := func(v model.Vulnerability) bool {
     return v.Severity == "MODERATE"
 }
+```
 
+**go-funk `excludeModerate`:**
+```go
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
     sv.Vulnerabilities = funk.Filter(sv.Vulnerabilities, func(v model.Vulnerability) bool {
         return !isModerateSeverity(v)
@@ -186,7 +189,7 @@ excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability 
 }
 ```
 
-**Extracted (fluentfp):**
+**fluentfp `excludeModerate`:**
 ```go
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
     sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(isModerateSeverity)
