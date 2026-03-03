@@ -71,6 +71,8 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToSet() map[string]bool                // Convert to set for membership checks
 
 // Standalone functions
+slice.FromMap[K comparable, V any](m map[K]V) Mapper[V]                // Map values as collection
+slice.FromSet[K comparable](m map[K]bool) Mapper[K]                    // Set members as collection (inverse of ToSet)
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
 slice.FindAs[R, T any](ts []T) option.Basic[R]                         // First element that type-asserts to R

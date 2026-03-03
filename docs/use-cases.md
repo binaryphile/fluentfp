@@ -58,6 +58,8 @@
 
 **Extensions:**
 - 1a. Collection is nil or empty: System produces a valid empty collection.
+- 1b. Collection source is a map: System extracts the map's values as a collection for further transformation.
+- 1c. Collection source is a set: System extracts the set's members as a collection for further transformation.
 - 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order.
 - 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
@@ -74,6 +76,7 @@
 - Sorting: ascending or descending by extracted key
 - Deduplication: by identity or by extracted key
 - Batching: by fixed size
+- Collection source: from slice, from map values, or from set members
 
 ---
 

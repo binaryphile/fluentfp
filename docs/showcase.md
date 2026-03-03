@@ -67,7 +67,7 @@ func tokenize(s string) []string {
 
 **Extracted:**
 ```go
-// splitTokens returns a Mapper, but lo accepts it as []string since Mapper is a defined type on []string.
+// splitTokens splits on punctuation and whitespace.
 splitTokens := func(s string) slice.Mapper[string] {
     return slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
 }
@@ -90,15 +90,13 @@ func tokenize(s string) []string {
 tokens := splitTokens(s).Convert(strings.ToLower).KeepIf(lof.IsNotBlank)
 ```
 
-**What changed:** The fluentfp version is a single expression — compact enough to inline at the call site without a `tokenize` function at all. lo still needs a function body: two statements with an intermediate variable, or the nested alternative `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)` which reads in reverse execution order.
+**What changed:** The fluentfp version needs no wrappers — `strings.ToLower` and `lof.IsNotBlank` plug in directly. lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice — but when you don't need the index, every stdlib function becomes a wrapper: `toLower` and `isNotBlank` exist only to discard that `_ int`. Without wrappers to write, the fluentfp version collapses to a single expression — compact enough to inline at the call site without a `tokenize` function at all.
 
-Read both aloud. fluentfp: "split tokens, convert to lower, keep if is not blank." lo: "map split tokens to lower" then "filter tokens, is not blank." For operations this common, naming ergonomics matter — `KeepIf` and `Convert` say what happens to the elements without requiring FP vocabulary, which lowers the bar for newcomers to the codebase.
-
-The other difference is structural: lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice. But when you don't need the index, every callback becomes a wrapper: `strings.ToLower` and `lof.IsNotBlank` can't plug in directly. fluentfp accepts them as-is.
+For operations this common, naming ergonomics matter — `KeepIf` and `Convert` say what happens to the elements without requiring FP vocabulary, which lowers the bar for newcomers to the codebase.
 
 *Editorial note: `.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest.*
 
-*Interoperability note: `splitTokens` returns `slice.Mapper[string]`, which lo accepts as `[]string` since `Mapper` is a defined type on `[]string`. fluentfp chains directly; lo gets implicit conversion.*
+*Interoperability note: `splitTokens` returns `slice.Mapper[string]`, which is assignable to `[]string` without conversion — Go allows this when the underlying types match and the target is not a defined type. So lo accepts it directly; no cast needed on either side.*
 
 ---
 
@@ -244,12 +242,12 @@ linq.From(styleList).
 **fluentfp (GroupBy via Fold — more verbose but type-safe):**
 ```go
 grouped := slice.Fold(styleList, make(map[string][]StyleSection), groupByHash)
-withDuplicates := slice.From(maps.Values(grouped)).KeepIf(hasDuplicates)
+withDuplicates := slice.FromMap(grouped).KeepIf(hasDuplicates)
 sorted := slice.SortByDesc(withDuplicates, groupSize)
-groups := slice.MapTo[SectionSummary](sorted).Map(toSummary)
+summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
 ```
 
-**What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. The functions can't be typed as `func(StyleSection) string` because go-linq's API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `maps.Values` loses go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
+**What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. go-linq's callbacks can't be typed as `func(StyleSection) string` because its API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `FromMap` extracts values in map-iteration order, losing go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
 
 ---
 
@@ -390,6 +388,6 @@ These rewrites share a pattern: fluentfp replaces *incidental structure* (type a
 
 **Good fit:** Codebases that look like the examples above — repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
-**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `LazyOf`, `Coalesce`, `IfOk`) that reads clearly once learned but has an onboarding cost.
+**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `Coalesce`, `MapNotZero`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 
 **Not a replacement for loops:** As noted in the introduction, a `for` loop with 4–6 lines and zero abstraction is often the right choice. fluentfp targets the cases where loops accumulate ceremony faster than clarity.
