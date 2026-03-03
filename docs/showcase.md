@@ -73,41 +73,6 @@ func tokenize(s string) []string {
 
 ---
 
-### —. Repetitive Filter+Map boilerplate — ad-on-is/coredock
-
-**Source:** [internal/config.go#L42-L49](https://github.com/ad-on-is/coredock/blob/c382c2b305be06451caea5c06cfd15fcb07a80d8/internal/config.go#L42-L49)
-**Library:** go-funk | **Pain point:** Eight near-identical lines with type assertions
-
-**Original:**
-```go
-c.Domains = funk.Filter(strings.Split(domains, ","), func(s string) bool { return s != "" }).([]string)
-c.Domains = funk.Map(c.Domains, func(s string) string { return strings.TrimSpace(s) }).([]string)
-c.Networks = funk.Filter(strings.Split(networks, ","), func(s string) bool { return s != "" }).([]string)
-c.Networks = funk.Map(c.Networks, func(s string) string { return strings.TrimSpace(s) }).([]string)
-c.IPPrefixes = funk.Filter(strings.Split(ipPrefixes, ","), func(s string) bool { return s != "" }).([]string)
-c.IPPrefixes = funk.Map(c.IPPrefixes, func(s string) string { return strings.TrimSpace(s) }).([]string)
-c.IPPrefixesIgnore = funk.Filter(strings.Split(ipPrefixesIgnore, ","), func(s string) bool { return s != "" }).([]string)
-c.IPPrefixesIgnore = funk.Map(c.IPPrefixesIgnore, func(s string) string { return strings.TrimSpace(s) }).([]string)
-```
-
-**fluentfp:**
-```go
-// parseCSV splits a comma-separated string into trimmed, non-empty values.
-parseCSV := func(s string) []string {
-	fields := slice.From(strings.Split(s, ","))
-	return fields.KeepIf(lof.IsNotEmpty).Convert(strings.TrimSpace)
-}
-
-c.Domains = parseCSV(domains)
-c.Networks = parseCSV(networks)
-c.IPPrefixes = parseCSV(ipPrefixes)
-c.IPPrefixesIgnore = parseCSV(ipPrefixesIgnore)
-```
-
-**What changed:** Eight lines of copy-pasted Filter+Map pairs with eight `.([]string)` assertions collapse into four calls to a named helper. go-funk forces two separate calls (Filter then Map) because it cannot chain — each call returns `interface{}` requiring an assertion before the next. fluentfp chains `KeepIf → Convert` fluently. `lof.IsNotEmpty` and `strings.TrimSpace` drop in directly — no wrapper closures needed.
-
----
-
 ### —. Nesting with type assertions — ActiveState/cli
 
 **Source:** [pkg/platform/model/cve.go#L56-L62](https://github.com/ActiveState/cli/blob/37118a4c25e0f9f173fd98aae371da6a755d72d7/pkg/platform/model/cve.go#L56-L62)
@@ -124,30 +89,33 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 }).([]model.SourceVulnerability)
 ```
 
-**Named functions (shared by both rewrites):**
+**go-funk with extraction:**
+```go
+excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
+    sv.Vulnerabilities = funk.Filter(sv.Vulnerabilities, func(v model.Vulnerability) bool {
+        return v.Severity != "MODERATE"
+    }).([]model.Vulnerability)
+    return sv
+}
+
+res.Sources = funk.Map(cv.Sources, excludeModerate).([]model.SourceVulnerability)
+```
+
+**fluentfp with extraction:**
 ```go
 // isModerateSeverity returns true if the vulnerability has MODERATE severity.
 isModerateSeverity := func(v model.Vulnerability) bool {
     return v.Severity == "MODERATE"
 }
-// excludeModerate removes MODERATE-severity vulnerabilities from a source.
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
     sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(isModerateSeverity)
     return sv
 }
-```
 
-**go-funk with named functions:**
-```go
-res.Sources = funk.Map(cv.Sources, excludeModerate).([]model.SourceVulnerability)
-```
-
-**fluentfp:**
-```go
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed:** Both versions benefit equally from extracting named functions — the nesting flattens either way. The difference that remains is the `.([]model.SourceVulnerability)` assertion. And inside `excludeModerate`, funk still needs `.([]model.Vulnerability)` on the inner filter, while fluentfp's `RemoveIf` returns a typed slice directly.
+**What changed:** Extraction helps both pipelines equally — both are one-liners. But compare what's *inside* `excludeModerate`: funk's version still has an inline callback and `.([]model.Vulnerability)` assertion. fluentfp's version has `RemoveIf(isModerateSeverity)` — a named predicate, no assertion, and the positive name reads naturally with `RemoveIf`.
 
 ---
 
@@ -178,40 +146,51 @@ func filterRecipesByIngredients(
 }
 ```
 
-**Named functions (shared by both rewrites):**
+**go-funk with extraction:**
 ```go
 // getItem returns the item name from an inventory item.
 getItem := func(i m.InventoryItem) string { return i.Item }
 
-// isAvailable returns true if the ingredient is optional or in the inventory.
-isAvailable := func(i m.RecipeIngredient) bool {
-	return i.Optional || inventory[i.Item]
-}
-
-// allIngredientsAvailable returns true if every ingredient in r is available.
-allIngredientsAvailable := func(r m.Recipe) bool {
-	return slice.From(r.Ingredients).Every(isAvailable)
-}
-```
-
-**go-funk with named functions:**
-```go
 items := addAlwaysAvailableIngredients(
-	funk.Map(inventoryItems, getItem).([]string))
-inventory := slice.ToSet(items)
+    funk.Map(inventoryItems, getItem).([]string))
+
+// isAvailable returns true if the ingredient is optional or in inventory.
+// funk.Contains does O(n) linear scan via reflection on each call.
+isAvailable := func(i m.RecipeIngredient) bool {
+    return i.Optional || funk.Contains(items, i.Item)
+}
+
+// allIngredientsAvailable returns true if every ingredient is available.
+allIngredientsAvailable := func(r m.Recipe) bool {
+    bools := funk.Map(r.Ingredients, isAvailable).([]bool)
+    return funk.Reduce(bools, func(a, b bool) bool { return a && b }, true).(bool)
+}
 
 return funk.Filter(recipes, allIngredientsAvailable).([]m.Recipe)
 ```
 
-**fluentfp:**
+**fluentfp with extraction:**
 ```go
+// getItem returns the item name from an inventory item.
+getItem := func(i m.InventoryItem) string { return i.Item }
+
 items := addAlwaysAvailableIngredients(slice.From(inventoryItems).ToString(getItem))
 inventory := slice.ToSet(items)
+
+// isAvailable returns true if the ingredient is optional or in inventory.
+isAvailable := func(i m.RecipeIngredient) bool {
+    return i.Optional || inventory[i.Item]
+}
+
+// allIngredientsAvailable returns true if every ingredient is available.
+allIngredientsAvailable := func(r m.Recipe) bool {
+    return slice.From(r.Ingredients).Every(isAvailable)
+}
 
 return slice.From(recipes).KeepIf(allIngredientsAvailable)
 ```
 
-**What changed:** With named functions, both versions flatten to two lines of pipeline. The remaining differences: funk needs `.([]string)` and `.([]m.Recipe)` assertions; fluentfp doesn't. And `funk.Contains` does O(n) linear scan via reflection on every ingredient of every recipe; `slice.ToSet` gives O(1) map lookup.
+**What changed:** Extraction helps both — both pipelines end as one-liners. But compare `allIngredientsAvailable`: funk's is `funk.Reduce(funk.Map(ingredients, isAvailable).([]bool), andReducer, true).(bool)` — Map+Reduce with two type assertions and a reducer callback, just to express "every ingredient is available." fluentfp's is `slice.From(ingredients).Every(isAvailable)`. And `funk.Contains` inside `isAvailable` does O(n) reflection-based linear scan per ingredient per recipe; `slice.ToSet` converts once to a map for O(1) lookup.
 
 ---
 
@@ -297,60 +276,6 @@ groups := duplicates.Convert(toSummary)
 ```
 
 **What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. The functions can't be typed as `func(StyleSection) string` because go-linq's API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `maps.Values` loses go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
-
----
-
-### —. Type continuity through the pipeline — erda-project/erda
-
-**Source:** [linegraph.go#L34-L50](https://github.com/erda-project/erda/blob/65455005860d02a814798cb2d6b77e6412658cfc/internal/apps/msp/apm/service/common/model/linegraph.go#L34-L50)
-**Library:** go-linq | **Pain point:** Type information erased between pipeline stages
-
-**Original:**
-```go
-linq.From(graph).Where(func(i interface{}) bool {
-    return i.(*LineGraphMetaData).Dimension == line.Dimensions[0]
-}).Select(func(i interface{}) interface{} {
-    t := i.(*LineGraphMetaData).Time
-    t = strings.ReplaceAll(t, "T", " ")
-    t = strings.ReplaceAll(t, "Z", "")
-    return t
-}).ToSlice(&xAxis)
-```
-
-**go-linq with named functions** (callbacks still require `interface{}` signatures):
-```go
-matchesDimension := func(i interface{}) bool {
-    return i.(*LineGraphMetaData).Dimension == line.Dimensions[0]
-}
-formatTime := func(i interface{}) interface{} {
-    t := i.(*LineGraphMetaData).Time
-    t = strings.ReplaceAll(t, "T", " ")
-    return strings.ReplaceAll(t, "Z", "")
-}
-
-linq.From(graph).Where(matchesDimension).Select(formatTime).ToSlice(&xAxis)
-```
-
-**Named functions (fluentfp):**
-```go
-// matchesDimension returns true if the metadata matches the target dimension.
-matchesDimension := func(m *LineGraphMetaData) bool {
-    return m.Dimension == line.Dimensions[0]
-}
-
-// formatTime extracts and cleans the time string from metadata.
-formatTime := func(m *LineGraphMetaData) string {
-    t := strings.ReplaceAll(m.Time, "T", " ")
-    return strings.ReplaceAll(t, "Z", "")
-}
-```
-
-**fluentfp:**
-```go
-xAxis := slice.From(graph).KeepIf(matchesDimension).ToString(formatTime)
-```
-
-**What changed:** With named functions, both pipelines are one-liners. But compare the function signatures: go-linq's `matchesDimension` takes `interface{}` and asserts `*LineGraphMetaData` inside; fluentfp's takes `*LineGraphMetaData` directly. The type information doesn't *flow* through go-linq's pipeline — each stage starts from `interface{}` with no memory of what came before. fluentfp's generic chain carries the element type from `slice.From` through `KeepIf` into `ToString` without restating it.
 
 ---
 
