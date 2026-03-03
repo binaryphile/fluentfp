@@ -87,7 +87,7 @@ func tokenize(s string) []string {
 }
 ```
 
-**What changed:** Both pipelines are clean after extraction. The remaining difference is structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly — each extracted function is a one-line wrapper around a stdlib call. fluentfp accepts them as-is.
+**What changed:** Both pipelines are clean after extraction. The remaining difference is structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly — each extracted function is a one-line wrapper around a stdlib call. fluentfp accepts them as-is. lo could also drop the intermediate variable with `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)`, but the function calls nest in reverse execution order — filter wraps map wraps split.
 
 ---
 
