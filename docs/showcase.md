@@ -85,12 +85,10 @@ func tokenize(s string) []string {
 
 **fluentfp:**
 ```go
-func tokenize(s string) []string {
-    return splitTokens(s).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
-}
+tokens := splitTokens(s).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
 ```
 
-**What changed:** Read both aloud. fluentfp: "split tokens, keep if is not blank, convert to lower." lo: "map split tokens to lower" then "filter tokens, is not blank" — clear, but two statements where fluentfp chains one. lo could also drop the variable with `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)`, but that nests in reverse execution order — filter wraps map wraps split. The other difference is structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly — each extracted function is a one-line wrapper around a stdlib call. fluentfp accepts them as-is. *Note the interoperability trick: `splitTokens` returns `slice.Mapper[string]`, which lo accepts as `[]string` since `Mapper` is a defined type on `[]string`. fluentfp chains directly; lo gets implicit conversion.*
+**What changed:** Read both aloud. fluentfp: "split tokens, keep if is not blank, convert to lower." lo: "map split tokens to lower" then "filter tokens, is not blank" — clear, but two statements where fluentfp is a single expression compact enough to inline at the call site. lo could also drop the variable with `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)`, but that nests in reverse execution order — filter wraps map wraps split. The other difference is structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly — each extracted function is a one-line wrapper around a stdlib call. fluentfp accepts them as-is. *Note the interoperability trick: `splitTokens` returns `slice.Mapper[string]`, which lo accepts as `[]string` since `Mapper` is a defined type on `[]string`. fluentfp chains directly; lo gets implicit conversion.*
 
 ---
 
