@@ -94,9 +94,7 @@ c.IPPrefixesIgnore = funk.Map(c.IPPrefixesIgnore, func(s string) string { return
 ```go
 // parseCSV splits a comma-separated string into trimmed, non-empty values.
 parseCSV := func(s string) []string {
-	return slice.From(strings.Split(s, ",")).
-		KeepIf(lof.IsNotEmpty).
-		Convert(strings.TrimSpace)
+	return slice.From(strings.Split(s, ",")).KeepIf(lof.IsNotEmpty).Convert(strings.TrimSpace)
 }
 
 c.Domains = parseCSV(domains)
