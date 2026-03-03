@@ -281,46 +281,54 @@ result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
 
 ---
 
-### —. Optional subsystem cleanup — etcd-io/etcd
+### —. Optional listener cleanup — nats-io/nats-server
 
-**Source:** [server/etcdserver/server.go#L945-L963](https://github.com/etcd-io/etcd/blob/main/server/etcdserver/server.go#L945-L963)
-**Pain point:** Scattered nil checks for subsystems that may not be initialized
+**Source:** [server/server.go — Shutdown()](https://github.com/nats-io/nats-server/blob/main/server/server.go)
+**Pain point:** Seven identical nil-check-close blocks for optional `net.Listener` fields
 
-**Original:**
+**Original** (7 of 7 — all `net.Listener`, each enabled by a different feature):
 ```go
-func (s *EtcdServer) Cleanup() {
-    // kv, lessor and backend can be nil if running without v3 enabled
-    // or running unit tests.
-    if s.lessor != nil {
-        s.lessor.Stop()
-    }
-    if s.kv != nil {
-        s.kv.Close()
-    }
-    if s.authStore != nil {
-        s.authStore.Close()
-    }
-    if s.be != nil {
-        s.be.Close()
-    }
-    if s.compactor != nil {
-        s.compactor.Stop()
-    }
+if s.listener != nil {
+    s.listener.Close()
+    s.listener = nil
+}
+if s.mqtt.listener != nil {
+    s.mqtt.listener.Close()
+    s.mqtt.listener = nil
+}
+if s.leafNodeListener != nil {
+    s.leafNodeListener.Close()
+    s.leafNodeListener = nil
+}
+if s.routeListener != nil {
+    s.routeListener.Close()
+    s.routeListener = nil
+}
+if s.gatewayListener != nil {
+    s.gatewayListener.Close()
+    s.gatewayListener = nil
+}
+if s.http != nil {
+    s.http.Close()
+    s.http = nil
+}
+if s.profiler != nil {
+    s.profiler.Close()
 }
 ```
 
-**fluentfp** — each subsystem gets a wrapper type that embeds `option.Basic[T]` and exposes unconditional methods (e.g., `LessorOption` wraps `option.Basic[lease.Lessor]` and adds a `Stop()` that delegates via `IfOk`). The struct fields change from raw interfaces to these wrapper types. See [advanced_option.go](../examples/advanced_option.go) for the full pattern.
+**fluentfp** — one `ListenerOption` type wraps `option.Basic[net.Listener]` and adds a `Close()` method that delegates via `IfOk`. All seven struct fields change from `net.Listener` to `ListenerOption`. See [advanced_option.go](../examples/advanced_option.go) for the full pattern.
 ```go
-func (s *EtcdServer) Cleanup() {
-    s.lessor.Stop()
-    s.kv.Close()
-    s.authStore.Close()
-    s.be.Close()
-    s.compactor.Stop()
-}
+s.listener.Close()
+s.mqtt.listener.Close()
+s.leafNodeListener.Close()
+s.routeListener.Close()
+s.gatewayListener.Close()
+s.http.Close()
+s.profiler.Close()
 ```
 
-**What changed:** The nil checks are gone entirely — not replaced with `IfOk`, just gone. Each wrapper type's method internally calls the underlying subsystem only when present. The comment in the original — "can be nil if running without v3" — documents exactly the semantic that options encode: presence vs absence. The zero value of an option wrapper is automatically not-ok, so uninitialized fields need no explicit construction. This is not a localized refactor — it's an architectural migration. The struct field types change, constructors must wrap values, and every `if s.kv != nil` elsewhere must move into the wrapper type. The payoff scales with the number of call sites: each nil check disappears from calling code and lives in one place inside the wrapper.
+**What changed:** Seven 3-line nil-check blocks become seven unconditional calls. Because all fields share the same type, one `ListenerOption` wrapper serves all seven — the pattern pays for one type definition and reuses it everywhere. The nil checks aren't replaced with `IfOk` calls; they live inside `ListenerOption.Close()`, written once. The zero value of `ListenerOption{}` is automatically not-ok, so fields for disabled features need no explicit construction. This is an architectural migration — struct field types change and constructors must wrap listeners in `option.Of` — but the payoff scales: every nil check on every listener across the codebase disappears into the wrapper.
 
 ---
 
