@@ -75,8 +75,7 @@ isNotBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
 **lo with extraction:**
 ```go
 func tokenize(s string) []string {
-    tokens := splitTokens(s)
-    tokens = lo.Map(tokens, toLower)
+    tokens := lo.Map(splitTokens(s), toLower)
     return lo.Filter(tokens, isNotBlank)
 }
 ```
@@ -84,11 +83,11 @@ func tokenize(s string) []string {
 **fluentfp:**
 ```go
 func tokenize(s string) []string {
-    return slice.From(splitTokens(s)).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
+    return slice.From(splitTokens(s)).Convert(strings.ToLower).KeepIf(lof.IsNotBlank)
 }
 ```
 
-**What changed:** After extraction, lo's pipeline is clean — `lo.Map(tokens, toLower)` reads well. The remaining difference is small but structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly. lo includes the index for consistency (a deliberate design choice that pays off when you need it), but for callbacks that don't use it, each named function is a one-line wrapper around a stdlib call. fluentfp accepts `strings.ToLower` and `lof.IsNotBlank` as-is — seven lines of function body become two, at the cost of a `slice.From` wrapper.
+**What changed:** Both pipelines are clean after extraction. The remaining difference is structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly — each extracted function is a one-line wrapper around a stdlib call. fluentfp accepts them as-is.
 
 ---
 
