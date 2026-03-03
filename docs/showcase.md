@@ -4,6 +4,8 @@ A curated selection of real code from real GitHub projects, rewritten with fluen
 
 This is a showcase, not a balanced analysis. It intentionally highlights where fluentfp improves on competitors. For an honest gap analysis of what fluentfp lacks, see [feature-gaps.md](feature-gaps.md). For a synthetic library comparison, see [comparison.md](../comparison.md).
 
+These examples compare FP libraries, not FP vs plain Go. In many cases, a `for` loop with 4–6 lines and zero abstraction is a legitimate alternative — and in performance-critical paths, it's the lowest-overhead option. fluentfp optimizes for clarity and composability over allocation-free hot loops. Chaining methods like `KeepIf` and `Convert` may allocate intermediate slices; profile before using in tight inner loops.
+
 The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
@@ -23,13 +25,14 @@ closedIssues := funk.Filter(issues, func(i model.Issue) bool {
 **fluentfp:**
 ```go
 // isClosed returns true if the issue has been closed.
+// With an IsClosed() method on the type, this collapses to KeepIf(Issue.IsClosed).
 isClosed := func(i model.Issue) bool {
     return i.State == model.IssueStateClosed
 }
 closedIssues := slice.From(issues).KeepIf(isClosed)
 ```
 
-**What changed:** The simplest possible filter — one field comparison — still takes four parsing steps in funk because of the callback/assertion ceremony. fluentfp needs only the predicate logic: a named function and `KeepIf`. No type assertion, no `.([]model.Issue)` suffix. If the domain type defined an `IsClosed()` method, this would collapse further to `KeepIf(Issue.IsClosed)` — but even without one, the named function reads as intent.
+**What changed:** You could extract a named predicate in funk too — naming isn't library-specific. But the `.([]model.Issue)` type assertion at the end is. fluentfp's generics eliminate the assertion entirely, so the predicate and `KeepIf` are all that remain.
 
 ---
 
@@ -59,7 +62,7 @@ func tokenize(s string) []string {
 }
 ```
 
-**What changed:** Two stdlib functions — `strings.ToLower` and a whitespace check — each require a full callback wrapper just to add an index parameter that's immediately discarded. fluentfp passes `strings.ToLower` directly and names the predicate `lof.IsNotBlank`. Seven lines of ceremony become one line of intent, at the cost of a `slice.From` wrapper.
+**What changed:** lo's API includes an index parameter on every callback for consistency — a deliberate design choice, but one that forces wrapping even simple stdlib functions like `strings.ToLower` in a closure. fluentfp accepts the stdlib function directly. Seven lines of function body become two, at the cost of a `slice.From` wrapper.
 
 ---
 
@@ -129,7 +132,7 @@ excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability 
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed:** Nesting is the killer. funk.Map containing funk.Filter creates a three-level mental stack with two type assertions to validate on exit. fluentfp's named function `excludeModerate` lets the name carry the intent, so the reader doesn't have to hold the nested implementation in their head while reading the pipeline. The trade-off is indirection — you trust the name or jump to the definition.
+**What changed:** You could extract `excludeModerate` in funk too — but the two `.(type)` assertions would remain, and the inner `funk.Filter` still returns `interface{}` requiring a cast before assignment. fluentfp's generics eliminate both assertions. The named function flattens a three-level mental stack (Map → Filter → assertion) into a one-level pipeline. The trade-off is indirection — you trust the name or jump to the definition.
 
 ---
 
