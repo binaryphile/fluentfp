@@ -63,8 +63,11 @@ func tokenize(s string) []string {
 }
 ```
 
-**lo extracted functions:**
+**Extracted:**
 ```go
+var tokenPattern = regexp.MustCompile("[ .()/:]+")
+
+// lo-specific — stdlib functions need wrappers for the _ int parameter
 toLower := func(s string, _ int) string { return strings.ToLower(s) }
 isNotBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
 ```
@@ -72,7 +75,7 @@ isNotBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
 **lo with extraction:**
 ```go
 func tokenize(s string) []string {
-    tokens := regexp.MustCompile("[ .()/:]+").Split(s, -1)
+    tokens := tokenPattern.Split(s, -1)
     tokens = lo.Map(tokens, toLower)
     return lo.Filter(tokens, isNotBlank)
 }
@@ -80,8 +83,6 @@ func tokenize(s string) []string {
 
 **fluentfp:**
 ```go
-var tokenPattern = regexp.MustCompile("[ .()/:]+")
-
 func tokenize(s string) []string {
     tokens := slice.From(tokenPattern.Split(s, -1))
     return tokens.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
