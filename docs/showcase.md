@@ -171,37 +171,40 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 }).([]model.SourceVulnerability)
 ```
 
-**Extracted:**
+**Extracted (go-funk):**
 ```go
 // isModerateSeverity returns true if the vulnerability has MODERATE severity.
 isModerateSeverity := func(v model.Vulnerability) bool {
     return v.Severity == "MODERATE"
 }
-```
 
-**go-funk:**
-```go
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
     sv.Vulnerabilities = funk.Filter(sv.Vulnerabilities, func(v model.Vulnerability) bool {
         return !isModerateSeverity(v)
     }).([]model.Vulnerability)
     return sv
 }
-
-res.Sources = funk.Map(cv.Sources, excludeModerate).([]model.SourceVulnerability)
 ```
 
-**fluentfp:**
+**Extracted (fluentfp):**
 ```go
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
     sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(isModerateSeverity)
     return sv
 }
+```
 
+**go-funk:**
+```go
+res.Sources = funk.Map(cv.Sources, excludeModerate).([]model.SourceVulnerability)
+```
+
+**fluentfp:**
+```go
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed (extraction ergonomics):** With a shared `isModerateSeverity` predicate, the difference moves inside `excludeModerate`. funk has no `Reject`/`RemoveIf`, so it wraps the predicate in `func(v) bool { return !isModerateSeverity(v) }` plus a `.([]model.Vulnerability)` assertion. fluentfp's `RemoveIf(isModerateSeverity)` uses the predicate directly — no negation wrapper, no assertion.
+**What changed (extraction ergonomics):** Both pipelines reduce to one-liners. The difference is inside `excludeModerate`: funk has no `RemoveIf`, so it wraps `isModerateSeverity` in a negation closure plus a `.([]model.Vulnerability)` assertion. fluentfp's `RemoveIf(isModerateSeverity)` uses the predicate directly — no negation wrapper, no assertion.
 
 ---
 
