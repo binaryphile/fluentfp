@@ -10,32 +10,6 @@ The final entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
 
-### —. Callback and assertion ceremony on a one-liner — a-grasso/deprec
-
-**Source:** [cores/processing.go#L31](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L31)
-**Library:** go-funk | **Pain point:** Every funk call needs `.([]Type)` suffix
-
-**Original:**
-```go
-closedIssues := funk.Filter(issues, func(i model.Issue) bool {
-    return i.State == model.IssueStateClosed
-}).([]model.Issue)
-```
-
-**fluentfp:**
-```go
-// isClosed returns true if the issue has been closed.
-// With an IsClosed() method on the type, this collapses to KeepIf(Issue.IsClosed).
-isClosed := func(i model.Issue) bool {
-    return i.State == model.IssueStateClosed
-}
-closedIssues := slice.From(issues).KeepIf(isClosed)
-```
-
-**What changed:** You could extract a named predicate in funk too — naming isn't library-specific. But the `.([]model.Issue)` type assertion at the end is. fluentfp's generics eliminate the assertion entirely, so the predicate and `KeepIf` are all that remain.
-
----
-
 ### —. Callback wrapper noise — ananthakumaran/paisa
 
 **Source:** [internal/prediction/tf_idf.go](https://github.com/ananthakumaran/paisa/blob/55da8fdacff6c7202133dff01e2d1e2b3a1619ba/internal/prediction/tf_idf.go)
@@ -63,6 +37,32 @@ func tokenize(s string) []string {
 ```
 
 **What changed:** lo's API includes an index parameter on every callback for consistency — a deliberate design choice, but one that forces wrapping even simple stdlib functions like `strings.ToLower` in a closure. fluentfp accepts the stdlib function directly. Seven lines of function body become two, at the cost of a `slice.From` wrapper.
+
+---
+
+### —. Assertion ceremony on a one-liner — a-grasso/deprec
+
+**Source:** [cores/processing.go#L31](https://github.com/a-grasso/deprec/blob/2853fc391cf9fe63e785673a5d819b2784d69beb/cores/processing.go#L31)
+**Library:** go-funk | **Pain point:** Every funk call needs `.([]Type)` suffix
+
+**Original:**
+```go
+closedIssues := funk.Filter(issues, func(i model.Issue) bool {
+    return i.State == model.IssueStateClosed
+}).([]model.Issue)
+```
+
+**fluentfp:**
+```go
+// isClosed returns true if the issue has been closed.
+// With an IsClosed() method on the type, this collapses to KeepIf(Issue.IsClosed).
+isClosed := func(i model.Issue) bool {
+    return i.State == model.IssueStateClosed
+}
+closedIssues := slice.From(issues).KeepIf(isClosed)
+```
+
+**What changed:** You could extract a named predicate in funk too — naming isn't library-specific. But the `.([]model.Issue)` type assertion at the end is. fluentfp's generics eliminate the assertion entirely, so the predicate and `KeepIf` are all that remain.
 
 ---
 
