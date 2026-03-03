@@ -6,9 +6,11 @@ This is a showcase, not a balanced analysis. It intentionally highlights where f
 
 These examples compare FP libraries, not FP vs plain Go. In many cases, a `for` loop with 4–6 lines and zero abstraction is a legitimate alternative — and in performance-critical paths, it's the lowest-overhead option. fluentfp optimizes for clarity and composability over allocation-free hot loops. Chaining methods like `KeepIf` and `Convert` may allocate intermediate slices; profile before using in tight inner loops.
 
+A note on the libraries compared here: go-funk and go-linq were pioneering efforts that brought FP idioms to Go before generics existed. Their `interface{}`-based APIs were the best available approach at the time, and they proved the demand that led to generics being added to the language. The pain points shown below are artifacts of that era, not design failures.
+
 Where the original code uses inline anonymous functions, we extract them into named functions before comparing pipelines. This is standard refactoring that any developer would do regardless of library choice — it shouldn't count as a library advantage. Separating the extraction step makes the real difference visible: what changes in the pipeline itself, after both sides have had the same cleanup applied.
 
-The final entry shows a trade-off where a competitor is cleaner than fluentfp.
+One entry shows a trade-off where a competitor is cleaner than fluentfp.
 
 ---
 
@@ -88,7 +90,9 @@ func tokenize(s string) []string {
 tokens := splitTokens(s).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
 ```
 
-**What changed:** Read both aloud. fluentfp: "split tokens, keep if is not blank, convert to lower." lo: "map split tokens to lower" then "filter tokens, is not blank" — clear, but two statements where fluentfp is a single expression compact enough to inline at the call site. lo could also drop the variable with `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)`, but that nests in reverse execution order — filter wraps map wraps split. The other difference is structural: lo's `_ int` parameter persists in every callback signature, so `strings.ToLower` and `lof.IsNotBlank` can't plug in directly — each extracted function is a one-line wrapper around a stdlib call. fluentfp accepts them as-is. *Note the interoperability trick: `splitTokens` returns `slice.Mapper[string]`, which lo accepts as `[]string` since `Mapper` is a defined type on `[]string`. fluentfp chains directly; lo gets implicit conversion.*
+**What changed:** Read both aloud. fluentfp: "split tokens, keep if is not blank, convert to lower." lo: "map split tokens to lower" then "filter tokens, is not blank" — clear, but two statements where fluentfp is a single expression compact enough to inline at the call site. lo could also drop the variable with `lo.Filter(lo.Map(splitTokens(s), toLower), isNotBlank)`, but that nests in reverse execution order — filter wraps map wraps split. The other difference is structural: lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice. But when you don't need the index, every callback becomes a wrapper: `strings.ToLower` and `lof.IsNotBlank` can't plug in directly. fluentfp accepts them as-is.
+
+*Interoperability note: `splitTokens` returns `slice.Mapper[string]`, which lo accepts as `[]string` since `Mapper` is a defined type on `[]string`. fluentfp chains directly; lo gets implicit conversion.*
 
 ---
 
@@ -343,7 +347,7 @@ c.qlogger.RecordEvent(qlog.ALPNInformation{
 c.qlogger.RecordEvent(qlog.ConnectionClosed{...})
 ```
 
-**What changed:** 31 guard clauses disappear from a 2,400-line file. The alternative is a no-op implementation of the `Recorder` interface — also valid, but it relies on every constructor path remembering to set it. If any path misses it, you get a nil pointer panic at runtime. The option zero value is safe by construction: `RecorderOption{}` is automatically not-ok, so `RecordEvent` is a no-op without any initialization. The type signature also documents the optionality — `qlogger RecorderOption` tells you the dependency is conditional; `qlogger qlogwriter.Recorder` doesn't. *Caveat: The fourth example has a compound condition (`&& !errors.As(...)`) that can't fold into `RecordEvent` — that guard stays.*
+**What changed:** 31 guard clauses disappear from a 2,400-line file. The alternative is a no-op implementation of the `Recorder` interface — also valid, and simpler when there's a single constructor. But quic-go creates connections through multiple paths (client dial, server accept, 0-RTT, retry). A no-op implementation works if every path remembers to set it; miss one and you get a nil pointer panic at runtime. The option zero value is safe without any initialization: `RecorderOption{}` is automatically not-ok, so `RecordEvent` is a no-op by default. A code path that forgets to initialize the recorder silently does the right thing instead of crashing. The type signature also documents the optionality — `qlogger RecorderOption` tells you the dependency is conditional; `qlogger qlogwriter.Recorder` doesn't. *Caveat: The fourth example has a compound condition (`&& !errors.As(...)`) that can't fold into `RecordEvent` — that guard stays.*
 
 ---
 
@@ -369,3 +373,15 @@ names := slice.MapTo[string](users).Map(User.Name)
 **When it matters:** Only when mapping to a different type. Same-type operations (`.KeepIf`, `.Convert`, `.Find`) need no extra type parameter. The `To*` methods (`.ToString`, `.ToInt`, `.ToFloat64`) also avoid it for common types.
 
 **The trade-off:** fluentfp's method chaining reads left-to-right but costs one explicit type parameter per cross-type mapping. lo's standalone functions infer types but read inside-out when composed. Each library optimizes for a different axis.
+
+---
+
+### When fluentfp fits — and when it doesn't
+
+These rewrites share a pattern: fluentfp replaces *incidental structure* (type assertions, wrapper callbacks, temporary variables, nil guards) with *declarative intent*. The wins are real but not universal.
+
+**Good fit:** Codebases that look like the examples above — repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
+
+**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `OfCall`, `Coalesce`, `IfOk`) that reads clearly once learned but has an onboarding cost.
+
+**Not a replacement for loops:** As noted in the introduction, a `for` loop with 4–6 lines and zero abstraction is often the right choice. fluentfp targets the cases where loops accumulate ceremony faster than clarity.
