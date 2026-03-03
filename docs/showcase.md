@@ -61,12 +61,15 @@ func tokenize(s string) []string {
 }
 ```
 
+**lo extracted functions:**
+```go
+toLower := func(s string, _ int) string { return strings.ToLower(s) }
+isNotBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
+```
+
 **lo with extraction:**
 ```go
 func tokenize(s string) []string {
-    toLower := func(s string, _ int) string { return strings.ToLower(s) }
-    isNotBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
-
     tokens := regexp.MustCompile("[ .()/:]+").Split(s, -1)
     tokens = lo.Map(tokens, toLower)
     return lo.Filter(tokens, isNotBlank)
@@ -75,8 +78,10 @@ func tokenize(s string) []string {
 
 **fluentfp:**
 ```go
+var tokenPattern = regexp.MustCompile("[ .()/:]+")
+
 func tokenize(s string) []string {
-    tokens := slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
+    tokens := slice.From(tokenPattern.Split(s, -1))
     return tokens.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
 }
 ```
@@ -165,7 +170,7 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 }).([]model.SourceVulnerability)
 ```
 
-**go-funk with extraction:**
+**go-funk extracted functions:**
 ```go
 excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability {
     sv.Vulnerabilities = funk.Filter(sv.Vulnerabilities, func(v model.Vulnerability) bool {
@@ -173,11 +178,14 @@ excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability 
     }).([]model.Vulnerability)
     return sv
 }
+```
 
+**go-funk:**
+```go
 res.Sources = funk.Map(cv.Sources, excludeModerate).([]model.SourceVulnerability)
 ```
 
-**fluentfp with extraction:**
+**fluentfp extracted functions:**
 ```go
 // isModerateSeverity returns true if the vulnerability has MODERATE severity.
 isModerateSeverity := func(v model.Vulnerability) bool {
@@ -187,7 +195,10 @@ excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability 
     sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(isModerateSeverity)
     return sv
 }
+```
 
+**fluentfp:**
+```go
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
@@ -222,7 +233,7 @@ func filterRecipesByIngredients(
 }
 ```
 
-**go-funk with extraction:**
+**go-funk extracted functions:**
 ```go
 // getItem returns the item name from an inventory item.
 getItem := func(i m.InventoryItem) string { return i.Item }
@@ -241,11 +252,14 @@ allIngredientsAvailable := func(r m.Recipe) bool {
     bools := funk.Map(r.Ingredients, isAvailable).([]bool)
     return funk.Reduce(bools, func(a, b bool) bool { return a && b }, true).(bool)
 }
+```
 
+**go-funk:**
+```go
 return funk.Filter(recipes, allIngredientsAvailable).([]m.Recipe)
 ```
 
-**fluentfp with extraction:**
+**fluentfp extracted functions:**
 ```go
 // getItem returns the item name from an inventory item.
 getItem := func(i m.InventoryItem) string { return i.Item }
@@ -262,7 +276,10 @@ isAvailable := func(i m.RecipeIngredient) bool {
 allIngredientsAvailable := func(r m.Recipe) bool {
     return slice.From(r.Ingredients).Every(isAvailable)
 }
+```
 
+**fluentfp:**
+```go
 return slice.From(recipes).KeepIf(allIngredientsAvailable)
 ```
 
@@ -298,14 +315,17 @@ linq.From(styleList).GroupBy(func(script interface{}) interface{} {
     }).ToSlice(&groups)
 ```
 
-**go-linq with named functions** (callbacks still require `interface{}` signatures):
+**go-linq extracted functions** (callbacks still require `interface{}` signatures):
 ```go
 getHash := func(script interface{}) interface{} { return script.(StyleSection).valueHash }
 identity := func(script interface{}) interface{} { return script }
 hasDuplicates := func(group interface{}) bool { return len(group.(linq.Group).Group) > 1 }
 groupSize := func(group interface{}) interface{} { return len(group.(linq.Group).Group) }
 toSummary := func(group linq.Group) interface{} { ... }
+```
 
+**go-linq:**
+```go
 linq.From(styleList).
     GroupBy(getHash, identity).
     Where(hasDuplicates).
