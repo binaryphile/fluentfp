@@ -183,7 +183,7 @@ linq.From(styleList).GroupBy(func(script interface{}) interface{} {
     }).ToSlice(&groups)
 ```
 
-**go-linq extracted functions** (callbacks still require `interface{}` signatures):
+**Extracted (go-linq)** — callbacks still require `interface{}` signatures:
 ```go
 getHash := func(script interface{}) interface{} { return script.(StyleSection).valueHash }
 identity := func(script interface{}) interface{} { return script }
@@ -192,17 +192,7 @@ groupSize := func(group interface{}) interface{} { return len(group.(linq.Group)
 toSummary := func(group linq.Group) interface{} { ... }
 ```
 
-**go-linq:**
-```go
-linq.From(styleList).
-    GroupBy(getHash, identity).
-    Where(hasDuplicates).
-    OrderByDescending(groupSize).
-    SelectT(toSummary).
-    ToSlice(&groups)
-```
-
-**Named functions (fluentfp):**
+**Extracted (fluentfp):**
 ```go
 // groupByHash groups style sections by their value hash.
 groupByHash := func(m map[string][]StyleSection, s StyleSection) map[string][]StyleSection {
@@ -226,6 +216,16 @@ toSummary := func(group []StyleSection) SectionSummary {
     names := slice.From(group).ToString(formatSectionLabel)
     return SectionSummary{Names: names, ...}
 }
+```
+
+**go-linq:**
+```go
+linq.From(styleList).
+    GroupBy(getHash, identity).
+    Where(hasDuplicates).
+    OrderByDescending(groupSize).
+    SelectT(toSummary).
+    ToSlice(&groups)
 ```
 
 **fluentfp (GroupBy via Fold — more verbose but type-safe):**
