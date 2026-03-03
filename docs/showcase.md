@@ -65,7 +65,7 @@ func tokenize(s string) []string {
 
 **Extracted:**
 ```go
-var splitTokens = regexp.MustCompile("[ .()/:]+").Split
+splitTokens := func(s string) []string { return regexp.MustCompile("[ .()/:]+").Split(s, -1) }
 
 // lo-specific — stdlib functions need wrappers for the _ int parameter
 toLower := func(s string, _ int) string { return strings.ToLower(s) }
@@ -75,7 +75,7 @@ isNotBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
 **lo with extraction:**
 ```go
 func tokenize(s string) []string {
-    tokens := splitTokens(s, -1)
+    tokens := splitTokens(s)
     tokens = lo.Map(tokens, toLower)
     return lo.Filter(tokens, isNotBlank)
 }
@@ -84,7 +84,7 @@ func tokenize(s string) []string {
 **fluentfp:**
 ```go
 func tokenize(s string) []string {
-    return slice.From(splitTokens(s, -1)).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
+    return slice.From(splitTokens(s)).KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
 }
 ```
 
