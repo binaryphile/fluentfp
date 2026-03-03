@@ -29,7 +29,7 @@ func main() {
 	status = value.Of("complete").When(done).Or("pending")
 	fmt.Printf("status (done=%t): %s\n", done, status)
 
-	// Lazy evaluation with OfCall - function only called when condition is true
+	// Lazy evaluation - function only called when condition is true
 	fmt.Println("\n--- Lazy evaluation demo ---")
 
 	expensiveCall := func() string {
@@ -38,10 +38,10 @@ func main() {
 	}
 
 	useCache := true
-	result := value.OfCall(expensiveCall).When(useCache).Or("default")
+	result := value.Lazy(expensiveCall).When(useCache).Or("default")
 	fmt.Printf("useCache=%t, result: %s\n", useCache, result)
 
 	useCache = false
-	result = value.OfCall(expensiveCall).When(useCache).Or("default")
+	result = value.Lazy(expensiveCall).When(useCache).Or("default")
 	fmt.Printf("useCache=%t, result: %s\n", useCache, result)
 }

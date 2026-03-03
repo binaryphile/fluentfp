@@ -119,7 +119,7 @@ type Cond[T any] struct{ v T }
 type LazyCond[T any] struct{ fn func() T }
 ```
 
-Two types with identical fluent chain shape (`.When(bool).Or(T)`) but different constructors (`Of(T)` vs `OfCall(func() T)`).
+Two types with identical fluent chain shape (`.When(bool).Or(T)`) but different constructors (`Of(T)` vs `Lazy(func() T)`).
 
 **Why two types:** the caller picks based on evaluation cost. `Cond` evaluates the value eagerly. `LazyCond` never evaluates the function unless the condition is true — the unused branch's computation is never performed.
 

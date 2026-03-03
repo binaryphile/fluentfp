@@ -246,8 +246,8 @@ must.BeNil(os.Setenv("KEY", value))   // Good: invariant enforced
 import "github.com/binaryphile/fluentfp/value"
 
 // Value-first conditional selection
-value.Of(v).When(cond).Or(fallback)        // Eager
-value.OfCall(fn).When(cond).Or(fallback)   // Lazy preferred value
+value.Of(v).When(cond).Or(fallback)          // Eager
+value.Lazy(fn).When(cond).Or(fallback)       // Lazy preferred value
 value.Coalesce[T comparable](vals ...T) T  // First non-zero value
 ```
 
@@ -261,7 +261,7 @@ days := value.Of(sim.CurrentTick).When(sim.CurrentTick < 7).Or(7)
 status := value.Of("complete").When(done).Or("pending")
 
 // Lazy evaluation for expensive computations
-config := value.OfCall(loadFromDB).When(useCache).Or(defaultConfig)
+config := value.Lazy(loadFromDB).When(useCache).Or(defaultConfig)
 ```
 
 ### lof Package (Lower-Order Functions)
@@ -485,7 +485,7 @@ When multiple methods share **identical logic**, test ONE representative:
 - `slice.From`, `slice.MapTo` - just return input
 - `option.Of`, `option.NotOk` - just construct struct
 - `option.Get`, `option.IsOk` - just return fields
-- `value.Of`, `value.OfCall` - just store values
+- `value.Of`, `value.Lazy` - just store values
 - `value.When` (on Cond) - trivial delegation to option.New
 
 ### Coverage Baseline (2026-01-03)

@@ -79,19 +79,19 @@ port := hostOpt.ToInt(parsePort)
 
 ### Value Lazy Evaluation
 
-For `value.OfCall`, name expensive computations:
+For lazy evaluation with `value.Lazy`, name expensive computations:
 
 ```go
 // Inline for simple expressions
 result := value.Of(cached).When(cacheHit).Or(fetchFromDB())
 
 // Lazy: expensiveDefault only called when cache misses
-result := value.OfCall(expensiveDefault).When(!cacheHit).Or(cachedValue)
+result := value.Lazy(expensiveDefault).When(!cacheHit).Or(cachedValue)
 
 // Named when computation is complex
 // loadConfig reads and parses the config file.
 loadConfig := func() Config { return must.Get(parseConfigFile(path)) }
-cfg := value.OfCall(loadConfig).When(!useDefault).Or(defaultCfg)
+cfg := value.Lazy(loadConfig).When(!useDefault).Or(defaultCfg)
 ```
 
 ### Fold Handlers (either package)

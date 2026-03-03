@@ -36,9 +36,9 @@ type LazyCond[T any] struct {
 	fn func() T
 }
 
-// OfCall wraps a function for lazy conditional selection.
+// Lazy wraps a function for lazy conditional selection.
 // The function is only called if the condition is true.
-func OfCall[T any](fn func() T) LazyCond[T] {
+func Lazy[T any](fn func() T) LazyCond[T] {
 	return LazyCond[T]{fn: fn}
 }
 
