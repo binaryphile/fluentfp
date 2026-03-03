@@ -282,6 +282,71 @@ result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
 
 ---
 
+### Optional instrumentation — quic-go/quic-go
+
+**Source:** [connection.go](https://github.com/quic-go/quic-go/blob/master/connection.go)
+**Pain point:** 31 nil checks on an optional qlog recorder scattered across packet handling, error classification, and connection lifecycle
+
+**Original** (4 of 31 — representative sample from different methods):
+```go
+// in handleVersionNegotiationPacket
+if c.qlogger != nil {
+    c.qlogger.RecordEvent(qlog.PacketDropped{
+        Header:  qlog.PacketHeader{PacketType: qlog.PacketTypeVersionNegotiation},
+        Raw:     qlog.RawInfo{Length: int(p.Size())},
+        Trigger: qlog.PacketDropUnexpectedPacket,
+    })
+}
+
+// in handleLongHeaderPacket
+if c.qlogger != nil {
+    c.qlogger.RecordEvent(qlog.PacketDropped{
+        Header:     qlog.PacketHeader{PacketType: qlog.PacketTypeInitial},
+        Raw:        qlog.RawInfo{Length: int(p.Size())},
+        DatagramID: datagramID,
+        Trigger:    qlog.PacketDropUnknownConnectionID,
+    })
+}
+
+// in handleHandshakeComplete
+if c.qlogger != nil {
+    c.qlogger.RecordEvent(qlog.ALPNInformation{
+        ChosenALPN: c.cryptoStreamHandler.ConnectionState().NegotiatedProtocol,
+    })
+}
+
+// in handleCloseError
+if c.qlogger != nil && !errors.As(e, &recreateErr) {
+    c.qlogger.RecordEvent(qlog.ConnectionClosed{...})
+}
+```
+
+**fluentfp** — `qlogger` becomes a `RecorderOption` that embeds `option.Basic[qlogwriter.Recorder]` with a `RecordEvent` method that delegates via `IfOk`:
+```go
+c.qlogger.RecordEvent(qlog.PacketDropped{
+    Header:  qlog.PacketHeader{PacketType: qlog.PacketTypeVersionNegotiation},
+    Raw:     qlog.RawInfo{Length: int(p.Size())},
+    Trigger: qlog.PacketDropUnexpectedPacket,
+})
+
+c.qlogger.RecordEvent(qlog.PacketDropped{
+    Header:     qlog.PacketHeader{PacketType: qlog.PacketTypeInitial},
+    Raw:        qlog.RawInfo{Length: int(p.Size())},
+    DatagramID: datagramID,
+    Trigger:    qlog.PacketDropUnknownConnectionID,
+})
+
+c.qlogger.RecordEvent(qlog.ALPNInformation{
+    ChosenALPN: c.cryptoStreamHandler.ConnectionState().NegotiatedProtocol,
+})
+
+c.qlogger.RecordEvent(qlog.ConnectionClosed{...})
+```
+
+**What changed:** 31 guard clauses disappear from a 2,400-line file. The alternative is a no-op implementation of the `Recorder` interface — also valid, but it relies on every constructor path remembering to set it. If any path misses it, you get a nil pointer panic at runtime. The option zero value is safe by construction: `RecorderOption{}` is automatically not-ok, so `RecordEvent` is a no-op without any initialization. The type signature also documents the optionality — `qlogger RecorderOption` tells you the dependency is conditional; `qlogger qlogwriter.Recorder` doesn't. *Caveat: The fourth example has a compound condition (`&& !errors.As(...)`) that can't fold into `RecordEvent` — that guard stays.*
+
+---
+
 ### Trade-off: Explicit type parameter — fluentfp vs lo
 
 **Pain point:** fluentfp requires explicit type parameter where lo infers it
