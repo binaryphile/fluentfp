@@ -173,28 +173,28 @@ func filterRecipesByIngredients(
 }
 ```
 
+**Named functions:**
+```go
+// getItem returns the item name from an inventory item.
+getItem := func(i m.InventoryItem) string { return i.Item }
+
+// isAvailable returns true if the ingredient is optional or in the inventory.
+isAvailable := func(i m.RecipeIngredient) bool {
+	return i.Optional || inventory[i.Item]
+}
+
+// allIngredientsAvailable returns true if every ingredient in r is available.
+allIngredientsAvailable := func(r m.Recipe) bool {
+	return slice.From(r.Ingredients).Every(isAvailable)
+}
+```
+
 **fluentfp:**
 ```go
-func filterRecipesByIngredients(
-	inventoryItems []m.InventoryItem, recipes []m.Recipe) []m.Recipe {
+items := addAlwaysAvailableIngredients(slice.From(inventoryItems).ToString(getItem))
+inventory := slice.ToSet(items)
 
-	// getItem returns the item name from an inventory item.
-	getItem := func(i m.InventoryItem) string { return i.Item }
-	items := addAlwaysAvailableIngredients(
-		slice.From(inventoryItems).ToString(getItem))
-	inventory := slice.ToSet(items)
-
-	// isAvailable returns true if the ingredient is optional or in the inventory.
-	isAvailable := func(i m.RecipeIngredient) bool {
-		return i.Optional || inventory[i.Item]
-	}
-	// allIngredientsAvailable returns true if every ingredient in r is available.
-	allIngredientsAvailable := func(r m.Recipe) bool {
-		return slice.From(r.Ingredients).Every(isAvailable)
-	}
-
-	return slice.From(recipes).KeepIf(allIngredientsAvailable)
-}
+return slice.From(recipes).KeepIf(allIngredientsAvailable)
 ```
 
 **What changed:** Four runtime type assertions (`.([]string)`, `.([]bool)`, `.(bool)`, `.([]m.Recipe)`) eliminated. The quadruple nesting `Filter(Reduce(Map(Contains)))` becomes a flat pipeline: extract items → build set → check each recipe. `Every(isAvailable)` replaces the `Reduce(Map(bools), &&, true)` pattern — the intent reads as English: "keep recipes where every ingredient is available." Bonus: `funk.Contains` does O(n) linear scan via reflection on every ingredient of every recipe; `slice.ToSet` gives O(1) map lookup.
@@ -229,15 +229,13 @@ linq.From(styleList).GroupBy(func(script interface{}) interface{} {
     }).ToSlice(&groups)
 ```
 
-**fluentfp (GroupBy via Fold — more verbose but type-safe):**
-
+**Named functions:**
 ```go
 // groupByHash groups style sections by their value hash.
 groupByHash := func(m map[string][]StyleSection, s StyleSection) map[string][]StyleSection {
     m[s.valueHash] = append(m[s.valueHash], s)
     return m
 }
-grouped := slice.Fold(styleList, make(map[string][]StyleSection), groupByHash)
 
 // hasDuplicates returns true if the group has more than one section.
 hasDuplicates := func(g []StyleSection) bool { return len(g) > 1 }
@@ -245,19 +243,26 @@ hasDuplicates := func(g []StyleSection) bool { return len(g) > 1 }
 // groupSize returns the number of sections in a group.
 groupSize := func(g []StyleSection) int { return len(g) }
 
-duplicates := slice.SortByDesc(
-    slice.From(maps.Values(grouped)).KeepIf(hasDuplicates),
-    groupSize)
-
 // formatSectionLabel returns "name << filePath" for display.
 formatSectionLabel := func(s StyleSection) string {
     return fmt.Sprintf("%s << %s", s.name, s.filePath)
 }
+
 // toSummary builds a summary from a group of duplicate sections.
 toSummary := func(group []StyleSection) SectionSummary {
     names := slice.From(group).ToString(formatSectionLabel)
     return SectionSummary{Names: names, ...}
 }
+```
+
+**fluentfp (GroupBy via Fold — more verbose but type-safe):**
+```go
+grouped := slice.Fold(styleList, make(map[string][]StyleSection), groupByHash)
+
+duplicates := slice.SortByDesc(
+    slice.From(maps.Values(grouped)).KeepIf(hasDuplicates),
+    groupSize)
+
 groups := duplicates.Convert(toSummary)
 ```
 
@@ -282,20 +287,23 @@ linq.From(graph).Where(func(i interface{}) bool {
 }).ToSlice(&xAxis)
 ```
 
-**fluentfp:**
+**Named functions:**
 ```go
 // matchesDimension returns true if the metadata matches the target dimension.
 matchesDimension := func(m *LineGraphMetaData) bool {
     return m.Dimension == line.Dimensions[0]
 }
+
 // formatTime extracts and cleans the time string from metadata.
 formatTime := func(m *LineGraphMetaData) string {
     t := strings.ReplaceAll(m.Time, "T", " ")
     return strings.ReplaceAll(t, "Z", "")
 }
-xAxis := slice.From(graph).
-    KeepIf(matchesDimension).
-    ToString(formatTime)
+```
+
+**fluentfp:**
+```go
+xAxis := slice.From(graph).KeepIf(matchesDimension).ToString(formatTime)
 ```
 
 **What changed:** The deeper issue isn't just type erasure — it's that type information doesn't *flow* through the pipeline. The same `*LineGraphMetaData` assertion appears in both callbacks because each stage starts from `interface{}` with no memory of what came before. fluentfp's generic chain carries the element type from stage to stage — you establish it once at `slice.From` and it propagates through `KeepIf` into `ToString` without restating it.
