@@ -124,7 +124,7 @@ res.Sources = funk.Map(cv.Sources, func(sv model.SourceVulnerability) model.Sour
 }).([]model.SourceVulnerability)
 ```
 
-**fluentfp:**
+**Named functions (trivial enough that the names suffice at the call site):**
 ```go
 // isModerateSeverity returns true if the vulnerability has MODERATE severity.
 isModerateSeverity := func(v model.Vulnerability) bool {
@@ -135,10 +135,14 @@ excludeModerate := func(sv model.SourceVulnerability) model.SourceVulnerability 
     sv.Vulnerabilities = slice.From(sv.Vulnerabilities).RemoveIf(isModerateSeverity)
     return sv
 }
+```
+
+**fluentfp:**
+```go
 res.Sources = slice.From(cv.Sources).Convert(excludeModerate)
 ```
 
-**What changed:** You could extract `excludeModerate` in funk too — but the two `.(type)` assertions would remain, and the inner `funk.Filter` still returns `interface{}` requiring a cast before assignment. fluentfp's generics eliminate both assertions. The named function flattens a three-level mental stack (Map → Filter → assertion) into a one-level pipeline. The trade-off is indirection — you trust the name or jump to the definition.
+**What changed:** You could extract `excludeModerate` in funk too — but the two `.(type)` assertions would remain, and the inner `funk.Filter` still returns `interface{}` requiring a cast before assignment. fluentfp's generics eliminate both assertions. The named functions are trivial — `isModerateSeverity` checks one field, `excludeModerate` removes matching items — so the pipeline reads as intent without jumping to definitions. The trade-off is indirection when the names aren't self-evident.
 
 ---
 
