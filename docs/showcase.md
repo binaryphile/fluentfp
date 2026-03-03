@@ -59,12 +59,17 @@ func (i Issue) IsClosed() bool {
 }
 ```
 
+**go-funk with method expression:**
+```go
+closedIssues := funk.Filter(issues, Issue.IsClosed).([]model.Issue)
+```
+
 **fluentfp:**
 ```go
 closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 ```
 
-**What changed:** The method expression *is* the predicate — no callback, no assertion. funk requires both a closure wrapper and a `.([]model.Issue)` cast even for a single field comparison. fluentfp's generics eliminate the assertion, and Go's method expressions eliminate the closure.
+**What changed:** Both libraries benefit from the method expression — funk gets cleaner too. The difference that remains is the `.([]model.Issue)` type assertion. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
 
 ---
 
