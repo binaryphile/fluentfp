@@ -32,7 +32,7 @@ func tokenize(s string) []string {
 ```go
 func tokenize(s string) []string {
     tokens := slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
-    return tokens.Convert(strings.ToLower).KeepIf(lof.IsNotBlank)
+    return tokens.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)
 }
 ```
 
