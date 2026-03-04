@@ -10,7 +10,7 @@ A note on the libraries compared here: go-funk and go-linq were pioneering effor
 
 Where the original code uses inline anonymous functions, we extract them into named functions before comparing pipelines. This is standard refactoring that any developer would do regardless of library choice — it shouldn't count as a library advantage. Separating the extraction step makes the real difference visible: what changes in the pipeline itself, after both sides have had the same cleanup applied.
 
-One entry shows a trade-off where a competitor is cleaner than fluentfp.
+The last two entries show trade-offs where a competitor is cleaner than fluentfp.
 
 ---
 
@@ -164,67 +164,6 @@ check := &structs.HealthCheck{
 
 ---
 
-### Parallel type model from `interface{}` — ruilisi/css-checker
-
-**Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
-**Library:** go-linq | **Pain point:** Every parameter and return type is `interface{}`
-
-**Original:**
-```go
-linq.From(styleList).GroupBy(func(script interface{}) interface{} {
-    return script.(StyleSection).valueHash
-}, func(script interface{}) interface{} {
-    return script
-}).Where(func(group interface{}) bool {
-    return len(group.(linq.Group).Group) > 1
-}).OrderByDescending(
-    func(group interface{}) interface{} {
-        return len(group.(linq.Group).Group)
-    }).SelectT(
-    func(group linq.Group) interface{} {
-        names := []string{}
-        for _, styleSection := range group.Group {
-            names = append(names, fmt.Sprintf(
-                "%s << %s", styleSection.(StyleSection).name,
-                styleSection.(StyleSection).filePath))
-        }
-        return SectionSummary{...}
-    }).ToSlice(&groups)
-```
-
-Both sides extract the same named functions: `valueHash` extracts the CSS hash for grouping, `hasDuplicates` filters groups with more than one section, `groupSize` returns the count for sorting, and `toSummary` builds the final output. go-linq also needs `identity` for its GroupBy element selector.
-
-**Extracted (go-linq):**
-```go
-valueHash := func(script interface{}) interface{} { return script.(StyleSection).valueHash }
-identity := func(script interface{}) interface{} { return script }
-hasDuplicates := func(group interface{}) bool { return len(group.(linq.Group).Group) > 1 }
-groupSize := func(group interface{}) interface{} { return len(group.(linq.Group).Group) }
-toSummary := func(group linq.Group) interface{} { ... }
-```
-
-The fluentfp extractions are analogous but with concrete types — `func(StyleSection) string`, `func([]StyleSection) bool`, etc.
-
-**go-linq:**
-```go
-groupedMap := linq.From(styleList).GroupBy(valueHash, identity)
-withDuplicates := groupedMap.Where(hasDuplicates)
-sorted := withDuplicates.OrderByDescending(groupSize)
-sorted.SelectT(toSummary).ToSlice(&summaries)
-```
-
-**fluentfp:**
-```go
-groupedMap := slice.GroupBy(styleList, valueHash)
-withDuplicates := slice.FromMap(groupedMap).KeepIf(hasDuplicates)
-sorted := slice.SortByDesc(withDuplicates, groupSize)
-summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
-```
-
-**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map — and go-linq's reads more fluently. Method chaining (`groupedMap.OrderByDescending(groupSize)`) flows more naturally than standalone functions (`slice.SortByDesc(withDuplicates, groupSize)`). fluentfp uses standalone functions here because Go doesn't allow generic methods — operations like `GroupBy` and `SortByDesc` need extra type parameters that methods can't introduce. The cost of go-linq's fluency is giving up type safety and incurring potential performance penalties.
-
----
-
 ### Config merge write amplification — hashicorp/nomad
 
 **Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
@@ -373,6 +312,67 @@ if !errors.As(e, &recreateErr) {
 ```
 
 **What changed:** 31 guard clauses disappear — a few with compound conditions drop only the nil check, keeping the remaining condition. A one-line helper wraps the `IfOk` call. The recorder is genuinely optional — a zero `option.Basic` is automatically not-ok, so construction paths without a recorder need no special handling.
+
+---
+
+### Parallel type model from `interface{}` — ruilisi/css-checker
+
+**Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
+**Library:** go-linq | **Pain point:** Every parameter and return type is `interface{}`
+
+**Original:**
+```go
+linq.From(styleList).GroupBy(func(script interface{}) interface{} {
+    return script.(StyleSection).valueHash
+}, func(script interface{}) interface{} {
+    return script
+}).Where(func(group interface{}) bool {
+    return len(group.(linq.Group).Group) > 1
+}).OrderByDescending(
+    func(group interface{}) interface{} {
+        return len(group.(linq.Group).Group)
+    }).SelectT(
+    func(group linq.Group) interface{} {
+        names := []string{}
+        for _, styleSection := range group.Group {
+            names = append(names, fmt.Sprintf(
+                "%s << %s", styleSection.(StyleSection).name,
+                styleSection.(StyleSection).filePath))
+        }
+        return SectionSummary{...}
+    }).ToSlice(&groups)
+```
+
+Both sides extract the same named functions: `valueHash` extracts the CSS hash for grouping, `hasDuplicates` filters groups with more than one section, `groupSize` returns the count for sorting, and `toSummary` builds the final output. go-linq also needs `identity` for its GroupBy element selector.
+
+**Extracted (go-linq):**
+```go
+valueHash := func(script interface{}) interface{} { return script.(StyleSection).valueHash }
+identity := func(script interface{}) interface{} { return script }
+hasDuplicates := func(group interface{}) bool { return len(group.(linq.Group).Group) > 1 }
+groupSize := func(group interface{}) interface{} { return len(group.(linq.Group).Group) }
+toSummary := func(group linq.Group) interface{} { ... }
+```
+
+The fluentfp extractions are analogous but with concrete types — `func(StyleSection) string`, `func([]StyleSection) bool`, etc.
+
+**go-linq:**
+```go
+groupedMap := linq.From(styleList).GroupBy(valueHash, identity)
+withDuplicates := groupedMap.Where(hasDuplicates)
+sorted := withDuplicates.OrderByDescending(groupSize)
+sorted.SelectT(toSummary).ToSlice(&summaries)
+```
+
+**fluentfp:**
+```go
+groupedMap := slice.GroupBy(styleList, valueHash)
+withDuplicates := slice.FromMap(groupedMap).KeepIf(hasDuplicates)
+sorted := slice.SortByDesc(withDuplicates, groupSize)
+summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
+```
+
+**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map — and go-linq's reads more fluently. Method chaining (`groupedMap.OrderByDescending(groupSize)`) flows more naturally than standalone functions (`slice.SortByDesc(withDuplicates, groupSize)`). fluentfp uses standalone functions here because Go doesn't allow generic methods — operations like `GroupBy` and `SortByDesc` need extra type parameters that methods can't introduce. The cost of go-linq's fluency is giving up type safety and incurring potential performance penalties.
 
 ---
 
