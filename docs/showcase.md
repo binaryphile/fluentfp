@@ -43,7 +43,7 @@ closedIssues := funk.Filter(issues, Issue.IsClosed).([]model.Issue)
 closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 ```
 
-**What changed:** `KeepIf` is unambiguous — you keep the matches. `Filter` begs the question: filter in or filter out? (funk filters in, but you have to know that.) Beyond naming, funk ends with a type assertion that has no domain meaning — it's bookkeeping for the compiler. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
+**What changed:** `KeepIf` is unambiguous — you keep the matches. The FP convention is that `filter` means filter in, but someone encountering it for the first time has to look it up. `KeepIf` and `RemoveIf` are self-documenting. Go also lacks simple expression-level negation for predicates — you can't write `!Issue.IsClosed` — so fluentfp provides both directions rather than forcing a wrapper function just to flip the condition. Beyond naming, funk ends with a type assertion that has no domain meaning — it's bookkeeping for the compiler. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
 
 ---
 
@@ -145,10 +145,10 @@ defaultName := fmt.Sprintf("Service '%s' check", service.Service)
 check := &structs.HealthCheck{
     Node:           a.config.NodeName,
     CheckID:        types.CheckID(checkID),
-    Name:           option.IfNonEmpty(chkType.Name).Or(defaultName),
+    Name:           option.NonEmpty(chkType.Name).Or(defaultName),
     Interval:       option.NonZeroMap(chkType.Interval, time.Duration.String).Or(""),
     Timeout:        option.NonZeroMap(chkType.Timeout, time.Duration.String).Or(""),
-    Status:         option.IfNonEmpty(chkType.Status).Or(api.HealthCritical),
+    Status:         option.NonEmpty(chkType.Status).Or(api.HealthCritical),
     Notes:          chkType.Notes,
     ServiceID:      service.ID,
     ServiceName:    service.Service,
@@ -158,7 +158,7 @@ check := &structs.HealthCheck{
 }
 ```
 
-**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.NonZeroMap` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.NonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.NonZeroMap` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 ---
 
@@ -199,7 +199,7 @@ result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGr
 result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** `FirstNonZero` only works when zero genuinely means "absent" — if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. With that constraint understood: most fields use `FirstNonZero(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNonNil` instead.*
+**What changed:** `FirstNonZero` only works when zero genuinely means "absent" — if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. With that constraint understood: most fields use `FirstNonZero(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.NonNil` instead.*
 
 ---
 
@@ -408,6 +408,6 @@ These rewrites share a pattern: fluentfp replaces *incidental structure* (type a
 
 **Good fit:** Codebases where you're counting bugs. Every nil check you forget is a production panic; every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional cleanup across optional subsystems (etcd), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
-**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `FirstNonZero`, `NonZeroMap`, `IfOk`) that reads clearly once learned but has an onboarding cost.
+**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `NonZero`, `NonEmpty`, `NonZeroMap`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 
 **Not a replacement for loops:** As noted in the introduction, a `for` loop with 4–6 lines and zero abstraction is often the right choice. fluentfp targets the cases where loops accumulate ceremony faster than clarity.

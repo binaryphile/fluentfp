@@ -2,6 +2,7 @@
 
 ## v0.29.0
 
+- **BREAKING**: Rename `IfNonZero`/`IfNonEmpty`/`IfNonNil` to `NonZero`/`NonEmpty`/`NonNil` — drop `If` prefix; conditionality communicated by `Basic[T]` return type
 - **NonZeroMap**, **NonEmptyMap**, **NonNilMap** — check presence and transform in one call (option package)
 - **GroupBy** — group slice elements by extracted key into `map[K][]T`
 - **FromMap** — extract map values as a Mapper for further transformation

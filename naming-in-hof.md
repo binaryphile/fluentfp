@@ -124,7 +124,7 @@ Suffix with `Option` to signal the value may be absent:
 ```go
 userOption := option.Of(user)
 portOption := option.Getenv("PORT")
-nameOption := option.IfNonZero(name)
+nameOption := option.NonZero(name)
 
 // Use the option
 user = userOption.Or(defaultUser)
@@ -136,7 +136,7 @@ Go APIs sometimes use `*T` as a pseudo-option where `nil` means absent. Suffix w
 
 ```go
 userOpt := fetchUserPointer()  // returns *User, nil if not found
-userOption := option.IfNonNil(userOpt)  // convert to formal option
+userOption := option.NonNil(userOpt)  // convert to formal option
 ```
 
 ### Either Variables

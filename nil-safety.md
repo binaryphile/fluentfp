@@ -76,7 +76,7 @@ user := userOpt.Or(defaultUser)
 ```
 
 The API names are intuitive:
-- **Creation**: `Of` (always ok), `New` (conditional), `IfNonZero` (ok if non-zero), `IfNonNil` (from pointer)
+- **Creation**: `Of` (always ok), `New` (conditional), `NonZero` (ok if non-zero), `NonNil` (from pointer)
 - **Extraction**: `Get()` (comma-ok), `Or()` (with default), `OrZero()`, `OrFalse()`, `MustGet()` (panic if not ok)
 
 ## Choosing the Right Defense
@@ -104,7 +104,7 @@ type Customer struct {
 
 // Convert to option at the boundary
 func (c Customer) GetMiddleName() option.String {
-    return option.IfNonZero(c.MiddleName.String)
+    return option.NonZero(c.MiddleName.String)
 }
 
 // Downstream code works with options, not nil

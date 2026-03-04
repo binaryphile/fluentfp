@@ -175,9 +175,9 @@ import "github.com/binaryphile/fluentfp/option"
 // Creating options
 option.Of(t T) Basic[T]                // Always ok
 option.New(t T, ok bool) Basic[T]      // Conditional ok
-option.IfNonZero(t T) Basic[T]         // Ok if not zero value ("", 0, false, etc.)
-option.IfNonEmpty(s string) String     // Ok if non-empty (string alias for IfNonZero)
-option.IfNonNil(ptr *T) Basic[T]       // From pointer (nil = not-ok)
+option.NonZero(t T) Basic[T]           // Ok if not zero value ("", 0, false, etc.)
+option.NonEmpty(s string) String       // Ok if non-empty (string alias for NonZero)
+option.NonNil(ptr *T) Basic[T]         // From pointer (nil = not-ok)
 
 // Create + transform (check presence and map in one call)
 option.NonZeroMap(t T, fn func(T) R) Basic[R]       // If not zero, apply fn
@@ -202,7 +202,7 @@ option.String, option.Int, option.Bool, option.Error
 ```go
 // Nullable database field
 func (r Record) GetHost() option.String {
-    return option.IfNonZero(r.NullableHost.String)
+    return option.NonZero(r.NullableHost.String)
 }
 
 // Tri-state boolean (true/false/unknown)
@@ -473,7 +473,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `slice.KeepIf`, `slice.RemoveIf` - conditional inclusion logic
 - `slice.Take`, `slice.TakeLast` - boundary handling (`if n > len`, negative n)
 - `slice.Fold`, `slice.Unzip2/3/4` - accumulation and multi-output logic
-- `option.New`, `option.IfNonZero`, `option.IfNonNil` - conditional construction
+- `option.New`, `option.NonZero`, `option.NonNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
 - `option.KeepOkIf`, `option.ToNotOkIf` - double conditional (filter)
 - `value.When` (on LazyCond) - conditional function call

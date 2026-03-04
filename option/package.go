@@ -7,7 +7,7 @@ import (
 func Getenv(key string) String {
 	result := os.Getenv(key)
 
-	return IfNonZero(result)
+	return NonZero(result)
 }
 
 func Map[T, R any](b Basic[T], fn func(T) R) (_ Basic[R]) {

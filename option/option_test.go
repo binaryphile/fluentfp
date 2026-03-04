@@ -20,42 +20,42 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestIfNonZero(t *testing.T) {
+func TestNonZero(t *testing.T) {
 	t.Run("non-zero value returns ok option", func(t *testing.T) {
-		opt := IfNonZero("hello")
+		opt := NonZero("hello")
 		if v, ok := opt.Get(); !ok || v != "hello" {
-			t.Errorf("IfNonZero(\"hello\") = (%v, %v), want (\"hello\", true)", v, ok)
+			t.Errorf("NonZero(\"hello\") = (%v, %v), want (\"hello\", true)", v, ok)
 		}
 	})
 
 	t.Run("zero value returns not-ok option", func(t *testing.T) {
-		opt := IfNonZero("")
+		opt := NonZero("")
 		if _, ok := opt.Get(); ok {
-			t.Error("IfNonZero(\"\") should be not-ok")
+			t.Error("NonZero(\"\") should be not-ok")
 		}
 	})
 
 	t.Run("zero int returns not-ok option", func(t *testing.T) {
-		opt := IfNonZero(0)
+		opt := NonZero(0)
 		if _, ok := opt.Get(); ok {
-			t.Error("IfNonZero(0) should be not-ok")
+			t.Error("NonZero(0) should be not-ok")
 		}
 	})
 }
 
-func TestIfNonNil(t *testing.T) {
+func TestNonNil(t *testing.T) {
 	t.Run("non-nil pointer returns ok option with dereferenced value", func(t *testing.T) {
 		val := 42
-		opt := IfNonNil(&val)
+		opt := NonNil(&val)
 		if v, ok := opt.Get(); !ok || v != 42 {
-			t.Errorf("IfNonNil(&42) = (%v, %v), want (42, true)", v, ok)
+			t.Errorf("NonNil(&42) = (%v, %v), want (42, true)", v, ok)
 		}
 	})
 
 	t.Run("nil pointer returns not-ok option", func(t *testing.T) {
-		opt := IfNonNil[int](nil)
+		opt := NonNil[int](nil)
 		if _, ok := opt.Get(); ok {
-			t.Error("IfNonNil(nil) should be not-ok")
+			t.Error("NonNil(nil) should be not-ok")
 		}
 	})
 }
