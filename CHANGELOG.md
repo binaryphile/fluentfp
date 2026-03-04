@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.29.0
+
+- **NonZeroMap**, **NonEmptyMap**, **NonNilMap** — check presence and transform in one call (option package)
+- **GroupBy** — group slice elements by extracted key into `map[K][]T`
+- **FromMap** — extract map values as a Mapper for further transformation
+- **FromSet** — extract set members (true keys) as a Mapper
+
 ## v0.28.0
 
 - **BREAKING**: Rename `TakeFirst` to `Take` — aligns with universal convention (Kotlin, Scala, Rust, samber/lo)

@@ -25,6 +25,9 @@ func _() {
 	_ = IfNonNil[int]
 	_ = IfNonZero[int]
 	_ = Map(Basic[int]{}, func(int) int { return 0 })
+	_ = NonEmptyMap("", func(string) int { return 0 })
+	_ = NonNilMap[int, int](nil, func(int) int { return 0 })
+	_ = NonZeroMap[int, int](0, func(int) int { return 0 })
 	_ = New[int]
 	_ = Of[int]
 

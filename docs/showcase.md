@@ -1,10 +1,10 @@
 # Real-World Rewrite Showcase
 
-A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — callback wrappers, `interface{}` casts, nil guards, or verbose imperative boilerplate — that fluentfp eliminates.
+A curated selection of real code from real GitHub projects rewritten with fluentfp. Each example highlights a specific pain point — callback wrappers, `interface{}` casts, nil guards, or verbose imperative boilerplate — that fluentfp eliminates.
 
 This is a showcase, not a balanced analysis. It intentionally highlights where fluentfp improves on competitors. For an honest gap analysis of what fluentfp lacks, see [feature-gaps.md](feature-gaps.md). For a synthetic library comparison, see [comparison.md](../comparison.md).
 
-These examples compare FP libraries, not FP vs plain Go. In many cases, a `for` loop with 4–6 lines and zero abstraction is a legitimate alternative — and in performance-critical paths, it's the lowest-overhead option. fluentfp optimizes for clarity and composability over allocation-free hot loops. Chaining methods like `KeepIf` and `Convert` may allocate intermediate slices; profile before using in tight inner loops.
+Most examples compare FP libraries, not FP vs plain Go. In many cases, a `for` loop with 4–6 lines and zero abstraction is a legitimate alternative — and in performance-critical paths, it's the lowest-overhead option. fluentfp optimizes for clarity and composability over allocation-free hot loops. Chaining methods like `KeepIf` and `Convert` may allocate intermediate slices; profile before using in tight inner loops.
 
 A note on the libraries compared here: go-funk and go-linq were pioneering efforts that brought FP idioms to Go before generics existed. Their `interface{}`-based APIs were the best available approach at the time, and they proved the demand that led to generics being added to the language. The pain points shown below are artifacts of that era, not design failures.
 
@@ -146,8 +146,8 @@ check := &structs.HealthCheck{
     Node:           a.config.NodeName,
     CheckID:        types.CheckID(checkID),
     Name:           option.IfNonEmpty(chkType.Name).Or(defaultName),
-    Interval:       option.MapNonZero(chkType.Interval, time.Duration.String).Or(""),
-    Timeout:        option.MapNonZero(chkType.Timeout, time.Duration.String).Or(""),
+    Interval:       option.NonZeroMap(chkType.Interval, time.Duration.String).Or(""),
+    Timeout:        option.NonZeroMap(chkType.Timeout, time.Duration.String).Or(""),
     Status:         option.IfNonEmpty(chkType.Status).Or(api.HealthCritical),
     Notes:          chkType.Notes,
     ServiceID:      service.ID,
@@ -158,7 +158,7 @@ check := &structs.HealthCheck{
 }
 ```
 
-**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.MapNonZero` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.NonZeroMap` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 ---
 
@@ -270,10 +270,10 @@ if cfg.AutoCompactionRetention != 0 {
 newCompactor := func(retention time.Duration) v3compactor.Compactor {
     return must.Get(v3compactor.New(..., retention, ...))
 }
-srv.compactorOption = CompactorOption{option.MapNonZero(cfg.AutoCompactionRetention, newCompactor)}
+srv.compactorOption = CompactorOption{option.NonZeroMap(cfg.AutoCompactionRetention, newCompactor)}
 ```
 
-**What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `MapStop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `MapNonZero` only calls `newCompactor` when retention is configured. The `Map*` prefix is consistent with the option package's `Map` family (`MapNonZero`, `MapNonEmpty`, `MapNonNil`) — all conditionally apply a function when ok. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
+**What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `MapStop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `NonZeroMap` only calls `newCompactor` when retention is configured. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
 
 For a worked example of the advanced option pattern with conditional factory functions, see [advanced_option.go](../examples/advanced_option.go).
 
@@ -408,6 +408,6 @@ These rewrites share a pattern: fluentfp replaces *incidental structure* (type a
 
 **Good fit:** Codebases where you're counting bugs. Every nil check you forget is a production panic; every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional cleanup across optional subsystems (etcd), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
-**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `FirstNonZero`, `MapNonZero`, `IfOk`) that reads clearly once learned but has an onboarding cost.
+**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `FirstNonZero`, `NonZeroMap`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 
 **Not a replacement for loops:** As noted in the introduction, a `for` loop with 4–6 lines and zero abstraction is often the right choice. fluentfp targets the cases where loops accumulate ceremony faster than clarity.

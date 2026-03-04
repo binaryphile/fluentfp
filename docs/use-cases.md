@@ -63,11 +63,12 @@
 - 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order.
 - 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
-- 2d. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error.
-- 2e. Developer needs transformations applied concurrently: System applies transformations concurrently, preserving element order in the result.
-- 2f. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
-- 2g. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements.
-- 2h. Developer needs to split a collection into fixed-size batches: System divides the collection into sub-collections of the specified size; the last batch may be smaller.
+- 2d. Developer needs elements grouped by a derived key: System groups elements into a map from key to elements sharing that key.
+- 2e. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error.
+- 2f. Developer needs transformations applied concurrently: System applies transformations concurrently, preserving element order in the result.
+- 2g. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
+- 2h. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements.
+- 2i. Developer needs to split a collection into fixed-size batches: System divides the collection into sub-collections of the specified size; the last batch may be smaller.
 - 4a. Developer needs to apply a side effect to each element rather than produce a new collection: System calls the function for every element in order.
 
 **Sub-Variations:**

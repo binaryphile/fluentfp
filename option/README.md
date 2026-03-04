@@ -98,7 +98,7 @@ Once you have a `Basic[T]`, the same API works regardless of where the value cam
 `Basic[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null).
 
 - **Create**: `Of`, `New`, `NotOk`, `IfNonZero`, `IfNonEmpty`, `IfNonNil`, `Getenv`, `Lookup`
-- **Create + Transform**: `MapNonZero`, `MapNonEmpty`, `MapNonNil` — check presence and map in one call
+- **Create + Transform**: `NonZeroMap`, `NonEmptyMap`, `NonNilMap` — check presence and map in one call
 - **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse`
 - **Transform**: `Convert`, `Map`, `ToString`, `ToInt`, other `To*`, `ToOpt`
 - **Filter**: `KeepOkIf`, `ToNotOkIf`

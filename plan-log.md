@@ -2301,3 +2301,15 @@ Commit: f48f401
 [x] Tests in slice/chunk_test.go
 [x] Docs: doc.go, CLAUDE.md, use-cases.md, feature-gaps.md
 [x] Published to inbox.jeeves
+2026-03-04T06:04:32Z | Contract: Showcase expansion — must and either.Fold entries
+[ ] Find and write must showcase entry (sequential chain, 5+ checks)
+[ ] Search for either.Fold example (20 min cap, decision gate)
+[ ] Write either.Fold entry OR document skip decision
+2026-03-04T06:18:26Z | Completion: Showcase expansion — must entry
+[x] must entry — composite pattern, cluster-api as evidence (20+ sequential checks in setupReconcilers)
+[x] either.Fold — skipped: only 10 uses (all sofdevsim), niche pattern, no compelling public example found
+[x] Search findings: well-known Go repos (100+ stars) universally use frameworks (cobra, controller-runtime) that abstract away raw init chains. Verbose log.Fatal staircase exists in tutorials and smaller projects but not in famous repos with linkable source. Repos searched: cluster-api (structured logging), falcosecurity/client-go (55 stars, deprecated), hashicorp/vault (4 checks max), minio (0), hugo (cobra), gitea (cli), prometheus/node_exporter (2 checks)
+2026-03-04T20:15:00Z | Completion: Rename + must investigation
+[x] Renamed MapNonZero->NonZeroMap, MapNonEmpty->NonEmptyMap, MapNonNil->NonNilMap (7 files + 2 file renames)
+[x] Reverted showcase intro changes (removed must references from lines 3, 7, Good fit section)
+[x] Must investigation: hypothesis confirmed — sequential fatal chains don't exist in mature Go code. 20+ queries across 2 sessions. Product signal, not search failure. Entry abandoned permanently.
