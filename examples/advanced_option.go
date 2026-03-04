@@ -25,10 +25,10 @@ import (
 // Problem: An App struct holds optional dependencies. Some commands need one
 // dependency, others need both. How do you Close() without conditionals?
 //
-// Solution: Wrap each dependency in an advanced option that has a Close method.
-// The option's Close calls the underlying Close only if ok.
+// Solution: Wrap each dependency in an advanced option with a MapClose method.
+// The option's MapClose calls the underlying Close only if ok.
 //
-// Result: App.Close() just calls each option's Close - no if-statements needed.
+// Result: App.Close() just calls each option's MapClose - no if-statements needed.
 // OpenApp() just calls factory functions - no if-statements needed.
 // The conditionality lives in the option type, not scattered through your code.
 
@@ -105,8 +105,10 @@ func OpenClientAsOption(users string) ClientOption {
 	return NewClientOption(clientBasicOption)
 }
 
-// Close closes the Client if ok.
-func (o ClientOption) Close() {
+// MapClose closes the Client if ok.
+// The Map* prefix is consistent with the option package's Map family —
+// all conditionally apply a function when ok.
+func (o ClientOption) MapClose() {
 	o.IfOk(Client.Close)
 }
 
@@ -162,8 +164,8 @@ type OpenAppArgs struct {
 
 // Close closes opened dependencies. No conditionals needed - options handle it.
 func (a App) Close() {
-	a.SourceClientOption.Close()
-	a.DestClientOption.Close()
+	a.SourceClientOption.MapClose()
+	a.DestClientOption.MapClose()
 }
 
 // === WHEN TO USE ===
@@ -171,10 +173,10 @@ func (a App) Close() {
 // Use advanced options when:
 // - Many dependencies with lifecycle methods (Open/Close)
 // - Factory functions that conditionally open resources
-// - You want to eliminate conditional logic in Close() methods
+// - You want to eliminate conditional logic in cleanup methods
 //
 // Skip when: single dependency, or types without methods to call conditionally.
 //
 // Each dependency needs: a client type, an advanced option wrapping it,
-// a factory returning the advanced option, a field in App, and a Close call.
+// a factory returning the advanced option, a field in App, and a MapClose call.
 // None of these require conditionals - that's the pattern's value.

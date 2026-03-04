@@ -229,32 +229,32 @@ func (s *EtcdServer) Cleanup() {
 }
 ```
 
-**Advanced option types** — each embeds `option.Basic` and mirrors the inner type's cleanup method:
+**Advanced option types** — each embeds `option.Basic` and adds a `Map*` method that conditionally calls the inner type's cleanup:
 ```go
 type LessorOption struct{ option.Basic[lease.Lessor] }
-func (o LessorOption) Stop() { o.IfOk(lease.Lessor.Stop) }
+func (o LessorOption) MapStop() { o.IfOk(lease.Lessor.Stop) }
 
 type KVOption struct{ option.Basic[mvcc.WatchableKV] }
-func (o KVOption) Close() { o.IfOk(mvcc.WatchableKV.Close) }
+func (o KVOption) MapClose() { o.IfOk(mvcc.WatchableKV.Close) }
 
 type AuthStoreOption struct{ option.Basic[auth.AuthStore] }
-func (o AuthStoreOption) Close() { o.IfOk(auth.AuthStore.Close) }
+func (o AuthStoreOption) MapClose() { o.IfOk(auth.AuthStore.Close) }
 
 type BackendOption struct{ option.Basic[backend.Backend] }
-func (o BackendOption) Close() { o.IfOk(backend.Backend.Close) }
+func (o BackendOption) MapClose() { o.IfOk(backend.Backend.Close) }
 
 type CompactorOption struct{ option.Basic[v3compactor.Compactor] }
-func (o CompactorOption) Stop() { o.IfOk(v3compactor.Compactor.Stop) }
+func (o CompactorOption) MapStop() { o.IfOk(v3compactor.Compactor.Stop) }
 ```
 
 **fluentfp:**
 ```go
 func (s *EtcdServer) Cleanup() {
-    s.lessorOption.Stop()
-    s.kvOption.Close()
-    s.authStoreOption.Close()
-    s.beOption.Close()
-    s.compactorOption.Stop()
+    s.lessorOption.MapStop()
+    s.kvOption.MapClose()
+    s.authStoreOption.MapClose()
+    s.beOption.MapClose()
+    s.compactorOption.MapStop()
 }
 ```
 
@@ -273,7 +273,7 @@ newCompactor := func(retention time.Duration) v3compactor.Compactor {
 srv.compactorOption = CompactorOption{option.MapNonZero(cfg.AutoCompactionRetention, newCompactor)}
 ```
 
-**What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `Stop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `MapNonZero` only calls `newCompactor` when retention is configured. Each option type adapts to its subsystem's interface (`Stop()` vs `Close()`), unlike a one-size-fits-all helper. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
+**What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `MapStop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `MapNonZero` only calls `newCompactor` when retention is configured. The `Map*` prefix is consistent with the option package's `Map` family (`MapNonZero`, `MapNonEmpty`, `MapNonNil`) — all conditionally apply a function when ok. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
 
 For a worked example of the advanced option pattern with conditional factory functions, see [advanced_option.go](../examples/advanced_option.go).
 
