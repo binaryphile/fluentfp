@@ -1,6 +1,6 @@
 # Real-World Rewrite Showcase
 
-A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — callback wrappers, `interface{}` casts, inside-out nesting, or verbose imperative boilerplate — that fluentfp eliminates.
+A curated selection of real code from real GitHub projects, rewritten with fluentfp. Each example highlights a specific pain point — callback wrappers, `interface{}` casts, nil guards, or verbose imperative boilerplate — that fluentfp eliminates.
 
 This is a showcase, not a balanced analysis. It intentionally highlights where fluentfp improves on competitors. For an honest gap analysis of what fluentfp lacks, see [feature-gaps.md](feature-gaps.md). For a synthetic library comparison, see [comparison.md](../comparison.md).
 
@@ -10,7 +10,7 @@ A note on the libraries compared here: go-funk and go-linq were pioneering effor
 
 Where the original code uses inline anonymous functions, we extract them into named functions before comparing pipelines. This is standard refactoring that any developer would do regardless of library choice — it shouldn't count as a library advantage. Separating the extraction step makes the real difference visible: what changes in the pipeline itself, after both sides have had the same cleanup applied.
 
-The last two entries show trade-offs where a competitor is cleaner than fluentfp.
+The last two entries show trade-offs where a competitor is more readable than fluentfp.
 
 ---
 
@@ -43,7 +43,7 @@ closedIssues := funk.Filter(issues, Issue.IsClosed).([]model.Issue)
 closedIssues := slice.From(issues).KeepIf(Issue.IsClosed)
 ```
 
-**What changed (readability flow):** Read both aloud. fluentfp: "from issues, keep if is closed." funk: "filter issues, is closed... as slice of model dot issue." `KeepIf` is unambiguous — you keep the matches. `Filter` begs the question: filter in or filter out? (funk filters in, but you have to know that.) Beyond naming, funk ends with a type assertion that has no domain meaning — it's bookkeeping for the compiler. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
+**What changed:** `KeepIf` is unambiguous — you keep the matches. `Filter` begs the question: filter in or filter out? (funk filters in, but you have to know that.) Beyond naming, funk ends with a type assertion that has no domain meaning — it's bookkeeping for the compiler. funk returns `interface{}`, so every call site must cast the result back. fluentfp's generics carry the type through, so there's nothing to assert.
 
 ---
 
@@ -90,11 +90,9 @@ func tokenize(s string) []string {
 tokens := splitTokens(s).Convert(strings.ToLower).KeepIf(lof.IsNonBlank)
 ```
 
-**What changed:** The fluentfp version needs no wrappers — `strings.ToLower` and `lof.IsNonBlank` plug in directly. lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice — but when you don't need the index, every stdlib function becomes a wrapper: `toLower` and `isNonBlank` exist only to discard that `_ int`. Without wrappers to write, the fluentfp version collapses to a single expression — compact enough to inline at the call site without a `tokenize` function at all.
+**What changed:** The fluentfp version needs no wrappers — `strings.ToLower` and `lof.IsNonBlank` plug in directly. lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice that pays off for position-dependent transforms — but when you don't need the index, every stdlib function becomes a wrapper: `toLower` and `isNonBlank` exist only to discard that `_ int`. Without wrappers to write, the fluentfp version collapses to a single expression — compact enough to inline at the call site without a `tokenize` function at all.
 
-For operations this common, naming ergonomics matter — `KeepIf` and `Convert` say what happens to the elements without requiring FP vocabulary, which lowers the bar for newcomers to the codebase.
-
-*Editorial note: `.KeepIf(lof.IsNonBlank).Convert(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest. That the optimization is easy to spot is itself a consequence of the clarity — each step is named, so reordering is a visible decision rather than a loop restructure.*
+*Editorial note: `.KeepIf(lof.IsNonBlank).Convert(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest.*
 
 *Interoperability note: `splitTokens` returns `slice.Mapper[string]` so both examples can share one extracted function. Go allows this because `Mapper[string]` is assignable to `[]string` without conversion — the underlying types match and the target is not a defined type. lo accepts it directly; no cast needed on either side.*
 
@@ -160,7 +158,7 @@ check := &structs.HealthCheck{
 }
 ```
 
-**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.MapNonZero` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All four conditional fields now use the `option` package. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.MapNonZero` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 ---
 
@@ -201,7 +199,7 @@ result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGr
 result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Most fields use `value.FirstNonZero(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` guards on `> 0` rather than `!= 0`, so it uses `value.Of().When().Or()` to preserve the exact condition. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNonNil` instead. And `FirstNonZero` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
+**What changed:** `FirstNonZero` only works when zero genuinely means "absent" — if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. With that constraint understood: most fields use `FirstNonZero(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNonNil` instead.*
 
 ---
 
@@ -273,7 +271,7 @@ if cfg.AutoCompactionRetention != 0 {
 }
 ```
 
-**What changed:** The five nil checks disappear from Cleanup. Each option type is three lines: a struct embedding `option.Basic`, and a method that delegates via `IfOk` using a method expression. The cleanup method calls each subsystem's method directly — it doesn't know or care which were initialized. The constructor still has its conditional — `v3compactor.New` should only be called when retention is configured — but the condition is handled once at creation time. Every downstream use drops its guard. etcd's comment — "kv, lessor and backend can be nil if running without v3 enabled or running unit tests" — documents a hazard that the type system now enforces: a zero `CompactorOption` is automatically not-ok, so `Stop()` is a no-op by default. A test that skips v3 initialization doesn't crash in cleanup. The option types also adapt to each subsystem's interface — `Stop()` for lessor and compactor, `Close()` for kv, authStore, and backend — unlike a one-size-fits-all helper. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks, and new subsystems get the pattern for free.*
+**What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `Stop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. Each option type adapts to its subsystem's interface (`Stop()` vs `Close()`), unlike a one-size-fits-all helper. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
 
 For a worked example of the advanced option pattern with conditional factory functions, see [advanced_option.go](../examples/advanced_option.go).
 
@@ -315,10 +313,10 @@ if !errors.As(e, &recreateErr) {
 
 ---
 
-### Parallel type model from `interface{}` — ruilisi/css-checker
+### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
-**Library:** go-linq | **Pain point:** Every parameter and return type is `interface{}`
+**Library:** go-linq | **Pain point:** `interface{}` callbacks vs fluent method chaining
 
 **Original:**
 ```go
@@ -373,7 +371,7 @@ sorted := slice.SortByDesc(withDuplicates, groupSize)
 summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
 ```
 
-**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map — and go-linq's reads more fluently. Method chaining (`groupedMap.OrderByDescending(groupSize)`) flows more naturally than standalone functions (`slice.SortByDesc(withDuplicates, groupSize)`). fluentfp uses standalone functions here because Go doesn't allow generic methods — operations like `GroupBy` and `SortByDesc` need extra type parameters that methods can't introduce. The cost of go-linq's fluency is giving up type safety and incurring potential performance penalties.
+**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map — and go-linq's reads more fluently. Method chaining (`.Where(hasDuplicates).OrderByDescending(groupSize)`) flows more naturally than standalone functions (`slice.SortByDesc(withDuplicates, groupSize)`). fluentfp uses standalone functions here because Go doesn't allow generic methods — operations like `GroupBy` and `SortByDesc` need extra type parameters that methods can't introduce. The cost of go-linq's fluency is giving up type safety and incurring reflection overhead.
 
 ---
 
