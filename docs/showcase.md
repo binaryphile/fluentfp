@@ -229,36 +229,18 @@ func (s *EtcdServer) Cleanup() {
 }
 ```
 
-**Advanced option types** — each embeds `option.Basic` and adds an `IfOk*` method that conditionally calls the inner type's cleanup:
-```go
-type LessorOption struct{ option.Basic[lease.Lessor] }
-func (o LessorOption) IfOkStop() { o.IfOk(lease.Lessor.Stop) }
-
-type KVOption struct{ option.Basic[mvcc.WatchableKV] }
-func (o KVOption) IfOkClose() { o.IfOk(mvcc.WatchableKV.Close) }
-
-type AuthStoreOption struct{ option.Basic[auth.AuthStore] }
-func (o AuthStoreOption) IfOkClose() { o.IfOk(auth.AuthStore.Close) }
-
-type BackendOption struct{ option.Basic[backend.Backend] }
-func (o BackendOption) IfOkClose() { o.IfOk(backend.Backend.Close) }
-
-type CompactorOption struct{ option.Basic[v3compactor.Compactor] }
-func (o CompactorOption) IfOkStop() { o.IfOk(v3compactor.Compactor.Stop) }
-```
-
-**fluentfp:**
+**fluentfp** — fields change from pointer to `option.Basic[T]`:
 ```go
 func (s *EtcdServer) Cleanup() {
-    s.lessorOption.IfOkStop()
-    s.kvOption.IfOkClose()
-    s.authStoreOption.IfOkClose()
-    s.beOption.IfOkClose()
-    s.compactorOption.IfOkStop()
+    s.lessorOption.IfOk(lease.Lessor.Stop)
+    s.kvOption.IfOk(mvcc.WatchableKV.Close)
+    s.authStoreOption.IfOk(auth.AuthStore.Close)
+    s.beOption.IfOk(backend.Backend.Close)
+    s.compactorOption.IfOk(v3compactor.Compactor.Stop)
 }
 ```
 
-**Constructor** — the option type captures presence at creation time:
+**Constructor** — `NonZeroMap` captures presence at creation time:
 ```go
 // before
 if cfg.AutoCompactionRetention != 0 {
@@ -270,12 +252,10 @@ if cfg.AutoCompactionRetention != 0 {
 newCompactor := func(retention time.Duration) v3compactor.Compactor {
     return must.Get(v3compactor.New(..., retention, ...))
 }
-srv.compactorOption = CompactorOption{option.NonZeroMap(cfg.AutoCompactionRetention, newCompactor)}
+srv.compactorOption = option.NonZeroMap(cfg.AutoCompactionRetention, newCompactor)
 ```
 
-**What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `IfOkStop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `NonZeroMap` only calls `newCompactor` when retention is configured. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
-
-For a worked example of the advanced option pattern with conditional factory functions, see [advanced_option.go](../examples/advanced_option.go).
+**What changed:** Five nil checks disappear from Cleanup — `.IfOk()` calls the method only when the option is ok. A zero-value `option.Basic[T]` is automatically not-ok, so `.IfOk()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `NonZeroMap` only calls `newCompactor` when retention is configured. *The payoff compounds: every other code path that touches these subsystems drops its nil checks too.*
 
 ---
 

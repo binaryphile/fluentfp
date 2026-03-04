@@ -10,7 +10,6 @@ import (
 )
 
 // This example demonstrates option.Basic — a container that either holds a value (ok) or doesn't (not-ok).
-// For advanced usage with custom types, see advanced_option.go.
 
 func main() {
 	// === Creating Options ===

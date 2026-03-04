@@ -104,6 +104,4 @@ Once you have a `Basic[T]`, the same API works regardless of where the value cam
 - **Filter**: `KeepOkIf`, `ToNotOkIf`
 - **Side effects**: `IfOk`, `IfNotOk`, `Lift`
 
-For domain-specific option types with conditional method dispatch, see the [advanced option example](../examples/advanced_option.go).
-
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation, the [main README](../README.md) for installation, and [Nil Safety in Go](../nil-safety.md) for the full discussion.
