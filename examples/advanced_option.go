@@ -25,10 +25,10 @@ import (
 // Problem: An App struct holds optional dependencies. Some commands need one
 // dependency, others need both. How do you Close() without conditionals?
 //
-// Solution: Wrap each dependency in an advanced option with a MapClose method.
-// The option's MapClose calls the underlying Close only if ok.
+// Solution: Wrap each dependency in an advanced option with an IfOkClose method.
+// The option's IfOkClose calls the underlying Close only if ok.
 //
-// Result: App.Close() just calls each option's MapClose - no if-statements needed.
+// Result: App.Close() just calls each option's IfOkClose - no if-statements needed.
 // OpenApp() just calls factory functions - no if-statements needed.
 // The conditionality lives in the option type, not scattered through your code.
 
@@ -84,6 +84,10 @@ func main() {
 }
 
 // === ADVANCED OPTION TYPE ===
+//
+// Name methods after what they do:
+//   IfOk* — side effect, no return (delegates to IfOk)
+//   Map*  — transform, returns a value (delegates to Map/Convert)
 
 // ClientOption embeds a basic option and adds a conditional Close method.
 type ClientOption struct {
@@ -105,10 +109,8 @@ func OpenClientAsOption(users string) ClientOption {
 	return NewClientOption(clientBasicOption)
 }
 
-// MapClose closes the Client if ok.
-// The Map* prefix is consistent with the option package's Map family —
-// all conditionally apply a function when ok.
-func (o ClientOption) MapClose() {
+// IfOkClose closes the Client if ok.
+func (o ClientOption) IfOkClose() {
 	o.IfOk(Client.Close)
 }
 
@@ -164,8 +166,8 @@ type OpenAppArgs struct {
 
 // Close closes opened dependencies. No conditionals needed - options handle it.
 func (a App) Close() {
-	a.SourceClientOption.MapClose()
-	a.DestClientOption.MapClose()
+	a.SourceClientOption.IfOkClose()
+	a.DestClientOption.IfOkClose()
 }
 
 // === WHEN TO USE ===
@@ -178,5 +180,5 @@ func (a App) Close() {
 // Skip when: single dependency, or types without methods to call conditionally.
 //
 // Each dependency needs: a client type, an advanced option wrapping it,
-// a factory returning the advanced option, a field in App, and a MapClose call.
+// a factory returning the advanced option, a field in App, and an IfOkClose call.
 // None of these require conditionals - that's the pattern's value.
