@@ -94,9 +94,9 @@ tokens := splitTokens(s).Convert(strings.ToLower).KeepIf(lof.IsNotBlank)
 
 For operations this common, naming ergonomics matter — `KeepIf` and `Convert` say what happens to the elements without requiring FP vocabulary, which lowers the bar for newcomers to the codebase.
 
-*Editorial note: `.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest.*
+*Editorial note: `.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest. That the optimization is easy to spot is itself a consequence of the clarity — each step is named, so reordering is a visible decision rather than a loop restructure.*
 
-*Interoperability note: `splitTokens` returns `slice.Mapper[string]`, which is assignable to `[]string` without conversion — Go allows this when the underlying types match and the target is not a defined type. So lo accepts it directly; no cast needed on either side.*
+*Interoperability note: `splitTokens` returns `slice.Mapper[string]` so both examples can share one extracted function. Go allows this because `Mapper[string]` is assignable to `[]string` without conversion — the underlying types match and the target is not a defined type. lo accepts it directly; no cast needed on either side.*
 
 ---
 
@@ -203,11 +203,8 @@ toSummary := func(group linq.Group) interface{} { ... }
 
 **Extracted (fluentfp):**
 ```go
-// groupByHash groups style sections by their value hash.
-groupByHash := func(m map[string][]StyleSection, s StyleSection) map[string][]StyleSection {
-    m[s.valueHash] = append(m[s.valueHash], s)
-    return m
-}
+// byValueHash returns the hash used to detect duplicate CSS values.
+byValueHash := func(s StyleSection) string { return s.valueHash }
 
 // hasDuplicates returns true if the group has more than one section.
 hasDuplicates := func(g []StyleSection) bool { return len(g) > 1 }
@@ -231,23 +228,21 @@ toSummary := func(group []StyleSection) SectionSummary {
 
 **go-linq:**
 ```go
-linq.From(styleList).
-    GroupBy(getHash, identity).
-    Where(hasDuplicates).
-    OrderByDescending(groupSize).
-    SelectT(toSummary).
-    ToSlice(&groups)
+grouped := linq.From(styleList).GroupBy(getHash, identity)
+withDuplicates := grouped.Where(hasDuplicates)
+sorted := withDuplicates.OrderByDescending(groupSize)
+sorted.SelectT(toSummary).ToSlice(&summaries)
 ```
 
-**fluentfp (GroupBy via Fold — more verbose but type-safe):**
+**fluentfp:**
 ```go
-grouped := slice.Fold(styleList, make(map[string][]StyleSection), groupByHash)
-withDuplicates := slice.FromMap(grouped).KeepIf(hasDuplicates)
+groupedMap := slice.GroupBy(styleList, byValueHash)
+withDuplicates := slice.FromMap(groupedMap).KeepIf(hasDuplicates)
 sorted := slice.SortByDesc(withDuplicates, groupSize)
 summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
 ```
 
-**What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. go-linq's callbacks can't be typed as `func(StyleSection) string` because its API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. *Trade-offs: The GroupBy step uses `Fold` with a map accumulator, which is more verbose than go-linq's `GroupBy` (a real gap — see [feature-gaps.md](feature-gaps.md)). And `FromMap` extracts values in map-iteration order, losing go-linq's first-appearance key order, so tie-breaking within `SortByDesc` is nondeterministic.*
+**What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. go-linq's callbacks can't be typed as `func(StyleSection) string` because its API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. Both pipelines now have the same shape: group, filter, sort, map. The extracted functions tell the story — `byValueHash`, `hasDuplicates`, `groupSize`, `toSummary` — without `interface{}` casts obscuring the types.
 
 ---
 
@@ -278,7 +273,7 @@ if b.RetryInterval != 0 {
 }
 ```
 
-**fluentfp** (same 6 fields):
+**fluentfp** (same 6 fields — `s` is the receiver, `b` is the override):
 ```go
 result.AuthoritativeRegion = value.Coalesce(b.AuthoritativeRegion, s.AuthoritativeRegion)
 result.EncryptKey           = value.Coalesce(b.EncryptKey, s.EncryptKey)
@@ -288,7 +283,7 @@ result.HeartbeatGrace       = value.Coalesce(b.HeartbeatGrace, s.HeartbeatGrace)
 result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Most fields use `value.Coalesce(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` uses `> 0` (not `!= 0`) in the original, so `Coalesce` would be a semantic change — it would accept negative values the original rejects. That field uses `value.Of().When().Or()` instead, preserving the exact guard. 18 lines → 6 in this sample, 144 → 48 across the full method. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNotNil` instead. And `Coalesce` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
+**What changed:** Most fields use `value.Coalesce(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` uses `> 0` (not `!= 0`) in the original, so `Coalesce` would be a semantic change — it would accept negative values the original rejects. That field uses `value.Of().When().Or()` instead, preserving the exact guard. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNotNil` instead. And `Coalesce` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
 
 ---
 
@@ -331,29 +326,112 @@ if c.qlogger != nil && !errors.As(e, &recreateErr) {
 }
 ```
 
-**fluentfp** — `qlogger` becomes a `RecorderOption` that embeds `option.Basic[qlogwriter.Recorder]` with a `RecordEvent` method that delegates via `IfOk`:
+**fluentfp** — `qlogger` is stored as `option.Basic[qlogwriter.Recorder]`; a helper encapsulates the `IfOk` call once:
 ```go
-c.qlogger.RecordEvent(qlog.PacketDropped{
+// recordEvent records a qlog event if the recorder is present.
+func (c *connection) recordEvent(event qlog.Event) {
+    c.qlogger.IfOk(func(r qlogwriter.Recorder) { r.RecordEvent(event) })
+}
+```
+
+```go
+c.recordEvent(qlog.PacketDropped{
     Header:  qlog.PacketHeader{PacketType: qlog.PacketTypeVersionNegotiation},
     Raw:     qlog.RawInfo{Length: int(p.Size())},
     Trigger: qlog.PacketDropUnexpectedPacket,
 })
 
-c.qlogger.RecordEvent(qlog.PacketDropped{
+c.recordEvent(qlog.PacketDropped{
     Header:     qlog.PacketHeader{PacketType: qlog.PacketTypeInitial},
     Raw:        qlog.RawInfo{Length: int(p.Size())},
     DatagramID: datagramID,
     Trigger:    qlog.PacketDropUnknownConnectionID,
 })
 
-c.qlogger.RecordEvent(qlog.ALPNInformation{
+c.recordEvent(qlog.ALPNInformation{
     ChosenALPN: c.cryptoStreamHandler.ConnectionState().NegotiatedProtocol,
 })
 
-c.qlogger.RecordEvent(qlog.ConnectionClosed{...})
+if !errors.As(e, &recreateErr) {
+    c.recordEvent(qlog.ConnectionClosed{...})
+}
 ```
 
-**What changed:** 31 guard clauses disappear from a 2,400-line file. The alternative is a no-op implementation of the `Recorder` interface — also valid, and simpler when there's a single constructor. But quic-go creates connections through multiple paths (client dial, server accept, 0-RTT, retry). A no-op implementation works if every path remembers to set it; miss one and you get a nil pointer panic at runtime. The option zero value is safe without any initialization: `RecorderOption{}` is automatically not-ok, so `RecordEvent` is a no-op by default. A code path that forgets to initialize the recorder silently does the right thing instead of crashing. The type signature also documents the optionality — `qlogger RecorderOption` tells you the dependency is conditional; `qlogger qlogwriter.Recorder` doesn't. *Caveat: The fourth example has a compound condition (`&& !errors.As(...)`) that can't fold into `RecordEvent` — that guard stays.*
+**What changed:** Most of the 31 guard clauses disappear from a 2,400-line file — a few with compound conditions drop only the nil check, keeping the remaining condition. A one-line helper wraps the `IfOk` call; every call site drops its nil check. The alternative is a no-op implementation of the `Recorder` interface — also valid, and simpler when there's a single constructor. But quic-go creates connections through multiple paths (client dial, server accept, 0-RTT, retry). A no-op implementation works if every path remembers to set it; miss one and you get a nil pointer panic at runtime. The option zero value is safe without any initialization: a zero `option.Basic` is automatically not-ok, so `recordEvent` is a no-op by default. A code path that forgets to initialize the recorder silently does the right thing instead of crashing. The type signature also documents the optionality — `qlogger option.Basic[qlogwriter.Recorder]` tells you the dependency is conditional; `qlogger qlogwriter.Recorder` doesn't.
+
+---
+
+### Conditional cleanup across optional subsystems — etcd-io/etcd
+
+**Source:** [server/etcdserver/server.go#L1091-L1105](https://github.com/etcd-io/etcd/blob/main/server/etcdserver/server.go#L1091-L1105)
+**Pain point:** Every shutdown path must know which subsystems were actually initialized
+
+**Original** (comment from etcd source: "kv, lessor and backend can be nil if running without v3 enabled or running unit tests"):
+```go
+func (s *EtcdServer) Cleanup() {
+    if s.lessor != nil {
+        s.lessor.Stop()
+    }
+    if s.kv != nil {
+        s.kv.Close()
+    }
+    if s.authStore != nil {
+        s.authStore.Close()
+    }
+    if s.be != nil {
+        s.be.Close()
+    }
+    if s.compactor != nil {
+        s.compactor.Stop()
+    }
+}
+```
+
+**Advanced option types** — each embeds `option.Basic` and mirrors the inner type's cleanup method:
+```go
+type LessorOption struct{ option.Basic[lease.Lessor] }
+func (o LessorOption) Stop() { o.IfOk(lease.Lessor.Stop) }
+
+type KVOption struct{ option.Basic[mvcc.WatchableKV] }
+func (o KVOption) Close() { o.IfOk(mvcc.WatchableKV.Close) }
+
+type AuthStoreOption struct{ option.Basic[auth.AuthStore] }
+func (o AuthStoreOption) Close() { o.IfOk(auth.AuthStore.Close) }
+
+type BackendOption struct{ option.Basic[backend.Backend] }
+func (o BackendOption) Close() { o.IfOk(backend.Backend.Close) }
+
+type CompactorOption struct{ option.Basic[v3compactor.Compactor] }
+func (o CompactorOption) Stop() { o.IfOk(v3compactor.Compactor.Stop) }
+```
+
+**fluentfp:**
+```go
+func (s *EtcdServer) Cleanup() {
+    s.lessor.Stop()
+    s.kv.Close()
+    s.authStore.Close()
+    s.be.Close()
+    s.compactor.Stop()
+}
+```
+
+**Constructor** — the option type captures presence at creation time:
+```go
+// before
+if cfg.AutoCompactionRetention != 0 {
+    srv.compactor, err = v3compactor.New(...)
+}
+
+// after
+if cfg.AutoCompactionRetention != 0 {
+    srv.compactor = NewCompactorOption(option.Of(must.Get(v3compactor.New(...))))
+}
+```
+
+**What changed:** The five nil checks disappear from Cleanup. Each option type is three lines: a struct embedding `option.Basic`, and a method that delegates via `IfOk` using a method expression. The cleanup method calls each subsystem's method directly — it doesn't know or care which were initialized. The constructor still has its conditional — `v3compactor.New` should only be called when retention is configured — but the condition is handled once at creation time. Every downstream use drops its guard. etcd's comment — "kv, lessor and backend can be nil if running without v3 enabled or running unit tests" — documents a hazard that the type system now enforces: a zero `CompactorOption` is automatically not-ok, so `Stop()` is a no-op by default. A test that skips v3 initialization doesn't crash in cleanup. The option types also adapt to each subsystem's interface — `Stop()` for lessor and compactor, `Close()` for kv, authStore, and backend — unlike a one-size-fits-all helper. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks, and new subsystems get the pattern for free.*
+
+For a worked example of the advanced option pattern with conditional factory functions, see [advanced_option.go](../examples/advanced_option.go).
 
 ---
 
@@ -363,22 +441,22 @@ c.qlogger.RecordEvent(qlog.ConnectionClosed{...})
 
 **lo:**
 ```go
-getName := func(u User, _ int) string { return u.Name() }
-names := lo.Map(users, getName)
-// Type string is inferred from getName's return type
+getAddr := func(u User, _ int) Address { return u.Address() }
+addrs := lo.Map(users, getAddr)
+// Type Address is inferred from getAddr's return type
 ```
 
 **fluentfp:**
 ```go
-names := slice.MapTo[string](users).Map(User.Name)
-// [string] must be specified explicitly at construction
+addrs := slice.MapTo[Address](users).Map(User.Address)
+// [Address] must be specified explicitly at construction
 ```
 
 **Why this happens:** Go methods cannot declare type parameters beyond those on the receiver (design constraint D2 in [design.md](design.md)). `MapTo[R]` binds the target type at construction because `.Map()` cannot introduce `R` as a method type parameter. lo avoids this because it uses standalone functions, not methods — `lo.Map[T, R](ts, fn)` infers both types from the arguments.
 
-**When it matters:** Only when mapping to a different type. Same-type operations (`.KeepIf`, `.Convert`, `.Find`) need no extra type parameter. The `To*` methods (`.ToString`, `.ToInt`, `.ToFloat64`) also avoid it for common types.
+**When it matters:** Only when mapping to a non-builtin type. Same-type operations (`.KeepIf`, `.Convert`, `.Find`) need no extra type parameter. The `To*` methods avoid it for common types — `slice.From(users).ToString(User.Name)` needs no type parameter at all.
 
-**The trade-off:** fluentfp's method chaining reads left-to-right but costs one explicit type parameter per cross-type mapping. lo's standalone functions infer types but read inside-out when composed. Each library optimizes for a different axis.
+**The trade-off:** fluentfp's method chaining reads left-to-right but costs one explicit type parameter per cross-type mapping to non-builtin types. lo's standalone functions infer types but read inside-out when composed. Each library optimizes for a different axis.
 
 ---
 
@@ -386,7 +464,7 @@ names := slice.MapTo[string](users).Map(User.Name)
 
 These rewrites share a pattern: fluentfp replaces *incidental structure* (type assertions, wrapper callbacks, temporary variables, nil guards) with *declarative intent*. The wins are real but not universal.
 
-**Good fit:** Codebases that look like the examples above — repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
+**Good fit:** Codebases where you're counting bugs. Every nil check you forget is a production panic; every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional cleanup across optional subsystems (etcd), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
 **Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `Coalesce`, `MapNotZero`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 

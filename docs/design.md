@@ -145,7 +145,7 @@ Also provides `lof.IsNotEmpty` as a predicate for `KeepIf` (filtering non-empty 
 
 Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `Convert`, `Find`, `FlatMap`, etc.
 
-Standalone functions for operations needing extra type parameters or custom traversal: `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromMap`, `FromSet`.
+Standalone functions for operations needing extra type parameters or custom traversal: `Fold`, `GroupBy`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromMap`, `FromSet`.
 
 **Why:** Go methods cannot introduce new type parameters (the D2 constraint). Standalone functions can.
 

@@ -21,7 +21,7 @@ Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = mo
 
 | Feature | Description | Available In | fluentfp Workaround | Design Fit | Rec |
 |---------|-------------|-------------|-------------------|------------|-----|
-| GroupBy | Group elements by key → `map[K][]V` | lo, underscore, fp-go | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | Defer |
+| GroupBy | Group elements by key → `map[K][]V` | lo, underscore, fp-go | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | **Add** |
 | Contains | Membership check for any `comparable` | lo, underscore, fp-go | `String.Contains` for strings only; `.Any(eq)` for others | Standalone — needs `T comparable` constraint | **Done** |
 | KeyBy | Build `map[K]V` from slice + key fn | lo | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | Defer |
 | Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Standalone — needs `T comparable` for zero check | **Done** |
@@ -55,7 +55,11 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 ### Deferred (4)
 
-**GroupBy, KeyBy, CountBy** — All return `map[K]V` types, which require `K comparable`. These are standalone functions. The design question is whether to return plain maps (simple, interoperable) or a new `GroupedMapper` type (chainable but adds complexity). Defer until usage patterns clarify the best return type.
+**KeyBy, CountBy** — Both return `map[K]V` types, which require `K comparable`. These are standalone functions. Return plain maps — `FromMap` bridges back to the fluent chain when needed. Defer until usage patterns emerge.
+
+### Resolved
+
+**GroupBy** — Returns `map[K][]T` (plain map). The design question about return type is resolved: `FromMap` bridges map values back into `Mapper[T]` for downstream chaining. Standalone function with `K comparable` constraint.
 
 **Flatten** — The workaround `FlatMap(identity)` doesn't work cleanly because `Mapper[T any]` doesn't constrain `T` to be a slice type. A standalone `Flatten[T any](tss [][]T) []T` works but breaks the fluent chain. Defer until the use case is encountered in practice.
 

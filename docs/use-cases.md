@@ -109,12 +109,14 @@
 - 2g. Developer checks whether all elements satisfy a criterion: System tests every element and returns true only if all match.
 - 2h. Developer checks whether a specific value exists in the collection: System tests membership and returns true if found.
 - 2i. Developer checks that no elements satisfy a criterion: System tests every element and returns true only if none match.
+- 2j. Developer needs elements grouped by a derived key: System groups elements into a map from key to elements sharing that key.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
 - Element search: first element, first matching, first type-compatible, index of first matching
 - Condition checks: any match, all match, no match, membership
 - Multi-field extraction: 2, 3, or 4 fields simultaneously
+- Grouping: by extracted key
 
 ---
 
