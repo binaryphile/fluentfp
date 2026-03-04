@@ -63,13 +63,13 @@ result := value.LazyOf(expensiveDefault).When(!cache.Hit()).Or(cache.Value())
 ### First Non-Zero
 ```go
 // Config merge: use override if set, otherwise keep default
-result.Region = value.FirstNotZero(override.Region, defaults.Region)
+result.Region = value.FirstNonZero(override.Region, defaults.Region)
 
 // Multi-level fallback
-host := value.FirstNotZero(envHost, configHost, "localhost")
+host := value.FirstNonZero(envHost, configHost, "localhost")
 ```
 
-`FirstNotZero` returns the first non-zero value from its arguments, or zero if all are zero. It requires `comparable` (same constraint as `slice.Compact`). Use it when the condition is "non-zero" and you don't need the option intermediary.
+`FirstNonZero` returns the first non-zero value from its arguments, or zero if all are zero. It requires `comparable` (same constraint as `slice.Compact`). Use it when the condition is "non-zero" and you don't need the option intermediary.
 
 ## Composition
 
@@ -107,6 +107,6 @@ port := option.Getenv("PORT").Or("8080")
 - `Cond[T].When(bool) option.Basic[T]` — ok if true, not-ok if false
 - `LazyOf(func() T) LazyCond[T]` — wrap a function (lazy)
 - `LazyCond[T].When(bool) option.Basic[T]` — evaluate only if true
-- `FirstNotZero[T comparable](vals ...T) T` — first non-zero value
+- `FirstNonZero[T comparable](vals ...T) T` — first non-zero value
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/value) for complete API documentation, the [main README](../README.md) for installation, and [option](../option/) for absent values without conditions.

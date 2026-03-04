@@ -139,7 +139,7 @@ Wraps Go builtins (`len`, `fmt.Println`) as first-class functions for higher-ord
 
 **Why needed:** Go builtins are not functions — you cannot pass `len` to `.ToInt()`. `lof.Len` bridges the gap.
 
-Also provides `lof.IsNotEmpty` as a predicate for `KeepIf` (filtering non-empty strings), and `lof.IfNotEmpty` which bridges the "empty string = absent" convention to `(string, bool)` for `option.New`.
+Also provides `lof.IsNonEmpty` as a predicate for `KeepIf` (filtering non-empty strings), and `lof.IfNonEmpty` which bridges the "empty string = absent" convention to `(string, bool)` for `option.New`.
 
 ### D9: Method vs standalone function boundary
 

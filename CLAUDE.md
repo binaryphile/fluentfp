@@ -175,14 +175,14 @@ import "github.com/binaryphile/fluentfp/option"
 // Creating options
 option.Of(t T) Basic[T]                // Always ok
 option.New(t T, ok bool) Basic[T]      // Conditional ok
-option.IfNotZero(t T) Basic[T]         // Ok if not zero value ("", 0, false, etc.)
-option.IfNotEmpty(s string) String     // Ok if non-empty (string alias for IfNotZero)
-option.IfNotNil(ptr *T) Basic[T]       // From pointer (nil = not-ok)
+option.IfNonZero(t T) Basic[T]         // Ok if not zero value ("", 0, false, etc.)
+option.IfNonEmpty(s string) String     // Ok if non-empty (string alias for IfNonZero)
+option.IfNonNil(ptr *T) Basic[T]       // From pointer (nil = not-ok)
 
 // Create + transform (check presence and map in one call)
-option.MapNotZero(t T, fn func(T) R) Basic[R]       // If not zero, apply fn
-option.MapNotEmpty(s string, fn func(string) R) Basic[R]  // If non-empty, apply fn
-option.MapNotNil(ptr *T, fn func(T) R) Basic[R]     // If non-nil, deref and apply fn
+option.MapNonZero(t T, fn func(T) R) Basic[R]       // If not zero, apply fn
+option.MapNonEmpty(s string, fn func(string) R) Basic[R]  // If non-empty, apply fn
+option.MapNonNil(ptr *T, fn func(T) R) Basic[R]     // If non-nil, deref and apply fn
 
 // Using options
 .Get() (T, bool)                       // Comma-ok unwrap
@@ -202,7 +202,7 @@ option.String, option.Int, option.Bool, option.Error
 ```go
 // Nullable database field
 func (r Record) GetHost() option.String {
-    return option.IfNotZero(r.NullableHost.String)
+    return option.IfNonZero(r.NullableHost.String)
 }
 
 // Tri-state boolean (true/false/unknown)
@@ -256,7 +256,7 @@ import "github.com/binaryphile/fluentfp/value"
 // Value-first conditional selection
 value.Of(v).When(cond).Or(fallback)          // Eager
 value.LazyOf(fn).When(cond).Or(fallback)       // Lazy preferred value
-value.FirstNotZero[T comparable](vals ...T) T  // First non-zero value
+value.FirstNonZero[T comparable](vals ...T) T  // First non-zero value
 ```
 
 ### value Patterns
@@ -280,17 +280,17 @@ import "github.com/binaryphile/fluentfp/lof"
 lof.Println(s string)                   // Wraps fmt.Println for Each
 lof.Len(ts []T) int                     // Wraps len
 lof.StringLen(s string) int             // Wraps len for strings
-lof.IsNotEmpty(s string) bool           // Predicate for KeepIf on string slices
-lof.IsNotBlank(s string) bool           // True if s contains non-whitespace characters
-lof.IfNotEmpty(s string) (string, bool) // Comma-ok for "empty = absent" returns
+lof.IsNonEmpty(s string) bool           // Predicate for KeepIf on string slices
+lof.IsNonBlank(s string) bool           // True if s contains non-whitespace characters
+lof.IfNonEmpty(s string) (string, bool) // Comma-ok for "empty = absent" returns
 ```
 
-### lof.IfNotEmpty Pattern
+### lof.IfNonEmpty Pattern
 
 ```go
 // cmp.Diff returns "" when equal — convert to comma-ok
 result := cmp.Diff(want, got)
-if diff, ok := lof.IfNotEmpty(result); ok {
+if diff, ok := lof.IfNonEmpty(result); ok {
     t.Errorf("mismatch:\n%s", diff)
 }
 ```
@@ -473,7 +473,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `slice.KeepIf`, `slice.RemoveIf` - conditional inclusion logic
 - `slice.Take`, `slice.TakeLast` - boundary handling (`if n > len`, negative n)
 - `slice.Fold`, `slice.Unzip2/3/4` - accumulation and multi-output logic
-- `option.New`, `option.IfNotZero`, `option.IfNotNil` - conditional construction
+- `option.New`, `option.IfNonZero`, `option.IfNonNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
 - `option.KeepOkIf`, `option.ToNotOkIf` - double conditional (filter)
 - `value.When` (on LazyCond) - conditional function call

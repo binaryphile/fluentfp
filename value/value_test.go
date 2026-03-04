@@ -102,58 +102,58 @@ func TestLazyOf_When_Or_returns_fallback_when_false(t *testing.T) {
 	}
 }
 
-func TestFirstNotZero(t *testing.T) {
+func TestFirstNonZero(t *testing.T) {
 	t.Run("first non-zero string", func(t *testing.T) {
-		got := value.FirstNotZero("", "fallback")
+		got := value.FirstNonZero("", "fallback")
 		if got != "fallback" {
 			t.Errorf("got %q, want %q", got, "fallback")
 		}
 	})
 
 	t.Run("override wins", func(t *testing.T) {
-		got := value.FirstNotZero("override", "fallback")
+		got := value.FirstNonZero("override", "fallback")
 		if got != "override" {
 			t.Errorf("got %q, want %q", got, "override")
 		}
 	})
 
 	t.Run("first of three", func(t *testing.T) {
-		got := value.FirstNotZero("", "", "third")
+		got := value.FirstNonZero("", "", "third")
 		if got != "third" {
 			t.Errorf("got %q, want %q", got, "third")
 		}
 	})
 
 	t.Run("all zero", func(t *testing.T) {
-		got := value.FirstNotZero("", "")
+		got := value.FirstNonZero("", "")
 		if got != "" {
 			t.Errorf("got %q, want %q", got, "")
 		}
 	})
 
 	t.Run("single non-zero", func(t *testing.T) {
-		got := value.FirstNotZero("only")
+		got := value.FirstNonZero("only")
 		if got != "only" {
 			t.Errorf("got %q, want %q", got, "only")
 		}
 	})
 
 	t.Run("single zero", func(t *testing.T) {
-		got := value.FirstNotZero("")
+		got := value.FirstNonZero("")
 		if got != "" {
 			t.Errorf("got %q, want %q", got, "")
 		}
 	})
 
 	t.Run("no args", func(t *testing.T) {
-		got := value.FirstNotZero[string]()
+		got := value.FirstNonZero[string]()
 		if got != "" {
 			t.Errorf("got %q, want %q", got, "")
 		}
 	})
 
 	t.Run("int zero vs non-zero", func(t *testing.T) {
-		got := value.FirstNotZero(0, 42)
+		got := value.FirstNonZero(0, 42)
 		if got != 42 {
 			t.Errorf("got %d, want 42", got)
 		}

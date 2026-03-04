@@ -236,4 +236,4 @@
 **Sub-Variations:**
 - Eager: value computed before condition check (cheap values)
 - Lazy: value computed only when condition true (expensive computations)
-- FirstNotZero: first non-zero from candidates (zero = absent)
+- FirstNonZero: first non-zero from candidates (zero = absent)

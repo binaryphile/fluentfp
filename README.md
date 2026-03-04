@@ -231,7 +231,7 @@ for i, item := range items {
 | Package | Purpose | Key Functions |
 |---------|---------|---------------|
 | [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
-| [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfNotZero`, `IfNotNil` |
+| [option](option/) | Nil safety | `Of`, `Get`, `Or`, `IfNonZero`, `IfNonNil` |
 | [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
 | [must](must/) | Invariant enforcement | `Get`, `BeNil`, `Of` |
 | [value](value/) | Conditional value selection | `Of().When().Or()` |
@@ -255,7 +255,7 @@ Zero reflection. Zero global state. Zero build tags.
 - **v0.14.0**: `value` package replaces `ternary` — value-first conditional selection
 - **v0.12.0**: **BREAKING** — `MapperTo.To` renamed to `MapperTo.Map` for clarity
 - **v0.8.0**: `either` package (Left/Right sum types), `ToInt32`/`ToInt64` (slice package)
-- **v0.7.0**: `IfNotZero` for comparable types (option package)
+- **v0.7.0**: `IfNonZero` for comparable types (option package)
 - **v0.6.0**: `Fold`, `Unzip2/3/4`, `Zip`/`ZipWith` (pair package)
 - **v0.5.0**: `ToFloat64`, `ToFloat32`
 

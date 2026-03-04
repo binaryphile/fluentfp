@@ -75,7 +75,7 @@ func main() {
 		destUsers := destClient.ListUsers()
 
 		result := cmp.Diff(sourceUsers, destUsers)
-		if diff, hasDiff := lof.IfNotEmpty(result); hasDiff {
+		if diff, hasDiff := lof.IfNonEmpty(result); hasDiff {
 			fmt.Print("data sources are NOT in sync:\n", diff, "\n")
 		} else {
 			fmt.Println("data sources are in sync")
@@ -100,7 +100,7 @@ func NewClientOption(basic option.Basic[Client]) ClientOption {
 // OpenClientAsOption returns ok ClientOption if users is non-empty.
 func OpenClientAsOption(users string) ClientOption {
 	// This chains options so OpenApp needs no conditionals:
-	usersOption := option.IfNotEmpty(users)                  // "" → not-ok
+	usersOption := option.IfNonEmpty(users)                  // "" → not-ok
 	clientBasicOption := option.Map(usersOption, OpenClient) // not-ok passes through
 	return NewClientOption(clientBasicOption)
 }

@@ -24,18 +24,18 @@ func main() {
 	userOption := option.New(user, user.IsValid())
 	fmt.Println("userOption.IsOk():", userOption.IsOk()) // true
 
-	// IfNotZero creates an ok option only if the value is not the zero value ("", 0, false, etc.)
-	zeroCountOption := option.IfNotZero(0)
+	// IfNonZero creates an ok option only if the value is not the zero value ("", 0, false, etc.)
+	zeroCountOption := option.IfNonZero(0)
 	fmt.Println("zeroCountOption.IsOk():", zeroCountOption.IsOk()) // false
 
-	// IfNotEmpty is a readable alias for IfNotZero with strings
-	emptyNameOption := option.IfNotEmpty("")
-	bobOption := option.IfNotEmpty("Bob")
+	// IfNonEmpty is a readable alias for IfNonZero with strings
+	emptyNameOption := option.IfNonEmpty("")
+	bobOption := option.IfNonEmpty("Bob")
 	fmt.Println("bobOption.IsOk():", bobOption.IsOk()) // true
 
-	// IfNotNil converts pointer-based pseudo-options (nil = absent)
+	// IfNonNil converts pointer-based pseudo-options (nil = absent)
 	var nilPtr *int
-	nilIntOption := option.IfNotNil(nilPtr)
+	nilIntOption := option.IfNonNil(nilPtr)
 	fmt.Println("nilIntOption.IsOk():", nilIntOption.IsOk()) // false
 
 	// Pre-declared not-ok values for built-ins
@@ -104,7 +104,7 @@ func main() {
 	notAdultOption := fortyTwoOption.ToNotOkIf(isAdult)
 	fmt.Println("notAdultOption.IsOk():", notAdultOption.IsOk()) // false
 
-	// ToOpt converts to pointer (inverse of IfNotNil) — named after the *Opt convention for pseudo-options
+	// ToOpt converts to pointer (inverse of IfNonNil) — named after the *Opt convention for pseudo-options
 	fmt.Println("fortyTwoOption.ToOpt():", *fortyTwoOption.ToOpt()) // 42
 }
 

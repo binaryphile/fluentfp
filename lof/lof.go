@@ -21,23 +21,23 @@ func StringLen(s string) int {
 	return len(s)
 }
 
-// IsNotEmpty returns true if s is non-empty.
-func IsNotEmpty(s string) bool {
+// IsNonEmpty returns true if s is non-empty.
+func IsNonEmpty(s string) bool {
 	return s != ""
 }
 
-// IsNotBlank returns true if s contains non-whitespace characters.
-func IsNotBlank(s string) bool {
+// IsNonBlank returns true if s contains non-whitespace characters.
+func IsNonBlank(s string) bool {
 	return strings.TrimSpace(s) != ""
 }
 
-// IfNotEmpty returns s and whether s is non-empty.
+// IfNonEmpty returns s and whether s is non-empty.
 // Converts "empty string = absent" returns to Go's comma-ok idiom.
 //
 //	result := cmp.Diff(want, got)
-//	if diff, ok := lof.IfNotEmpty(result); ok {
+//	if diff, ok := lof.IfNonEmpty(result); ok {
 //	    t.Errorf("mismatch:\n%s", diff)
 //	}
-func IfNotEmpty(s string) (string, bool) {
+func IfNonEmpty(s string) (string, bool) {
 	return s, s != ""
 }

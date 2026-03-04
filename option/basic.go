@@ -8,9 +8,9 @@ type Basic[T any] struct {
 
 // factories
 
-// IfNotEmpty returns an ok option of s provided that s is not empty, or not-ok otherwise.
-// It is a readable alias for IfNotZero when the type is string.
-func IfNotEmpty(s string) (_ String) {
+// IfNonEmpty returns an ok option of s provided that s is not empty, or not-ok otherwise.
+// It is a readable alias for IfNonZero when the type is string.
+func IfNonEmpty(s string) (_ String) {
 	if s == "" {
 		return
 	}
@@ -18,9 +18,9 @@ func IfNotEmpty(s string) (_ String) {
 	return Of(s)
 }
 
-// IfNotZero returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
+// IfNonZero returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
 // Zero values include "" for strings, 0 for numbers, false for bools, etc.
-func IfNotZero[T comparable](t T) (_ Basic[T]) {
+func IfNonZero[T comparable](t T) (_ Basic[T]) {
 	var zero T
 	if t == zero {
 		return
@@ -46,9 +46,9 @@ func Of[T any](t T) Basic[T] {
 	}
 }
 
-// IfNotNil returns an ok option of *what t points at* provided that t is not nil, or not-ok otherwise.
+// IfNonNil returns an ok option of *what t points at* provided that t is not nil, or not-ok otherwise.
 // It converts a pointer-based pseudo-option (where nil means absent) into a formal option.
-func IfNotNil[T any](t *T) (_ Basic[T]) {
+func IfNonNil[T any](t *T) (_ Basic[T]) {
 	if t == nil {
 		return
 	}

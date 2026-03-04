@@ -74,7 +74,7 @@ connected := result.IsConnected.OrFalse()  // unknown → false
 ```go
 // Nullable field — return option instead of zero value
 func (r Record) Host() option.String {
-    return option.IfNotZero(r.host)
+    return option.IfNonZero(r.host)
 }
 // Caller decides how to handle absence
 addr := record.Host().Or("localhost")
@@ -86,8 +86,8 @@ Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`),
 
 `Basic[T]` unifies them. Factory functions bridge each Go pattern into a single chainable type:
 
-- `IfNotNil(ptr)` — pointer-based absence
-- `IfNotZero(count)`, `IfNotEmpty(name)` — zero-value absence
+- `IfNonNil(ptr)` — pointer-based absence
+- `IfNonZero(count)`, `IfNonEmpty(name)` — zero-value absence
 - `Lookup(m, key)`, `New(val, ok)` — comma-ok absence
 - `Getenv("PORT")` — environment variable absence
 
@@ -97,8 +97,8 @@ Once you have a `Basic[T]`, the same API works regardless of where the value cam
 
 `Basic[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null).
 
-- **Create**: `Of`, `New`, `NotOk`, `IfNotZero`, `IfNotEmpty`, `IfNotNil`, `Getenv`, `Lookup`
-- **Create + Transform**: `MapNotZero`, `MapNotEmpty`, `MapNotNil` — check presence and map in one call
+- **Create**: `Of`, `New`, `NotOk`, `IfNonZero`, `IfNonEmpty`, `IfNonNil`, `Getenv`, `Lookup`
+- **Create + Transform**: `MapNonZero`, `MapNonEmpty`, `MapNonNil` — check presence and map in one call
 - **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse`
 - **Transform**: `Convert`, `Map`, `ToString`, `ToInt`, other `To*`, `ToOpt`
 - **Filter**: `KeepOkIf`, `ToNotOkIf`

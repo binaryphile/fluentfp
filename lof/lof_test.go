@@ -6,7 +6,7 @@ import (
 	"github.com/binaryphile/fluentfp/lof"
 )
 
-func TestIsNotBlank(t *testing.T) {
+func TestIsNonBlank(t *testing.T) {
 	tests := []struct {
 		name string
 		s    string
@@ -23,8 +23,8 @@ func TestIsNotBlank(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := lof.IsNotBlank(tt.s); got != tt.want {
-				t.Errorf("IsNotBlank(%q) = %v, want %v", tt.s, got, tt.want)
+			if got := lof.IsNonBlank(tt.s); got != tt.want {
+				t.Errorf("IsNonBlank(%q) = %v, want %v", tt.s, got, tt.want)
 			}
 		})
 	}

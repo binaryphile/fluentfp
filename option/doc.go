@@ -21,9 +21,9 @@ func _() {
 	type _ = String
 
 	_ = Getenv("")
-	_ = IfNotEmpty
-	_ = IfNotNil[int]
-	_ = IfNotZero[int]
+	_ = IfNonEmpty
+	_ = IfNonNil[int]
+	_ = IfNonZero[int]
 	_ = Map(Basic[int]{}, func(int) int { return 0 })
 	_ = New[int]
 	_ = Of[int]

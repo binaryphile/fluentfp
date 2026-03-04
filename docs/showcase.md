@@ -74,27 +74,27 @@ splitTokens := func(s string) slice.Mapper[string] {
 
 // lo-specific — stdlib functions need wrappers for the _ int parameter
 toLower := func(s string, _ int) string { return strings.ToLower(s) }
-isNotBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
+isNonBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
 ```
 
 **lo with extraction:**
 ```go
 func tokenize(s string) []string {
     tokens := lo.Map(splitTokens(s), toLower)
-    return lo.Filter(tokens, isNotBlank)
+    return lo.Filter(tokens, isNonBlank)
 }
 ```
 
 **fluentfp:**
 ```go
-tokens := splitTokens(s).Convert(strings.ToLower).KeepIf(lof.IsNotBlank)
+tokens := splitTokens(s).Convert(strings.ToLower).KeepIf(lof.IsNonBlank)
 ```
 
-**What changed:** The fluentfp version needs no wrappers — `strings.ToLower` and `lof.IsNotBlank` plug in directly. lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice — but when you don't need the index, every stdlib function becomes a wrapper: `toLower` and `isNotBlank` exist only to discard that `_ int`. Without wrappers to write, the fluentfp version collapses to a single expression — compact enough to inline at the call site without a `tokenize` function at all.
+**What changed:** The fluentfp version needs no wrappers — `strings.ToLower` and `lof.IsNonBlank` plug in directly. lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice — but when you don't need the index, every stdlib function becomes a wrapper: `toLower` and `isNonBlank` exist only to discard that `_ int`. Without wrappers to write, the fluentfp version collapses to a single expression — compact enough to inline at the call site without a `tokenize` function at all.
 
 For operations this common, naming ergonomics matter — `KeepIf` and `Convert` say what happens to the elements without requiring FP vocabulary, which lowers the bar for newcomers to the codebase.
 
-*Editorial note: `.KeepIf(lof.IsNotBlank).Convert(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest. That the optimization is easy to spot is itself a consequence of the clarity — each step is named, so reordering is a visible decision rather than a loop restructure.*
+*Editorial note: `.KeepIf(lof.IsNonBlank).Convert(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest. That the optimization is easy to spot is itself a consequence of the clarity — each step is named, so reordering is a visible decision rather than a loop restructure.*
 
 *Interoperability note: `splitTokens` returns `slice.Mapper[string]` so both examples can share one extracted function. Go allows this because `Mapper[string]` is assignable to `[]string` without conversion — the underlying types match and the target is not a defined type. lo accepts it directly; no cast needed on either side.*
 
@@ -147,10 +147,10 @@ defaultName := fmt.Sprintf("Service '%s' check", service.Service)
 check := &structs.HealthCheck{
     Node:           a.config.NodeName,
     CheckID:        types.CheckID(checkID),
-    Name:           option.IfNotEmpty(chkType.Name).Or(defaultName),
-    Interval:       option.MapNotZero(chkType.Interval, time.Duration.String).Or(""),
-    Timeout:        option.MapNotZero(chkType.Timeout, time.Duration.String).Or(""),
-    Status:         option.IfNotEmpty(chkType.Status).Or(api.HealthCritical),
+    Name:           option.IfNonEmpty(chkType.Name).Or(defaultName),
+    Interval:       option.MapNonZero(chkType.Interval, time.Duration.String).Or(""),
+    Timeout:        option.MapNonZero(chkType.Timeout, time.Duration.String).Or(""),
+    Status:         option.IfNonEmpty(chkType.Status).Or(api.HealthCritical),
     Notes:          chkType.Notes,
     ServiceID:      service.ID,
     ServiceName:    service.Service,
@@ -160,7 +160,7 @@ check := &structs.HealthCheck{
 }
 ```
 
-**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNotEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.MapNotZero` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All four conditional fields now use the `option` package. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.IfNonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.MapNonZero` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All four conditional fields now use the `option` package. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 ---
 
@@ -254,15 +254,15 @@ if b.RetryInterval != 0 {
 
 **fluentfp** (same 6 fields — `s` is the receiver, `b` is the override):
 ```go
-result.AuthoritativeRegion = value.FirstNotZero(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.EncryptKey           = value.FirstNotZero(b.EncryptKey, s.EncryptKey)
+result.AuthoritativeRegion = value.FirstNonZero(b.AuthoritativeRegion, s.AuthoritativeRegion)
+result.EncryptKey           = value.FirstNonZero(b.EncryptKey, s.EncryptKey)
 result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
-result.RaftProtocol         = value.FirstNotZero(b.RaftProtocol, s.RaftProtocol)
-result.HeartbeatGrace       = value.FirstNotZero(b.HeartbeatGrace, s.HeartbeatGrace)
-result.RetryInterval        = value.FirstNotZero(b.RetryInterval, s.RetryInterval)
+result.RaftProtocol         = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
+result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGrace)
+result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Most fields use `value.FirstNotZero(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` uses `> 0` (not `!= 0`) in the original, so `FirstNotZero` would be a semantic change — it would accept negative values the original rejects. That field uses `value.Of().When().Or()` instead, preserving the exact guard. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNotNil` instead. And `FirstNotZero` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
+**What changed:** Most fields use `value.FirstNonZero(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` uses `> 0` (not `!= 0`) in the original, so `FirstNonZero` would be a semantic change — it would accept negative values the original rejects. That field uses `value.Of().When().Or()` instead, preserving the exact guard. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNonNil` instead. And `FirstNonZero` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
 
 ---
 
@@ -445,6 +445,6 @@ These rewrites share a pattern: fluentfp replaces *incidental structure* (type a
 
 **Good fit:** Codebases where you're counting bugs. Every nil check you forget is a production panic; every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional cleanup across optional subsystems (etcd), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
-**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `FirstNotZero`, `MapNotZero`, `IfOk`) that reads clearly once learned but has an onboarding cost.
+**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `FirstNonZero`, `MapNonZero`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 
 **Not a replacement for loops:** As noted in the introduction, a `for` loop with 4–6 lines and zero abstraction is often the right choice. fluentfp targets the cases where loops accumulate ceremony faster than clarity.
