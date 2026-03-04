@@ -79,6 +79,7 @@ func _() {
 
 	_ = FindAs[int, int]
 	_ = Fold[int, int]
+	_ = Map[int, int]
 	_ = MapAccum[int, int, int]
 	_ = ParallelMap[int, int]
 	_ = ToSet[int]

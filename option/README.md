@@ -24,7 +24,7 @@ port := option.Getenv("PORT").Or("8080")
 
 ```go
 // Conditional pipeline
-name := userOption.KeepOkIf(User.IsActive).ToString(User.Name).Or("unknown")
+name := userOption.KeepIf(User.IsActive).ToString(User.Name).Or("unknown")
 ```
 
 ```go
@@ -91,7 +91,7 @@ Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`),
 - `Lookup(m, key)`, `New(val, ok)` — comma-ok absence
 - `Getenv("PORT")` — environment variable absence
 
-Once you have a `Option[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepOkIf(valid)`, `.ToString(format)`, `.Get()`.
+Once you have a `Option[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepIf(valid)`, `.ToString(format)`, `.Get()`.
 
 ## Operations
 
@@ -101,7 +101,7 @@ Once you have a `Option[T]`, the same API works regardless of where the value ca
 - **Create + Transform**: `NonZeroMap`, `NonEmptyMap`, `NonNilMap` — check presence and map in one call
 - **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse`
 - **Transform**: `Convert`, `Map`, `ToString`, `ToInt`, other `To*`, `ToOpt`
-- **Filter**: `KeepOkIf`, `ToNotOkIf`
+- **Filter**: `KeepIf`, `RemoveIf`
 - **Side effects**: `IfOk`, `IfNotOk`, `Lift`
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation, the [main README](../README.md) for installation, and [Nil Safety in Go](../nil-safety.md) for the full discussion.

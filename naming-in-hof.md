@@ -61,7 +61,7 @@ ints := slice.From(strings).ToInt(mustAtoi)
 
 ### Option Transforms
 
-For `.Map`, `.KeepOkIf`, and other option methods:
+For `.Map`, `.KeepIf`, and other option methods:
 
 ```go
 // Method expression when available

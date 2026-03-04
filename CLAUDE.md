@@ -76,6 +76,7 @@ slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set me
 slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) map[K][]T       // Group elements by key
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
+slice.Map[T, R any](ts []T, fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
 slice.FindAs[R, T any](ts []T) option.Option[R]                         // First element that type-asserts to R
 slice.Contains[T comparable](ts []T, target T) bool                     // Check membership
 slice.ToSet[T comparable](ts []T) map[T]bool                           // Convert slice to set for O(1) lookup
@@ -94,8 +95,8 @@ slice.ParallelMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
 .ParallelKeepIf(workers int, fn func(T) bool) Mapper[T]  // method on Mapper and MapperTo
 .ParallelEach(workers int, fn func(T))                     // method on Mapper and MapperTo
 
-// ParallelMap is standalone (not a method) because it returns Mapper[R] —
-// Go can't infer R from Mapper[T]'s receiver. Same reason Fold and MapAccum are standalone.
+// Map, ParallelMap, Fold, and MapAccum are standalone (not methods) because they return
+// a different type R — Go can't infer R from Mapper[T]'s receiver.
 // MapperTo[R, T].ParallelMap IS a method because both type params are on the receiver.
 ```
 
@@ -190,6 +191,8 @@ option.NonNilMap(ptr *T, fn func(T) R) Option[R]     // If non-nil, deref and ap
 .OrZero() T                            // Value or zero
 .OrEmpty() T                           // Alias for strings
 .OrFalse() bool                        // For option.Bool
+.KeepIf(fn func(T) bool) Option[T]     // Filter: keep if predicate passes
+.RemoveIf(fn func(T) bool) Option[T]  // Filter: remove if predicate passes
 .IfOk(fn func(T))                      // Side-effect if ok
 option.Lift(fn func(T)) func(Option[T]) // Lift side-effect function to accept option
 
@@ -477,7 +480,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `slice.Fold`, `slice.Unzip2/3/4` - accumulation and multi-output logic
 - `option.New`, `option.NonZero`, `option.NonNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
-- `option.KeepOkIf`, `option.ToNotOkIf` - double conditional (filter)
+- `option.KeepIf`, `option.RemoveIf` - double conditional (filter)
 - `value.When` (on LazyCond) - conditional function call
 
 ### Representative Pattern Testing

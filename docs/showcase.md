@@ -1,6 +1,6 @@
 # Real-World Rewrite Showcase
 
-A curated selection of real code from real GitHub projects rewritten with fluentfp. Each example highlights a specific pain point — callback wrappers, `interface{}` casts, nil guards, or verbose imperative boilerplate — that fluentfp eliminates.
+A curated selection of real code from real GitHub projects rewritten with fluentfp. Each example highlights a specific pain point — callback wrappers, `interface{}` casts, or verbose imperative boilerplate — that fluentfp eliminates.
 
 This is a showcase, not a balanced analysis. It intentionally highlights where fluentfp improves on competitors. For an honest gap analysis of what fluentfp lacks, see [feature-gaps.md](feature-gaps.md). For a synthetic library comparison, see [comparison.md](../comparison.md).
 
@@ -191,56 +191,15 @@ if b.RetryInterval != 0 {
 
 **fluentfp** (same 6 fields — `s` is the receiver, `b` is the override):
 ```go
-result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.EncryptKey           = value.FirstNonEmpty(b.EncryptKey, s.EncryptKey)
+result.AuthoritativeRegion = option.NonEmpty(b.AuthoritativeRegion).Or(s.AuthoritativeRegion)
+result.EncryptKey           = option.NonEmpty(b.EncryptKey).Or(s.EncryptKey)
 result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
 result.RaftProtocol         = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
 result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGrace)
 result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** `FirstNonZero` only works when zero genuinely means "absent" — if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. With that constraint understood: string fields use `FirstNonEmpty(override, default)`, numeric fields use `FirstNonZero(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields assign pointers (`result.Field = b.Field` where both are `*T`). `FirstNonNil` can't help here — it dereferences. Instead: `value.Of(b.Field).When(b.Field != nil).Or(s.Field)` selects between the pointers themselves.*
-
----
-
-### Optional instrumentation — quic-go/quic-go
-
-**Source:** [connection.go](https://github.com/quic-go/quic-go/blob/master/connection.go)
-**Pain point:** 31 nil checks on an optional qlog recorder scattered across packet handling, error classification, and connection lifecycle
-
-**Original** (2 of 31 — one simple, one compound):
-```go
-// Field type: *qlogwriter.Recorder (nil when qlog disabled)
-
-if c.qlogger != nil {
-    c.qlogger.RecordEvent(qlog.PacketDropped{...})
-}
-
-if c.qlogger != nil && !errors.As(e, &recreateErr) {
-    c.qlogger.RecordEvent(qlog.ConnectionClosed{...})
-}
-```
-
-**fluentfp** — the field type changes from pointer to option:
-```go
-// Field type: option.Option[qlogwriter.Recorder]
-// Zero value is automatically not-ok — no explicit "disabled" state needed.
-
-// recordEvent records a qlog event if the recorder is present.
-func (c *connection) recordEvent(event qlog.Event) {
-    c.qloggerOption.IfOk(func(r qlogwriter.Recorder) { r.RecordEvent(event) })
-}
-```
-
-```go
-c.recordEvent(qlog.PacketDropped{...})
-
-if !errors.As(e, &recreateErr) {
-    c.recordEvent(qlog.ConnectionClosed{...})
-}
-```
-
-**What changed:** The field changes from `*qlogwriter.Recorder` (named `qlogger`) to `option.Option[qlogwriter.Recorder]` (named `qloggerOption`). That one type change eliminates all 31 nil checks — `.IfOk()` calls the method only when the option is ok, and a zero-value option is automatically not-ok. Compound conditions like the second example drop only the nil check, keeping the remaining condition. The structural win: every future code path that touches `qloggerOption` gets nil safety for free. No discipline required — the type enforces it.
+**What changed:** String fields use `option.NonEmpty(override).Or(default)` — "use the override if non-empty, otherwise keep the default" reads as intent. Numeric fields use `value.FirstNonZero(override, default)` — "first non-zero wins" in one call. `FirstNonZero` only works when zero genuinely means "absent"; if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields assign pointers (`result.Field = b.Field` where both are `*T`). `FirstNonNil` can't help here — it dereferences. Instead: `value.Of(b.Field).When(b.Field != nil).Or(s.Field)` selects between the pointers themselves.*
 
 ---
 
@@ -299,7 +258,7 @@ duplicates.SelectT(toSummary).ToSlice(&summaries)
 groupedMap := slice.GroupBy(styleList, valueHash)
 withDuplicates := slice.FromMap(groupedMap).KeepIf(hasDuplicates)
 sorted := slice.SortByDesc(withDuplicates, groupSize)
-summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
+summaries := slice.Map(sorted, toSummary)
 ```
 
 **What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map — and go-linq's reads more fluently. Method chaining (`.Where(hasDuplicates).OrderByDescending(groupSize)`) flows more naturally than standalone functions (`slice.SortByDesc(withDuplicates, groupSize)`). fluentfp uses standalone functions here because Go doesn't allow generic methods — operations like `GroupBy` and `SortByDesc` need extra type parameters that methods can't introduce. The cost of go-linq's fluency is giving up type safety and incurring reflection overhead.
@@ -308,7 +267,7 @@ summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
 
 ### Trade-off: Explicit type parameter — fluentfp vs lo
 
-**Pain point:** fluentfp requires explicit type parameter where lo infers it
+**Pain point:** fluentfp's method chaining requires explicit type parameter where lo infers it
 
 **lo:**
 ```go
@@ -317,25 +276,29 @@ addrs := lo.Map(users, getAddr)
 // Type Address is inferred from getAddr's return type
 ```
 
-**fluentfp:**
+**fluentfp (method chaining):**
 ```go
 addrs := slice.MapTo[Address](users).Map(User.Address)
 // [Address] must be specified explicitly at construction
 ```
 
-**Why this happens:** Go methods cannot declare type parameters beyond those on the receiver (design constraint D2 in [design.md](design.md)). `MapTo[R]` binds the target type at construction because `.Map()` cannot introduce `R` as a method type parameter. lo avoids this because it uses standalone functions, not methods — `lo.Map[T, R](ts, fn)` infers both types from the arguments.
+**fluentfp (standalone):**
+```go
+addrs := slice.Map(users, User.Address)
+// Both types inferred — same inference as lo, no _ int wrapper
+```
 
-**When it matters:** Only when mapping to a non-builtin type. Same-type operations (`.KeepIf`, `.Convert`, `.Find`) need no extra type parameter. The `To*` methods avoid it for common types — `slice.From(users).ToString(User.Name)` needs no type parameter at all.
+**Why the method form needs the type parameter:** Go methods cannot declare type parameters beyond those on the receiver (design constraint D2 in [design.md](design.md)). `MapTo[R]` binds the target type at construction because `.Map()` cannot introduce `R` as a method type parameter. The standalone `slice.Map` function avoids this — like lo, it infers both types from the arguments.
 
-**The trade-off:** fluentfp's method chaining reads left-to-right but costs one explicit type parameter per cross-type mapping to non-builtin types. lo's standalone functions infer types but read inside-out when composed. Each library optimizes for a different axis.
+**The trade-off:** The standalone `slice.Map` matches lo's inference but breaks the method chain. If the map is your only operation, `slice.Map` is the natural choice. If you're chaining further operations (filter, sort, etc.), `MapTo[Address](users).Map(fn).KeepIf(pred)` keeps the pipeline left-to-right at the cost of one explicit type parameter. lo's standalone functions always infer types but read inside-out when composed.
 
 ---
 
 ### When fluentfp fits — and when it doesn't
 
-These rewrites share a pattern: fluentfp replaces *incidental structure* (type assertions, wrapper callbacks, temporary variables, nil guards) with *declarative intent*. The wins are real but not universal.
+These rewrites share a pattern: fluentfp replaces *incidental structure* (type assertions, wrapper callbacks, temporary variables) with *declarative intent*. The wins are real but not universal.
 
-**Good fit:** Codebases where you're counting bugs. Every nil check you forget is a production panic; every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
+**Good fit:** Codebases where you're counting bugs. Every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
 **Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `NonZero`, `NonEmpty`, `NonZeroMap`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 

@@ -85,11 +85,11 @@ func (b Option[T]) IsOk() bool {
 	return b.ok
 }
 
-// KeepOkIf returns b provided that applying fn to an ok option's value returns true, or the original option otherwise.
+// KeepIf returns b provided that applying fn to an ok option's value returns true, or the original option otherwise.
 // It is the filter operation.
 // Since Go doesn't offer a convenient lambda syntax for constructing the negation of a function's output,
-// there is a ToNotOkIf method as well.
-func (b Option[T]) KeepOkIf(fn func(T) bool) (_ Option[T]) {
+// there is a RemoveIf method as well.
+func (b Option[T]) KeepIf(fn func(T) bool) (_ Option[T]) {
 	if !b.ok {
 		return b
 	}
@@ -211,11 +211,11 @@ func (b Option[T]) ToInt(fn func(T) int) (_ Option[int]) {
 	return Of(fn(b.t))
 }
 
-// ToNotOkIf returns a not-ok option provided that applying fn to an ok option's value returns true, or the original option otherwise.
+// RemoveIf returns a not-ok option provided that applying fn to an ok option's value returns true, or the original option otherwise.
 // It is the filter operation with negation.
 // Since Go doesn't offer a convenient lambda syntax for constructing the negation of a function's output,
 // having negation built-in is both a convenience and keeps consuming code readable.
-func (b Option[T]) ToNotOkIf(fn func(T) bool) (_ Option[T]) {
+func (b Option[T]) RemoveIf(fn func(T) bool) (_ Option[T]) {
 	if !b.ok {
 		return b
 	}

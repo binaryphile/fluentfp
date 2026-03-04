@@ -2,12 +2,14 @@
 
 ## v0.29.0
 
+- **BREAKING**: Rename `KeepOkIf` to `KeepIf`, `ToNotOkIf` to `RemoveIf` — drop redundant "Ok"/"NotOk" qualifiers; receiver type already communicates option context; parallels `Mapper.KeepIf`/`Mapper.RemoveIf`
 - **BREAKING**: Rename `Basic[T]` to `Option[T]` — the natural name, now that the "advanced option" concept is dropped
 - **BREAKING**: Rename `IfNonZero`/`IfNonEmpty`/`IfNonNil` to `NonZero`/`NonEmpty`/`NonNil` — drop `If` prefix; conditionality communicated by `Option[T]` return type
 - **NonZeroMap**, **NonEmptyMap**, **NonNilMap** — check presence and transform in one call (option package)
 - **GroupBy** — group slice elements by extracted key into `map[K][]T`
 - **FromMap** — extract map values as a Mapper for further transformation
 - **FromSet** — extract set members (true keys) as a Mapper
+- **Map** — standalone `slice.Map[T, R](ts, fn)` for type-inferred cross-type mapping without `MapTo[R]`
 - **FirstNonEmpty**, **FirstNonNil** — string-specific and pointer-specific variants of `FirstNonZero` (value package)
 
 ## v0.28.0

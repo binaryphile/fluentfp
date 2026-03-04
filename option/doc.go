@@ -10,6 +10,8 @@ func _() {
 	_ = Option[int].OrEmpty
 	_ = Option[int].OrFalse
 	_ = Option[int].OrZero
+	_ = Option[int].KeepIf
+	_ = Option[int].RemoveIf
 	_ = Option[int].ToOpt
 
 	type _ = Any

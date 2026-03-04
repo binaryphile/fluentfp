@@ -188,58 +188,58 @@ func TestToInt(t *testing.T) {
 
 // --- Filtering ---
 
-func TestKeepOkIf(t *testing.T) {
+func TestKeepIf(t *testing.T) {
 	isPositive := func(n int) bool { return n > 0 }
 
 	t.Run("ok option with matching predicate stays ok", func(t *testing.T) {
 		opt := Of(42)
-		result := opt.KeepOkIf(isPositive)
+		result := opt.KeepIf(isPositive)
 		if v, ok := result.Get(); !ok || v != 42 {
-			t.Errorf("Of(42).KeepOkIf(isPositive) = (%v, %v), want (42, true)", v, ok)
+			t.Errorf("Of(42).KeepIf(isPositive) = (%v, %v), want (42, true)", v, ok)
 		}
 	})
 
 	t.Run("ok option with non-matching predicate becomes not-ok", func(t *testing.T) {
 		opt := Of(-5)
-		result := opt.KeepOkIf(isPositive)
+		result := opt.KeepIf(isPositive)
 		if _, ok := result.Get(); ok {
-			t.Error("Of(-5).KeepOkIf(isPositive) should be not-ok")
+			t.Error("Of(-5).KeepIf(isPositive) should be not-ok")
 		}
 	})
 
 	t.Run("not-ok option stays not-ok", func(t *testing.T) {
 		opt := New(42, false)
-		result := opt.KeepOkIf(isPositive)
+		result := opt.KeepIf(isPositive)
 		if _, ok := result.Get(); ok {
-			t.Error("not-ok.KeepOkIf() should stay not-ok")
+			t.Error("not-ok.KeepIf() should stay not-ok")
 		}
 	})
 }
 
-func TestToNotOkIf(t *testing.T) {
+func TestRemoveIf(t *testing.T) {
 	isNegative := func(n int) bool { return n < 0 }
 
 	t.Run("ok option with matching predicate becomes not-ok", func(t *testing.T) {
 		opt := Of(-5)
-		result := opt.ToNotOkIf(isNegative)
+		result := opt.RemoveIf(isNegative)
 		if _, ok := result.Get(); ok {
-			t.Error("Of(-5).ToNotOkIf(isNegative) should be not-ok")
+			t.Error("Of(-5).RemoveIf(isNegative) should be not-ok")
 		}
 	})
 
 	t.Run("ok option with non-matching predicate stays ok", func(t *testing.T) {
 		opt := Of(42)
-		result := opt.ToNotOkIf(isNegative)
+		result := opt.RemoveIf(isNegative)
 		if v, ok := result.Get(); !ok || v != 42 {
-			t.Errorf("Of(42).ToNotOkIf(isNegative) = (%v, %v), want (42, true)", v, ok)
+			t.Errorf("Of(42).RemoveIf(isNegative) = (%v, %v), want (42, true)", v, ok)
 		}
 	})
 
 	t.Run("not-ok option stays not-ok", func(t *testing.T) {
 		opt := New(-5, false)
-		result := opt.ToNotOkIf(isNegative)
+		result := opt.RemoveIf(isNegative)
 		if _, ok := result.Get(); ok {
-			t.Error("not-ok.ToNotOkIf() should stay not-ok")
+			t.Error("not-ok.RemoveIf() should stay not-ok")
 		}
 	})
 }

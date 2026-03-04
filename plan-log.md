@@ -2326,3 +2326,14 @@ Commit: f48f401
 [x] Showcase: Nomad uses FirstNonEmpty for strings, accurate pointer-field note
 [x] Stale etcd reference removed from closing section
 [x] CLAUDE.md, value/README.md, CHANGELOG.md updated
+2026-03-04T09:42:37Z | Contract: Rename option filters + update Nomad showcase
+[ ] KeepOkIf → KeepIf, ToNotOkIf → RemoveIf across source/tests/docs
+[ ] Add KeepIf/RemoveIf to option/doc.go
+[ ] Nomad showcase uses NonEmpty().Or() instead of FirstNonEmpty
+2026-03-04T09:56:05Z | Completion: Rename option filters + update Nomad showcase
+[x] KeepOkIf → KeepIf, ToNotOkIf → RemoveIf (verified: go test ./...)
+[x] KeepIf/RemoveIf added to option/doc.go
+[x] Nomad showcase uses NonEmpty().Or()
+[x] quic-go entry dropped (helper method refactoring, not a fluentfp win)
+[x] slice.Map standalone added for type-inferred cross-type mapping
+[x] go-linq example updated to use slice.Map

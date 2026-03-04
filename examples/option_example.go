@@ -93,14 +93,14 @@ func main() {
 	printInt := func(i int) { fmt.Println("called with:", i) }
 	fortyTwoOption.IfOk(printInt) // called with: 42
 
-	// KeepOkIf keeps ok only if predicate passes
+	// KeepIf keeps ok only if predicate passes
 	// isAdult reports whether age is 18 or older.
 	isAdult := func(a int) bool { return a >= 18 }
-	adultOption := fortyTwoOption.KeepOkIf(isAdult)
+	adultOption := fortyTwoOption.KeepIf(isAdult)
 	fmt.Println("adultOption.IsOk():", adultOption.IsOk()) // true
 
-	// ToNotOkIf makes not-ok if predicate passes
-	notAdultOption := fortyTwoOption.ToNotOkIf(isAdult)
+	// RemoveIf makes not-ok if predicate passes
+	notAdultOption := fortyTwoOption.RemoveIf(isAdult)
 	fmt.Println("notAdultOption.IsOk():", notAdultOption.IsOk()) // false
 
 	// ToOpt converts to pointer (inverse of NonNil) — named after the *Opt convention for pseudo-options
