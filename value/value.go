@@ -19,8 +19,8 @@ func (c Cond[T]) When(ok bool) option.Basic[T] {
 	return option.New(c.v, ok)
 }
 
-// Coalesce returns the first non-zero value, or zero if all are zero.
-func Coalesce[T comparable](vals ...T) (_ T) {
+// FirstNotZero returns the first non-zero value, or zero if all are zero.
+func FirstNotZero[T comparable](vals ...T) (_ T) {
 	var zero T
 	for _, v := range vals {
 		if v != zero {

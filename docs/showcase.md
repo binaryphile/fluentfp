@@ -192,43 +192,22 @@ linq.From(styleList).GroupBy(func(script interface{}) interface{} {
     }).ToSlice(&groups)
 ```
 
-**Extracted (go-linq)** — callbacks still require `interface{}` signatures:
+Both sides extract the same named functions: `valueHash` extracts the CSS hash for grouping, `hasDuplicates` filters groups with more than one section, `groupSize` returns the count for sorting, and `toSummary` builds the final output. go-linq also needs `identity` for its GroupBy element selector.
+
+**Extracted (go-linq):**
 ```go
-getHash := func(script interface{}) interface{} { return script.(StyleSection).valueHash }
+valueHash := func(script interface{}) interface{} { return script.(StyleSection).valueHash }
 identity := func(script interface{}) interface{} { return script }
 hasDuplicates := func(group interface{}) bool { return len(group.(linq.Group).Group) > 1 }
 groupSize := func(group interface{}) interface{} { return len(group.(linq.Group).Group) }
 toSummary := func(group linq.Group) interface{} { ... }
 ```
 
-**Extracted (fluentfp):**
-```go
-// byValueHash returns the hash used to detect duplicate CSS values.
-byValueHash := func(s StyleSection) string { return s.valueHash }
-
-// hasDuplicates returns true if the group has more than one section.
-hasDuplicates := func(g []StyleSection) bool { return len(g) > 1 }
-
-// groupSize returns the number of sections in a group.
-groupSize := func(g []StyleSection) int { return len(g) }
-
-// formatSectionLabel returns "name << filePath" for display.
-formatSectionLabel := func(s StyleSection) string {
-    return fmt.Sprintf("%s << %s", s.name, s.filePath)
-}
-
-// toSummary builds a summary from a group of duplicate sections.
-toSummary := func(group []StyleSection) SectionSummary {
-    return SectionSummary{
-        Names: slice.From(group).ToString(formatSectionLabel),
-        ...
-    }
-}
-```
+The fluentfp extractions are analogous but with concrete types — `func(StyleSection) string`, `func([]StyleSection) bool`, etc.
 
 **go-linq:**
 ```go
-grouped := linq.From(styleList).GroupBy(getHash, identity)
+grouped := linq.From(styleList).GroupBy(valueHash, identity)
 withDuplicates := grouped.Where(hasDuplicates)
 sorted := withDuplicates.OrderByDescending(groupSize)
 sorted.SelectT(toSummary).ToSlice(&summaries)
@@ -236,13 +215,13 @@ sorted.SelectT(toSummary).ToSlice(&summaries)
 
 **fluentfp:**
 ```go
-groupedMap := slice.GroupBy(styleList, byValueHash)
+groupedMap := slice.GroupBy(styleList, valueHash)
 withDuplicates := slice.FromMap(groupedMap).KeepIf(hasDuplicates)
 sorted := slice.SortByDesc(withDuplicates, groupSize)
 summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
 ```
 
-**What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. go-linq's callbacks can't be typed as `func(StyleSection) string` because its API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. Both pipelines now have the same shape: group, filter, sort, map. The extracted functions tell the story — `byValueHash`, `hasDuplicates`, `groupSize`, `toSummary` — without `interface{}` casts obscuring the types.
+**What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. go-linq's callbacks can't be typed as `func(StyleSection) string` because its API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. Both pipelines now have the same shape: group, filter, sort, map. The extracted functions tell the story — `valueHash`, `hasDuplicates`, `groupSize`, `toSummary` — without `interface{}` casts obscuring the types.
 
 ---
 
@@ -275,15 +254,15 @@ if b.RetryInterval != 0 {
 
 **fluentfp** (same 6 fields — `s` is the receiver, `b` is the override):
 ```go
-result.AuthoritativeRegion = value.Coalesce(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.EncryptKey           = value.Coalesce(b.EncryptKey, s.EncryptKey)
+result.AuthoritativeRegion = value.FirstNotZero(b.AuthoritativeRegion, s.AuthoritativeRegion)
+result.EncryptKey           = value.FirstNotZero(b.EncryptKey, s.EncryptKey)
 result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
-result.RaftProtocol         = value.Coalesce(b.RaftProtocol, s.RaftProtocol)
-result.HeartbeatGrace       = value.Coalesce(b.HeartbeatGrace, s.HeartbeatGrace)
-result.RetryInterval        = value.Coalesce(b.RetryInterval, s.RetryInterval)
+result.RaftProtocol         = value.FirstNotZero(b.RaftProtocol, s.RaftProtocol)
+result.HeartbeatGrace       = value.FirstNotZero(b.HeartbeatGrace, s.HeartbeatGrace)
+result.RetryInterval        = value.FirstNotZero(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Most fields use `value.Coalesce(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` uses `> 0` (not `!= 0`) in the original, so `Coalesce` would be a semantic change — it would accept negative values the original rejects. That field uses `value.Of().When().Or()` instead, preserving the exact guard. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNotNil` instead. And `Coalesce` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
+**What changed:** Most fields use `value.FirstNotZero(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` uses `> 0` (not `!= 0`) in the original, so `FirstNotZero` would be a semantic change — it would accept negative values the original rejects. That field uses `value.Of().When().Or()` instead, preserving the exact guard. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNotNil` instead. And `FirstNotZero` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
 
 ---
 
@@ -466,6 +445,6 @@ These rewrites share a pattern: fluentfp replaces *incidental structure* (type a
 
 **Good fit:** Codebases where you're counting bugs. Every nil check you forget is a production panic; every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional cleanup across optional subsystems (etcd), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
-**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `Coalesce`, `MapNotZero`, `IfOk`) that reads clearly once learned but has an onboarding cost.
+**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `FirstNotZero`, `MapNotZero`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 
 **Not a replacement for loops:** As noted in the introduction, a `for` loop with 4–6 lines and zero abstraction is often the right choice. fluentfp targets the cases where loops accumulate ceremony faster than clarity.
