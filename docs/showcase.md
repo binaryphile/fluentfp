@@ -207,8 +207,8 @@ The fluentfp extractions are analogous but with concrete types — `func(StyleSe
 
 **go-linq:**
 ```go
-grouped := linq.From(styleList).GroupBy(valueHash, identity)
-withDuplicates := grouped.Where(hasDuplicates)
+groupedMap := linq.From(styleList).GroupBy(valueHash, identity)
+withDuplicates := groupedMap.Where(hasDuplicates)
 sorted := withDuplicates.OrderByDescending(groupSize)
 sorted.SelectT(toSummary).ToSlice(&summaries)
 ```
@@ -221,7 +221,7 @@ sorted := slice.SortByDesc(withDuplicates, groupSize)
 summaries := slice.MapTo[SectionSummary](sorted).Map(toSummary)
 ```
 
-**What changed:** Extracting named functions makes the go-linq pipeline readable — but every callback still requires `interface{}` signatures and type assertions inside. go-linq's callbacks can't be typed as `func(StyleSection) string` because its API demands `interface{}`. fluentfp's named functions use real types in their signatures; the compiler catches mismatches that go-linq defers to runtime. go-linq predates generics, so this is a generational gap, not a design failure. Both pipelines now have the same shape: group, filter, sort, map. The extracted functions tell the story — `valueHash`, `hasDuplicates`, `groupSize`, `toSummary` — without `interface{}` casts obscuring the types.
+**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map — and go-linq's reads more fluently. Method chaining (`groupedMap.OrderByDescending(groupSize)`) flows more naturally than standalone functions (`slice.SortByDesc(withDuplicates, groupSize)`). fluentfp uses standalone functions here because Go doesn't allow generic methods — operations like `GroupBy` and `SortByDesc` need extra type parameters that methods can't introduce. The cost of go-linq's fluency is giving up type safety and incurring potential performance penalties.
 
 ---
 
