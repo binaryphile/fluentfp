@@ -262,81 +262,7 @@ result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGr
 result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Most fields use `value.FirstNonZero(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` uses `> 0` (not `!= 0`) in the original, so `FirstNonZero` would be a semantic change — it would accept negative values the original rejects. That field uses `value.Of().When().Or()` instead, preserving the exact guard. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNonNil` instead. And `FirstNonZero` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
-
----
-
-### Optional instrumentation — quic-go/quic-go
-
-**Source:** [connection.go](https://github.com/quic-go/quic-go/blob/master/connection.go)
-**Pain point:** 31 nil checks on an optional qlog recorder scattered across packet handling, error classification, and connection lifecycle
-
-**Original** (4 of 31 — representative sample from different methods):
-```go
-// in handleVersionNegotiationPacket
-if c.qlogger != nil {
-    c.qlogger.RecordEvent(qlog.PacketDropped{
-        Header:  qlog.PacketHeader{PacketType: qlog.PacketTypeVersionNegotiation},
-        Raw:     qlog.RawInfo{Length: int(p.Size())},
-        Trigger: qlog.PacketDropUnexpectedPacket,
-    })
-}
-
-// in handleLongHeaderPacket
-if c.qlogger != nil {
-    c.qlogger.RecordEvent(qlog.PacketDropped{
-        Header:     qlog.PacketHeader{PacketType: qlog.PacketTypeInitial},
-        Raw:        qlog.RawInfo{Length: int(p.Size())},
-        DatagramID: datagramID,
-        Trigger:    qlog.PacketDropUnknownConnectionID,
-    })
-}
-
-// in handleHandshakeComplete
-if c.qlogger != nil {
-    c.qlogger.RecordEvent(qlog.ALPNInformation{
-        ChosenALPN: c.cryptoStreamHandler.ConnectionState().NegotiatedProtocol,
-    })
-}
-
-// in handleCloseError
-if c.qlogger != nil && !errors.As(e, &recreateErr) {
-    c.qlogger.RecordEvent(qlog.ConnectionClosed{...})
-}
-```
-
-**fluentfp** — `qlogger` is stored as `option.Basic[qlogwriter.Recorder]`; a helper encapsulates the `IfOk` call once:
-```go
-// recordEvent records a qlog event if the recorder is present.
-func (c *connection) recordEvent(event qlog.Event) {
-    c.qlogger.IfOk(func(r qlogwriter.Recorder) { r.RecordEvent(event) })
-}
-```
-
-```go
-c.recordEvent(qlog.PacketDropped{
-    Header:  qlog.PacketHeader{PacketType: qlog.PacketTypeVersionNegotiation},
-    Raw:     qlog.RawInfo{Length: int(p.Size())},
-    Trigger: qlog.PacketDropUnexpectedPacket,
-})
-
-c.recordEvent(qlog.PacketDropped{
-    Header:     qlog.PacketHeader{PacketType: qlog.PacketTypeInitial},
-    Raw:        qlog.RawInfo{Length: int(p.Size())},
-    DatagramID: datagramID,
-    Trigger:    qlog.PacketDropUnknownConnectionID,
-})
-
-c.recordEvent(qlog.ALPNInformation{
-    ChosenALPN: c.cryptoStreamHandler.ConnectionState().NegotiatedProtocol,
-})
-
-if !errors.As(e, &recreateErr) {
-    c.recordEvent(qlog.ConnectionClosed{...})
-}
-```
-
-**What changed:** Most of the 31 guard clauses disappear from a 2,400-line file — a few with compound conditions drop only the nil check, keeping the remaining condition. A one-line helper wraps the `IfOk` call; every call site drops its nil check. The alternative is a no-op implementation of the `Recorder` interface — also valid, and simpler when there's a single constructor. But quic-go creates connections through multiple paths (client dial, server accept, 0-RTT, retry). A no-op implementation works if every path remembers to set it; miss one and you get a nil pointer panic at runtime. The option zero value is safe without any initialization: a zero `option.Basic` is automatically not-ok, so `recordEvent` is a no-op by default. A code path that forgets to initialize the recorder silently does the right thing instead of crashing. The type signature also documents the optionality — `qlogger option.Basic[qlogwriter.Recorder]` tells you the dependency is conditional; `qlogger qlogwriter.Recorder` doesn't.
+**What changed:** Most fields use `value.FirstNonZero(override, default)` — "first non-zero wins" in one call. `BootstrapExpect` guards on `> 0` rather than `!= 0`, so it uses `value.Of().When().Or()` to preserve the exact condition. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *Caveats: ~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.IfNonNil` instead. And `FirstNonZero` only works when zero value genuinely means "absent" — fields where zero is a valid override need `value.Of().When().Or()` as shown above.*
 
 ---
 
@@ -411,6 +337,42 @@ if cfg.AutoCompactionRetention != 0 {
 **What changed:** The five nil checks disappear from Cleanup. Each option type is three lines: a struct embedding `option.Basic`, and a method that delegates via `IfOk` using a method expression. The cleanup method calls each subsystem's method directly — it doesn't know or care which were initialized. The constructor still has its conditional — `v3compactor.New` should only be called when retention is configured — but the condition is handled once at creation time. Every downstream use drops its guard. etcd's comment — "kv, lessor and backend can be nil if running without v3 enabled or running unit tests" — documents a hazard that the type system now enforces: a zero `CompactorOption` is automatically not-ok, so `Stop()` is a no-op by default. A test that skips v3 initialization doesn't crash in cleanup. The option types also adapt to each subsystem's interface — `Stop()` for lessor and compactor, `Close()` for kv, authStore, and backend — unlike a one-size-fits-all helper. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks, and new subsystems get the pattern for free.*
 
 For a worked example of the advanced option pattern with conditional factory functions, see [advanced_option.go](../examples/advanced_option.go).
+
+---
+
+### Optional instrumentation — quic-go/quic-go
+
+**Source:** [connection.go](https://github.com/quic-go/quic-go/blob/master/connection.go)
+**Pain point:** 31 nil checks on an optional qlog recorder scattered across packet handling, error classification, and connection lifecycle
+
+**Original** (2 of 31 — one simple, one compound):
+```go
+if c.qlogger != nil {
+    c.qlogger.RecordEvent(qlog.PacketDropped{...})
+}
+
+if c.qlogger != nil && !errors.As(e, &recreateErr) {
+    c.qlogger.RecordEvent(qlog.ConnectionClosed{...})
+}
+```
+
+**fluentfp** — `qlogger` is stored as `option.Basic[qlogwriter.Recorder]`; a helper encapsulates the `IfOk` call once:
+```go
+// recordEvent records a qlog event if the recorder is present.
+func (c *connection) recordEvent(event qlog.Event) {
+    c.qlogger.IfOk(func(r qlogwriter.Recorder) { r.RecordEvent(event) })
+}
+```
+
+```go
+c.recordEvent(qlog.PacketDropped{...})
+
+if !errors.As(e, &recreateErr) {
+    c.recordEvent(qlog.ConnectionClosed{...})
+}
+```
+
+**What changed:** 31 guard clauses disappear — a few with compound conditions drop only the nil check, keeping the remaining condition. A one-line helper wraps the `IfOk` call. The recorder is genuinely optional — a zero `option.Basic` is automatically not-ok, so construction paths without a recorder need no special handling.
 
 ---
 
