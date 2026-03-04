@@ -266,12 +266,12 @@ if cfg.AutoCompactionRetention != 0 {
 }
 
 // after
-if cfg.AutoCompactionRetention != 0 {
-    srv.compactor = NewCompactorOption(option.Of(must.Get(v3compactor.New(...))))
-}
+srv.compactor = NewCompactorOption(
+    option.MapNonZero(cfg.AutoCompactionRetention, newCompactor),
+)
 ```
 
-**What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `Stop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. Each option type adapts to its subsystem's interface (`Stop()` vs `Close()`), unlike a one-size-fits-all helper. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
+**What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `Stop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `MapNonZero` only calls `newCompactor` when retention is configured. Each option type adapts to its subsystem's interface (`Stop()` vs `Close()`), unlike a one-size-fits-all helper. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
 
 For a worked example of the advanced option pattern with conditional factory functions, see [advanced_option.go](../examples/advanced_option.go).
 
