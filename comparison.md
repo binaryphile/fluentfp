@@ -106,7 +106,7 @@ if !ok {
 }
 ```
 
-fluentfp's `Find` returns `option.Basic[T]`, so `.Or()` handles the missing case inline. lo returns `(T, bool)` — idiomatic Go, but requires a separate `if` block for the default.
+fluentfp's `Find` returns `option.Option[T]`, so `.Or()` handles the missing case inline. lo returns `(T, bool)` — idiomatic Go, but requires a separate `if` block for the default.
 
 ### Multi-Step Chains — fluentfp vs go-linq
 

@@ -73,11 +73,11 @@ host := value.FirstNonZero(envHost, configHost, "localhost")
 
 ## Composition
 
-`.Or()` isn't part of value — it comes from `option.Basic[T]`. The chain works because `.When()` returns an option:
+`.Or()` isn't part of value — it comes from `option.Option[T]`. The chain works because `.When()` returns an option:
 
 ```
 value.Of(v)  →  Cond[T]
-  .When(c)   →  option.Basic[T]    // Ok(v) if true, NotOk if false
+  .When(c)   →  option.Option[T]    // Ok(v) if true, NotOk if false
   .Or(fb)    →  T                  // resolve with fallback
 ```
 
@@ -104,9 +104,9 @@ port := option.Getenv("PORT").Or("8080")
 `Cond[T]` holds a value pending a condition check. `LazyCond[T]` holds a function for deferred computation.
 
 - `Of(T) Cond[T]` — wrap a value
-- `Cond[T].When(bool) option.Basic[T]` — ok if true, not-ok if false
+- `Cond[T].When(bool) option.Option[T]` — ok if true, not-ok if false
 - `LazyOf(func() T) LazyCond[T]` — wrap a function (lazy)
-- `LazyCond[T].When(bool) option.Basic[T]` — evaluate only if true
+- `LazyCond[T].When(bool) option.Option[T]` — evaluate only if true
 - `FirstNonZero[T comparable](vals ...T) T` — first non-zero value
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/value) for complete API documentation, the [main README](../README.md) for installation, and [option](../option/) for absent values without conditions.

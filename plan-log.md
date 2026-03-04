@@ -2313,3 +2313,8 @@ Commit: f48f401
 [x] Renamed MapNonZero->NonZeroMap, MapNonEmpty->NonEmptyMap, MapNonNil->NonNilMap (7 files + 2 file renames)
 [x] Reverted showcase intro changes (removed must references from lines 3, 7, Good fit section)
 [x] Must investigation: hypothesis confirmed — sequential fatal chains don't exist in mature Go code. 20+ queries across 2 sessions. Product signal, not search failure. Entry abandoned permanently.
+2026-03-04T08:42:55Z | Completion: Rename Basic to Option
+[x] All Basic→Option in source files (verified: go test ./...)
+[x] All Basic→Option in documentation (verified: grep shows only historical/prose)
+[x] CHANGELOG updated with BREAKING note
+[x] Era memory updated

@@ -59,7 +59,7 @@ When you genuinely need to distinguish "absent" from "present," use an explicit 
 import "github.com/binaryphile/fluentfp/option"
 
 // Option type: explicit optionality
-func FindUser(id string) option.Basic[User] {
+func FindUser(id string) option.Option[User] {
     if found {
         return option.Of(user)      // Present
     }
@@ -85,12 +85,12 @@ The API names are intuitive:
 flowchart TD
     Q[Need Optional Value?]
     Q -->|"Can zero mean<br/>'not present'?"| V[Value type<br/>no pointer]
-    Q -->|"Need 'absent'<br/>vs 'zero'?"| O[option.Basic<br/>explicit ok]
+    Q -->|"Need 'absent'<br/>vs 'zero'?"| O[option.Option<br/>explicit ok]
     V --> NR[No nil risk]
     O --> FH[Forced handling]
 ```
 
-*If an empty string or zero is a valid value distinct from "no value," use `option.Basic`. Otherwise, value types eliminate nil risk entirely.*
+*If an empty string or zero is a valid value distinct from "no value," use `option.Option`. Otherwise, value types eliminate nil risk entirely.*
 
 ## Real-World Pattern
 
@@ -117,7 +117,7 @@ Domain option types can propagate "not-ok" through call chains:
 
 ```go
 type CustomerOption struct {
-    option.Basic[Customer]
+    option.Option[Customer]
 }
 
 func (o CustomerOption) GetMiddleName() option.String {
@@ -133,11 +133,11 @@ No nil checks in consumer code. If the customer doesn't exist, downstream gets a
 
 ## The Structural Guarantee
 
-The key insight: `option.Basic[T]` is a struct containing a value and a boolean flag—both value types. The zero value is automatically "not-ok" because the boolean defaults to false.
+The key insight: `option.Option[T]` is a struct containing a value and a boolean flag—both value types. The zero value is automatically "not-ok" because the boolean defaults to false.
 
 | Approach | Risk | Cost |
 |----------|------|------|
 | `*T` (pointer) | Nil dereference panic | Every caller must check `if ptr != nil` |
-| `option.Basic[T]` | None—no nil possible | Must use `Get()`, `Or()`, or `MustGet()` |
+| `option.Option[T]` | None—no nil possible | Must use `Get()`, `Or()`, or `MustGet()` |
 
 There's no nil to check because there's no nil. The boolean `ok` flag replaces the entire category of nil-related bugs. This is correctness by construction—the same principle that makes `KeepIf` safer than a filter loop. You can't forget to initialize, use the wrong index, or dereference nil, because the structure of the code makes those errors impossible.

@@ -229,7 +229,7 @@ func (s *EtcdServer) Cleanup() {
 }
 ```
 
-**fluentfp** — fields change from pointer to `option.Basic[T]`:
+**fluentfp** — fields change from pointer to `option.Option[T]`:
 ```go
 func (s *EtcdServer) Cleanup() {
     s.lessorOption.IfOk(lease.Lessor.Stop)
@@ -255,7 +255,7 @@ newCompactor := func(retention time.Duration) v3compactor.Compactor {
 srv.compactorOption = option.NonZeroMap(cfg.AutoCompactionRetention, newCompactor)
 ```
 
-**What changed:** Five nil checks disappear from Cleanup — `.IfOk()` calls the method only when the option is ok. A zero-value `option.Basic[T]` is automatically not-ok, so `.IfOk()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `NonZeroMap` only calls `newCompactor` when retention is configured. *The payoff compounds: every other code path that touches these subsystems drops its nil checks too.*
+**What changed:** Five nil checks disappear from Cleanup — `.IfOk()` calls the method only when the option is ok. A zero-value `option.Option[T]` is automatically not-ok, so `.IfOk()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `NonZeroMap` only calls `newCompactor` when retention is configured. *The payoff compounds: every other code path that touches these subsystems drops its nil checks too.*
 
 ---
 
@@ -275,7 +275,7 @@ if c.qlogger != nil && !errors.As(e, &recreateErr) {
 }
 ```
 
-**fluentfp** — `qlogger` is stored as `option.Basic[qlogwriter.Recorder]`; a helper encapsulates the `IfOk` call once:
+**fluentfp** — `qlogger` is stored as `option.Option[qlogwriter.Recorder]`; a helper encapsulates the `IfOk` call once:
 ```go
 // recordEvent records a qlog event if the recorder is present.
 func (c *connection) recordEvent(event qlog.Event) {
@@ -291,7 +291,7 @@ if !errors.As(e, &recreateErr) {
 }
 ```
 
-**What changed:** 31 guard clauses disappear — a few with compound conditions drop only the nil check, keeping the remaining condition. A one-line helper wraps the `IfOk` call. The recorder is genuinely optional — a zero `option.Basic` is automatically not-ok, so construction paths without a recorder need no special handling.
+**What changed:** 31 guard clauses disappear — a few with compound conditions drop only the nil check, keeping the remaining condition. A one-line helper wraps the `IfOk` call. The recorder is genuinely optional — a zero `option.Option` is automatically not-ok, so construction paths without a recorder need no special handling.
 
 ---
 

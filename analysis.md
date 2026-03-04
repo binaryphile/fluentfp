@@ -455,7 +455,7 @@ The restraint is deliberate: solve patterns cleanly without becoming a framework
 Go's `nil` pointers are a source of runtime panics. fluentfp addresses this through two complementary strategies:
 
 1. **Value semantics**: Prefer value types and value receivers—no pointer means no nil
-2. **Option types**: When optionality is genuine, use `option.Basic[T]` to make absence explicit
+2. **Option types**: When optionality is genuine, use `option.Option[T]` to make absence explicit
 
 The `option` package provides correctness by construction: there's no nil to check because there's no nil. The boolean `ok` flag replaces the entire category of nil-related bugs.
 

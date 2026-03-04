@@ -15,7 +15,7 @@ func From[T any](ts []T) Mapper[T] {
 
 // FindAs returns the first element that type-asserts to R, or not-ok if none match.
 // Useful for finding a specific concrete type in a slice of interfaces.
-func FindAs[R, T any](ts []T) option.Basic[R] {
+func FindAs[R, T any](ts []T) option.Option[R] {
 	for _, t := range ts {
 		if r, ok := any(t).(R); ok {
 			return option.Of(r)
@@ -42,7 +42,7 @@ func (ts Mapper[T]) Each(fn func(T)) {
 }
 
 // First returns the first element, or not-ok if the slice is empty.
-func (ts Mapper[T]) First() option.Basic[T] {
+func (ts Mapper[T]) First() option.Option[T] {
 	if len(ts) == 0 {
 		return option.NotOk[T]()
 	}
@@ -96,7 +96,7 @@ func (ts Mapper[T]) Single() either.Either[int, T] {
 }
 
 // Find returns the first element matching the predicate, or not-ok if none match.
-func (ts Mapper[T]) Find(fn func(T) bool) option.Basic[T] {
+func (ts Mapper[T]) Find(fn func(T) bool) option.Option[T] {
 	for _, t := range ts {
 		if fn(t) {
 			return option.Of(t)
@@ -116,7 +116,7 @@ func (ts Mapper[T]) FlatMap(fn func(T) []T) Mapper[T] {
 }
 
 // IndexWhere returns the index of the first element matching the predicate, or not-ok if none match.
-func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Basic[int] {
+func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Option[int] {
 	for i, t := range ts {
 		if fn(t) {
 			return option.Of(i)

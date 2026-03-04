@@ -1,21 +1,21 @@
 package option
 
 type (
-	Any    = Basic[any]
-	Bool   = Basic[bool]
-	Byte   = Basic[byte]
-	Error  = Basic[error]
-	Int    = Basic[int]
-	Rune   = Basic[rune]
-	String = Basic[string]
+	Any    = Option[any]
+	Bool   = Option[bool]
+	Byte   = Option[byte]
+	Error  = Option[error]
+	Int    = Option[int]
+	Rune   = Option[rune]
+	String = Option[string]
 )
 
 var (
-	NotOkAny    = Basic[any]{}
-	NotOkBool   = Basic[bool]{}
-	NotOkByte   = Basic[byte]{}
-	NotOkError  = Basic[error]{}
-	NotOkInt    = Basic[int]{}
-	NotOkRune   = Basic[rune]{}
-	NotOkString = Basic[string]{}
+	NotOkAny    = Option[any]{}
+	NotOkBool   = Option[bool]{}
+	NotOkByte   = Option[byte]{}
+	NotOkError  = Option[error]{}
+	NotOkInt    = Option[int]{}
+	NotOkRune   = Option[rune]{}
+	NotOkString = Option[string]{}
 )

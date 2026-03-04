@@ -10,7 +10,7 @@ func Getenv(key string) String {
 	return NonZero(result)
 }
 
-func Map[T, R any](b Basic[T], fn func(T) R) (_ Basic[R]) {
+func Map[T, R any](b Option[T], fn func(T) R) (_ Option[R]) {
 	if !b.ok {
 		return
 	}
@@ -18,16 +18,16 @@ func Map[T, R any](b Basic[T], fn func(T) R) (_ Basic[R]) {
 	return Of(fn(b.t))
 }
 
-// Lift transforms a function operating on T into one operating on Basic[T].
+// Lift transforms a function operating on T into one operating on Option[T].
 // The lifted function executes only when the option is ok.
-func Lift[T any](fn func(T)) func(Basic[T]) {
-	return func(opt Basic[T]) {
+func Lift[T any](fn func(T)) func(Option[T]) {
+	return func(opt Option[T]) {
 		opt.IfOk(fn)
 	}
 }
 
 // Lookup returns an ok option of the value at key in m, or not-ok if the key is absent.
-func Lookup[K comparable, V any](m map[K]V, key K) (_ Basic[V]) {
+func Lookup[K comparable, V any](m map[K]V, key K) (_ Option[V]) {
 	v, ok := m[key]
 	if !ok {
 		return
@@ -36,6 +36,6 @@ func Lookup[K comparable, V any](m map[K]V, key K) (_ Basic[V]) {
 	return Of(v)
 }
 
-func NotOk[T any]() (_ Basic[T]) {
+func NotOk[T any]() (_ Option[T]) {
 	return
 }

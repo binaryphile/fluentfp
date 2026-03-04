@@ -27,9 +27,9 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .TakeLast(n int) Mapper[T]            // Last n elements
 .Reverse() Mapper[T]                  // New slice in reverse order
 .Each(fn func(T))                      // Side-effect iteration
-.First() option.Basic[T]               // First element
-.Find(fn func(T) bool) option.Basic[T] // First matching element
-.IndexWhere(fn func(T) bool) option.Basic[int] // Index of first match
+.First() option.Option[T]               // First element
+.Find(fn func(T) bool) option.Option[T] // First matching element
+.IndexWhere(fn func(T) bool) option.Option[int] // Index of first match
 .Any(fn func(T) bool) bool            // True if any element matches
 .Every(fn func(T) bool) bool          // True if all elements match (vacuous truth when empty)
 .None(fn func(T) bool) bool           // True if no elements match (vacuous truth when empty)
@@ -76,7 +76,7 @@ slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set me
 slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) map[K][]T       // Group elements by key
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
-slice.FindAs[R, T any](ts []T) option.Basic[R]                         // First element that type-asserts to R
+slice.FindAs[R, T any](ts []T) option.Option[R]                         // First element that type-asserts to R
 slice.Contains[T comparable](ts []T, target T) bool                     // Check membership
 slice.ToSet[T comparable](ts []T) map[T]bool                           // Convert slice to set for O(1) lookup
 slice.ToSetBy[T any, K comparable](ts []T, fn func(T) K) map[K]bool   // Set from extracted keys
@@ -173,16 +173,16 @@ Convention: Left = failure/error, Right = success. Mnemonic: "Right is right" (c
 import "github.com/binaryphile/fluentfp/option"
 
 // Creating options
-option.Of(t T) Basic[T]                // Always ok
-option.New(t T, ok bool) Basic[T]      // Conditional ok
-option.NonZero(t T) Basic[T]           // Ok if not zero value ("", 0, false, etc.)
+option.Of(t T) Option[T]                // Always ok
+option.New(t T, ok bool) Option[T]      // Conditional ok
+option.NonZero(t T) Option[T]           // Ok if not zero value ("", 0, false, etc.)
 option.NonEmpty(s string) String       // Ok if non-empty (string alias for NonZero)
-option.NonNil(ptr *T) Basic[T]         // From pointer (nil = not-ok)
+option.NonNil(ptr *T) Option[T]         // From pointer (nil = not-ok)
 
 // Create + transform (check presence and map in one call)
-option.NonZeroMap(t T, fn func(T) R) Basic[R]       // If not zero, apply fn
-option.NonEmptyMap(s string, fn func(string) R) Basic[R]  // If non-empty, apply fn
-option.NonNilMap(ptr *T, fn func(T) R) Basic[R]     // If non-nil, deref and apply fn
+option.NonZeroMap(t T, fn func(T) R) Option[R]       // If not zero, apply fn
+option.NonEmptyMap(s string, fn func(string) R) Option[R]  // If non-empty, apply fn
+option.NonNilMap(ptr *T, fn func(T) R) Option[R]     // If non-nil, deref and apply fn
 
 // Using options
 .Get() (T, bool)                       // Comma-ok unwrap
@@ -191,7 +191,7 @@ option.NonNilMap(ptr *T, fn func(T) R) Basic[R]     // If non-nil, deref and app
 .OrEmpty() T                           // Alias for strings
 .OrFalse() bool                        // For option.Bool
 .IfOk(fn func(T))                      // Side-effect if ok
-option.Lift(fn func(T)) func(Basic[T]) // Lift side-effect function to accept option
+option.Lift(fn func(T)) func(Option[T]) // Lift side-effect function to accept option
 
 // Pre-defined types
 option.String, option.Int, option.Bool, option.Error

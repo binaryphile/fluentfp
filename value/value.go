@@ -15,7 +15,7 @@ func Of[T any](t T) Cond[T] {
 }
 
 // When returns an option: Ok(value) if condition true, NotOk if false.
-func (c Cond[T]) When(ok bool) option.Basic[T] {
+func (c Cond[T]) When(ok bool) option.Option[T] {
 	return option.New(c.v, ok)
 }
 
@@ -43,7 +43,7 @@ func LazyOf[T any](fn func() T) LazyCond[T] {
 }
 
 // When evaluates fn only if condition true, returns option.
-func (c LazyCond[T]) When(ok bool) option.Basic[T] {
+func (c LazyCond[T]) When(ok bool) option.Option[T] {
 	if ok {
 		return option.Of(c.fn())
 	}

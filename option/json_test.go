@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-func TestBasic_MarshalJSON(t *testing.T) {
+func TestOption_MarshalJSON(t *testing.T) {
 	tests := []struct {
 		name string
-		opt  Basic[int]
+		opt  Option[int]
 		want string
 	}{
 		{"ok value", Of(42), "42"},
-		{"not ok", Basic[int]{}, "null"},
+		{"not ok", Option[int]{}, "null"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -27,7 +27,7 @@ func TestBasic_MarshalJSON(t *testing.T) {
 	}
 }
 
-func TestBasic_UnmarshalJSON(t *testing.T) {
+func TestOption_UnmarshalJSON(t *testing.T) {
 	tests := []struct {
 		name    string
 		json    string
@@ -39,7 +39,7 @@ func TestBasic_UnmarshalJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var opt Basic[int]
+			var opt Option[int]
 			if err := json.Unmarshal([]byte(tt.json), &opt); err != nil {
 				t.Fatalf("Unmarshal error: %v", err)
 			}
@@ -52,10 +52,10 @@ func TestBasic_UnmarshalJSON(t *testing.T) {
 
 type testStruct struct {
 	Name  string     `json:"name"`
-	Value Basic[int] `json:"value"`
+	Value Option[int] `json:"value"`
 }
 
-func TestBasic_JSON_InStruct(t *testing.T) {
+func TestOption_JSON_InStruct(t *testing.T) {
 	// Marshal with value
 	s := testStruct{Name: "test", Value: Of(42)}
 	data, err := json.Marshal(s)

@@ -2,7 +2,8 @@
 
 ## v0.29.0
 
-- **BREAKING**: Rename `IfNonZero`/`IfNonEmpty`/`IfNonNil` to `NonZero`/`NonEmpty`/`NonNil` — drop `If` prefix; conditionality communicated by `Basic[T]` return type
+- **BREAKING**: Rename `Basic[T]` to `Option[T]` — the natural name, now that the "advanced option" concept is dropped
+- **BREAKING**: Rename `IfNonZero`/`IfNonEmpty`/`IfNonNil` to `NonZero`/`NonEmpty`/`NonNil` — drop `If` prefix; conditionality communicated by `Option[T]` return type
 - **NonZeroMap**, **NonEmptyMap**, **NonNilMap** — check presence and transform in one call (option package)
 - **GroupBy** — group slice elements by extracted key into `map[K][]T`
 - **FromMap** — extract map values as a Mapper for further transformation
@@ -36,7 +37,7 @@
 
 ## v0.24.0
 
-- `Max`/`Min` on `Int` and `Float64` return plain values instead of `option.Basic[T]` (breaking change)
+- `Max`/`Min` on `Int` and `Float64` return plain values instead of `option.Option[T]` (breaking change)
 
 ## v0.23.0
 
@@ -72,7 +73,7 @@
 
 ## v0.16.0
 
-- Standalone `Find` returning `option.Basic[T]`
+- Standalone `Find` returning `option.Option[T]`
 
 ## v0.15.0
 
@@ -132,4 +133,4 @@
 ## v0.1
 
 - Initial release: `slice` package with `Mapper[T]`, `MapperTo[R,T]`
-- `option` package: `Basic[T]`, `String`, `Int`, `Bool`
+- `option` package: `Option[T]`, `String`, `Int`, `Bool`

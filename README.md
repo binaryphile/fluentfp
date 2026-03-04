@@ -26,7 +26,7 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 
 **`either.Fold` gives Go exhaustive pattern matching.** Go's type switches silently compile when you forget a case. You can lint for it, but linters are configuration — they can be turned off, forgotten, or never turned on. Fold requires both handlers — miss one and it doesn't compile. Use it at ten dispatch sites across your codebase and you have exhaustive matching the compiler enforces everywhere.
 
-**`option.Basic[T]` unifies Go's three different ways of saying "maybe."** Nil pointers, zero values, and comma-ok returns all become one chainable type. `.Or("default")` replaces four lines of if-not-ok-then-assign-else-assign. Return an `option.String` from a method and the caller decides how to handle absence at the call site, not inside the method.
+**`option.Option[T]` unifies Go's three different ways of saying "maybe."** Nil pointers, zero values, and comma-ok returns all become one chainable type. `.Or("default")` replaces four lines of if-not-ok-then-assign-else-assign. Return an `option.String` from a method and the caller decides how to handle absence at the call site, not inside the method.
 
 **"What about performance?"** Single-stage chains match raw loops — same pre-allocation, same throughput, same allocations. Multi-stage chains add overhead from intermediate slices. If you're in a hot path counting nanoseconds, use a loop. The other 95% of your loops aren't hot paths.
 
@@ -250,7 +250,7 @@ Zero reflection. Zero global state. Zero build tags.
 
 ## Recent Additions
 
-- **v0.24.0**: **BREAKING** — `Max()`, `Min()` return plain values (zero if empty) instead of `option.Basic[T]`
+- **v0.24.0**: **BREAKING** — `Max()`, `Min()` return plain values (zero if empty) instead of `option.Option[T]`
 - **v0.23.0**: `Int` converted from alias to defined type. `Max()`, `Min()`, `Sum()` on `Int`; `Max()`, `Min()` on `Float64`
 - **v0.14.0**: `value` package replaces `ternary` — value-first conditional selection
 - **v0.12.0**: **BREAKING** — `MapperTo.To` renamed to `MapperTo.Map` for clarity

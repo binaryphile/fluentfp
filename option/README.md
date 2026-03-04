@@ -64,7 +64,7 @@ return Config{
 ```
 
 ```go
-// Tri-state boolean — option.Bool is Basic[bool]
+// Tri-state boolean — option.Bool is Option[bool]
 type ScanResult struct {
     IsConnected option.Bool  // true, false, or unknown
 }
@@ -84,18 +84,18 @@ addr := record.Host().Or("localhost")
 
 Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`), and comma-ok returns (`map` lookup, type assertion). All three let you skip the check and use the value directly — the failure shows up at runtime, not compile time.
 
-`Basic[T]` unifies them. Factory functions bridge each Go pattern into a single chainable type:
+`Option[T]` unifies them. Factory functions bridge each Go pattern into a single chainable type:
 
 - `NonNil(ptr)` — pointer-based absence
 - `NonZero(count)`, `NonEmpty(name)` — zero-value absence
 - `Lookup(m, key)`, `New(val, ok)` — comma-ok absence
 - `Getenv("PORT")` — environment variable absence
 
-Once you have a `Basic[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepOkIf(valid)`, `.ToString(format)`, `.Get()`.
+Once you have a `Option[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepOkIf(valid)`, `.ToString(format)`, `.Get()`.
 
 ## Operations
 
-`Basic[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null).
+`Option[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null).
 
 - **Create**: `Of`, `New`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `Getenv`, `Lookup`
 - **Create + Transform**: `NonZeroMap`, `NonEmptyMap`, `NonNilMap` — check presence and map in one call

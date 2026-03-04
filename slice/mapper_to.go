@@ -34,7 +34,7 @@ func (ts MapperTo[R, T]) Convert(fn func(T) T) MapperTo[R, T] {
 }
 
 // First returns the first element, or not-ok if the slice is empty.
-func (ts MapperTo[R, T]) First() option.Basic[T] {
+func (ts MapperTo[R, T]) First() option.Option[T] {
 	if len(ts) == 0 {
 		return option.NotOk[T]()
 	}

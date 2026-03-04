@@ -78,7 +78,7 @@ type Rune    = Mapper[rune]
 ### D4: Option as value struct
 
 ```go
-type Basic[T any] struct {
+type Option[T any] struct {
     ok bool
     t  T
 }
@@ -191,7 +191,7 @@ All transformations return new slices with no shared mutable state. Safe for con
 All exported types are zero-value safe:
 
 - Zero `Mapper` is a nil slice — valid for `range` and `len`
-- Zero `Basic[T]` is not-ok — safe to call `Or`, `OrZero`, `Get`
+- Zero `Option[T]` is not-ok — safe to call `Or`, `OrZero`, `Get`
 - Zero `Either` is Left with zero `L` — safe to call `Get`, `GetOr`, `IsRight`
 - Zero `Cond`/`LazyCond` produce not-ok from `.When()`
 
@@ -201,12 +201,12 @@ Where packages depend on each other, and why:
 
 | Connection | Why |
 |------------|-----|
-| `Mapper.Find` → `option.Basic[T]` | Absence is the expected case, not an error. Option provides richer extraction (`Or`, `OrZero`, `IfOk`) vs bare comma-ok. |
-| `Mapper.First` → `option.Basic[T]` | Same: empty collection is normal, not exceptional. |
-| `Mapper.IndexWhere` → `option.Basic[int]` | Same: no match is normal, not exceptional. |
-| `FindAs[R,T]` → `option.Basic[R]` | Type-assertion search where absence and type mismatch both mean "not found." |
+| `Mapper.Find` → `option.Option[T]` | Absence is the expected case, not an error. Option provides richer extraction (`Or`, `OrZero`, `IfOk`) vs bare comma-ok. |
+| `Mapper.First` → `option.Option[T]` | Same: empty collection is normal, not exceptional. |
+| `Mapper.IndexWhere` → `option.Option[int]` | Same: no match is normal, not exceptional. |
+| `FindAs[R,T]` → `option.Option[R]` | Type-assertion search where absence and type mismatch both mean "not found." |
 | `Mapper.Single` → `either.Either[int, T]` | Failure carries information (the actual count). A plain error would discard it. |
-| `value.When` → `option.Basic[T]` | Reuses option's `Or`/`OrZero` extraction rather than duplicating. |
+| `value.When` → `option.Option[T]` | Reuses option's `Or`/`OrZero` extraction rather than duplicating. |
 
 `lof`, `must`, and `pair` have no fluentfp import dependencies — they are leaf packages by design.
 

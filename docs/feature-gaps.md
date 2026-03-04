@@ -28,7 +28,7 @@ Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = mo
 | Flatten | Flatten `[][]T` → `[]T` | lo, underscore, fp-go | `FlatMap` with identity function | Standalone — `Mapper[T any]` can't constrain `T` to `[]U`; needs `Flatten[T](tss [][]T) []T` | Defer |
 | Chunk | Split slice into fixed-size batches | lo, underscore | None | Standalone (returns `[][]T`) | **Done** |
 | Partition | Split into matches/non-matches | lo, fp-go | Two `KeepIf`/`RemoveIf` passes | Standalone (returns tuple `([]T, []T)`) | Add |
-| Last | Last element as option | lo, fp-go | `TakeLast(1)` then index, or `Fold` | Method (terminal) — returns `option.Basic[T]`, same as `.First()` | Add |
+| Last | Last element as option | lo, fp-go | `TakeLast(1)` then index, or `Fold` | Method (terminal) — returns `option.Option[T]`, same as `.First()` | Add |
 | CountBy | Count elements per group → `map[K]int` | lo | `Fold` with counting map | Standalone (returns map, needs `K comparable`) | Defer |
 | Every/None | All/no elements match predicate | lo, underscore, fp-go | `!Any(pred)` for None; no direct Every | Method (terminal) — returns bool, same as `.Any()` | **Done** |
 
@@ -39,7 +39,7 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 | Feature | Description | Competitors |
 |---------|-------------|-------------|
 | Method chaining | `slice.From(ts).KeepIf(f).ToString(g)` — left-to-right pipelines | lo and underscore use standalone functions (inside-out when composed); go-linq chains but requires `interface{}` |
-| Option/Either types | `option.Basic[T]`, `either.Either[L,R]` with typed methods | lo returns `(T, bool)` tuples; go-funk/go-linq have no equivalent |
+| Option/Either types | `option.Option[T]`, `either.Either[L,R]` with typed methods | lo returns `(T, bool)` tuples; go-funk/go-linq have no equivalent |
 | Unzip (2/3/4) | Extract multiple fields in one pass | No competitor offers multi-field extraction |
 | MapAccum | Stateful mapping with accumulated state | No competitor equivalent |
 | value.Of/When | Value-first conditional selection | No competitor equivalent |
@@ -51,7 +51,7 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 **Partition** — Two-pass workaround (`KeepIf` + `RemoveIf`) traverses the slice twice. A standalone `Partition[T any](ts []T, fn func(T) bool) ([]T, []T)` is a single pass. Frequently used for splitting valid/invalid, active/inactive, etc.
 
-**Last** — Natural complement to `.First()`. Returns `option.Basic[T]`. Method on `Mapper[T]`.
+**Last** — Natural complement to `.First()`. Returns `option.Option[T]`. Method on `Mapper[T]`.
 
 ### Deferred (4)
 

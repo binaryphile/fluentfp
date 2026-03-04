@@ -1,7 +1,7 @@
 package option
 
-// Basic represents an optional value of type T.
-type Basic[T any] struct {
+// Option represents an optional value of type T.
+type Option[T any] struct {
 	ok bool
 	t  T
 }
@@ -20,7 +20,7 @@ func NonEmpty(s string) (_ String) {
 
 // NonZero returns an ok option of t provided that t is not the zero value for T, or not-ok otherwise.
 // Zero values include "" for strings, 0 for numbers, false for bools, etc.
-func NonZero[T comparable](t T) (_ Basic[T]) {
+func NonZero[T comparable](t T) (_ Option[T]) {
 	var zero T
 	if t == zero {
 		return
@@ -30,7 +30,7 @@ func NonZero[T comparable](t T) (_ Basic[T]) {
 }
 
 // New returns an ok option of t provided that ok is true, or not-ok otherwise.
-func New[T any](t T, ok bool) (_ Basic[T]) {
+func New[T any](t T, ok bool) (_ Option[T]) {
 	if !ok {
 		return
 	}
@@ -39,8 +39,8 @@ func New[T any](t T, ok bool) (_ Basic[T]) {
 }
 
 // Of returns an ok option of t, independent of t's value.
-func Of[T any](t T) Basic[T] {
-	return Basic[T]{
+func Of[T any](t T) Option[T] {
+	return Option[T]{
 		ok: true,
 		t:  t,
 	}
@@ -48,7 +48,7 @@ func Of[T any](t T) Basic[T] {
 
 // NonNil returns an ok option of *what t points at* provided that t is not nil, or not-ok otherwise.
 // It converts a pointer-based pseudo-option (where nil means absent) into a formal option.
-func NonNil[T any](t *T) (_ Basic[T]) {
+func NonNil[T any](t *T) (_ Option[T]) {
 	if t == nil {
 		return
 	}
@@ -59,7 +59,7 @@ func NonNil[T any](t *T) (_ Basic[T]) {
 // methods
 
 // IfOk applies fn to the option's value provided that the option is ok.
-func (b Basic[T]) IfOk(fn func(T)) {
+func (b Option[T]) IfOk(fn func(T)) {
 	if !b.ok {
 		return
 	}
@@ -76,12 +76,12 @@ func (b Basic[T]) IfOk(fn func(T)) {
 //	if myVal, ok := o.Get; ok {
 //	  do some stuff
 //	}
-func (b Basic[T]) Get() (_ T, _ bool) {
+func (b Option[T]) Get() (_ T, _ bool) {
 	return b.t, b.ok
 }
 
 // IsOk returns true if the option is ok.
-func (b Basic[T]) IsOk() bool {
+func (b Option[T]) IsOk() bool {
 	return b.ok
 }
 
@@ -89,7 +89,7 @@ func (b Basic[T]) IsOk() bool {
 // It is the filter operation.
 // Since Go doesn't offer a convenient lambda syntax for constructing the negation of a function's output,
 // there is a ToNotOkIf method as well.
-func (b Basic[T]) KeepOkIf(fn func(T) bool) (_ Basic[T]) {
+func (b Option[T]) KeepOkIf(fn func(T) bool) (_ Option[T]) {
 	if !b.ok {
 		return b
 	}
@@ -102,7 +102,7 @@ func (b Basic[T]) KeepOkIf(fn func(T) bool) (_ Basic[T]) {
 }
 
 // MustGet returns the option's value or panics if the option is not ok.
-func (b Basic[T]) MustGet() T {
+func (b Option[T]) MustGet() T {
 	if !b.ok {
 		panic("option: not ok")
 	}
@@ -111,7 +111,7 @@ func (b Basic[T]) MustGet() T {
 }
 
 // Or returns the option's value provided that the option is ok, otherwise t.
-func (b Basic[T]) Or(t T) T {
+func (b Option[T]) Or(t T) T {
 	if !b.ok {
 		return t
 	}
@@ -120,14 +120,14 @@ func (b Basic[T]) Or(t T) T {
 }
 
 // IfNotOk calls fn if the option is not ok.
-func (b Basic[T]) IfNotOk(fn func()) {
+func (b Option[T]) IfNotOk(fn func()) {
 	if !b.ok {
 		fn()
 	}
 }
 
 // OrCall returns the option's value provided that it is ok, otherwise the result of calling fn.
-func (b Basic[T]) OrCall(fn func() T) (_ T) {
+func (b Option[T]) OrCall(fn func() T) (_ T) {
 	if !b.ok {
 		return fn()
 	}
@@ -137,7 +137,7 @@ func (b Basic[T]) OrCall(fn func() T) (_ T) {
 
 // OrEmpty returns the option's value provided that it is ok, otherwise the zero value for T.
 // It is a more readable alias for OrZero when T is string.
-func (b Basic[T]) OrEmpty() (_ T) {
+func (b Option[T]) OrEmpty() (_ T) {
 	if !b.ok {
 		return
 	}
@@ -147,7 +147,7 @@ func (b Basic[T]) OrEmpty() (_ T) {
 
 // OrFalse returns the option's value provided that it is ok, otherwise false.
 // It is a readable alias for OrZero when the type is bool.
-func (b Basic[T]) OrFalse() bool {
+func (b Option[T]) OrFalse() bool {
 	if !b.ok {
 		return false
 	}
@@ -158,7 +158,7 @@ func (b Basic[T]) OrFalse() bool {
 
 // OrZero returns the option's value provided that it is ok, otherwise the zero value for T.
 // See OrEmpty and OrFalse for more readable aliases of OrZero when T is string or bool.
-func (b Basic[T]) OrZero() (_ T) {
+func (b Option[T]) OrZero() (_ T) {
 	if !b.ok {
 		return
 	}
@@ -167,7 +167,7 @@ func (b Basic[T]) OrZero() (_ T) {
 }
 
 // ToAny returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToAny(fn func(T) any) (_ Basic[any]) {
+func (b Option[T]) ToAny(fn func(T) any) (_ Option[any]) {
 	if !b.ok {
 		return
 	}
@@ -176,7 +176,7 @@ func (b Basic[T]) ToAny(fn func(T) any) (_ Basic[any]) {
 }
 
 // ToBool returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToBool(fn func(T) bool) (_ Basic[bool]) {
+func (b Option[T]) ToBool(fn func(T) bool) (_ Option[bool]) {
 	if !b.ok {
 		return
 	}
@@ -185,7 +185,7 @@ func (b Basic[T]) ToBool(fn func(T) bool) (_ Basic[bool]) {
 }
 
 // ToByte returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToByte(fn func(T) byte) (_ Basic[byte]) {
+func (b Option[T]) ToByte(fn func(T) byte) (_ Option[byte]) {
 	if !b.ok {
 		return
 	}
@@ -194,7 +194,7 @@ func (b Basic[T]) ToByte(fn func(T) byte) (_ Basic[byte]) {
 }
 
 // ToError returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToError(fn func(T) error) (_ Basic[error]) {
+func (b Option[T]) ToError(fn func(T) error) (_ Option[error]) {
 	if !b.ok {
 		return
 	}
@@ -203,7 +203,7 @@ func (b Basic[T]) ToError(fn func(T) error) (_ Basic[error]) {
 }
 
 // ToInt returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToInt(fn func(T) int) (_ Basic[int]) {
+func (b Option[T]) ToInt(fn func(T) int) (_ Option[int]) {
 	if !b.ok {
 		return
 	}
@@ -215,7 +215,7 @@ func (b Basic[T]) ToInt(fn func(T) int) (_ Basic[int]) {
 // It is the filter operation with negation.
 // Since Go doesn't offer a convenient lambda syntax for constructing the negation of a function's output,
 // having negation built-in is both a convenience and keeps consuming code readable.
-func (b Basic[T]) ToNotOkIf(fn func(T) bool) (_ Basic[T]) {
+func (b Option[T]) ToNotOkIf(fn func(T) bool) (_ Option[T]) {
 	if !b.ok {
 		return b
 	}
@@ -228,7 +228,7 @@ func (b Basic[T]) ToNotOkIf(fn func(T) bool) (_ Basic[T]) {
 }
 
 // ToRune returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToRune(fn func(T) rune) (_ Basic[rune]) {
+func (b Option[T]) ToRune(fn func(T) rune) (_ Option[rune]) {
 	if !b.ok {
 		return
 	}
@@ -237,7 +237,7 @@ func (b Basic[T]) ToRune(fn func(T) rune) (_ Basic[rune]) {
 }
 
 // ToString returns an option of the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) ToString(fn func(T) string) (_ Basic[string]) {
+func (b Option[T]) ToString(fn func(T) string) (_ Option[string]) {
 	if !b.ok {
 		return
 	}
@@ -248,7 +248,7 @@ func (b Basic[T]) ToString(fn func(T) string) (_ Basic[string]) {
 // ToOpt returns a pointer-based pseudo-option of the pointed-at value provided that the option is ok, or not-ok otherwise.
 // By convention, in consuming code, we suffix a pseudo-option's variable name with an "Opt" suffix
 // to clarify the pointer's meaning and use, hence "ToOpt".
-func (b Basic[T]) ToOpt() (_ *T) {
+func (b Option[T]) ToOpt() (_ *T) {
 	if !b.ok {
 		return
 	}
@@ -257,7 +257,7 @@ func (b Basic[T]) ToOpt() (_ *T) {
 }
 
 // Convert returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Basic[T]) Convert(fn func(T) T) (_ Basic[T]) {
+func (b Option[T]) Convert(fn func(T) T) (_ Option[T]) {
 	if !b.ok {
 		return
 	}

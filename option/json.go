@@ -3,7 +3,7 @@ package option
 import "encoding/json"
 
 // MarshalJSON serializes Option: Ok(v) → v, NotOk → null
-func (o Basic[T]) MarshalJSON() ([]byte, error) {
+func (o Option[T]) MarshalJSON() ([]byte, error) {
 	if v, ok := o.Get(); ok {
 		return json.Marshal(v)
 	}
@@ -11,9 +11,9 @@ func (o Basic[T]) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON deserializes Option: null → NotOk, value → Ok(value)
-func (o *Basic[T]) UnmarshalJSON(data []byte) error {
+func (o *Option[T]) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" {
-		*o = Basic[T]{} // NotOk
+		*o = Option[T]{} // NotOk
 		return nil
 	}
 	var v T

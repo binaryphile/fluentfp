@@ -9,7 +9,7 @@ import (
 	"github.com/binaryphile/fluentfp/option"
 )
 
-// This example demonstrates option.Basic — a container that either holds a value (ok) or doesn't (not-ok).
+// This example demonstrates option.Option — a container that either holds a value (ok) or doesn't (not-ok).
 
 func main() {
 	// === Creating Options ===

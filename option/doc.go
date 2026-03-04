@@ -2,15 +2,15 @@
 package option
 
 func _() {
-	_ = Basic[int].Get
-	_ = Basic[int].IsOk
-	_ = Basic[int].MustGet
-	_ = Basic[int].Or
-	_ = Basic[int].OrCall
-	_ = Basic[int].OrEmpty
-	_ = Basic[int].OrFalse
-	_ = Basic[int].OrZero
-	_ = Basic[int].ToOpt
+	_ = Option[int].Get
+	_ = Option[int].IsOk
+	_ = Option[int].MustGet
+	_ = Option[int].Or
+	_ = Option[int].OrCall
+	_ = Option[int].OrEmpty
+	_ = Option[int].OrFalse
+	_ = Option[int].OrZero
+	_ = Option[int].ToOpt
 
 	type _ = Any
 	type _ = Bool
@@ -24,7 +24,7 @@ func _() {
 	_ = NonEmpty
 	_ = NonNil[int]
 	_ = NonZero[int]
-	_ = Map(Basic[int]{}, func(int) int { return 0 })
+	_ = Map(Option[int]{}, func(int) int { return 0 })
 	_ = NonEmptyMap("", func(string) int { return 0 })
 	_ = NonNilMap[int, int](nil, func(int) int { return 0 })
 	_ = NonZeroMap[int, int](0, func(int) int { return 0 })
