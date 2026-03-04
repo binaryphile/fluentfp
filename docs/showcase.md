@@ -250,11 +250,11 @@ func (o CompactorOption) Stop() { o.IfOk(v3compactor.Compactor.Stop) }
 **fluentfp:**
 ```go
 func (s *EtcdServer) Cleanup() {
-    s.lessor.Stop()
-    s.kv.Close()
-    s.authStore.Close()
-    s.be.Close()
-    s.compactor.Stop()
+    s.lessorOption.Stop()
+    s.kvOption.Close()
+    s.authStoreOption.Close()
+    s.beOption.Close()
+    s.compactorOption.Stop()
 }
 ```
 
@@ -266,9 +266,11 @@ if cfg.AutoCompactionRetention != 0 {
 }
 
 // after
-srv.compactor = NewCompactorOption(
-    option.MapNonZero(cfg.AutoCompactionRetention, newCompactor),
-)
+// newCompactor creates a compactor for the given retention period.
+newCompactor := func(retention time.Duration) v3compactor.Compactor {
+    return must.Get(v3compactor.New(..., retention, ...))
+}
+srv.compactorOption = CompactorOption{option.MapNonZero(cfg.AutoCompactionRetention, newCompactor)}
 ```
 
 **What changed:** Five nil checks disappear from Cleanup — the method calls each subsystem directly without knowing which were initialized. A zero `CompactorOption` is automatically not-ok, so `Stop()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `MapNonZero` only calls `newCompactor` when retention is configured. Each option type adapts to its subsystem's interface (`Stop()` vs `Close()`), unlike a one-size-fits-all helper. *Trade-off: Five option type definitions (15 lines) replace five nil checks (15 lines) — no net savings in Cleanup alone. The payoff is elsewhere: every other code path that touches these subsystems drops its nil checks too.*
