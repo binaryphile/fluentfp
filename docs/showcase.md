@@ -194,12 +194,12 @@ if b.RetryInterval != 0 {
 result.AuthoritativeRegion = option.NonEmpty(b.AuthoritativeRegion).Or(s.AuthoritativeRegion)
 result.EncryptKey           = option.NonEmpty(b.EncryptKey).Or(s.EncryptKey)
 result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
-result.RaftProtocol         = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
-result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGrace)
-result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
+result.RaftProtocol         = option.NonZero(b.RaftProtocol).Or(s.RaftProtocol)
+result.HeartbeatGrace       = option.NonZero(b.HeartbeatGrace).Or(s.HeartbeatGrace)
+result.RetryInterval        = option.NonZero(b.RetryInterval).Or(s.RetryInterval)
 ```
 
-**What changed:** String fields use `option.NonEmpty(override).Or(default)` — "use the override if non-empty, otherwise keep the default" reads as intent. Numeric fields use `value.FirstNonZero(override, default)` — "first non-zero wins" in one call. `FirstNonZero` only works when zero genuinely means "absent"; if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields assign pointers (`result.Field = b.Field` where both are `*T`). `FirstNonNil` can't help here — it dereferences. Instead: `value.Of(b.Field).When(b.Field != nil).Or(s.Field)` selects between the pointers themselves.*
+**What changed:** Every field reads as intent: `option.NonEmpty(override).Or(default)` for strings, `option.NonZero(override).Or(default)` for numbers — "use the override if present, otherwise keep the default." This only works when zero genuinely means "absent"; if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields assign pointers (`result.Field = b.Field` where both are `*T`). `FirstNonNil` can't help here — it dereferences. Instead: `value.Of(b.Field).When(b.Field != nil).Or(s.Field)` selects between the pointers themselves.*
 
 ---
 
