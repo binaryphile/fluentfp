@@ -358,10 +358,11 @@ The fluentfp extractions are analogous but with concrete types — `func(StyleSe
 
 **go-linq:**
 ```go
-groupedMap := linq.From(styleList).GroupBy(valueHash, identity)
-withDuplicates := groupedMap.Where(hasDuplicates)
-sorted := withDuplicates.OrderByDescending(groupSize)
-sorted.SelectT(toSummary).ToSlice(&summaries)
+duplicates := linq.From(styleList).
+    GroupBy(valueHash, identity).
+    Where(hasDuplicates).
+    OrderByDescending(groupSize)
+duplicates.SelectT(toSummary).ToSlice(&summaries)
 ```
 
 **fluentfp:**
