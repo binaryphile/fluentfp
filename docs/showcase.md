@@ -191,71 +191,15 @@ if b.RetryInterval != 0 {
 
 **fluentfp** (same 6 fields — `s` is the receiver, `b` is the override):
 ```go
-result.AuthoritativeRegion = value.FirstNonZero(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.EncryptKey           = value.FirstNonZero(b.EncryptKey, s.EncryptKey)
+result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
+result.EncryptKey           = value.FirstNonEmpty(b.EncryptKey, s.EncryptKey)
 result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
 result.RaftProtocol         = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
 result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGrace)
 result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** `FirstNonZero` only works when zero genuinely means "absent" — if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. With that constraint understood: most fields use `FirstNonZero(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields use pointer checks (`!= nil`) rather than zero-value checks, which would need `option.NonNil` instead.*
-
----
-
-### Conditional cleanup across optional subsystems — etcd-io/etcd
-
-**Source:** [server/etcdserver/server.go#L1091-L1105](https://github.com/etcd-io/etcd/blob/main/server/etcdserver/server.go#L1091-L1105)
-**Pain point:** Every shutdown path must know which subsystems were actually initialized
-
-**Original** (comment from etcd source: "kv, lessor and backend can be nil if running without v3 enabled or running unit tests"):
-```go
-func (s *EtcdServer) Cleanup() {
-    if s.lessor != nil {
-        s.lessor.Stop()
-    }
-    if s.kv != nil {
-        s.kv.Close()
-    }
-    if s.authStore != nil {
-        s.authStore.Close()
-    }
-    if s.be != nil {
-        s.be.Close()
-    }
-    if s.compactor != nil {
-        s.compactor.Stop()
-    }
-}
-```
-
-**fluentfp** — fields change from pointer to `option.Option[T]`:
-```go
-func (s *EtcdServer) Cleanup() {
-    s.lessorOption.IfOk(lease.Lessor.Stop)
-    s.kvOption.IfOk(mvcc.WatchableKV.Close)
-    s.authStoreOption.IfOk(auth.AuthStore.Close)
-    s.beOption.IfOk(backend.Backend.Close)
-    s.compactorOption.IfOk(v3compactor.Compactor.Stop)
-}
-```
-
-**Constructor** — `NonZeroMap` captures presence at creation time:
-```go
-// before
-if cfg.AutoCompactionRetention != 0 {
-    srv.compactor, err = v3compactor.New(...)
-}
-
-// after
-// newCompactor creates a compactor for the given retention period.
-newCompactor := func(retention time.Duration) v3compactor.Compactor {
-    return must.Get(v3compactor.New(..., retention, ...))
-}
-srv.compactorOption = option.NonZeroMap(cfg.AutoCompactionRetention, newCompactor)
-```
-
-**What changed:** Five nil checks disappear from Cleanup — `.IfOk()` calls the method only when the option is ok. A zero-value `option.Option[T]` is automatically not-ok, so `.IfOk()` is a no-op by default — tests that skip v3 initialization don't crash in cleanup. The constructor's `if` disappears too — `NonZeroMap` only calls `newCompactor` when retention is configured. *The payoff compounds: every other code path that touches these subsystems drops its nil checks too.*
+**What changed:** `FirstNonZero` only works when zero genuinely means "absent" — if zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. With that constraint understood: string fields use `FirstNonEmpty(override, default)`, numeric fields use `FirstNonZero(override, default)` — "first non-zero wins" in one call. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result. *~5 of the 48 fields assign pointers (`result.Field = b.Field` where both are `*T`). `FirstNonNil` can't help here — it dereferences. Instead: `value.Of(b.Field).When(b.Field != nil).Or(s.Field)` selects between the pointers themselves.*
 
 ---
 
@@ -266,6 +210,8 @@ srv.compactorOption = option.NonZeroMap(cfg.AutoCompactionRetention, newCompacto
 
 **Original** (2 of 31 — one simple, one compound):
 ```go
+// Field type: *qlogwriter.Recorder (nil when qlog disabled)
+
 if c.qlogger != nil {
     c.qlogger.RecordEvent(qlog.PacketDropped{...})
 }
@@ -275,11 +221,14 @@ if c.qlogger != nil && !errors.As(e, &recreateErr) {
 }
 ```
 
-**fluentfp** — `qlogger` is stored as `option.Option[qlogwriter.Recorder]`; a helper encapsulates the `IfOk` call once:
+**fluentfp** — the field type changes from pointer to option:
 ```go
+// Field type: option.Option[qlogwriter.Recorder]
+// Zero value is automatically not-ok — no explicit "disabled" state needed.
+
 // recordEvent records a qlog event if the recorder is present.
 func (c *connection) recordEvent(event qlog.Event) {
-    c.qlogger.IfOk(func(r qlogwriter.Recorder) { r.RecordEvent(event) })
+    c.qloggerOption.IfOk(func(r qlogwriter.Recorder) { r.RecordEvent(event) })
 }
 ```
 
@@ -291,7 +240,7 @@ if !errors.As(e, &recreateErr) {
 }
 ```
 
-**What changed:** 31 guard clauses disappear — a few with compound conditions drop only the nil check, keeping the remaining condition. A one-line helper wraps the `IfOk` call. The recorder is genuinely optional — a zero `option.Option` is automatically not-ok, so construction paths without a recorder need no special handling.
+**What changed:** The field changes from `*qlogwriter.Recorder` (named `qlogger`) to `option.Option[qlogwriter.Recorder]` (named `qloggerOption`). That one type change eliminates all 31 nil checks — `.IfOk()` calls the method only when the option is ok, and a zero-value option is automatically not-ok. Compound conditions like the second example drop only the nil check, keeping the remaining condition. The structural win: every future code path that touches `qloggerOption` gets nil safety for free. No discipline required — the type enforces it.
 
 ---
 
@@ -386,7 +335,7 @@ addrs := slice.MapTo[Address](users).Map(User.Address)
 
 These rewrites share a pattern: fluentfp replaces *incidental structure* (type assertions, wrapper callbacks, temporary variables, nil guards) with *declarative intent*. The wins are real but not universal.
 
-**Good fit:** Codebases where you're counting bugs. Every nil check you forget is a production panic; every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional cleanup across optional subsystems (etcd), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
+**Good fit:** Codebases where you're counting bugs. Every nil check you forget is a production panic; every `interface{}` cast you mistype is a runtime crash; every loop-and-accumulate you hand-roll is an off-by-one waiting to happen. fluentfp moves these failure modes to compile time. Beyond safety: repetitive config merges (Nomad), scattered nil guards on optional dependencies (quic-go), conditional struct construction (Consul), or slice pipelines tangled with type assertions (go-funk, go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
 **Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Codebases that prefer minimal abstraction and maximal explicitness. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `NonZero`, `NonEmpty`, `NonZeroMap`, `IfOk`) that reads clearly once learned but has an onboarding cost.
 

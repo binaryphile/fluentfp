@@ -71,6 +71,18 @@ host := value.FirstNonZero(envHost, configHost, "localhost")
 
 `FirstNonZero` returns the first non-zero value from its arguments, or zero if all are zero. It requires `comparable` (same constraint as `slice.Compact`). Use it when the condition is "non-zero" and you don't need the option intermediary.
 
+`FirstNonEmpty` is the string-specific variant — reads naturally for string config merges:
+
+```go
+region := value.FirstNonEmpty(override.Region, defaults.Region)
+```
+
+`FirstNonNil` dereferences the first non-nil pointer, or returns zero if all are nil:
+
+```go
+timeout := value.FirstNonNil(override.Timeout, defaults.Timeout)
+```
+
 ## Composition
 
 `.Or()` isn't part of value — it comes from `option.Option[T]`. The chain works because `.When()` returns an option:
@@ -108,5 +120,7 @@ port := option.Getenv("PORT").Or("8080")
 - `LazyOf(func() T) LazyCond[T]` — wrap a function (lazy)
 - `LazyCond[T].When(bool) option.Option[T]` — evaluate only if true
 - `FirstNonZero[T comparable](vals ...T) T` — first non-zero value
+- `FirstNonEmpty(vals ...string) string` — first non-empty string (string-specific variant of FirstNonZero)
+- `FirstNonNil[T any](ptrs ...*T) T` — first non-nil pointer, dereferenced (zero if all nil)
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/value) for complete API documentation, the [main README](../README.md) for installation, and [option](../option/) for absent values without conditions.

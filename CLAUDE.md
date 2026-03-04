@@ -257,6 +257,8 @@ import "github.com/binaryphile/fluentfp/value"
 value.Of(v).When(cond).Or(fallback)          // Eager
 value.LazyOf(fn).When(cond).Or(fallback)       // Lazy preferred value
 value.FirstNonZero[T comparable](vals ...T) T  // First non-zero value
+value.FirstNonEmpty(vals ...string) string     // First non-empty string
+value.FirstNonNil[T any](ptrs ...*T) T         // First non-nil pointer, dereferenced
 ```
 
 ### value Patterns

@@ -2318,3 +2318,11 @@ Commit: f48f401
 [x] All Basic→Option in documentation (verified: grep shows only historical/prose)
 [x] CHANGELOG updated with BREAKING note
 [x] Era memory updated
+2026-03-04T09:10:08Z | Completion: Add FirstNonEmpty/FirstNonNil, rework showcase
+[x] value.FirstNonEmpty — string-specific variant of FirstNonZero
+[x] value.FirstNonNil — dereferences first non-nil pointer
+[x] Tests for FirstNonNil (4 cases)
+[x] Showcase: drop etcd entry, rewrite quic-go with Option fields + qloggerOption naming
+[x] Showcase: Nomad uses FirstNonEmpty for strings, accurate pointer-field note
+[x] Stale etcd reference removed from closing section
+[x] CLAUDE.md, value/README.md, CHANGELOG.md updated

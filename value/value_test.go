@@ -160,6 +160,38 @@ func TestFirstNonZero(t *testing.T) {
 	})
 }
 
+func TestFirstNonNil(t *testing.T) {
+	a, b := 1, 2
+
+	t.Run("first non-nil wins", func(t *testing.T) {
+		got := value.FirstNonNil(&a, &b)
+		if got != 1 {
+			t.Errorf("got %d, want 1", got)
+		}
+	})
+
+	t.Run("skips nil", func(t *testing.T) {
+		got := value.FirstNonNil(nil, &b)
+		if got != 2 {
+			t.Errorf("got %d, want 2", got)
+		}
+	})
+
+	t.Run("all nil", func(t *testing.T) {
+		got := value.FirstNonNil[int](nil, nil)
+		if got != 0 {
+			t.Errorf("got %d, want 0", got)
+		}
+	})
+
+	t.Run("no args", func(t *testing.T) {
+		got := value.FirstNonNil[int]()
+		if got != 0 {
+			t.Errorf("got %d, want 0", got)
+		}
+	})
+}
+
 func TestOf_When_OrCall_lazy_fallback(t *testing.T) {
 	fallbackCalled := false
 	fallback := func() int {

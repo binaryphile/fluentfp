@@ -8,6 +8,7 @@
 - **GroupBy** — group slice elements by extracted key into `map[K][]T`
 - **FromMap** — extract map values as a Mapper for further transformation
 - **FromSet** — extract set members (true keys) as a Mapper
+- **FirstNonEmpty**, **FirstNonNil** — string-specific and pointer-specific variants of `FirstNonZero` (value package)
 
 ## v0.28.0
 

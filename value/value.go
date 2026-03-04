@@ -31,6 +31,23 @@ func FirstNonZero[T comparable](vals ...T) (_ T) {
 	return
 }
 
+// FirstNonEmpty returns the first non-empty string, or empty if all are empty.
+// It is the string-specific variant of FirstNonZero.
+func FirstNonEmpty(vals ...string) string {
+	return FirstNonZero(vals...)
+}
+
+// FirstNonNil returns the dereferenced value of the first non-nil pointer, or zero if all are nil.
+func FirstNonNil[T any](ptrs ...*T) (_ T) {
+	for _, p := range ptrs {
+		if p != nil {
+			return *p
+		}
+	}
+
+	return
+}
+
 // LazyCond holds a function for deferred value computation.
 type LazyCond[T any] struct {
 	fn func() T
