@@ -2,6 +2,7 @@
 
 ## v0.32.0
 
+- **BREAKING**: Rename `NonZeroMap`/`NonEmptyMap`/`NonNilMap` to `NonZeroWith`/`NonEmptyWith`/`NonNilWith` — `With` suffix consistent with `FromMapWith`; reads as English ("non-zero, with a transform")
 - **FromMapWith** — transform map entries using both key and value into a Mapper (slice package)
 
 ## v0.31.0

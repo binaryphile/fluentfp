@@ -27,9 +27,9 @@ func _() {
 	_ = NonNil[int]
 	_ = NonZero[int]
 	_ = Map(Option[int]{}, func(int) int { return 0 })
-	_ = NonEmptyMap("", func(string) int { return 0 })
-	_ = NonNilMap[int, int](nil, func(int) int { return 0 })
-	_ = NonZeroMap[int, int](0, func(int) int { return 0 })
+	_ = NonEmptyWith("", func(string) int { return 0 })
+	_ = NonNilWith[int, int](nil, func(int) int { return 0 })
+	_ = NonZeroWith[int, int](0, func(int) int { return 0 })
 	_ = New[int]
 	_ = Of[int]
 
