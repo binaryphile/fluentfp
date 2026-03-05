@@ -15,7 +15,7 @@ Where the original code uses inline anonymous functions, we extract them into na
 **Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
 **Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
 
-The original inlines the arithmetic inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. Extracting key functions cleans up both sides equally:
+The original inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. After extracting key functions (shown below), the structure is nearly identical, so we skip the raw original and show the extracted version directly.
 
 **Extracted (both sides share these):**
 ```go
@@ -30,7 +30,31 @@ totalPackets := func(r ProcessesResult) int {
 }
 ```
 
-After extraction, the original still has two `sort.Slice` calls with `func(i, j int) bool` closures dispatched by a mode switch, plus a four-line bounds check.
+**Original with extraction:**
+```go
+func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
+    var items []ProcessesResult
+    for k, v := range s.Processes {
+        items = append(items, ProcessesResult{ProcessName: k, Data: v})
+    }
+
+    switch mode {
+    case ModeTableBytes:
+        sort.Slice(items, func(i, j int) bool {
+            return totalBytes(items[i]) > totalBytes(items[j])
+        })
+    case ModeTablePackets:
+        sort.Slice(items, func(i, j int) bool {
+            return totalPackets(items[i]) > totalPackets(items[j])
+        })
+    }
+
+    if len(items) < n {
+        n = len(items)
+    }
+    return items[:n]
+}
+```
 
 **fluentfp:**
 ```go
