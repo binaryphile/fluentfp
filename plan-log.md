@@ -2374,3 +2374,9 @@ Commit: f48f401
 2026-03-05T20:10:20Z | Completion: Add slice.FromMapWith
 [x] Implementation + tests
 [x] doc.go, CLAUDE.md, CHANGELOG.md updated
+2026-03-05T20:50:31Z | Contract: Showcase formatting — line counts and consistent structure
+[ ] All 5 entries updated with line counts
+[ ] All 4 non-sniffer raw originals replaced with prose
+2026-03-05T20:55:31Z | Completion: Showcase formatting
+[x] All 5 entries updated with line counts
+[x] All 4 non-sniffer raw originals replaced with prose

@@ -15,7 +15,7 @@ Where the original code uses inline anonymous functions, we extract them into na
 **Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
 **Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
 
-The original inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. After extracting key functions (shown below), the structure is nearly identical, so we skip the raw original and show the extracted version directly.
+The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. After extracting key functions (shown below), the structure is nearly identical, so we skip the raw original and show the extracted version directly.
 
 **Extracted (both sides share these):**
 ```go
@@ -83,40 +83,7 @@ func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
 **Source:** [agent/agent.go#L2482-L2530](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530)
 **Pain point:** Intermediate variables and post-construction overrides for conditional struct fields
 
-**Original:**
-```go
-name := chkType.Name
-if name == "" {
-    name = fmt.Sprintf("Service '%s' check", service.Service)
-}
-
-var intervalStr string
-var timeoutStr string
-if chkType.Interval != 0 {
-    intervalStr = chkType.Interval.String()
-}
-if chkType.Timeout != 0 {
-    timeoutStr = chkType.Timeout.String()
-}
-
-check := &structs.HealthCheck{
-    Node:           a.config.NodeName,
-    CheckID:        types.CheckID(checkID),
-    Name:           name,
-    Interval:       intervalStr,
-    Timeout:        timeoutStr,
-    Status:         api.HealthCritical,
-    Notes:          chkType.Notes,
-    ServiceID:      service.ID,
-    ServiceName:    service.Service,
-    ServiceTags:    service.Tags,
-    Type:           chkType.Type(),
-    EnterpriseMeta: service.EnterpriseMeta,
-}
-if chkType.Status != "" {
-    check.Status = chkType.Status
-}
-```
+The original is 31 lines: three if-blocks assign temporary variables (`name`, `intervalStr`, `timeoutStr`), a 13-field struct literal references them, and a post-construction if-block overrides `Status`. Four conditional fields require staging across pre- and post-construction blocks.
 
 **fluentfp:**
 ```go
@@ -149,29 +116,9 @@ check := &structs.HealthCheck{
 **Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
 
-**Original** (6 of 48 — representative sample):
-```go
-if b.AuthoritativeRegion != "" {
-    result.AuthoritativeRegion = b.AuthoritativeRegion
-}
-if b.EncryptKey != "" {
-    result.EncryptKey = b.EncryptKey
-}
-if b.BootstrapExpect > 0 {
-    result.BootstrapExpect = b.BootstrapExpect
-}
-if b.RaftProtocol != 0 {
-    result.RaftProtocol = b.RaftProtocol
-}
-if b.HeartbeatGrace != 0 {
-    result.HeartbeatGrace = b.HeartbeatGrace
-}
-if b.RetryInterval != 0 {
-    result.RetryInterval = b.RetryInterval
-}
-```
+The original method is 217 lines (L2590–L2806). Each of the 48 fields follows the same 3-line pattern: `if b.Field != zero { result.Field = b.Field }` — 144 lines of conditional assignment alone. The fluentfp version below shows 6 representative fields.
 
-**fluentfp** (same 6 fields — `s` is the receiver, `b` is the override):
+**fluentfp** (same 6 fields, 18 → 6 lines — `s` is the receiver, `b` is the override):
 ```go
 result.AuthoritativeRegion = option.NonEmpty(b.AuthoritativeRegion).Or(s.AuthoritativeRegion)
 result.EncryptKey           = option.NonEmpty(b.EncryptKey).Or(s.EncryptKey)
@@ -192,18 +139,7 @@ result.RetryInterval        = option.NonZero(b.RetryInterval).Or(s.RetryInterval
 **Source:** [internal/prediction/tf_idf.go](https://github.com/ananthakumaran/paisa/blob/55da8fdacff6c7202133dff01e2d1e2b3a1619ba/internal/prediction/tf_idf.go)
 **Library:** samber/lo | **Pain point:** stdlib functions wrapped in callbacks just to satisfy `_ int`
 
-**Original:**
-```go
-func tokenize(s string) []string {
-    tokens := regexp.MustCompile("[ .()/:]+").Split(s, -1)
-    tokens = lo.Map(tokens, func(s string, _ int) string {
-        return strings.ToLower(s)
-    })
-    return lo.Filter(tokens, func(s string, _ int) bool {
-        return strings.TrimSpace(s) != ""
-    })
-}
-```
+The original is 9 lines: split on punctuation, lowercase each token via `lo.Map` with a `func(string, _ int) string` wrapper around `strings.ToLower`, and filter blanks via `lo.Filter` with another wrapper. Both wrappers exist solely to satisfy lo's index parameter.
 
 **Extracted:**
 ```go
@@ -256,30 +192,7 @@ The method form costs one explicit type parameter but buys composability: `slice
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
 **Library:** go-linq | **Pain point:** `interface{}` callbacks vs fluent method chaining
 
-**Original:**
-```go
-linq.From(styleList).GroupBy(func(script interface{}) interface{} {
-    return script.(StyleSection).valueHash
-}, func(script interface{}) interface{} {
-    return script
-}).Where(func(group interface{}) bool {
-    return len(group.(linq.Group).Group) > 1
-}).OrderByDescending(
-    func(group interface{}) interface{} {
-        return len(group.(linq.Group).Group)
-    }).SelectT(
-    func(group linq.Group) interface{} {
-        names := []string{}
-        for _, styleSection := range group.Group {
-            names = append(names, fmt.Sprintf(
-                "%s << %s", styleSection.(StyleSection).name,
-                styleSection.(StyleSection).filePath))
-        }
-        return SectionSummary{...}
-    }).ToSlice(&groups)
-```
-
-Both sides extract the same named functions: `valueHash` extracts the CSS hash for grouping, `hasDuplicates` filters groups with more than one section, `groupSize` returns the count for sorting, and `toSummary` builds the final output. go-linq also needs `identity` for its GroupBy element selector.
+The original is 19 lines of `interface{}`-based callbacks chained via `GroupBy`, `Where`, `OrderByDescending`, `SelectT`, and `ToSlice`. Every callback requires a type assertion — `script.(StyleSection)` and `group.(linq.Group)` — and returns `interface{}`. The `SelectT` callback contains an inner `for` loop building a `names` slice. Both sides extract the same named functions: `valueHash` extracts the CSS hash for grouping, `hasDuplicates` filters groups with more than one section, `groupSize` returns the count for sorting, and `toSummary` builds the final output. go-linq also needs `identity` for its GroupBy element selector.
 
 **Extracted (go-linq):**
 ```go
