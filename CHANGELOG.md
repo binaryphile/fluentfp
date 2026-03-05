@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.32.0
+
+- **FromMapWith** — transform map entries using both key and value into a Mapper (slice package)
+
 ## v0.31.0
 
 - Showcase: add pipeline entry (chenjiandongx/sniffer `TopNProcesses` — `SortByDesc` + `Take` + `value.Of` function selection), improve discoverability with cross-links from README, package READMEs, and analysis.md

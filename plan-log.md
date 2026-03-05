@@ -2368,3 +2368,9 @@ Commit: f48f401
 [x] Removed go-funk entry, folded design constraint into lo entry
 [x] Added bug-class callouts to all 5 entries
 [x] Updated intro and closing to frame around bug elimination
+2026-03-05T20:01:42Z | Contract: Add slice.FromMapWith
+[ ] Implementation + tests
+[ ] doc.go, CLAUDE.md, CHANGELOG.md updated
+2026-03-05T20:10:20Z | Completion: Add slice.FromMapWith
+[x] Implementation + tests
+[x] doc.go, CLAUDE.md, CHANGELOG.md updated

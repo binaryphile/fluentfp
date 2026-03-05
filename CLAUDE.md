@@ -72,6 +72,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 
 // Standalone functions
 slice.FromMap[K comparable, V any](m map[K]V) Mapper[V]                // Map values as collection
+slice.FromMapWith[K comparable, V, T any](m map[K]V, fn func(K, V) T) Mapper[T]  // Transform map entries
 slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set members as collection (inverse of ToSet)
 slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) map[K][]T       // Group elements by key
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
