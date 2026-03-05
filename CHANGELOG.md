@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.30.0
+
+- **BREAKING**: Rename `pair.X` fields `V1`/`V2` to `First`/`Second`, type params `V1`/`V2` to `A`/`B` — Smalltalk-style readability; matches Kotlin/C++ convention
+
 ## v0.29.0
 
 - **BREAKING**: Rename `KeepOkIf` to `KeepIf`, `ToNotOkIf` to `RemoveIf` — drop redundant "Ok"/"NotOk" qualifiers; receiver type already communicates option context; parallels `Mapper.KeepIf`/`Mapper.RemoveIf`
@@ -11,7 +15,6 @@
 - **FromSet** — extract set members (true keys) as a Mapper
 - **Map** — standalone `slice.Map[T, R](ts, fn)` for type-inferred cross-type mapping without `MapTo[R]`
 - **FirstNonEmpty**, **FirstNonNil** — string-specific and pointer-specific variants of `FirstNonZero` (value package)
-- **BREAKING**: Rename `pair.X` fields `V1`/`V2` to `First`/`Second`, type params `V1`/`V2` to `A`/`B` — Smalltalk-style readability; matches Kotlin/C++ convention
 
 ## v0.28.0
 
