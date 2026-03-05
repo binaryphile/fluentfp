@@ -10,7 +10,7 @@ A note on the libraries compared here: go-funk and go-linq were pioneering effor
 
 Where the original code uses inline anonymous functions, we extract them into named functions before comparing pipelines. This is standard refactoring that any developer would do regardless of library choice — it shouldn't count as a library advantage. Separating the extraction step makes the real difference visible: what changes in the pipeline itself, after both sides have had the same cleanup applied.
 
-The last two entries show trade-offs where a competitor is more readable than fluentfp.
+The last entry shows a trade-off where a competitor is more readable than fluentfp.
 
 ---
 
@@ -296,6 +296,35 @@ func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
 
 ---
 
+### Design constraint: explicit type parameters — fluentfp vs lo
+
+**Pain point:** Go methods cannot declare type parameters beyond those on the receiver — how each library handles cross-type mapping
+
+**lo:**
+```go
+getAddr := func(u User, _ int) Address { return u.Address() }
+addrs := lo.Map(users, getAddr)
+// Type Address is inferred from getAddr's return type
+```
+
+**fluentfp (standalone):**
+```go
+addrs := slice.Map(users, User.Address)
+// Both types inferred — same inference as lo, no _ int wrapper
+```
+
+**fluentfp (method chaining):**
+```go
+addrs := slice.MapTo[Address](users).Map(User.Address)
+// [Address] must be specified explicitly at construction
+```
+
+**Why two forms exist:** Go methods cannot declare type parameters beyond those on the receiver (design constraint D2 in [design.md](design.md)). `MapTo[R]` binds the target type at construction because `.Map()` cannot introduce `R` as a method type parameter. The standalone `slice.Map` function avoids this — like lo, it infers both types from the arguments.
+
+**When to use which:** The standalone `slice.Map` matches lo's inference and doesn't require lo's `_ int` wrapper — for a single cross-type map, it's strictly simpler. The method form costs one explicit type parameter but buys composability: `MapTo[Address](users).Map(fn).KeepIf(pred).SortBy(key)` reads left-to-right as a pipeline. lo's standalone functions always infer types but read inside-out when composed: `lo.Filter(lo.Map(users, getAddr), isLocal)`.
+
+---
+
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
@@ -355,35 +384,6 @@ summaries := slice.Map(sorted, toSummary)
 ```
 
 **What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map — and go-linq's reads more fluently. Method chaining (`.Where(hasDuplicates).OrderByDescending(groupSize)`) flows more naturally than standalone functions (`slice.SortByDesc(withDuplicates, groupSize)`). fluentfp uses standalone functions here because Go doesn't allow generic methods — operations like `GroupBy` and `SortByDesc` need extra type parameters that methods can't introduce. The cost of go-linq's fluency is giving up type safety and incurring reflection overhead.
-
----
-
-### Trade-off: Explicit type parameter — fluentfp vs lo
-
-**Pain point:** fluentfp's method chaining requires explicit type parameter where lo infers it
-
-**lo:**
-```go
-getAddr := func(u User, _ int) Address { return u.Address() }
-addrs := lo.Map(users, getAddr)
-// Type Address is inferred from getAddr's return type
-```
-
-**fluentfp (method chaining):**
-```go
-addrs := slice.MapTo[Address](users).Map(User.Address)
-// [Address] must be specified explicitly at construction
-```
-
-**fluentfp (standalone):**
-```go
-addrs := slice.Map(users, User.Address)
-// Both types inferred — same inference as lo, no _ int wrapper
-```
-
-**Why the method form needs the type parameter:** Go methods cannot declare type parameters beyond those on the receiver (design constraint D2 in [design.md](design.md)). `MapTo[R]` binds the target type at construction because `.Map()` cannot introduce `R` as a method type parameter. The standalone `slice.Map` function avoids this — like lo, it infers both types from the arguments.
-
-**The trade-off:** The standalone `slice.Map` matches lo's inference but breaks the method chain. If the map is your only operation, `slice.Map` is the natural choice. If you're chaining further operations (filter, sort, etc.), `MapTo[Address](users).Map(fn).KeepIf(pred)` keeps the pipeline left-to-right at the cost of one explicit type parameter. lo's standalone functions always infer types but read inside-out when composed.
 
 ---
 
