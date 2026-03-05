@@ -367,18 +367,21 @@ leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
 
 No inline lambdas — if the logic is simple enough to inline, it's simple enough to name and document. Exception: standard idioms (t.Run, http.HandlerFunc).
 
-**No nested calls when the outer call has other arguments:**
+**Uniform commas rule — commas at one nesting level only.** When a call contains another call, only one level may have multiple arguments (commas). This keeps every comma at the same nesting depth, so the reader never has to mentally track which arguments belong to which call.
 
 ```go
-// BAD: nested call mixed with sibling args — hard to parse
+// BAD: commas at both levels — outer has 2 args, inner has 2 args
 slice.SortByDesc(slice.FromMapWith(m, toResult), sortKey)
 
-// GOOD: extract to variable
+// GOOD: extract inner call — commas only at outer level
 items := slice.FromMapWith(m, toResult)
 slice.SortByDesc(items, sortKey)
 
-// OK: outer call's only argument is the nested call
+// OK: commas only at inner level — outer has 1 arg
 slice.From(slice.Compact(items))
+
+// OK: commas only at outer level — each inner call has 1 arg
+pair.ZipWith(slice.From(as), slice.From(bs), combine)
 ```
 
 **Why name functions:**
