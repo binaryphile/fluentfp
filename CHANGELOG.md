@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.31.0
+
+- Showcase: add pipeline entry (chenjiandongx/sniffer `TopNProcesses` — `SortByDesc` + `Take` + `value.Of` function selection), improve discoverability with cross-links from README, package READMEs, and analysis.md
+
 ## v0.30.0
 
 - **BREAKING**: Rename `pair.X` to `pair.Pair`, fields `V1`/`V2` to `First`/`Second`, type params `V1`/`V2` to `A`/`B` — consistency with `option.Option`, `context.Context`; Smalltalk-style readability; matches Kotlin/C++ field convention
