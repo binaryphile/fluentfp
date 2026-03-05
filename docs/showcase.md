@@ -64,7 +64,7 @@ toResult := func(k string, v ProcessData) ProcessesResult {
 }
 
 func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
-    items := kv.MapTo[ProcessesResult](s.Processes).Map(toResult)
+    items := kv.Map(s.Processes, toResult)
     sortKey := value.Of(totalBytes).When(mode == ModeTableBytes).Or(totalPackets)
     return slice.SortByDesc(items, sortKey).Take(n)
 }

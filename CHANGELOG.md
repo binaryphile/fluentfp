@@ -4,7 +4,7 @@
 
 - **BREAKING**: Rename `NonZeroMap`/`NonEmptyMap`/`NonNilMap` to `NonZeroWith`/`NonEmptyWith`/`NonNilWith` — `With` suffix reads as English ("non-zero, with a transform")
 - **BREAKING**: Move `slice.FromMap` → `kv.Values`, `slice.FromMapWith` → `kv.MapTo[T](m).Map(fn)` — map operations belong in a map-oriented package
-- **kv** package — `From(m).ToValues()`, `From(m).ToKeys()`, `MapTo[T](m).Map(fn)`, standalone `Values`, `Keys`
+- **kv** package — `Map(m, fn)` (inferred), `MapTo[T](m).Map(fn)` (explicit), `From(m).ToValues()`, `From(m).ToKeys()`, standalone `Values`, `Keys`
 
 ## v0.31.0
 

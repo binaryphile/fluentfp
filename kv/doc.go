@@ -5,6 +5,7 @@ func _() {
 	_ = Entries[int, int].ToValues
 	_ = Entries[int, int].ToKeys
 
+	_ = Map[int, int, int]
 	_ = MapTo[int, int, int]
 	_ = MapperTo[int, int, int].Map
 

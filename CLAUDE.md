@@ -286,9 +286,12 @@ kv.From[K comparable, V any](m map[K]V) Entries[K, V]   // Wrap map for fluent o
 kv.From(m).ToValues() slice.Mapper[V]                    // Extract values
 kv.From(m).ToKeys() slice.Mapper[K]                      // Extract keys
 
-// Cross-type transformation (T first so K, V inferred)
+// Cross-type transformation — all types inferred
+kv.Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) slice.Mapper[T]
+
+// Cross-type transformation — explicit T (when inference doesn't suffice)
 kv.MapTo[T any, K comparable, V any](m map[K]V) MapperTo[T, K, V]
-kv.MapTo[T](m).Map(fn func(K, V) T) slice.Mapper[T]     // Transform entries
+kv.MapTo[T](m).Map(fn func(K, V) T) slice.Mapper[T]
 
 // Standalone shortcuts
 kv.Values[K comparable, V any](m map[K]V) slice.Mapper[V]  // = From(m).ToValues()
@@ -298,7 +301,10 @@ kv.Keys[K comparable, V any](m map[K]V) slice.Mapper[K]    // = From(m).ToKeys()
 ### kv Patterns
 
 ```go
-// Transform map entries to structs
+// Transform map entries to structs (types inferred)
+items := kv.Map(s.Processes, toResult)
+
+// Same, with explicit target type
 items := kv.MapTo[ProcessesResult](s.Processes).Map(toResult)
 
 // Extract values for filtering

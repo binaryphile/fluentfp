@@ -47,6 +47,19 @@ func Keys[K comparable, V any](m map[K]V) slice.Mapper[K] {
 	return From(m).ToKeys()
 }
 
+// Map transforms each key-value pair in m using fn and returns the results
+// as a Mapper. All type parameters are inferred from the arguments.
+// Use MapTo[T](m).Map(fn) when explicit type specification is needed.
+// Order is not guaranteed (map iteration order).
+func Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) slice.Mapper[T] {
+	result := make([]T, 0, len(m))
+	for k, v := range m {
+		result = append(result, fn(k, v))
+	}
+
+	return result
+}
+
 // MapperTo wraps a map for cross-type transformation.
 // T is first so K and V are inferred from the map argument.
 type MapperTo[T any, K comparable, V any] struct {
