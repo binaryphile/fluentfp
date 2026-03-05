@@ -58,18 +58,19 @@ func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
 
 **fluentfp:**
 ```go
-func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
-    var items []ProcessesResult
-    for k, v := range s.Processes {
-        items = append(items, ProcessesResult{ProcessName: k, Data: v})
-    }
+// toResult constructs a ProcessesResult from a map entry.
+toResult := func(k string, v ProcessData) ProcessesResult {
+    return ProcessesResult{ProcessName: k, Data: v}
+}
 
+func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
+    items := slice.FromMapWith(s.Processes, toResult)
     sortKey := value.Of(totalBytes).When(mode == ModeTableBytes).Or(totalPackets)
     return slice.SortByDesc(items, sortKey).Take(n)
 }
 ```
 
-**What changed:** The map-to-slice loop stays — Go maps require iteration and both sides need it. After that, 14 lines compress into a two-line pipeline. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become one `SortByDesc` with a key function. The mode switch — already clear as idiomatic Go — becomes `value.Of(totalBytes).When(cond).Or(totalPackets)`. The gain isn't readability of the switch itself; it's composability — the selected function feeds into `SortByDesc` without a control structure between selection and use. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
+**What changed:** `FromMapWith` replaces the manual map-to-slice loop, and the remaining 14 lines compress into a two-line pipeline. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become one `SortByDesc` with a key function. The mode switch — already clear as idiomatic Go — becomes `value.Of(totalBytes).When(cond).Or(totalPackets)`. The gain isn't readability of the switch itself; it's composability — the selected function feeds into `SortByDesc` without a control structure between selection and use. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
 
 **What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `SortByDesc` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
 
