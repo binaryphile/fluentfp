@@ -163,6 +163,69 @@ Standalone functions for operations needing extra type parameters or custom trav
 
 **Cost model:** a chain of N operations produces N allocations. A single fused loop produces 1. For benchmarks and empirical cost analysis, see [methodology.md §I](../methodology.md#i-performance-analysis).
 
+### Boundaries and Defensive Copying
+
+In practice, fluentfp code lives alongside imperative code — legacy libraries, third-party APIs, team code that doesn't use fluentfp. The shared backing array from `From()` and subslice views from `Take`/`TakeLast`/`Chunk` create mutation boundaries worth understanding.
+
+**Quick reference — shares backing array or independent?**
+
+| Operation | Backing Array | Clone needed at mutation boundary? |
+|-----------|--------------|-----------------------------------|
+| `From()` alone | Shared | Yes, if either side mutates |
+| `Take`, `TakeLast` | Shared (subslice view) | Yes, if result is mutated or outlives source |
+| `Chunk` | Shared (each chunk is a view) | Yes, if chunks are mutated |
+| Everything else (`KeepIf`, `RemoveIf`, `Convert`, `ToString`, `Reverse`, `FlatMap`, `SortBy`, `Map`, `Clone`, etc.) | Independent (fresh allocation) | No |
+
+Most chains are safe by default — any allocating operation produces an independent result:
+
+```go
+// Safe: KeepIf allocates a new slice. Mutating users later won't affect actives.
+actives := slice.From(users).KeepIf(User.IsActive)
+```
+
+**When to think about it:**
+
+1. **`From()` alone** — if you store the `Mapper[T]` without chaining an allocating operation, it shares the original's backing array. If anything later mutates the original — your own code, a caller, a library function — the Mapper sees it.
+
+```go
+m := slice.From(users)   // shares backing array with users
+sort.Slice(users, ...)   // m is now also sorted — probably not what you want
+```
+
+This is especially relevant when receiving slices from other code. The caller may retain and mutate the slice after you've wrapped it:
+
+```go
+func processUsers(users []User) {
+    cached := slice.From(users)  // shares backing array
+    // ... if the caller sorts or overwrites users later, cached reflects it
+}
+```
+
+Fix: chain an allocating operation (`m := slice.From(users).Clone()`) or accept that the Mapper is a view, not a snapshot.
+
+2. **`Take`/`TakeLast`/`Chunk`** — these return subslice views (no allocation). The result shares the original's backing array. Safe for read-only use; risky if the result or source is later mutated or appended to.
+
+```go
+first5 := slice.From(users).Take(5)   // subslice view
+// Appending to first5 may overwrite users[5] if capacity remains
+```
+
+Fix: `.Take(5).Clone()` when the result will be mutated or outlive the source.
+
+3. **Passing results to code that mutates in place** — if a third-party function sorts, shuffles, or overwrites elements of a slice you pass it, and you still need the original order, clone first. This only matters for view operations — allocating operations already produce independent slices.
+
+```go
+// Take returns a view — clone before handing to mutating code
+batch := slice.From(items).Take(10).Clone()
+legacySort(batch)  // safe — batch has independent backing array
+
+// KeepIf already allocates — no clone needed
+filtered := slice.From(items).KeepIf(Item.IsValid)
+legacySort(filtered)  // safe — KeepIf already produced a fresh slice
+```
+
+**Rule of thumb:** If a chain contains at least one allocating operation (`KeepIf`, `Convert`, `ToString`, etc.), the result already has an independent backing array. `.Clone()` is only needed at boundaries where (a) you used only view operations (`From` alone, `Take`, `TakeLast`, `Chunk`) and (b) either side might mutate.
+
 ## Safety Properties
 
 ### Nil safety
