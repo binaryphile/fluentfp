@@ -2360,3 +2360,7 @@ Commit: f48f401
 [x] value/README.md showcase link added
 [x] analysis.md showcase cross-reference added
 [x] Pipeline entry — chenjiandongx/sniffer TopNProcesses (SortByDesc + Take + value.Of function selection)
+2026-03-05T18:47:38Z | Contract: Showcase update — connect safety story
+[ ] Remove go-funk entry, fold design constraint into lo entry
+[ ] Add bug-class callouts to all 5 entries
+[ ] Update intro and closing to frame around bug elimination
