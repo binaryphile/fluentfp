@@ -367,18 +367,19 @@ leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
 
 No inline lambdas — if the logic is simple enough to inline, it's simple enough to name and document. Exception: standard idioms (t.Run, http.HandlerFunc).
 
-**No nested calls with 2+ argument inner calls:**
+**No nested calls when the outer call has other arguments:**
 
 ```go
-// BAD: inner call has 2 arguments, hard to parse
+// BAD: nested call mixed with sibling args — hard to parse
 slice.SortByDesc(slice.FromMapWith(m, toResult), sortKey)
 
 // GOOD: extract to variable
 items := slice.FromMapWith(m, toResult)
 slice.SortByDesc(items, sortKey)
-```
 
-Nesting is fine when the inner call has 0–1 arguments.
+// OK: outer call's only argument is the nested call
+slice.From(slice.Compact(items))
+```
 
 **Why name functions:**
 
