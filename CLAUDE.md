@@ -365,17 +365,20 @@ leadTimes, deployFreqs, mttrs, cfrs := slice.Unzip4(history,
 1. **Method expressions** - `User.IsActive`, `Device.GetMAC` (cleanest, no function body)
 2. **Named functions** - `isActive := func(u User) bool {...}` (readable, debuggable)
 
-Avoid inline anonymous functions in fluentfp chains. If the logic is simple enough to inline, it's simple enough to name and document.
+No inline lambdas — if the logic is simple enough to inline, it's simple enough to name and document. Exception: standard idioms (t.Run, http.HandlerFunc).
 
-**When to name (vs inline):**
+**No nested calls with 2+ argument inner calls:**
 
-| Name when... | Inline when... |
-|--------------|----------------|
-| Reused (called 2+ times) | Standard idiom (t.Run, http.HandlerFunc) |
-| Complex (multiple statements) | |
-| Has domain meaning | |
-| Stored for later use | |
-| Captures outer variables | |
+```go
+// BAD: inner call has 2 arguments, hard to parse
+slice.SortByDesc(slice.FromMapWith(m, toResult), sortKey)
+
+// GOOD: extract to variable
+items := slice.FromMapWith(m, toResult)
+slice.SortByDesc(items, sortKey)
+```
+
+Nesting is fine when the inner call has 0–1 arguments.
 
 **Why name functions:**
 
