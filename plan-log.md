@@ -2364,3 +2364,7 @@ Commit: f48f401
 [ ] Remove go-funk entry, fold design constraint into lo entry
 [ ] Add bug-class callouts to all 5 entries
 [ ] Update intro and closing to frame around bug elimination
+2026-03-05T19:12:52Z | Completion: Showcase update
+[x] Removed go-funk entry, folded design constraint into lo entry
+[x] Added bug-class callouts to all 5 entries
+[x] Updated intro and closing to frame around bug elimination
