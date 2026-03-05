@@ -55,11 +55,11 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 ### Deferred (4)
 
-**KeyBy, CountBy** — Both return `map[K]V` types, which require `K comparable`. These are standalone functions. Return plain maps — `FromMap` bridges back to the fluent chain when needed. Defer until usage patterns emerge.
+**KeyBy, CountBy** — Both return `map[K]V` types, which require `K comparable`. These are standalone functions. Return plain maps — `kv.Values` bridges back to the fluent chain when needed. Defer until usage patterns emerge.
 
 ### Resolved
 
-**GroupBy** — Returns `map[K][]T` (plain map). The design question about return type is resolved: `FromMap` bridges map values back into `Mapper[T]` for downstream chaining. Standalone function with `K comparable` constraint.
+**GroupBy** — Returns `map[K][]T` (plain map). The design question about return type is resolved: `kv.Values` bridges map values back into `Mapper[T]` for downstream chaining. Standalone function with `K comparable` constraint.
 
 **Flatten** — The workaround `FlatMap(identity)` doesn't work cleanly because `Mapper[T any]` doesn't constrain `T` to be a slice type. A standalone `Flatten[T any](tss [][]T) []T` works but breaks the fluent chain. Defer until the use case is encountered in practice.
 

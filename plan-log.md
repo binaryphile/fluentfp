@@ -2380,3 +2380,13 @@ Commit: f48f401
 2026-03-05T20:55:31Z | Completion: Showcase formatting
 [x] All 5 entries updated with line counts
 [x] All 4 non-sniffer raw originals replaced with prose
+2026-03-05T23:25:07Z | Contract: kv package — replace slice.FromMap/FromMapWith
+[ ] kv package created with MapTo, Values, Keys, From wrapper
+[ ] slice.FromMap and slice.FromMapWith removed
+[ ] All references updated (showcase, CLAUDE.md, CHANGELOG, design, feature-gaps)
+[ ] Tests pass
+2026-03-05T23:47:55Z | Completion: kv package
+[x] kv package created with MapTo, Values, Keys, From wrapper
+[x] slice.FromMap and slice.FromMapWith removed
+[x] All references updated
+[x] Tests pass

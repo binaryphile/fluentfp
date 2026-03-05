@@ -71,8 +71,6 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToSet() map[string]bool                // Convert to set for membership checks
 
 // Standalone functions
-slice.FromMap[K comparable, V any](m map[K]V) Mapper[V]                // Map values as collection
-slice.FromMapWith[K comparable, V, T any](m map[K]V, fn func(K, V) T) Mapper[T]  // Transform map entries
 slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set members as collection (inverse of ToSet)
 slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) map[K][]T       // Group elements by key
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
@@ -278,6 +276,41 @@ status := value.Of("complete").When(done).Or("pending")
 config := value.LazyOf(loadFromDB).When(useCache).Or(defaultConfig)
 ```
 
+### kv Package (Key-Value / Map Operations)
+
+```go
+import "github.com/binaryphile/fluentfp/kv"
+
+// Wrapper type
+kv.From[K comparable, V any](m map[K]V) Entries[K, V]   // Wrap map for fluent ops
+kv.From(m).ToValues() slice.Mapper[V]                    // Extract values
+kv.From(m).ToKeys() slice.Mapper[K]                      // Extract keys
+
+// Cross-type transformation (T first so K, V inferred)
+kv.MapTo[T any, K comparable, V any](m map[K]V) MapperTo[T, K, V]
+kv.MapTo[T](m).Map(fn func(K, V) T) slice.Mapper[T]     // Transform entries
+
+// Standalone shortcuts
+kv.Values[K comparable, V any](m map[K]V) slice.Mapper[V]  // = From(m).ToValues()
+kv.Keys[K comparable, V any](m map[K]V) slice.Mapper[K]    // = From(m).ToKeys()
+```
+
+### kv Patterns
+
+```go
+// Transform map entries to structs
+items := kv.MapTo[ProcessesResult](s.Processes).Map(toResult)
+
+// Extract values for filtering
+actives := kv.Values(userMap).KeepIf(User.IsActive)
+
+// Extract keys
+names := kv.Keys(configMap)
+
+// Wrapper form
+vals := kv.From(m).ToValues()
+```
+
 ### lof Package (Lower-Order Functions)
 
 ```go
@@ -371,10 +404,10 @@ No inline lambdas — if the logic is simple enough to inline, it's simple enoug
 
 ```go
 // BAD: commas at both levels — outer has 2 args, inner has 2 args
-slice.SortByDesc(slice.FromMapWith(m, toResult), sortKey)
+slice.SortByDesc(kv.MapTo[R](m).Map(toResult), sortKey)
 
 // GOOD: extract inner call — commas only at outer level
-items := slice.FromMapWith(m, toResult)
+items := kv.MapTo[R](m).Map(toResult)
 slice.SortByDesc(items, sortKey)
 
 // OK: commas only at inner level — outer has 1 arg
