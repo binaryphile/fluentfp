@@ -306,13 +306,13 @@ if diff, ok := lof.IfNonEmpty(result); ok {
 import "github.com/binaryphile/fluentfp/tuple/pair"
 
 // Pair type
-pair.X[A, B]               // Struct with First, Second fields
+pair.Pair[A, B]            // Struct with First, Second fields
 
 // Creating pairs
 pair.Of(a, b) X[A,B]       // Construct a pair
 
 // Zipping slices
-pair.Zip(as, bs) []X[A,B]           // Combine into pairs (panics if unequal length)
+pair.Zip(as, bs) []Pair[A,B]        // Combine into pairs (panics if unequal length)
 pair.ZipWith(as, bs, fn) []R        // Combine and transform (panics if unequal length)
 ```
 

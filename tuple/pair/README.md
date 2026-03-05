@@ -2,10 +2,10 @@
 
 Combine parallel slices without index math.
 
-Slices must be equal length — these are parallel data, not ragged collections. `X[A, B]` holds two values, accessed via `.First` and `.Second`.
+Slices must be equal length — these are parallel data, not ragged collections. `Pair[A, B]` holds two values, accessed via `.First` and `.Second`.
 
 ```go
-pairs := pair.Zip(names, scores)  // []X[string, int]
+pairs := pair.Zip(names, scores)  // []Pair[string, int]
 ```
 
 ## What It Looks Like
@@ -24,8 +24,8 @@ users := pair.ZipWith(names, ages, NewUser)
 
 ## Operations
 
-- `Of[A, B](A, B) X[A, B]` — create a pair
-- `Zip[A, B]([]A, []B) []X[A, B]` — combine slices into pairs
+- `Of[A, B](A, B) Pair[A, B]` — create a pair
+- `Zip[A, B]([]A, []B) []Pair[A, B]` — combine slices into pairs
 - `ZipWith[A, B, R]([]A, []B, func(A, B) R) []R` — combine and transform
 
 Zip and ZipWith panic if slice lengths differ.

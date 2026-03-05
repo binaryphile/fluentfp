@@ -44,7 +44,7 @@ func TestZip(t *testing.T) {
 		as := []int{1, 2, 3}
 		bs := []string{"a", "b", "c"}
 		got := Zip(as, bs)
-		want := []X[int, string]{
+		want := []Pair[int, string]{
 			{First: 1, Second: "a"},
 			{First: 2, Second: "b"},
 			{First: 3, Second: "c"},
@@ -76,7 +76,7 @@ func TestZip(t *testing.T) {
 		as := []int{42}
 		bs := []string{"hello"}
 		got := Zip(as, bs)
-		want := []X[int, string]{{First: 42, Second: "hello"}}
+		want := []Pair[int, string]{{First: 42, Second: "hello"}}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("Zip() = %v, want %v", got, want)
 		}

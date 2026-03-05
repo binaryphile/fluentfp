@@ -2,7 +2,7 @@
 
 ## v0.30.0
 
-- **BREAKING**: Rename `pair.X` fields `V1`/`V2` to `First`/`Second`, type params `V1`/`V2` to `A`/`B` — Smalltalk-style readability; matches Kotlin/C++ convention
+- **BREAKING**: Rename `pair.X` to `pair.Pair`, fields `V1`/`V2` to `First`/`Second`, type params `V1`/`V2` to `A`/`B` — consistency with `option.Option`, `context.Context`; Smalltalk-style readability; matches Kotlin/C++ field convention
 
 ## v0.29.0
 

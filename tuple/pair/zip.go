@@ -2,12 +2,12 @@ package pair
 
 // Zip returns a slice of each pair of elements from the two input slices.
 // Panics if the slices have different lengths.
-func Zip[A, B any](as []A, bs []B) []X[A, B] {
+func Zip[A, B any](as []A, bs []B) []Pair[A, B] {
 	if len(as) != len(bs) {
 		panic("zip: arguments must have same length")
 	}
 
-	result := make([]X[A, B], len(as))
+	result := make([]Pair[A, B], len(as))
 	for i := range as {
 		result[i] = Of(as[i], bs[i])
 	}
