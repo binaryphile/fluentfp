@@ -2345,3 +2345,18 @@ Commit: f48f401
 [x] docs/economic-value.md created with all 9 sections + At-a-Glance table + Bottom Line (evidence: file exists, 206 lines)
 [x] Evidence cited with strength labels (evidence: every subsection opens with "Evidence strength:", Section 5 table has Strength column, 14 traceable sources)
 [x] Cross-references verified (evidence: links to analysis.md, methodology.md §H, nil-safety.md, showcase.md all resolve)
+2026-03-05T16:53:10Z | Contract: Showcase visibility + pipeline entry
+[ ] Add showcase to README Further Reading and What It Looks Like bridge
+[ ] Add showcase links to slice, option, and value READMEs
+[ ] Add showcase cross-reference to analysis.md
+[ ] Search for and write multi-step pipeline showcase entry (20-min cap)
+2026-03-05T22:30:00Z | Interaction: grade/improve -> A-/93 initial, incorporated external adversarial review (SortByDesc perf, Take semantics, scalability, switch idiom acknowledgment, allocation note consistency)
+2026-03-05T22:35:00Z | Interaction: grade/improve -> A-/94, then A-/95 after allocation note aligned with showcase intro
+2026-03-05T17:28:38Z | Completion: Showcase visibility + content
+[x] README Further Reading link added
+[x] What It Looks Like bridge sentence added
+[x] slice/README.md showcase link added
+[x] option/README.md showcase link added
+[x] value/README.md showcase link added
+[x] analysis.md showcase cross-reference added
+[x] Pipeline entry — chenjiandongx/sniffer TopNProcesses (SortByDesc + Take + value.Of function selection)

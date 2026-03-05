@@ -167,6 +167,8 @@ must.BeNil(err)
 port := must.Get(strconv.Atoi(os.Getenv("PORT")))
 ```
 
+For full before/after rewrites from real GitHub projects, see the [showcase](docs/showcase.md).
+
 ## Performance
 
 Chains pre-allocate with `make([]T, 0, len(input))` internally — the same thing a well-written loop does. Throughput and allocations are identical to pre-allocated loops.
@@ -247,6 +249,7 @@ Zero reflection. Zero global state. Zero build tags.
 - [Nil Safety](nil-safety.md) - The billion-dollar mistake and Go
 - [Naming Functions](naming-in-hof.md) - Function naming patterns for HOF use
 - [Library Comparison](comparison.md) - How fluentfp compares to alternatives
+- [Real-World Showcase](docs/showcase.md) - Before/after rewrites from GitHub projects
 
 ## Recent Additions
 

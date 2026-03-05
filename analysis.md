@@ -464,3 +464,5 @@ For the full discussion—including Tony Hoare's "billion-dollar mistake" confes
 ## Methodology
 
 For empirical methodology details—how claims were derived, replication guides, and real-world loop bug examples—see [Methodology](methodology.md).
+
+For before/after rewrites from real GitHub projects, see the [Real-World Showcase](docs/showcase.md).

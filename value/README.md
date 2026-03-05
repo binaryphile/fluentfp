@@ -123,4 +123,4 @@ port := option.Getenv("PORT").Or("8080")
 - `FirstNonEmpty(vals ...string) string` — first non-empty string (string-specific variant of FirstNonZero)
 - `FirstNonNil[T any](ptrs ...*T) T` — first non-nil pointer, dereferenced (zero if all nil)
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/value) for complete API documentation, the [main README](../README.md) for installation, and [option](../option/) for absent values without conditions.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/value) for complete API documentation, the [main README](../README.md) for installation, [option](../option/) for absent values without conditions, and the [showcase](../docs/showcase.md) for real-world rewrites.

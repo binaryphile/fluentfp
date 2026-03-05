@@ -160,4 +160,4 @@ Run `go test -bench=BenchmarkParallel -benchmem ./slice/` for numbers on your ha
 
 Edge cases: `workers <= 0` panics, `workers == 1` runs sequentially (no goroutine overhead), `workers > len` clamps, nil/empty input returns empty (not nil).
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation and the [main README](../README.md) for installation and performance characteristics.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation, the [main README](../README.md) for installation and performance characteristics, and the [showcase](../docs/showcase.md) for real-world rewrites.

@@ -104,4 +104,4 @@ Once you have a `Option[T]`, the same API works regardless of where the value ca
 - **Filter**: `KeepIf`, `RemoveIf`
 - **Side effects**: `IfOk`, `IfNotOk`, `Lift`
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation, the [main README](../README.md) for installation, and [Nil Safety in Go](../nil-safety.md) for the full discussion.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/option) for complete API documentation, the [main README](../README.md) for installation, [Nil Safety in Go](../nil-safety.md) for the full discussion, and the [showcase](../docs/showcase.md) for real-world rewrites.

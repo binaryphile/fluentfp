@@ -203,6 +203,99 @@ result.RetryInterval        = option.NonZero(b.RetryInterval).Or(s.RetryInterval
 
 ---
 
+### Sort-and-trim boilerplate — chenjiandongx/sniffer
+
+**Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
+**Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
+
+**Original:**
+```go
+func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
+    var items []ProcessesResult
+    for k, v := range s.Processes {
+        items = append(items, ProcessesResult{ProcessName: k, Data: v})
+    }
+
+    switch mode {
+    case ModeTableBytes:
+        sort.Slice(items, func(i, j int) bool {
+            return items[i].Data.DownloadBytes+items[i].Data.UploadBytes >
+                items[j].Data.DownloadBytes+items[j].Data.UploadBytes
+        })
+    case ModeTablePackets:
+        sort.Slice(items, func(i, j int) bool {
+            return items[i].Data.DownloadPackets+items[i].Data.UploadPackets >
+                items[j].Data.DownloadPackets+items[j].Data.UploadPackets
+        })
+    }
+
+    if len(items) < n {
+        n = len(items)
+    }
+    return items[:n]
+}
+```
+
+**Extracted (both sides share these):**
+```go
+// totalBytes returns the combined download and upload bytes.
+totalBytes := func(r ProcessesResult) int {
+    return r.Data.DownloadBytes + r.Data.UploadBytes
+}
+
+// totalPackets returns the combined download and upload packets.
+totalPackets := func(r ProcessesResult) int {
+    return r.Data.DownloadPackets + r.Data.UploadPackets
+}
+```
+
+**Original with extraction:**
+```go
+func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
+    var items []ProcessesResult
+    for k, v := range s.Processes {
+        items = append(items, ProcessesResult{ProcessName: k, Data: v})
+    }
+
+    switch mode {
+    case ModeTableBytes:
+        sort.Slice(items, func(i, j int) bool {
+            return totalBytes(items[i]) > totalBytes(items[j])
+        })
+    case ModeTablePackets:
+        sort.Slice(items, func(i, j int) bool {
+            return totalPackets(items[i]) > totalPackets(items[j])
+        })
+    }
+
+    if len(items) < n {
+        n = len(items)
+    }
+    return items[:n]
+}
+```
+
+**fluentfp:**
+```go
+func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
+    var items []ProcessesResult
+    for k, v := range s.Processes {
+        items = append(items, ProcessesResult{ProcessName: k, Data: v})
+    }
+
+    sortKey := value.Of(totalBytes).When(mode == ModeTableBytes).Or(totalPackets)
+    return slice.SortByDesc(items, sortKey).Take(n)
+}
+```
+
+**What changed:** The map-to-slice loop stays — Go maps require iteration and both sides need it. After that, 14 lines compress into a two-line pipeline. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become one `SortByDesc` with a key function. The mode switch — already clear as idiomatic Go — becomes `value.Of(totalBytes).When(cond).Or(totalPackets)`. The gain isn't readability of the switch itself; it's composability — the selected function feeds directly into `SortByDesc` without an intermediate variable or control structure. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
+
+*Implementation note: `SortByDesc` returns a new sorted slice — the input is not mutated. Key functions are recomputed per comparison, same as the original's inline arithmetic. See the introduction for general allocation guidance.*
+
+*`value.Of` is selecting between functions here, not scalar values. The same `When`/`Or` pattern that selects between strings works for any type, including `func(ProcessesResult) int`. This pattern works cleanly for binary choices; for three or more modes, a `map[ViewMode]func(...)` lookup would be more natural on both sides.*
+
+---
+
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
