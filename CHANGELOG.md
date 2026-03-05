@@ -11,6 +11,7 @@
 - **FromSet** — extract set members (true keys) as a Mapper
 - **Map** — standalone `slice.Map[T, R](ts, fn)` for type-inferred cross-type mapping without `MapTo[R]`
 - **FirstNonEmpty**, **FirstNonNil** — string-specific and pointer-specific variants of `FirstNonZero` (value package)
+- **BREAKING**: Rename `pair.X` fields `V1`/`V2` to `First`/`Second`, type params `V1`/`V2` to `A`/`B` — Smalltalk-style readability; matches Kotlin/C++ convention
 
 ## v0.28.0
 

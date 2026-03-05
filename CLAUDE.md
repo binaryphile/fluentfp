@@ -306,10 +306,10 @@ if diff, ok := lof.IfNonEmpty(result); ok {
 import "github.com/binaryphile/fluentfp/tuple/pair"
 
 // Pair type
-pair.X[V1, V2]             // Struct with V1, V2 fields
+pair.X[A, B]               // Struct with First, Second fields
 
 // Creating pairs
-pair.Of(v1, v2) X[V1,V2]   // Construct a pair
+pair.Of(a, b) X[A,B]       // Construct a pair
 
 // Zipping slices
 pair.Zip(as, bs) []X[A,B]           // Combine into pairs (panics if unequal length)
@@ -322,7 +322,7 @@ pair.ZipWith(as, bs, fn) []R        // Combine and transform (panics if unequal 
 // Parallel slice iteration
 pairs := pair.Zip(names, ages)
 for _, p := range pairs {
-    fmt.Printf("%s is %d\n", p.V1, p.V2)
+    fmt.Printf("%s is %d\n", p.First, p.Second)
 }
 
 // Direct transformation without intermediate pairs
