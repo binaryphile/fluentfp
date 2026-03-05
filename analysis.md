@@ -296,7 +296,7 @@ These are intentional boundaries. Use loops when necessary—just recognize that
 
 ## Performance Characteristics
 
-fluentfp uses eager evaluation—each operation materializes its result immediately. Benchmarks show the performance picture is nuanced:
+fluentfp uses eager evaluation—each operation materializes its result immediately. `slice.From()` itself is zero-cost—it's a type conversion that reinterprets the slice header, not a copy of the backing array (the Go spec [guarantees this](https://go.dev/ref/spec#Conversions) for types with identical underlying types). The cost comes from *operations*, not from entry or exit. Benchmarks show the performance picture is nuanced:
 
 | Operation | Loop | Chain | Result |
 |-----------|------|-------|--------|

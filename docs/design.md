@@ -153,7 +153,9 @@ Standalone functions for operations needing extra type parameters or custom trav
 
 ## Allocation Model
 
-Every transformation creates a fresh slice — eager allocation, not lazy.
+**Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.
+
+**Every transformation creates a fresh slice** — eager allocation, not lazy.
 
 **Why not lazy:** eager allocation is predictable (no hidden evaluation order), debuggable (intermediate slices visible in the debugger), and simple (no iterator protocol). The cost is extra allocations in multi-step chains.
 

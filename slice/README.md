@@ -113,7 +113,7 @@ for _, u := range result {     // range
 ```
 
 - Keep `[]T` in your function signatures, not `Mapper[T]` — use `From()` at the point of use. This keeps fluentfp as an implementation detail; callers don't need to import it.
-- `From()` is a type conversion (copies the slice header, shares the backing array — `append` to either may mutate the other if capacity remains)
+- `From()` is a zero-cost type conversion — no array copy. The Go spec [guarantees](https://go.dev/ref/spec#Conversions) that converting between types with identical underlying types only changes the type, not the representation. The 24-byte slice header (pointer, length, capacity) is shared; the backing array is the same. (`append` to either may mutate the other if capacity remains.)
 - Nil-safe: `From(nil).KeepIf(...).ToString(...)` returns an empty slice — Go's range over nil is zero iterations
 
 Other Go FP libraries can't do this:

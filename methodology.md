@@ -286,6 +286,8 @@ type Mapper[T any] []T
 
 `Mapper[T]` is a defined type with underlying type `[]T`—not a wrapper struct, not a lazy evaluator. Operations execute immediately.
 
+**Conversion cost:** `slice.From(xs)` converts `[]T` to `Mapper[T]`. Because both types share the same underlying type (`[]T`), the Go spec guarantees this "only change[s] the type but not the representation of x" ([spec: Conversions](https://go.dev/ref/spec#Conversions)). No array copy occurs — the 24-byte slice header (pointer, length, capacity) is reinterpreted as the target type. The converted value shares the same backing array as the original. This applies in both directions: returning a `Mapper[T]` where `[]T` is expected is equally zero-cost.
+
 **KeepIf allocation** (`slice/mapper.go:30-39`):
 ```go
 func (ts Mapper[T]) KeepIf(fn func(T) bool) Mapper[T] {
