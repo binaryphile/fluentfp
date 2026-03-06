@@ -216,14 +216,12 @@ duplicates.SelectT(toSummary).ToSlice(&summaries)
 **fluentfp:**
 ```go
 groupedMap := slice.GroupBy(styleList, valueHash)
-withDuplicates := kv.Values(groupedMap).KeepIf(hasDuplicates)
-sorted := slice.SortByDesc(withDuplicates, groupSize)
-summaries := slice.Map(sorted, toSummary)
+summaries := slice.Map(kv.Values(groupedMap).KeepIf(hasDuplicates).Sort(slice.Desc(groupSize)), toSummary)
 ```
 
-**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map — and go-linq's reads more fluently. Method chaining (`.Where(hasDuplicates).OrderByDescending(groupSize)`) flows more naturally than standalone functions (`slice.SortByDesc(withDuplicates, groupSize)`). fluentfp uses standalone functions here because Go doesn't allow generic methods — operations like `GroupBy` and `SortByDesc` need extra type parameters that methods can't introduce. The cost of go-linq's fluency is giving up type safety and incurring reflection overhead.
+**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map. go-linq chains all four steps; fluentfp chains three (`kv.Values` → `.KeepIf` → `.Sort`) with `GroupBy` and the final cross-type `Map` as standalone functions. `GroupBy` returns a map (not a slice), and `Map` introduces a new type parameter — both require standalone functions in Go's type system. The remaining gap is narrow: go-linq reads slightly more fluently, but every callback requires a type assertion that compiles silently even when wrong.
 
-**What's eliminated:** Nothing — this is the one case where the competitor reads more fluently. go-linq's method chaining flows naturally; fluentfp's standalone functions trade that fluency for compile-time type safety.
+**What's eliminated:** The fluency gap is small — three of four steps chain — but go-linq still reads more naturally as a single pipeline. The trade-off remains: go-linq's `interface{}`-based callbacks sacrifice compile-time type safety for full method chaining.
 
 *Historical note: go-linq brought LINQ-style FP to Go before generics existed. Its `interface{}`-based API was the best approach at the time, and it proved the demand that led to generics being added to the language. The pain points above are artifacts of that era, not design failures.*
 
