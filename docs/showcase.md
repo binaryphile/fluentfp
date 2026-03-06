@@ -99,14 +99,14 @@ if chkType.Status != "" {
 defaultName := fmt.Sprintf("Service '%s' check", service.Service)
 
 check := &structs.HealthCheck{
-    Name:     option.NonEmpty(chkType.Name).Or(defaultName),
-    Interval: option.NonZeroWith(chkType.Interval, time.Duration.String).Or(""),
-    Status:   option.NonEmpty(chkType.Status).Or(api.HealthCritical),
+    Name:     value.NonEmpty(chkType.Name).Or(defaultName),
+    Interval: value.NonZeroWith(chkType.Interval, time.Duration.String).Or(""),
+    Status:   value.NonEmpty(chkType.Status).Or(api.HealthCritical),
     // ...10 other fields...
 }
 ```
 
-**What changed:** Temporary variables and their if-blocks collapse into the struct literal. `option.NonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.NonZeroWith` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** Temporary variables and their if-blocks collapse into the struct literal. `value.NonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `value.NonZeroWith` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 **What's eliminated:** Those temporary variables are the structural ingredients that enable shadowing bugs. [Temporal's first data-loss bug](https://temporal.io/blog/go-shadowing-bad-choices) came from `:=` inside an if-block shadowing an outer `err`, silently swallowing a Cassandra failure. Go's own `syscall.forkAndExecInChild` had the same class of bug ([#57208](https://github.com/golang/go/issues/57208)). The Consul original doesn't fall into the shadowing trap — but the trap is laid. The fluentfp rewrite has none: each field resolves inline with no intermediate variables to shadow. See [Error Prevention](../analysis.md#error-prevention) (Error shadowing).
 
