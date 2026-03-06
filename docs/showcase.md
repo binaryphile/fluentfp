@@ -119,7 +119,7 @@ check := &structs.HealthCheck{
 }
 ```
 
-**What changed:** Temporary variables and their if-blocks collapse into the struct literal. `option.NonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.NonZeroWith` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** Temporary variables and their if-blocks collapse into the struct literal — 31 lines to 18 overall. `option.NonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.NonZeroWith` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 **What's eliminated:** Those temporary variables are the structural ingredients that enable shadowing bugs. [Temporal's first data-loss bug](https://temporal.io/blog/go-shadowing-bad-choices) came from `:=` inside an if-block shadowing an outer `err`, silently swallowing a Cassandra failure. Go's own `syscall.forkAndExecInChild` had the same class of bug ([#57208](https://github.com/golang/go/issues/57208)). The Consul original doesn't fall into the shadowing trap — but the trap is laid. The fluentfp rewrite has none: each field resolves inline with no intermediate variables to shadow. See [Error Prevention](../analysis.md#error-prevention) (Error shadowing).
 
@@ -130,19 +130,29 @@ check := &structs.HealthCheck{
 **Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
 
-The original method is 217 lines (L2590–L2806). Each of the 48 fields follows the same 3-line pattern: `if b.Field != zero { result.Field = b.Field }` — 144 lines of conditional assignment alone. The fluentfp version below shows 6 representative fields.
+The original method is 217 lines (L2590–L2806). Each of the 48 fields follows the same 3-line pattern: `if b.Field != zero { result.Field = b.Field }` — 144 lines of conditional assignment alone. The examples below show one representative field per pattern.
 
-**fluentfp** (same 6 fields, 18 → 6 lines — `s` is the receiver, `b` is the override):
+**Original** (one field per pattern — `s` is the receiver, `b` is the override):
 ```go
-result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.EncryptKey           = value.FirstNonEmpty(b.EncryptKey, s.EncryptKey)
-result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
-result.RaftProtocol         = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
-result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGrace)
-result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
+if b.AuthoritativeRegion != "" {
+    result.AuthoritativeRegion = b.AuthoritativeRegion
+}
+if b.BootstrapExpect > 0 {
+    result.BootstrapExpect = b.BootstrapExpect
+}
+if b.RaftProtocol != 0 {
+    result.RaftProtocol = b.RaftProtocol
+}
 ```
 
-**What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
+**fluentfp:**
+```go
+result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
+result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
+result.RaftProtocol         = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
+```
+
+**What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. 9 lines → 3 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
 
 **What's eliminated:** Mechanical duplication — the three-line if-block pattern repeated 48 times. Each field's conditional is now a single expression with a consistent shape: `value.FirstNonEmpty(override, default)` or `value.FirstNonZero(override, default)`. The risk here isn't shadowing — it's copy-paste error and review fatigue across 144 lines of structurally identical code.
 
