@@ -119,17 +119,17 @@ The original method is 217 lines (L2590–L2806). Each of the 48 fields follows 
 
 **fluentfp** (same 6 fields, 18 → 6 lines — `s` is the receiver, `b` is the override):
 ```go
-result.AuthoritativeRegion = value.FirstNonZero(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.EncryptKey           = value.FirstNonZero(b.EncryptKey, s.EncryptKey)
+result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
+result.EncryptKey           = value.FirstNonEmpty(b.EncryptKey, s.EncryptKey)
 result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
 result.RaftProtocol         = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
 result.HeartbeatGrace       = value.FirstNonZero(b.HeartbeatGrace, s.HeartbeatGrace)
 result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterval)
 ```
 
-**What changed:** Every field reads as intent: `value.FirstNonZero(override, default)` — "use the override if non-zero, otherwise keep the default." This works for both strings and numbers because Go's zero value for strings is `""`. When zero genuinely means "absent," one uniform function covers all types. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
+**What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. 18 lines → 6 in this sample, 144 → 48 across the full method. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
 
-**What's eliminated:** Mechanical duplication — the three-line if-block pattern repeated 48 times. Each field's conditional is now a single expression with a consistent shape: `value.FirstNonZero(override, default)`. The risk here isn't shadowing — it's copy-paste error and review fatigue across 144 lines of structurally identical code.
+**What's eliminated:** Mechanical duplication — the three-line if-block pattern repeated 48 times. Each field's conditional is now a single expression with a consistent shape: `value.FirstNonEmpty(override, default)` or `value.FirstNonZero(override, default)`. The risk here isn't shadowing — it's copy-paste error and review fatigue across 144 lines of structurally identical code.
 
 ---
 
