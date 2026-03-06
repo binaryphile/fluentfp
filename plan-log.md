@@ -2466,3 +2466,13 @@ Commit: f48f401
 [x] Entry follows established format
 [x] Source link to Nomad with commit SHA
 [x] Manual and fluentfp versions accurate
+2026-03-06T20:34:10Z | Contract: Showcase entry for Compact
+[ ] Entry follows established format
+[ ] Source link to Kubernetes with commit SHA
+[ ] Manual and fluentfp versions accurate
+[ ] Ecosystem context documented
+2026-03-06T20:34:43Z | Completion: Showcase entry for Compact
+[x] Entry follows established format
+[x] Source link to Kubernetes with commit SHA
+[x] Manual and fluentfp versions accurate
+[x] Ecosystem context documented

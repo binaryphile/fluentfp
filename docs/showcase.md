@@ -264,6 +264,38 @@ newMap := slice.KeyBy(new, TaskGroup.GetName)
 
 ---
 
+### Empty-string guards after Split — kubernetes/kubernetes
+
+**Source:** [mount_linux.go#L733-L739](https://github.com/kubernetes/kubernetes/blob/42eb93b/staging/src/k8s.io/mount-utils/mount_linux.go#L733-L739)
+**Pain point:** 3-line empty-string guard after `strings.Split`, repeated throughout the codebase
+
+Go's `strings.Split` produces a trailing empty entry when the input ends with the separator — which it always does for newline-delimited data. Kubernetes guards against this with a 3-line if-block. The comment says it all: "the last split() item is empty string following the last \n." The mount-utils package alone has the pattern twice — `parseProcMounts` and `ParseMountInfo` — with identical code and identical comments. The same guard appears throughout the codebase wherever `strings.Split` meets line-oriented data.
+
+**Original** (one of many — 3 lines each):
+```go
+lines := strings.Split(string(content), "\n")
+for _, line := range lines {
+    if line == "" {
+        // the last split() item is empty string following the last \n
+        continue
+    }
+    // parse mount entry...
+}
+```
+
+**fluentfp:**
+```go
+for _, line := range slice.Compact(strings.Split(string(content), "\n")) {
+    // parse mount entry...
+}
+```
+
+**What changed:** The 3-line empty-string guard disappears. `Compact` filters zero values before iteration begins, so the loop body handles only real data. The intermediate variable (`lines`) also goes away — `strings.Split` feeds directly into `Compact`. The pattern scales: every file that parses newline-delimited data with `strings.Split` needs the same guard, and `Compact` eliminates all of them.
+
+**What's eliminated:** Defensive boilerplate forced by a stdlib design choice. `strings.Split("a\nb\n", "\n")` returns `["a", "b", ""]` — the trailing empty entry is a well-known pain point with its own [declined stdlib proposal](https://github.com/golang/go/issues/33393). Without a built-in filter, every caller writes the same 3-line guard. The guards are individually trivial but collectively they're noise that obscures the parsing logic that follows.
+
+---
+
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
