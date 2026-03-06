@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.34.0
+
+- **BREAKING**: Types (`Mapper`, `MapperTo`, `Entries`, `Float64`, `Int`, `String`) now defined in `internal/base` and re-exported via type aliases in `slice` and `kv`. All methods available through aliases — no API change for consumers.
+- **BREAKING**: `GroupBy` moves from `kv` to `slice` — takes slice input, returns `Entries[K, []T]` for chaining
+- **Entries** type alias added to `slice` package — enables `slice.GroupBy(items, fn).Values().KeepIf(pred)` in one import
+- `kv` no longer depends on `slice` — both depend only on `internal/base`
+
 ## v0.33.0
 
 - **Sort** method on `Mapper` and `MapperTo` — sorted copy by comparator, enables chaining
@@ -9,7 +16,7 @@
 
 - **BREAKING**: Rename `NonZeroMap`/`NonEmptyMap`/`NonNilMap` to `NonZeroWith`/`NonEmptyWith`/`NonNilWith` — `With` suffix reads as English ("non-zero, with a transform")
 - **BREAKING**: Move `slice.FromMap` → `kv.Values`, `slice.FromMapWith` → `kv.MapTo[T](m).Map(fn)` — map operations belong in a map-oriented package
-- **kv** package — `Map(m, fn)` (inferred), `MapTo[T](m).Map(fn)` (explicit), `From(m).ToValues()`, `From(m).ToKeys()`, standalone `Values`, `Keys`
+- **kv** package — `Map(m, fn)` (inferred), `MapTo[T](m).Map(fn)` (explicit), `From(m).Values()`, `From(m).Keys()`, standalone `Values`, `Keys`
 
 ## v0.31.0
 
@@ -25,7 +32,7 @@
 - **BREAKING**: Rename `Basic[T]` to `Option[T]` — the natural name, now that the "advanced option" concept is dropped
 - **BREAKING**: Rename `IfNonZero`/`IfNonEmpty`/`IfNonNil` to `NonZero`/`NonEmpty`/`NonNil` — drop `If` prefix; conditionality communicated by `Option[T]` return type
 - **NonZeroMap**, **NonEmptyMap**, **NonNilMap** — check presence and transform in one call (option package)
-- **GroupBy** — `kv.GroupBy` groups slice elements by extracted key into `Entries[K, []T]` (chains via `.ToValues()`)
+- **GroupBy** — `kv.GroupBy` groups slice elements by extracted key into `Entries[K, []T]` (chains via `.Values()`)
 - **FromMap** — extract map values as a Mapper for further transformation
 - **FromSet** — extract set members (true keys) as a Mapper
 - **Map** — standalone `slice.Map[T, R](ts, fn)` for type-inferred cross-type mapping without `MapTo[R]`

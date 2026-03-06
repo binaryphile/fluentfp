@@ -14,6 +14,10 @@
 ```go
 import "github.com/binaryphile/fluentfp/slice"
 
+// Types (aliases for internal/base — all methods available through aliases)
+// slice.Mapper[T], slice.MapperTo[R,T], slice.Entries[K,V]
+// slice.Float64, slice.Int, slice.String
+
 // Factory functions
 slice.From(ts []T) Mapper[T]           // For mapping to built-in types
 slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-to-right flow
@@ -73,6 +77,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 
 // Standalone functions
 slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set members as collection (inverse of ToSet)
+slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Entries[K, []T] // Group by key → chainable map
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
 slice.Map[T, R any](ts []T, fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
@@ -290,12 +295,10 @@ config := value.LazyOf(loadFromDB).When(useCache).Or(defaultConfig)
 import "github.com/binaryphile/fluentfp/kv"
 
 // Entries — defined type over map[K]V (indexing, ranging, len all work)
+// Type alias for base.Entries — same type as slice.Entries
 kv.From[K comparable, V any](m map[K]V) Entries[K, V]   // Convert map for fluent ops
-kv.From(m).ToValues() slice.Mapper[V]                    // Extract values
-kv.From(m).ToKeys() slice.Mapper[K]                      // Extract keys
-
-// GroupBy — returns Entries[K, []T] for chaining
-kv.GroupBy[T any, K comparable](ts []T, fn func(T) K) Entries[K, []T]
+kv.From(m).Values() Mapper[V]                          // Extract values
+kv.From(m).Keys() Mapper[K]                            // Extract keys
 
 // Mapping methods on Entries (same set as Mapper[T])
 .ToAny(fn func(K, V) any) Mapper[any]
@@ -306,15 +309,15 @@ kv.GroupBy[T any, K comparable](ts []T, fn func(T) K) Entries[K, []T]
 // ... plus ToByte, ToError, ToFloat32, ToInt32, ToInt64, ToRune
 
 // Cross-type transformation — all types inferred
-kv.Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) slice.Mapper[T]
+kv.Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) Mapper[T]
 
 // Cross-type transformation — explicit T (when inference doesn't suffice)
 kv.MapTo[T any, K comparable, V any](m map[K]V) MapperTo[T, K, V]
-kv.MapTo[T](m).Map(fn func(K, V) T) slice.Mapper[T]
+kv.MapTo[T](m).Map(fn func(K, V) T) Mapper[T]
 
 // Standalone shortcuts
-kv.Values[K comparable, V any](m map[K]V) slice.Mapper[V]  // = From(m).ToValues()
-kv.Keys[K comparable, V any](m map[K]V) slice.Mapper[K]    // = From(m).ToKeys()
+kv.Values[K comparable, V any](m map[K]V) Mapper[V]  // = From(m).Values()
+kv.Keys[K comparable, V any](m map[K]V) Mapper[K]    // = From(m).Keys()
 ```
 
 ### kv Patterns
@@ -326,9 +329,9 @@ items := kv.Map(s.Processes, toResult)
 // Same, with explicit target type
 items := kv.MapTo[ProcessesResult](s.Processes).Map(toResult)
 
-// GroupBy + chain (group, extract values, filter, sort)
-duplicates := kv.GroupBy(styleList, valueHash).
-    ToValues().
+// GroupBy + chain (group, extract values, filter, sort) — GroupBy is in slice package
+duplicates := slice.GroupBy(styleList, valueHash).
+    Values().
     KeepIf(hasDuplicates).
     Sort(slice.Desc(groupSize))
 
@@ -342,7 +345,7 @@ names := kv.Keys(configMap)
 labels := kv.From(m).ToString(func(k string, v int) string { return fmt.Sprintf("%s=%d", k, v) })
 
 // Wrapper form
-vals := kv.From(m).ToValues()
+vals := kv.From(m).Values()
 ```
 
 ### lof Package (Lower-Order Functions)

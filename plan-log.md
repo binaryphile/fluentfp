@@ -2410,3 +2410,9 @@ Commit: f48f401
 [x] GroupBy moved from slice to kv, returns Entries[K, []T]
 [x] All tests pass (go test ./... clean)
 [x] Showcase, CLAUDE.md, design.md, feature-gaps.md, CHANGELOG.md, analysis.md updated
+2026-03-06T05:37:08Z | Contract: Factor types into internal/base package
+[ ] internal/base/ package with all types + methods
+[ ] slice/ aliases base types, keeps standalones, gains GroupBy
+[ ] kv/ aliases base.Entries, keeps map standalones, loses GroupBy
+[ ] go test ./... passes
+[ ] slice.GroupBy chains work

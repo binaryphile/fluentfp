@@ -1,4 +1,4 @@
-package kv
+package slice
 
 // GroupBy groups elements by the key returned by fn.
 // Returns Entries[K, []T] — a defined map type with methods for chaining.

@@ -1,4 +1,4 @@
-package kv
+package slice
 
 import (
 	"reflect"
@@ -70,8 +70,8 @@ func TestGroupBy(t *testing.T) {
 	})
 }
 
-func TestGroupBy_ToValues(t *testing.T) {
-	t.Run("chains with ToValues", func(t *testing.T) {
+func TestGroupBy_Values(t *testing.T) {
+	t.Run("chains with Values", func(t *testing.T) {
 		items := []int{1, 2, 3, 4, 5}
 		groups := GroupBy(items, func(i int) string {
 			if i%2 == 0 {
@@ -79,17 +79,17 @@ func TestGroupBy_ToValues(t *testing.T) {
 			}
 			return "odd"
 		})
-		got := groups.ToValues()
+		got := groups.Values()
 		if len(got) != 2 {
-			t.Fatalf("ToValues() len = %d, want 2", len(got))
+			t.Fatalf("Values() len = %d, want 2", len(got))
 		}
 	})
 
 	t.Run("empty groups", func(t *testing.T) {
 		groups := GroupBy([]int{}, func(int) string { return "x" })
-		got := groups.ToValues()
+		got := groups.Values()
 		if len(got) != 0 {
-			t.Errorf("ToValues() len = %d, want 0", len(got))
+			t.Errorf("Values() len = %d, want 0", len(got))
 		}
 	})
 }

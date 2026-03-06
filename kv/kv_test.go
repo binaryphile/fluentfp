@@ -131,19 +131,19 @@ func TestKeys(t *testing.T) {
 }
 
 func TestFrom(t *testing.T) {
-	t.Run("ToValues matches standalone Values", func(t *testing.T) {
+	t.Run("Values matches standalone Values", func(t *testing.T) {
 		m := map[string]int{"a": 1, "b": 2}
-		got := From(m).ToValues()
+		got := From(m).Values()
 		if len(got) != 2 {
-			t.Fatalf("From().ToValues() len = %d, want 2", len(got))
+			t.Fatalf("From().Values() len = %d, want 2", len(got))
 		}
 	})
 
-	t.Run("ToKeys matches standalone Keys", func(t *testing.T) {
+	t.Run("Keys matches standalone Keys", func(t *testing.T) {
 		m := map[string]int{"a": 1, "b": 2}
-		got := From(m).ToKeys()
+		got := From(m).Keys()
 		if len(got) != 2 {
-			t.Fatalf("From().ToKeys() len = %d, want 2", len(got))
+			t.Fatalf("From().Keys() len = %d, want 2", len(got))
 		}
 	})
 }

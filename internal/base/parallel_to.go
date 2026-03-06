@@ -1,4 +1,4 @@
-package slice
+package base
 
 // ParallelMap returns the result of applying fn to each member of ts, using the specified
 // number of worker goroutines. Order is preserved. The fn must be safe for concurrent use.

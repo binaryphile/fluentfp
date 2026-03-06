@@ -11,16 +11,15 @@ func _() {
 	_ = Entries[int, int].ToInt
 	_ = Entries[int, int].ToInt32
 	_ = Entries[int, int].ToInt64
-	_ = Entries[int, int].ToKeys
+	_ = Entries[int, int].Keys
 	_ = Entries[int, int].ToRune
 	_ = Entries[int, int].ToString
-	_ = Entries[int, int].ToValues
+	_ = Entries[int, int].Values
 
 	_ = Map[int, int, int]
 	_ = MapTo[int, int, int]
 	_ = MapperTo[int, int, int].Map
 
-	_ = GroupBy[int, int]
 	_ = Values[int, int]
 	_ = Keys[int, int]
 }

@@ -1,9 +1,13 @@
 // Package slice provides fluent slice types that can chain functional collection operations.
 //
+// Types are defined in internal/base and aliased here. All methods are available through the aliases.
+//
 // Mapper[T] is a fluent slice that can chain operations like ToString (map), KeepIf (filter), etc.
 //
 // MapperTo[T, R] is a fluent slice with one additional method, MapTo, for mapping to a specified type R.
 // If you don't need to map to an arbitrary type, use Mapper instead.
+//
+// Entries[K, V] is a fluent map type for chaining (e.g., GroupBy results).
 package slice
 
 func _() {
@@ -61,11 +65,24 @@ func _() {
 	_ = MapperTo[int, int].ToRune
 	_ = MapperTo[int, int].ToString
 
-	_ = String.ToSet
+	_ = Entries[int, int].Values
+	_ = Entries[int, int].Keys
+	_ = Entries[int, int].ToAny
+	_ = Entries[int, int].ToBool
+	_ = Entries[int, int].ToByte
+	_ = Entries[int, int].ToError
+	_ = Entries[int, int].ToFloat32
+	_ = Entries[int, int].ToFloat64
+	_ = Entries[int, int].ToInt
+	_ = Entries[int, int].ToInt32
+	_ = Entries[int, int].ToInt64
+	_ = Entries[int, int].ToRune
+	_ = Entries[int, int].ToString
 
+	_ = String.ToSet
 	_ = Float64.Max
 	_ = Float64.Min
-
+	_ = Float64.Sum
 	_ = Int.Max
 	_ = Int.Min
 	_ = Int.Sum
@@ -74,6 +91,7 @@ func _() {
 	_ = Compact[int]
 	_ = Contains[int]
 	_ = FromSet[int]
+	_ = GroupBy[int, int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
 
