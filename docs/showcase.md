@@ -198,6 +198,41 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 
 ---
 
+### Tracked/untracked split — jesseduffield/lazygit
+
+**Source:** [files_controller.go#L422-L439](https://github.com/jesseduffield/lazygit/blob/9046d5e/pkg/gui/controllers/files_controller.go#L422-L439)
+**Pain point:** Manual loop with if/else to split a slice into two groups by predicate
+
+The original partitions file nodes into tracked and untracked — each half feeds a different git operation (`UnstageTrackedFiles` vs `UnstageUntrackedFiles`), so both outputs are needed. lazygit wrote their own `utils.Partition` utility; without it, the code would be an 8-line manual loop.
+
+**Original** (without utility — 8 lines):
+```go
+var trackedNodes, untrackedNodes []*filetree.FileNode
+for _, node := range selectedNodes {
+    if !node.IsFile() || node.GetIsTracked() {
+        trackedNodes = append(trackedNodes, node)
+    } else {
+        untrackedNodes = append(untrackedNodes, node)
+    }
+}
+```
+
+**fluentfp:**
+```go
+// isTracked returns true for directories and tracked files.
+isTracked := func(node *filetree.FileNode) bool {
+    return !node.IsFile() || node.GetIsTracked()
+}
+
+trackedNodes, untrackedNodes := slice.Partition(selectedNodes, isTracked)
+```
+
+**What changed:** The 8-line if/else accumulation loop becomes a single function call. The predicate (`isTracked`) captures the same condition that was inline in the if — the extraction is orthogonal to the library choice. `Partition` returns two `Mapper[T]` values, so either half can chain further (`.KeepIf`, `.Convert`, etc.) if needed.
+
+**What's eliminated:** Accumulator boilerplate — declaring two empty slices, the for/if/else branch, and two `append` calls. The manual loop isn't especially bug-prone (if/else is exhaustive), but the pattern is pure ceremony: every partition loop has identical structure, differing only in the predicate. lazygit's team recognized this — they wrote `utils.Partition` themselves. The alternative without a utility — two `KeepIf`/`RemoveIf` passes — traverses the slice twice and forces the reader to verify the predicates are complementary. `Partition` is single-pass and complementary by construction.
+
+---
+
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
@@ -238,7 +273,7 @@ summaries := slice.Map(duplicates, toSummary)
 
 ### The adapter tax
 
-The five examples above all shorten code — but that's the symptom, not the cause. The cause is *adapter tax*: the cost a library charges for entering and leaving its world.
+The examples above all shorten code — but that's the symptom, not the cause. The cause is *adapter tax*: the cost a library charges for entering and leaving its world.
 
 Think of a woodworking shop built on standard lumber. **Raw loops** are hand tools — total control, but repetitive strain at scale. **go-linq** is a power tool that accepts any stock (`interface{}`) without checking — powerful, and the best option before generics, but you find out you loaded the wrong piece at runtime. **lo** is a power tool with a cut counter you must click every pass (`func(T, int)`) — a deliberate design for position-dependent work, but friction when position doesn't matter. **fluentfp** is a power tool that accepts standard lumber as-is (`Mapper[T]` is `[]T`) and your existing jigs fit without adapters (method expressions like `User.IsActive` plug directly into `KeepIf`). Type mismatches are caught at setup, not mid-cut.
 

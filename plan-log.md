@@ -2438,3 +2438,11 @@ Commit: f48f401
 [x] Partition standalone function (slice/partition.go)
 [x] go test ./... passes (all 9 packages)
 [x] Doc assertions compile (slice/doc.go)
+2026-03-06T16:49:40Z | Contract: Showcase entry for Partition
+[ ] Entry follows established format
+[ ] Source link to lazygit with commit SHA
+[ ] Manual and fluentfp versions accurate
+2026-03-06T16:51:09Z | Completion: Showcase entry for Partition
+[x] Entry follows established format
+[x] Source link to lazygit with commit SHA
+[x] Manual and fluentfp versions accurate
