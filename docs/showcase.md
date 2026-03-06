@@ -15,37 +15,24 @@ Where the original code uses inline anonymous functions, we extract them into na
 **Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
 **Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
 
-The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. After extracting key functions (shown below), the structure is nearly identical, so we skip the raw original and show the extracted version directly.
+The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. We assume `TotalBytes` and `TotalPackets` methods on `ProcessesResult` (the original inlines this arithmetic) and a `ToResult` constructor for `kv.Map`. Both sides benefit from the methods; the difference is what remains.
 
-**Extracted (both sides share these):**
-```go
-// totalBytes returns the combined download and upload bytes.
-totalBytes := func(r ProcessesResult) int {
-    return r.Data.DownloadBytes + r.Data.UploadBytes
-}
-
-// totalPackets returns the combined download and upload packets.
-totalPackets := func(r ProcessesResult) int {
-    return r.Data.DownloadPackets + r.Data.UploadPackets
-}
-```
-
-**Original with extraction:**
+**Original** (with methods — 22 → 18 lines):
 ```go
 func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
     var items []ProcessesResult
     for k, v := range s.Processes {
-        items = append(items, ProcessesResult{ProcessName: k, Data: v})
+        items = append(items, ToResult(k, v))
     }
 
     switch mode {
     case ModeTableBytes:
         sort.Slice(items, func(i, j int) bool {
-            return totalBytes(items[i]) > totalBytes(items[j])
+            return items[i].TotalBytes() > items[j].TotalBytes()
         })
     case ModeTablePackets:
         sort.Slice(items, func(i, j int) bool {
-            return totalPackets(items[i]) > totalPackets(items[j])
+            return items[i].TotalPackets() > items[j].TotalPackets()
         })
     }
 
@@ -58,22 +45,20 @@ func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
 
 **fluentfp:**
 ```go
-// toResult constructs a ProcessesResult from a map entry.
-toResult := func(k string, v ProcessData) ProcessesResult {
-    return ProcessesResult{ProcessName: k, Data: v}
-}
-
 func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
-    sortKey := value.Of(totalBytes).When(mode == ModeTableBytes).Or(totalPackets)
-    return kv.Map(s.Processes, toResult).Sort(slice.Desc(sortKey)).Take(n)
+    sortKey := ProcessesResult.TotalPackets
+    if mode == ModeTableBytes {
+        sortKey = ProcessesResult.TotalBytes
+    }
+    return kv.Map(s.Processes, ToResult).Sort(slice.Desc(sortKey)).Take(n)
 }
 ```
 
-**What changed:** `kv.Map` replaces the manual map-to-slice loop, and the remaining 14 lines compress into a one-line pipeline. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become one `.Sort(slice.Desc(sortKey))`. The mode switch — already clear as idiomatic Go — becomes `value.Of(totalBytes).When(cond).Or(totalPackets)`. The gain isn't readability of the switch itself; it's composability — the selected function feeds into `.Sort` without a control structure between selection and use. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
+**What changed:** 18 lines to 5. `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(slice.Desc(sortKey))` — method expressions plug directly into `slice.Desc` with no wrapper closures. The mode conditional selects which method expression to sort by; the pipeline consumes it. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
 
 **What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `.Sort` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
 
-*Implementation note: `.Sort` returns a new sorted slice (one copy — see the introduction for allocation guidance). `value.Of` is selecting between functions here, not scalar values — the same `When`/`Or` pattern that selects between strings works for any type. This pattern works cleanly for binary choices; for three or more modes, a `map[ViewMode]func(...)` lookup would be more natural on both sides.*
+*Implementation note: `.Sort` returns a new sorted slice (one copy — see the introduction for allocation guidance). The conditional assigns a method expression to `sortKey` — Go infers the function type from the first assignment, and both branches are type-compatible. For three or more modes, a `map[ViewMode]func(...)` lookup would be more natural on both sides.*
 
 ---
 
