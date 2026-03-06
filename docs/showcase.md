@@ -227,15 +227,14 @@ duplicates.SelectT(toSummary).ToSlice(&summaries)
 
 **fluentfp:**
 ```go
-duplicates := kv.Values(
-        slice.GroupBy(styleList, valueHash),
-    ).
+duplicates := kv.GroupBy(styleList, valueHash).
+    ToValues().
     KeepIf(hasDuplicates).
     Sort(slice.Desc(groupSize))
 summaries := slice.Map(duplicates, toSummary)
 ```
 
-**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map. go-linq chains all four steps; fluentfp chains three (`kv.Values` → `.KeepIf` → `.Sort`) with `GroupBy` and the final cross-type `Map` as standalone functions. `GroupBy` returns a map (not a slice), and `Map` introduces a new type parameter — both require standalone functions in Go's type system. Side by side, the readability is on par — neither has an edge. The difference is under the hood: go-linq's `interface{}`-based callbacks require type assertions that compile silently even when wrong, while fluentfp's concrete-typed functions catch mismatches at compile time. go-linq's `GroupBy` also requires an `identity` element selector — fluentfp's `GroupBy` only takes a key function, since grouping the original elements is the common case.
+**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map. go-linq chains all four steps; fluentfp chains four (`GroupBy` → `.ToValues` → `.KeepIf` → `.Sort`) with the final cross-type `Map` as a standalone function. `GroupBy` lives in the `kv` package and returns `Entries[K, []T]` — a defined map type that chains via `.ToValues()`. Side by side, the readability is on par — neither has an edge. The difference is under the hood: go-linq's `interface{}`-based callbacks require type assertions that compile silently even when wrong, while fluentfp's concrete-typed functions catch mismatches at compile time. go-linq's `GroupBy` also requires an `identity` element selector — fluentfp's `GroupBy` only takes a key function, since grouping the original elements is the common case.
 
 **What's eliminated:** The readability is equivalent, so the win is purely type safety. go-linq's `interface{}`-based callbacks sacrifice compile-time safety for full method chaining — a trade-off that made sense before generics existed.
 

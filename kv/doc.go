@@ -20,6 +20,7 @@ func _() {
 	_ = MapTo[int, int, int]
 	_ = MapperTo[int, int, int].Map
 
+	_ = GroupBy[int, int]
 	_ = Values[int, int]
 	_ = Keys[int, int]
 }

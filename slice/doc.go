@@ -74,7 +74,6 @@ func _() {
 	_ = Compact[int]
 	_ = Contains[int]
 	_ = FromSet[int]
-	_ = GroupBy[int, int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
 

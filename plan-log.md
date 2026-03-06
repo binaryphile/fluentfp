@@ -2400,3 +2400,13 @@ Commit: f48f401
 [x] Asc and Desc standalone functions
 [x] Sniffer showcase updated
 [x] Tests, doc.go, CLAUDE.md, CHANGELOG.md updated
+2026-03-06T04:08:14Z | Contract: Groups[K,T] chainable return type for GroupBy
+[ ] Groups type with Values() method
+[ ] GroupBy returns Groups instead of map
+[ ] Tests pass
+[ ] Showcase and docs updated
+2026-03-06T04:45:00Z | Completion: Entries[K,V] defined map type + kv.GroupBy
+[x] Entries changed from struct to defined map type (map[K]V)
+[x] GroupBy moved from slice to kv, returns Entries[K, []T]
+[x] All tests pass (go test ./... clean)
+[x] Showcase, CLAUDE.md, design.md, feature-gaps.md, CHANGELOG.md, analysis.md updated

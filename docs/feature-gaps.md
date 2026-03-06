@@ -21,7 +21,7 @@ Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = mo
 
 | Feature | Description | Available In | fluentfp Workaround | Design Fit | Rec |
 |---------|-------------|-------------|-------------------|------------|-----|
-| GroupBy | Group elements by key → `map[K][]V` | lo, underscore, fp-go | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | **Add** |
+| GroupBy | Group elements by key → `Entries[K, []T]` | lo, underscore, fp-go | `Fold` with map accumulator | `kv.GroupBy` (returns `Entries`, needs `K comparable`) | **Done** |
 | Contains | Membership check for any `comparable` | lo, underscore, fp-go | `String.Contains` for strings only; `.Any(eq)` for others | Standalone — needs `T comparable` constraint | **Done** |
 | KeyBy | Build `map[K]V` from slice + key fn | lo | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | Defer |
 | Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Standalone — needs `T comparable` for zero check | **Done** |
@@ -59,11 +59,11 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 ### Resolved
 
-**GroupBy** — Returns `map[K][]T` (plain map). The design question about return type is resolved: `kv.Values` bridges map values back into `Mapper[T]` for downstream chaining. Standalone function with `K comparable` constraint.
-
 **Flatten** — The workaround `FlatMap(identity)` doesn't work cleanly because `Mapper[T any]` doesn't constrain `T` to be a slice type. A standalone `Flatten[T any](tss [][]T) []T` works but breaks the fluent chain. Defer until the use case is encountered in practice.
 
 ### Implemented
+
+**GroupBy** — `kv.GroupBy[T any, K comparable](ts []T, fn func(T) K) Entries[K, []T]`. Lives in `kv` package (returns a key-value type). Returns `Entries[K, []T]`, a defined map type that chains via `.ToValues()` → `Mapper[[]T]`.
 
 **Chunk** — `Chunk[T any](ts []T, size int) [][]T`. Standalone function (returns `[][]T`, not `Mapper`). Splits a slice into sub-slices of at most `size` elements. Panics if `size <= 0`.
 

@@ -1,4 +1,4 @@
-package slice
+package kv
 
 import (
 	"reflect"
@@ -36,7 +36,7 @@ func TestGroupBy(t *testing.T) {
 
 	t.Run("single group", func(t *testing.T) {
 		got := GroupBy([]int{1, 2, 3}, func(int) string { return "all" })
-		want := map[string][]int{"all": {1, 2, 3}}
+		want := Entries[string, []int]{"all": {1, 2, 3}}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("GroupBy() = %v, want %v", got, want)
 		}
@@ -66,6 +66,30 @@ func TestGroupBy(t *testing.T) {
 		got := GroupBy[int, string](nil, func(int) string { return "x" })
 		if len(got) != 0 {
 			t.Errorf("GroupBy() = %v, want empty map", got)
+		}
+	})
+}
+
+func TestGroupBy_ToValues(t *testing.T) {
+	t.Run("chains with ToValues", func(t *testing.T) {
+		items := []int{1, 2, 3, 4, 5}
+		groups := GroupBy(items, func(i int) string {
+			if i%2 == 0 {
+				return "even"
+			}
+			return "odd"
+		})
+		got := groups.ToValues()
+		if len(got) != 2 {
+			t.Fatalf("ToValues() len = %d, want 2", len(got))
+		}
+	})
+
+	t.Run("empty groups", func(t *testing.T) {
+		groups := GroupBy([]int{}, func(int) string { return "x" })
+		got := groups.ToValues()
+		if len(got) != 0 {
+			t.Errorf("ToValues() len = %d, want 0", len(got))
 		}
 	})
 }

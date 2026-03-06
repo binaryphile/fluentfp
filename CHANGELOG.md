@@ -25,7 +25,7 @@
 - **BREAKING**: Rename `Basic[T]` to `Option[T]` — the natural name, now that the "advanced option" concept is dropped
 - **BREAKING**: Rename `IfNonZero`/`IfNonEmpty`/`IfNonNil` to `NonZero`/`NonEmpty`/`NonNil` — drop `If` prefix; conditionality communicated by `Option[T]` return type
 - **NonZeroMap**, **NonEmptyMap**, **NonNilMap** — check presence and transform in one call (option package)
-- **GroupBy** — group slice elements by extracted key into `map[K][]T`
+- **GroupBy** — `kv.GroupBy` groups slice elements by extracted key into `Entries[K, []T]` (chains via `.ToValues()`)
 - **FromMap** — extract map values as a Mapper for further transformation
 - **FromSet** — extract set members (true keys) as a Mapper
 - **Map** — standalone `slice.Map[T, R](ts, fn)` for type-inferred cross-type mapping without `MapTo[R]`

@@ -73,7 +73,6 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 
 // Standalone functions
 slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set members as collection (inverse of ToSet)
-slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) map[K][]T       // Group elements by key
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
 slice.Map[T, R any](ts []T, fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
@@ -290,10 +289,13 @@ config := value.LazyOf(loadFromDB).When(useCache).Or(defaultConfig)
 ```go
 import "github.com/binaryphile/fluentfp/kv"
 
-// Wrapper type
-kv.From[K comparable, V any](m map[K]V) Entries[K, V]   // Wrap map for fluent ops
+// Entries — defined type over map[K]V (indexing, ranging, len all work)
+kv.From[K comparable, V any](m map[K]V) Entries[K, V]   // Convert map for fluent ops
 kv.From(m).ToValues() slice.Mapper[V]                    // Extract values
 kv.From(m).ToKeys() slice.Mapper[K]                      // Extract keys
+
+// GroupBy — returns Entries[K, []T] for chaining
+kv.GroupBy[T any, K comparable](ts []T, fn func(T) K) Entries[K, []T]
 
 // Mapping methods on Entries (same set as Mapper[T])
 .ToAny(fn func(K, V) any) Mapper[any]
@@ -323,6 +325,12 @@ items := kv.Map(s.Processes, toResult)
 
 // Same, with explicit target type
 items := kv.MapTo[ProcessesResult](s.Processes).Map(toResult)
+
+// GroupBy + chain (group, extract values, filter, sort)
+duplicates := kv.GroupBy(styleList, valueHash).
+    ToValues().
+    KeepIf(hasDuplicates).
+    Sort(slice.Desc(groupSize))
 
 // Extract values for filtering
 actives := kv.Values(userMap).KeepIf(User.IsActive)

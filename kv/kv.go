@@ -3,21 +3,20 @@ package kv
 
 import "github.com/binaryphile/fluentfp/slice"
 
-// Entries wraps a map for key/value extraction.
-type Entries[K comparable, V any] struct {
-	m map[K]V
-}
+// Entries is a defined type over map[K]V.
+// Indexing, ranging, and len all work as with a plain map.
+type Entries[K comparable, V any] map[K]V
 
-// From wraps a map for fluent operations.
+// From converts a map to Entries for fluent operations.
 func From[K comparable, V any](m map[K]V) Entries[K, V] {
-	return Entries[K, V]{m: m}
+	return Entries[K, V](m)
 }
 
 // ToValues extracts the values as a Mapper for further transformation.
 // Order is not guaranteed (map iteration order).
 func (e Entries[K, V]) ToValues() slice.Mapper[V] {
-	result := make([]V, 0, len(e.m))
-	for _, v := range e.m {
+	result := make([]V, 0, len(e))
+	for _, v := range e {
 		result = append(result, v)
 	}
 
@@ -27,8 +26,8 @@ func (e Entries[K, V]) ToValues() slice.Mapper[V] {
 // ToKeys extracts the keys as a Mapper for further transformation.
 // Order is not guaranteed (map iteration order).
 func (e Entries[K, V]) ToKeys() slice.Mapper[K] {
-	result := make([]K, 0, len(e.m))
-	for k := range e.m {
+	result := make([]K, 0, len(e))
+	for k := range e {
 		result = append(result, k)
 	}
 
@@ -49,8 +48,8 @@ func Keys[K comparable, V any](m map[K]V) slice.Mapper[K] {
 
 // ToAny returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToAny(fn func(K, V) any) slice.Mapper[any] {
-	result := make([]any, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]any, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -59,8 +58,8 @@ func (e Entries[K, V]) ToAny(fn func(K, V) any) slice.Mapper[any] {
 
 // ToBool returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToBool(fn func(K, V) bool) slice.Mapper[bool] {
-	result := make([]bool, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]bool, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -69,8 +68,8 @@ func (e Entries[K, V]) ToBool(fn func(K, V) bool) slice.Mapper[bool] {
 
 // ToByte returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToByte(fn func(K, V) byte) slice.Mapper[byte] {
-	result := make([]byte, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]byte, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -79,8 +78,8 @@ func (e Entries[K, V]) ToByte(fn func(K, V) byte) slice.Mapper[byte] {
 
 // ToError returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToError(fn func(K, V) error) slice.Mapper[error] {
-	result := make([]error, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]error, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -89,8 +88,8 @@ func (e Entries[K, V]) ToError(fn func(K, V) error) slice.Mapper[error] {
 
 // ToFloat32 returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToFloat32(fn func(K, V) float32) slice.Mapper[float32] {
-	result := make([]float32, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]float32, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -99,8 +98,8 @@ func (e Entries[K, V]) ToFloat32(fn func(K, V) float32) slice.Mapper[float32] {
 
 // ToFloat64 returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToFloat64(fn func(K, V) float64) slice.Float64 {
-	result := make([]float64, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]float64, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -109,8 +108,8 @@ func (e Entries[K, V]) ToFloat64(fn func(K, V) float64) slice.Float64 {
 
 // ToInt returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToInt(fn func(K, V) int) slice.Int {
-	result := make([]int, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]int, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -119,8 +118,8 @@ func (e Entries[K, V]) ToInt(fn func(K, V) int) slice.Int {
 
 // ToInt32 returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToInt32(fn func(K, V) int32) slice.Mapper[int32] {
-	result := make([]int32, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]int32, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -129,8 +128,8 @@ func (e Entries[K, V]) ToInt32(fn func(K, V) int32) slice.Mapper[int32] {
 
 // ToInt64 returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToInt64(fn func(K, V) int64) slice.Mapper[int64] {
-	result := make([]int64, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]int64, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -139,8 +138,8 @@ func (e Entries[K, V]) ToInt64(fn func(K, V) int64) slice.Mapper[int64] {
 
 // ToRune returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToRune(fn func(K, V) rune) slice.Mapper[rune] {
-	result := make([]rune, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]rune, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 
@@ -149,8 +148,8 @@ func (e Entries[K, V]) ToRune(fn func(K, V) rune) slice.Mapper[rune] {
 
 // ToString returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToString(fn func(K, V) string) slice.String {
-	result := make([]string, 0, len(e.m))
-	for k, v := range e.m {
+	result := make([]string, 0, len(e))
+	for k, v := range e {
 		result = append(result, fn(k, v))
 	}
 

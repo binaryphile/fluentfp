@@ -8,6 +8,7 @@ How fluentfp is built. For what it does, see [use-cases.md](use-cases.md). For w
 flowchart TD
     slice --> option
     slice --> either
+    kv --> slice
     value --> option
     pair["pair (tuple/pair)"]
     must
@@ -17,6 +18,7 @@ flowchart TD
 | Package | Role |
 |---------|------|
 | `slice` | Collection transformation: filtering, mapping, folding, sorting, deduplication |
+| `kv` | Key-value map operations: grouping, entry extraction, map-to-slice bridging |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
 | `must` | Panic-on-error enforcement for initialization invariants |
@@ -147,7 +149,7 @@ Also provides `lof.IsNonEmpty` as a predicate for `KeepIf` (filtering non-empty 
 
 Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `Convert`, `Find`, `FlatMap`, etc.
 
-Standalone functions for operations needing extra type parameters or custom traversal: `Fold`, `GroupBy`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`. Map-to-slice operations live in the `kv` package (`kv.Values`, `kv.MapTo[T]`).
+Standalone functions for operations needing extra type parameters or custom traversal: `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`. `GroupBy` lives in the `kv` package — it returns `Entries[K, []T]` which chains via `.ToValues()`. Other map-to-slice operations also live in `kv` (`kv.Values`, `kv.MapTo[T]`).
 
 **Why:** Go methods cannot introduce new type parameters (the D2 constraint). Standalone functions can.
 
@@ -274,7 +276,8 @@ Where packages depend on each other, and why:
 | `FindAs[R,T]` → `option.Option[R]` | Type-assertion search where absence and type mismatch both mean "not found." |
 | `Mapper.Single` → `either.Either[int, T]` | Failure carries information (the actual count). A plain error would discard it. |
 | `value.When` → `option.Option[T]` | Reuses option's `Or`/`OrZero` extraction rather than duplicating. |
+| `kv.Entries.ToValues` → `slice.Mapper[V]` | Bridges map values into slice pipelines. `kv.GroupBy` returns `Entries[K, []T]` which chains via `.ToValues()`. |
 
-`lof`, `must`, and `pair` have no fluentfp import dependencies — they are leaf packages by design.
+`lof`, `must`, and `pair` have no fluentfp import dependencies — they are leaf packages by design. `kv` depends only on `slice`.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.
