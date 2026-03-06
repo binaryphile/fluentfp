@@ -206,8 +206,7 @@ The fluentfp extractions are analogous but with concrete types — `func(StyleSe
 
 **go-linq:**
 ```go
-duplicates := linq.From(styleList).
-    GroupBy(valueHash, identity).
+duplicates := linq.From(styleList).GroupBy(valueHash, identity).
     Where(hasDuplicates).
     OrderByDescending(groupSize)
 duplicates.SelectT(toSummary).ToSlice(&summaries)
@@ -215,10 +214,10 @@ duplicates.SelectT(toSummary).ToSlice(&summaries)
 
 **fluentfp:**
 ```go
-sorted := kv.Values(slice.GroupBy(styleList, valueHash)).
+duplicates := kv.Values(slice.GroupBy(styleList, valueHash)).
     KeepIf(hasDuplicates).
     Sort(slice.Desc(groupSize))
-summaries := slice.Map(sorted, toSummary)
+summaries := slice.Map(duplicates, toSummary)
 ```
 
 **What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map. go-linq chains all four steps; fluentfp chains three (`kv.Values` → `.KeepIf` → `.Sort`) with `GroupBy` and the final cross-type `Map` as standalone functions. `GroupBy` returns a map (not a slice), and `Map` introduces a new type parameter — both require standalone functions in Go's type system. The remaining gap is narrow: go-linq reads slightly more fluently, but every callback requires a type assertion that compiles silently even when wrong. go-linq's `GroupBy` also requires an `identity` element selector — fluentfp's `GroupBy` only takes a key function, since grouping the original elements is the common case.
