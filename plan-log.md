@@ -2446,3 +2446,15 @@ Commit: f48f401
 [x] Entry follows established format
 [x] Source link to lazygit with commit SHA
 [x] Manual and fluentfp versions accurate
+2026-03-06T18:48:58Z | Contract: KeyBy standalone function
+[ ] KeyBy returns correct map
+[ ] Duplicate keys: last value wins
+[ ] Empty/nil returns empty map
+[ ] Tests pass, doc.go compiles
+[ ] Docs updated
+2026-03-06T19:18:01Z | Completion: KeyBy standalone function
+[x] KeyBy returns correct map
+[x] Duplicate keys: last value wins
+[x] Empty/nil returns empty map
+[x] Tests pass, doc.go compiles
+[x] Docs updated

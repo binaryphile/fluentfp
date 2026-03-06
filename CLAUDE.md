@@ -80,6 +80,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set members as collection (inverse of ToSet)
 slice.Group[K comparable, T any]                                         // Type: struct with Key K, Items []T
 slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Mapper[Group[K, T]] // Group by key → chainable slice of groups
+slice.KeyBy[T any, K comparable](ts []T, fn func(T) K) map[K]T              // Index elements by extracted key (last wins)
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
 slice.Partition[T any](ts []T, fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate
@@ -160,6 +161,10 @@ results := slice.SortByDesc(items, sortKey)
 
 // GroupBy + chain (group, filter, sort)
 duplicates := slice.GroupBy(styleList, valueHash).KeepIf(hasDuplicates).Sort(slice.Desc(groupSize))
+
+// KeyBy — index for O(1) lookup, then bridge back to fluent chain
+byID := slice.KeyBy(users, User.GetID)
+actives := kv.Values(byID).KeepIf(User.IsActive)
 ```
 
 ### either Package

@@ -95,6 +95,7 @@ func _() {
 	_ = FromSet[int]
 	_ = Group[int, int]{}
 	_ = GroupBy[int, int]
+	_ = KeyBy[int, int]
 	_ = Partition[int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]

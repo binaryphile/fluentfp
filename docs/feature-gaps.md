@@ -23,7 +23,7 @@ Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = mo
 |---------|-------------|-------------|-------------------|------------|-----|
 | GroupBy | Group elements by key → `Mapper[Group[K, T]]` | lo, underscore, fp-go | `Fold` with map accumulator | `slice.GroupBy` (returns `Mapper[Group[K, T]]`, needs `K comparable`) | **Done** |
 | Contains | Membership check for any `comparable` | lo, underscore, fp-go | `String.Contains` for strings only; `.Any(eq)` for others | Standalone — needs `T comparable` constraint | **Done** |
-| KeyBy | Build `map[K]V` from slice + key fn | lo | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | Defer |
+| KeyBy | Build `map[K]V` from slice + key fn | lo | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | **Done** |
 | Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Standalone — needs `T comparable` for zero check | **Done** |
 | Flatten | Flatten `[][]T` → `[]T` | lo, underscore, fp-go | `FlatMap` with identity function | Standalone — `Mapper[T any]` can't constrain `T` to `[]U`; needs `Flatten[T](tss [][]T) []T` | Defer |
 | Chunk | Split slice into fixed-size batches | lo, underscore | None | Standalone (returns `[][]T`) | **Done** |
@@ -47,9 +47,9 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 ## Analysis
 
-### Deferred (3)
+### Deferred (2)
 
-**KeyBy, CountBy** — Both return `map[K]V` types, which require `K comparable`. These are standalone functions. Return plain maps — `kv.Values` bridges back to the fluent chain when needed. Defer until usage patterns emerge.
+**CountBy** — Returns `map[K]int`, which requires `K comparable`. Standalone function. Returns a plain map — `kv.Values` bridges back to the fluent chain when needed. Defer until usage patterns emerge.
 
 ### Resolved
 
@@ -72,3 +72,5 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 **Partition** — `Partition[T any](ts []T, fn func(T) bool) (Mapper[T], Mapper[T])`. Standalone function (returns tuple, not chainable as single value). Single-pass split. Both results are independent Mappers.
 
 **Last** — `Mapper[T].Last() option.Option[T]`. Complement to First. Method on Mapper and MapperTo.
+
+**KeyBy** — `KeyBy[T any, K comparable](ts []T, fn func(T) K) map[K]T`. Standalone function (returns map, needs `K comparable`). Builds an index from slice elements by extracted key. Last value wins for duplicate keys.
