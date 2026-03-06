@@ -26,6 +26,7 @@ func _() {
 	_ = Mapper[int].RemoveIf
 	_ = Mapper[int].Reverse
 	_ = Mapper[int].Single
+	_ = Mapper[int].Sort
 	_ = Mapper[int].Take
 	_ = Mapper[int].TakeLast
 	_ = Mapper[int].ToAny
@@ -49,6 +50,7 @@ func _() {
 	_ = MapperTo[int, int].RemoveIf
 	_ = MapperTo[int, int].Reverse
 	_ = MapperTo[int, int].Single
+	_ = MapperTo[int, int].Sort
 	_ = MapperTo[int, int].Take
 	_ = MapperTo[int, int].TakeLast
 	_ = MapperTo[int, int].ToAny
@@ -75,6 +77,9 @@ func _() {
 	_ = GroupBy[int, int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
+
+	_ = Asc[int, int]
+	_ = Desc[int, int]
 
 	_ = FindAs[int, int]
 	_ = Fold[int, int]

@@ -2390,3 +2390,13 @@ Commit: f48f401
 [x] slice.FromMap and slice.FromMapWith removed
 [x] All references updated
 [x] Tests pass
+2026-03-06T01:35:18Z | Contract: Chainable Sort + Asc/Desc comparator builders
+[ ] Sort method on Mapper and MapperTo
+[ ] Asc and Desc standalone functions
+[ ] Sniffer showcase updated
+[ ] Tests, doc.go, CLAUDE.md, CHANGELOG.md updated
+2026-03-06T01:38:51Z | Completion: Chainable Sort + Asc/Desc
+[x] Sort method on Mapper and MapperTo
+[x] Asc and Desc standalone functions
+[x] Sniffer showcase updated
+[x] Tests, doc.go, CLAUDE.md, CHANGELOG.md updated

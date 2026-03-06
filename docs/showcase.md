@@ -66,15 +66,15 @@ toResult := func(k string, v ProcessData) ProcessesResult {
 func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
     results := kv.Map(s.Processes, toResult)
     sortKey := value.Of(totalBytes).When(mode == ModeTableBytes).Or(totalPackets)
-    return slice.SortByDesc(results, sortKey).Take(n)
+    return results.Sort(slice.Desc(sortKey)).Take(n)
 }
 ```
 
-**What changed:** `kv.Map` replaces the manual map-to-slice loop, and the remaining 14 lines compress into a two-line pipeline. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become one `SortByDesc` with a key function. The mode switch — already clear as idiomatic Go — becomes `value.Of(totalBytes).When(cond).Or(totalPackets)`. The gain isn't readability of the switch itself; it's composability — the selected function feeds into `SortByDesc` without a control structure between selection and use. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
+**What changed:** `kv.Map` replaces the manual map-to-slice loop, and the remaining 14 lines compress into a two-line pipeline. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become one `.Sort(slice.Desc(sortKey))`. The mode switch — already clear as idiomatic Go — becomes `value.Of(totalBytes).When(cond).Or(totalPackets)`. The gain isn't readability of the switch itself; it's composability — the selected function feeds into `.Sort` without a control structure between selection and use. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
 
-**What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `SortByDesc` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
+**What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `.Sort` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
 
-*Implementation note: `SortByDesc` returns a new sorted slice (one copy — see the introduction for allocation guidance). `value.Of` is selecting between functions here, not scalar values — the same `When`/`Or` pattern that selects between strings works for any type. This pattern works cleanly for binary choices; for three or more modes, a `map[ViewMode]func(...)` lookup would be more natural on both sides.*
+*Implementation note: `.Sort` returns a new sorted slice (one copy — see the introduction for allocation guidance). `value.Of` is selecting between functions here, not scalar values — the same `When`/`Or` pattern that selects between strings works for any type. This pattern works cleanly for binary choices; for three or more modes, a `map[ViewMode]func(...)` lookup would be more natural on both sides.*
 
 ---
 

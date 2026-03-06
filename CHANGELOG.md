@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.33.0
+
+- **Sort** method on `Mapper` and `MapperTo` — sorted copy by comparator, enables chaining
+- **Asc**, **Desc** — build comparators from key extractors for use with `Sort`
+
 ## v0.32.0
 
 - **BREAKING**: Rename `NonZeroMap`/`NonEmptyMap`/`NonNilMap` to `NonZeroWith`/`NonEmptyWith`/`NonNilWith` — `With` suffix reads as English ("non-zero, with a transform")

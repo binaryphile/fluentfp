@@ -1,6 +1,8 @@
 package slice
 
 import (
+	"slices"
+
 	"github.com/binaryphile/fluentfp/either"
 	"github.com/binaryphile/fluentfp/option"
 )
@@ -211,6 +213,15 @@ func (ts MapperTo[R, T]) ToInt64(fn func(T) int64) MapperTo[R, int64] {
 	}
 
 	return results
+}
+
+// Sort returns a sorted copy using cmp (negative = a < b, zero = equal, positive = a > b).
+// Build comparators from key extractors using Asc or Desc.
+func (ts MapperTo[R, T]) Sort(cmp func(T, T) int) MapperTo[R, T] {
+	c := make([]T, len(ts))
+	copy(c, ts)
+	slices.SortFunc(c, cmp)
+	return c
 }
 
 // Map returns the result of applying fn to each member of ts.

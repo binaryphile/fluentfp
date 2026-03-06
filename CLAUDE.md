@@ -26,6 +26,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .Take(n int) Mapper[T]                 // First n elements
 .TakeLast(n int) Mapper[T]            // Last n elements
 .Reverse() Mapper[T]                  // New slice in reverse order
+.Sort(cmp func(T, T) int) Mapper[T]  // Sorted copy by comparator (use Asc/Desc)
 .Each(fn func(T))                      // Side-effect iteration
 .First() option.Option[T]               // First element
 .Find(fn func(T) bool) option.Option[T] // First matching element
@@ -83,6 +84,8 @@ slice.ToSetBy[T any, K comparable](ts []T, fn func(T) K) map[K]bool   // Set fro
 slice.UniqueBy[T any, K comparable](ts []T, fn func(T) K) Mapper[T]   // Dedup by key, preserving order
 slice.SortBy[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T]    // Sorted copy, ascending by key
 slice.SortByDesc[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] // Sorted copy, descending by key
+slice.Asc[T any, S cmp.Ordered](key func(T) S) func(T, T) int         // Ascending comparator from key
+slice.Desc[T any, S cmp.Ordered](key func(T) S) func(T, T) int        // Descending comparator from key
 slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R
 slice.MapAccum[T, R, S](ts []T, init S, fn func(S, T) (S, R)) (S, Mapper[R])  // Fold + collect outputs
 slice.Unzip2[T, A, B](ts []T, fa func(T) A, fb func(T) B) (Mapper[A], Mapper[B])
@@ -141,6 +144,12 @@ total := slice.Fold(amounts, 0.0, sumFloat64)
 
 // Unzip - extract multiple fields in one pass
 a, b, c, d := slice.Unzip4(items, Item.GetA, Item.GetB, Item.GetC, Item.GetD)
+
+// Chainable sort with comparator builders
+results := kv.Map(m, toResult).Sort(slice.Desc(sortKey)).Take(n)
+
+// Equivalent standalone form (simpler for one-shot sorts)
+results := slice.SortByDesc(items, sortKey)
 ```
 
 ### either Package
