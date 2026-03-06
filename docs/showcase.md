@@ -220,7 +220,7 @@ sorted := kv.Values(groupedMap).KeepIf(hasDuplicates).Sort(slice.Desc(groupSize)
 summaries := slice.Map(sorted, toSummary)
 ```
 
-**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map. go-linq chains all four steps; fluentfp chains three (`kv.Values` → `.KeepIf` → `.Sort`) with `GroupBy` and the final cross-type `Map` as standalone functions. `GroupBy` returns a map (not a slice), and `Map` introduces a new type parameter — both require standalone functions in Go's type system. The remaining gap is narrow: go-linq reads slightly more fluently, but every callback requires a type assertion that compiles silently even when wrong.
+**What changed:** Once callbacks are extracted, the two pipelines have the same shape — group, filter, sort, map. go-linq chains all four steps; fluentfp chains three (`kv.Values` → `.KeepIf` → `.Sort`) with `GroupBy` and the final cross-type `Map` as standalone functions. `GroupBy` returns a map (not a slice), and `Map` introduces a new type parameter — both require standalone functions in Go's type system. The remaining gap is narrow: go-linq reads slightly more fluently, but every callback requires a type assertion that compiles silently even when wrong. go-linq's `GroupBy` also requires an `identity` element selector — fluentfp's `GroupBy` only takes a key function, since grouping the original elements is the common case.
 
 **What's eliminated:** The fluency gap is small — three of four steps chain — but go-linq still reads more naturally as a single pipeline. The trade-off remains: go-linq's `interface{}`-based callbacks sacrifice compile-time type safety for full method chaining.
 
