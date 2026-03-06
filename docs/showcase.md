@@ -15,14 +15,14 @@ Where the original code uses inline anonymous functions, we extract them into na
 **Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
 **Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
 
-The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. We assume `TotalBytes` and `TotalPackets` methods on `ProcessesResult` (the original inlines this arithmetic) and a `ToResult` constructor for `kv.Map`. Both sides benefit from the methods; the difference is what remains — 18 lines to a two-line function body (plus a sort-key map defined once).
+The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. We assume `TotalBytes` and `TotalPackets` methods on `ProcessesResult` (the original inlines this arithmetic) and a `NewResult` constructor for `kv.Map`. Both sides benefit from the methods; the difference is what remains — 18 lines to a two-line function body (plus a sort-key map defined once).
 
 **Original** (with methods — 22 → 18 lines):
 ```go
 func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
     var items []ProcessesResult
     for k, v := range s.Processes {
-        items = append(items, ToResult(k, v))
+        items = append(items, NewResult(k, v))
     }
 
     switch mode {
@@ -51,12 +51,12 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
 }
 
 func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
-    sortFunc := slice.Desc(sortFuncs[mode])
-    return kv.Map(s.Processes, ToResult).Sort(sortFunc).Take(n)
+    desc := slice.Desc(sortFuncs[mode])
+    return kv.Map(s.Processes, NewResult).Sort(desc).Take(n)
 }
 ```
 
-**What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(sortFunc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
+**What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(desc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
 
 **What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `.Sort` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
 
