@@ -233,6 +233,37 @@ trackedNodes, untrackedNodes := slice.Partition(selectedNodes, isTracked)
 
 ---
 
+### Diff map boilerplate — hashicorp/nomad
+
+**Source:** [diff.go#L389-L397](https://github.com/hashicorp/nomad/blob/ae1204e/nomad/structs/diff.go#L389-L397)
+**Pain point:** Index-by-key loop repeated 29 times in one file
+
+Nomad's diff engine compares old and new versions of every resource type. Each diff function starts the same way: build a `map[string]*T` from each slice so fields can be matched by name. The 3-line pattern — `make(map)`, `for range`, `m[x.Name] = x` — appears 29 times in `diff.go` alone, differing only in the struct type.
+
+**Original** (one of 29 — 3 lines each, 6 for the pair):
+```go
+oldMap := make(map[string]*TaskGroup, len(old))
+newMap := make(map[string]*TaskGroup, len(new))
+for _, o := range old {
+    oldMap[o.Name] = o
+}
+for _, n := range new {
+    newMap[n.Name] = n
+}
+```
+
+**fluentfp:**
+```go
+oldMap := slice.KeyBy(old, TaskGroup.GetName)
+newMap := slice.KeyBy(new, TaskGroup.GetName)
+```
+
+**What changed:** Six lines of loop mechanics become two function calls. The pattern scales: 29 occurrences × 3 lines each = 87 lines of identical structure reduced to 29 one-liners. The key extraction (`TaskGroup.GetName`) is a method expression — no wrapper function needed.
+
+**What's eliminated:** The same write amplification as the Nomad config merge entry (Entry 3): structurally identical code repeated for every type. Each repetition is individually trivial, but in aggregate they obscure the file's actual logic — the diff comparisons that follow. `KeyBy` compresses the ceremony so the meaningful code stands out.
+
+---
+
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)

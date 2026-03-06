@@ -2458,3 +2458,11 @@ Commit: f48f401
 [x] Empty/nil returns empty map
 [x] Tests pass, doc.go compiles
 [x] Docs updated
+2026-03-06T19:46:31Z | Contract: Showcase entry for KeyBy
+[ ] Entry follows established format
+[ ] Source link to Nomad with commit SHA
+[ ] Manual and fluentfp versions accurate
+2026-03-06T19:47:49Z | Completion: Showcase entry for KeyBy
+[x] Entry follows established format
+[x] Source link to Nomad with commit SHA
+[x] Manual and fluentfp versions accurate
