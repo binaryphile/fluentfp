@@ -140,20 +140,20 @@ result.RetryInterval        = value.FirstNonZero(b.RetryInterval, s.RetryInterva
 
 The original is 9 lines: split on punctuation, lowercase each token via `lo.Map` with a `func(string, _ int) string` wrapper around `strings.ToLower`, and filter blanks via `lo.Filter` with another wrapper. Both wrappers exist solely to satisfy lo's index parameter.
 
-**Extracted:**
+**Extracted (both sides share):**
 ```go
 // splitTokens splits on punctuation and whitespace.
 splitTokens := func(s string) slice.Mapper[string] {
     return slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
 }
-
-// lo-specific — stdlib functions need wrappers for the _ int parameter
-toLower := func(s string, _ int) string { return strings.ToLower(s) }
-isNonBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
 ```
 
 **lo with extraction:**
 ```go
+// lo-specific — stdlib functions need wrappers for the _ int parameter
+toLower := func(s string, _ int) string { return strings.ToLower(s) }
+isNonBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
+
 func tokenize(s string) []string {
     tokens := lo.Map(splitTokens(s), toLower)
     return lo.Filter(tokens, isNonBlank)
