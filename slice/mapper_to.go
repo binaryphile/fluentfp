@@ -7,8 +7,10 @@ import (
 	"github.com/binaryphile/fluentfp/option"
 )
 
-// MapperTo is a fluent slice with one additional method, MapTo, for mapping to a specified type R.
-// If you don't need to map to an arbitrary type, use Mapper instead.
+// MapperTo is a fluent slice for filter→map chains where the cross-type map comes last.
+// Prefer slice.Map(ts, fn) for most cross-type mapping — it infers all types and returns
+// Mapper[R] for further chaining. Use MapTo[R] only when you need to filter or transform
+// before the cross-type map: slice.MapTo[R](ts).KeepIf(pred).Map(fn).
 type MapperTo[R, T any] []T
 
 func MapTo[R, T any](ts []T) MapperTo[R, T] {

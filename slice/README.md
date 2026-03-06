@@ -37,8 +37,8 @@ if !slice.String(m.Tags).Matches(filter.Tags) {
 ```
 
 ```go
-// Type mapping
-users := slice.MapTo[User](ids).Map(FetchUser)
+// Cross-type mapping (both types inferred)
+users := slice.Map(ids, FetchUser)
 ```
 
 ```go
@@ -125,7 +125,7 @@ See [comparison](../comparison.md) for the full library comparison.
 
 ## Operations
 
-`From` creates `Mapper[T]`. `MapTo[R]` creates `MapperTo[R,T]` — all Mapper methods plus `Map` for arbitrary type mapping. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
+`From` creates `Mapper[T]`. For cross-type mapping, prefer the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `MapTo[R]` creates `MapperTo[R,T]` for the narrow case where you filter before cross-type mapping: `MapTo[R](ts).KeepIf(pred).Map(fn)`. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
 - **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `Compact`
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)

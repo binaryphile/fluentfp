@@ -9,7 +9,7 @@ import (
 	"github.com/binaryphile/fluentfp/tuple/pair"
 )
 
-// This example demonstrates advanced slice operations: MapTo, Fold, Unzip, and Zip.
+// This example demonstrates advanced slice operations: Map, Fold, Unzip, and Zip.
 func main() {
 	posts := slice.From([]Post{
 		{ID: 1, Title: "Introduction to Go"},
@@ -19,14 +19,13 @@ func main() {
 
 	// === Mapping to Different Types ===
 
-	// titleFromPost extracts a Title from a Post.
-	titleFromPost := func(p Post) Title { return Title(p.Title) }
+	// toTitle extracts a Title from a Post.
+	toTitle := func(p Post) Title { return Title(p.Title) }
 
-	titles := slice.MapTo[Title](posts).Map(titleFromPost)
+	titles := slice.Map([]Post(posts), toTitle)
 	fmt.Println("last title:", titles[len(titles)-1]) // last title: Error Handling
 
-	lengths := slice.MapTo[Title](posts).
-		Map(titleFromPost).
+	lengths := slice.Map([]Post(posts), toTitle).
 		ToInt(Title.Len)
 	fmt.Println("last length:", lengths[len(lengths)-1]) // last length: 14
 

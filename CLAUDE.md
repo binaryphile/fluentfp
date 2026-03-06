@@ -16,7 +16,7 @@ import "github.com/binaryphile/fluentfp/slice"
 
 // Factory functions
 slice.From(ts []T) Mapper[T]           // For mapping to built-in types
-slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
+slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-to-right flow
 
 // Mapper[T] methods (also on MapperTo)
 .KeepIf(fn func(T) bool) Mapper[T]     // Filter: keep matching
@@ -51,7 +51,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For mapping to arbitrary type R
 .ToRune(fn func(T) rune) Mapper[rune]
 .ToString(fn func(T) string) String
 
-// MapperTo[R,T] additional methods
+// MapperTo[R,T] additional methods — prefer slice.Map(ts, fn) for most cross-type mapping
 .Map(fn func(T) R) Mapper[R]           // Map to type R
 .FlatMap(fn func(T) []R) Mapper[R]     // Expand + concat
 
@@ -430,11 +430,11 @@ No inline lambdas — if the logic is simple enough to inline, it's simple enoug
 
 ```go
 // BAD: commas at both levels — outer has 2 args, inner has 2 args
-slice.SortByDesc(kv.MapTo[R](m).Map(toResult), sortKey)
+slice.SortByDesc(kv.Map(m, toResult), sortKey)
 
 // GOOD: extract inner call — commas only at outer level
-items := kv.MapTo[R](m).Map(toResult)
-slice.SortByDesc(items, sortKey)
+results := kv.Map(m, toResult)
+slice.SortByDesc(results, sortKey)
 
 // OK: commas only at inner level — outer has 1 arg
 slice.From(slice.Compact(items))

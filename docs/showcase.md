@@ -182,7 +182,7 @@ addrs := lo.Map(users, getAddr)
 // fluentfp standalone — both types inferred, no wrapper
 addrs := slice.Map(users, User.Address)
 ```
-The method form costs one explicit type parameter but buys composability: `slice.MapTo[Address](users).Map(fn).KeepIf(pred)` reads left-to-right. lo's standalone functions compose inside-out: `lo.Filter(lo.Map(users, getAddr), isLocal)`. See design constraint [D2](design.md#d2-mapperto-rt-for-arbitrary-type-mapping).
+Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, User.Address).KeepIf(isLocal)`. lo's standalone functions compose inside-out: `lo.Filter(lo.Map(users, getAddr), isLocal)`. See design constraint [D2](design.md#d2-mapperto-rt-for-arbitrary-type-mapping).
 
 ---
 

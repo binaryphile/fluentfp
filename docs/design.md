@@ -52,6 +52,8 @@ Carries target type `R` at the type level. `R` does not appear in the slice repr
 
 **Why it exists:** Go methods cannot declare type parameters beyond those on the receiver type. A method like `.Map[R](fn func(T) R) Mapper[R]` is illegal — the extra type parameter must come from the type, not the method. `MapperTo` binds `R` at construction time via `slice.MapTo[R](ts)`.
 
+**Prefer `slice.Map` for most cross-type mapping.** The standalone `slice.Map(ts, fn)` infers all types and returns `Mapper[R]` for further chaining. `MapperTo` is only needed when you filter or transform *before* the cross-type map: `slice.MapTo[R](ts).KeepIf(pred).Map(fn)`.
+
 ### D3: Specialized terminal types
 
 Extends D1's defined-type approach to terminal slices that need domain-specific methods.
