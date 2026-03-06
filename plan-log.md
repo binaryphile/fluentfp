@@ -2416,3 +2416,15 @@ Commit: f48f401
 [ ] kv/ aliases base.Entries, keeps map standalones, loses GroupBy
 [ ] go test ./... passes
 [ ] slice.GroupBy chains work
+2026-03-06T07:04:37Z | Contract: GroupBy slice semantics
+[ ] Group[K, T] type in slice
+[ ] GroupBy returns Mapper[Group[K, T]]
+[ ] Group order matches first-seen key order
+[ ] go test ./... passes
+[ ] Showcase chain has no .Values() step
+2026-03-06T07:19:14Z | Completion: GroupBy slice semantics
+[x] Group[K, T] type in slice (slice/group.go)
+[x] GroupBy returns Mapper[Group[K, T]] (slice/group_by.go)
+[x] Group order matches first-seen key order (test: preserves_first-seen_key_order)
+[x] go test ./... passes (all 9 packages)
+[x] Showcase chain has no .Values() step (docs/showcase.md line 227)

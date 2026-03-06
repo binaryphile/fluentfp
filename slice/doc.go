@@ -7,7 +7,7 @@
 // MapperTo[T, R] is a fluent slice with one additional method, MapTo, for mapping to a specified type R.
 // If you don't need to map to an arbitrary type, use Mapper instead.
 //
-// Entries[K, V] is a fluent map type for chaining (e.g., GroupBy results).
+// Entries[K, V] is a fluent map type for chaining map operations.
 package slice
 
 func _() {
@@ -91,6 +91,7 @@ func _() {
 	_ = Compact[int]
 	_ = Contains[int]
 	_ = FromSet[int]
+	_ = Group[int, int]{}
 	_ = GroupBy[int, int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]

@@ -77,7 +77,8 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 
 // Standalone functions
 slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set members as collection (inverse of ToSet)
-slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Entries[K, []T] // Group by key → chainable map
+slice.Group[K comparable, T any]                                         // Type: struct with Key K, Items []T
+slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Mapper[Group[K, T]] // Group by key → chainable slice of groups
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
 slice.Map[T, R any](ts []T, fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
@@ -154,6 +155,9 @@ results := kv.Map(m, toResult).Sort(slice.Desc(sortKey)).Take(n)
 
 // Equivalent standalone form (simpler for one-shot sorts)
 results := slice.SortByDesc(items, sortKey)
+
+// GroupBy + chain (group, filter, sort)
+duplicates := slice.GroupBy(styleList, valueHash).KeepIf(hasDuplicates).Sort(slice.Desc(groupSize))
 ```
 
 ### either Package
@@ -328,12 +332,6 @@ items := kv.Map(s.Processes, toResult)
 
 // Same, with explicit target type
 items := kv.MapTo[ProcessesResult](s.Processes).Map(toResult)
-
-// GroupBy + chain (group, extract values, filter, sort) — GroupBy is in slice package
-duplicates := slice.GroupBy(styleList, valueHash).
-    Values().
-    KeepIf(hasDuplicates).
-    Sort(slice.Desc(groupSize))
 
 // Extract values for filtering
 actives := kv.Values(userMap).KeepIf(User.IsActive)

@@ -21,7 +21,7 @@ Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = mo
 
 | Feature | Description | Available In | fluentfp Workaround | Design Fit | Rec |
 |---------|-------------|-------------|-------------------|------------|-----|
-| GroupBy | Group elements by key → `Entries[K, []T]` | lo, underscore, fp-go | `Fold` with map accumulator | `slice.GroupBy` (returns `Entries`, needs `K comparable`) | **Done** |
+| GroupBy | Group elements by key → `Mapper[Group[K, T]]` | lo, underscore, fp-go | `Fold` with map accumulator | `slice.GroupBy` (returns `Mapper[Group[K, T]]`, needs `K comparable`) | **Done** |
 | Contains | Membership check for any `comparable` | lo, underscore, fp-go | `String.Contains` for strings only; `.Any(eq)` for others | Standalone — needs `T comparable` constraint | **Done** |
 | KeyBy | Build `map[K]V` from slice + key fn | lo | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | Defer |
 | Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Standalone — needs `T comparable` for zero check | **Done** |
@@ -63,7 +63,7 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 ### Implemented
 
-**GroupBy** — `slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Entries[K, []T]`. Lives in `slice` package (takes slice input). Returns `Entries[K, []T]`, a defined map type that chains via `.Values()` → `Mapper[[]T]`.
+**GroupBy** — `slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Mapper[Group[K, T]]`. Lives in `slice` package (takes slice input). Returns `Mapper[Group[K, T]]` — groups chain directly via `.KeepIf`, `.Sort`, etc. Groups preserve first-seen key order.
 
 **Chunk** — `Chunk[T any](ts []T, size int) [][]T`. Standalone function (returns `[][]T`, not `Mapper`). Splits a slice into sub-slices of at most `size` elements. Panics if `size <= 0`.
 

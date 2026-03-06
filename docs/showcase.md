@@ -214,7 +214,7 @@ groupSize := func(group interface{}) interface{} { return len(group.(linq.Group)
 toSummary := func(group linq.Group) interface{} { ... }
 ```
 
-The fluentfp extractions are analogous but with concrete types — `func(StyleSection) string`, `func([]StyleSection) bool`, etc.
+The fluentfp extractions are analogous but with concrete types — `func(StyleSection) string`, `func(Group[string, StyleSection]) bool`, etc.
 
 **go-linq:**
 ```go
@@ -224,11 +224,11 @@ duplicates.SelectT(toSummary).ToSlice(&summaries)
 
 **fluentfp:**
 ```go
-duplicates := slice.GroupBy(styleList, valueHash).Values().KeepIf(hasDuplicates).Sort(slice.Desc(groupSize))
+duplicates := slice.GroupBy(styleList, valueHash).KeepIf(hasDuplicates).Sort(slice.Desc(groupSize))
 summaries := slice.Map(duplicates, toSummary)
 ```
 
-**What changed:** Once callbacks are extracted, both pipelines do the same thing — group, filter, sort, map. fluentfp collapses this to a single expression: `groups.Values().KeepIf(hasDuplicates).Sort(desc)` feeds into `slice.Map`. The cross-type `Map` is standalone (Go methods can't introduce type parameters), but the chain still reads left to right. `GroupBy` returns `Entries[K, []T]` — a defined map type that chains via `.Values()`. go-linq's `interface{}`-based callbacks require type assertions that compile silently even when wrong; fluentfp's concrete-typed functions catch mismatches at compile time. go-linq's `GroupBy` also requires an `identity` element selector — fluentfp's only takes a key function.
+**What changed:** Once callbacks are extracted, both pipelines do the same thing — group, filter, sort, map. fluentfp collapses this to a single expression: `GroupBy(...).KeepIf(hasDuplicates).Sort(desc)` feeds into `slice.Map`. The cross-type `Map` is standalone (Go methods can't introduce type parameters), but the chain still reads left to right. `GroupBy` returns `Mapper[Group[K, T]]` — groups chain directly without a bridge step, and keys are preserved throughout. go-linq's `interface{}`-based callbacks require type assertions that compile silently even when wrong; fluentfp's concrete-typed functions catch mismatches at compile time. go-linq's `GroupBy` also requires an `identity` element selector — fluentfp's only takes a key function.
 
 **What's eliminated:** The readability is equivalent, so the win is purely type safety. go-linq's `interface{}`-based callbacks sacrifice compile-time safety for full method chaining — a trade-off that made sense before generics existed.
 

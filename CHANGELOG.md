@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.35.0
+
+- **BREAKING**: `GroupBy` returns `Mapper[Group[K, T]]` instead of `Entries[K, []T]` — groups chain directly (no `.Values()` bridge), preserve first-seen key order, and retain grouping keys throughout the chain
+- **Group[K, T]** type — struct with `Key` and `Items` fields for GroupBy results
+
 ## v0.34.0
 
 - **BREAKING**: Types (`Mapper`, `MapperTo`, `Entries`, `Float64`, `Int`, `String`) now defined in `internal/base` and re-exported via type aliases in `slice` and `kv`. All methods available through aliases — no API change for consumers.

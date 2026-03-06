@@ -442,7 +442,7 @@ A named function like `completedAfterCutoff` lets you skip the first two and rea
 
 **Bounded API surface.** Each package solves specific patterns cleanly:
 - `slice`: KeepIf, RemoveIf, Convert, ToX, Each, Fold, FlatMap—focused on slice operations
-- `kv`: From, GroupBy, Map, Values—map operations that chain via `Entries[K, V]`
+- `kv`: From, Map, Values—map operations that chain via `Entries[K, V]`
 - `option`: Of, Get, Or—no monadic bind chains
 - `must`: Get, BeNil, Of—three functions
 - `value`: Of, When, Or
