@@ -82,29 +82,44 @@ func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
 **Source:** [agent/agent.go#L2482-L2530](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530)
 **Pain point:** Intermediate variables and post-construction overrides for conditional struct fields
 
-The original is 31 lines: three if-blocks assign temporary variables (`name`, `intervalStr`, `timeoutStr`), a 13-field struct literal references them, and a post-construction if-block overrides `Status`. Four conditional fields require staging across pre- and post-construction blocks.
+The original is 31 lines: three if-blocks assign temporary variables (`name`, `intervalStr`, `timeoutStr`), a 13-field struct literal references them, and a post-construction if-block overrides `Status`. Four conditional fields require staging across pre- and post-construction blocks. The examples below show one representative field per pattern.
+
+**Original** (one field per pattern):
+```go
+name := chkType.Name
+if name == "" {
+    name = fmt.Sprintf("Service '%s' check", service.Service)
+}
+
+var intervalStr string
+if chkType.Interval != 0 {
+    intervalStr = chkType.Interval.String()
+}
+
+check := &structs.HealthCheck{
+    Name:     name,
+    Interval: intervalStr,
+    Status:   api.HealthCritical,
+    // ...10 other fields...
+}
+if chkType.Status != "" {
+    check.Status = chkType.Status
+}
+```
 
 **fluentfp:**
 ```go
 defaultName := fmt.Sprintf("Service '%s' check", service.Service)
 
 check := &structs.HealthCheck{
-    Node:           a.config.NodeName,
-    CheckID:        types.CheckID(checkID),
-    Name:           option.NonEmpty(chkType.Name).Or(defaultName),
-    Interval:       option.NonZeroWith(chkType.Interval, time.Duration.String).Or(""),
-    Timeout:        option.NonZeroWith(chkType.Timeout, time.Duration.String).Or(""),
-    Status:         option.NonEmpty(chkType.Status).Or(api.HealthCritical),
-    Notes:          chkType.Notes,
-    ServiceID:      service.ID,
-    ServiceName:    service.Service,
-    ServiceTags:    service.Tags,
-    Type:           chkType.Type(),
-    EnterpriseMeta: service.EnterpriseMeta,
+    Name:     option.NonEmpty(chkType.Name).Or(defaultName),
+    Interval: option.NonZeroWith(chkType.Interval, time.Duration.String).Or(""),
+    Status:   option.NonEmpty(chkType.Status).Or(api.HealthCritical),
+    // ...10 other fields...
 }
 ```
 
-**What changed:** Four temporary variables and their if-blocks collapse into the struct literal. `option.NonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.NonZeroWith` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`, `Timeout`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** Temporary variables and their if-blocks collapse into the struct literal. `option.NonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `option.NonZeroWith` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
 
 **What's eliminated:** Those temporary variables are the structural ingredients that enable shadowing bugs. [Temporal's first data-loss bug](https://temporal.io/blog/go-shadowing-bad-choices) came from `:=` inside an if-block shadowing an outer `err`, silently swallowing a Cassandra failure. Go's own `syscall.forkAndExecInChild` had the same class of bug ([#57208](https://github.com/golang/go/issues/57208)). The Consul original doesn't fall into the shadowing trap — but the trap is laid. The fluentfp rewrite has none: each field resolves inline with no intermediate variables to shadow. See [Error Prevention](../analysis.md#error-prevention) (Error shadowing).
 
