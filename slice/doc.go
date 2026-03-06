@@ -24,6 +24,7 @@ func _() {
 	_ = Mapper[int].FlatMap
 	_ = Mapper[int].IndexWhere
 	_ = Mapper[int].KeepIf
+	_ = Mapper[int].Last
 	_ = Mapper[int].Len
 	_ = Mapper[int].ParallelEach
 	_ = Mapper[int].ParallelKeepIf
@@ -46,6 +47,7 @@ func _() {
 	_ = MapperTo[int, int].Each
 	_ = MapperTo[int, int].FlatMap
 	_ = MapperTo[int, int].KeepIf
+	_ = MapperTo[int, int].Last
 	_ = MapperTo[int, int].Len
 	_ = MapperTo[int, int].Map
 	_ = MapperTo[int, int].ParallelEach
@@ -93,6 +95,7 @@ func _() {
 	_ = FromSet[int]
 	_ = Group[int, int]{}
 	_ = GroupBy[int, int]
+	_ = Partition[int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
 

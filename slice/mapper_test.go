@@ -636,3 +636,29 @@ func TestReverse(t *testing.T) {
 		}
 	})
 }
+
+func TestLast(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []int
+		want  int
+		wantOk bool
+	}{
+		{name: "multiple elements", input: []int{1, 2, 3}, want: 3, wantOk: true},
+		{name: "single element", input: []int{42}, want: 42, wantOk: true},
+		{name: "empty slice", input: []int{}, wantOk: false},
+		{name: "nil slice", input: nil, wantOk: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := From(tt.input).Last().Get()
+			if ok != tt.wantOk {
+				t.Fatalf("Last() ok = %v, want %v", ok, tt.wantOk)
+			}
+			if ok && got != tt.want {
+				t.Errorf("Last() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

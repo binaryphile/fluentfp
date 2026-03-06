@@ -47,6 +47,14 @@ func (ts Mapper[T]) First() option.Option[T] {
 	return option.Of(ts[0])
 }
 
+// Last returns the last element, or not-ok if the slice is empty.
+func (ts Mapper[T]) Last() option.Option[T] {
+	if len(ts) == 0 {
+		return option.NotOk[T]()
+	}
+	return option.Of(ts[len(ts)-1])
+}
+
 // Any returns true if fn returns true for any element.
 func (ts Mapper[T]) Any(fn func(T) bool) bool {
 	for _, t := range ts {

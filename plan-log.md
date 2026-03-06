@@ -2428,3 +2428,13 @@ Commit: f48f401
 [x] Group order matches first-seen key order (test: preserves_first-seen_key_order)
 [x] go test ./... passes (all 9 packages)
 [x] Showcase chain has no .Values() step (docs/showcase.md line 227)
+2026-03-06T07:38:51Z | Contract: Add Partition and Last
+[ ] Last method on Mapper and MapperTo
+[ ] Partition standalone function
+[ ] go test ./... passes
+[ ] Doc assertions compile
+2026-03-06T07:44:48Z | Completion: Add Partition and Last
+[x] Last method on Mapper and MapperTo (internal/base/mapper.go, mapper_to.go)
+[x] Partition standalone function (slice/partition.go)
+[x] go test ./... passes (all 9 packages)
+[x] Doc assertions compile (slice/doc.go)

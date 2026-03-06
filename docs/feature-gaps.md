@@ -27,8 +27,8 @@ Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = mo
 | Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Standalone — needs `T comparable` for zero check | **Done** |
 | Flatten | Flatten `[][]T` → `[]T` | lo, underscore, fp-go | `FlatMap` with identity function | Standalone — `Mapper[T any]` can't constrain `T` to `[]U`; needs `Flatten[T](tss [][]T) []T` | Defer |
 | Chunk | Split slice into fixed-size batches | lo, underscore | None | Standalone (returns `[][]T`) | **Done** |
-| Partition | Split into matches/non-matches | lo, fp-go | Two `KeepIf`/`RemoveIf` passes | Standalone (returns tuple `([]T, []T)`) | Add |
-| Last | Last element as option | lo, fp-go | `TakeLast(1)` then index, or `Fold` | Method (terminal) — returns `option.Option[T]`, same as `.First()` | Add |
+| Partition | Split into matches/non-matches | lo, fp-go | Two `KeepIf`/`RemoveIf` passes | Standalone (returns tuple `(Mapper[T], Mapper[T])`) | **Done** |
+| Last | Last element as option | lo, fp-go | `TakeLast(1)` then index, or `Fold` | Method (terminal) — returns `option.Option[T]`, same as `.First()` | **Done** |
 | CountBy | Count elements per group → `map[K]int` | lo | `Fold` with counting map | Standalone (returns map, needs `K comparable`) | Defer |
 | Every/None | All/no elements match predicate | lo, underscore, fp-go | `!Any(pred)` for None; no direct Every | Method (terminal) — returns bool, same as `.Any()` | **Done** |
 
@@ -47,13 +47,7 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 
 ## Analysis
 
-### Recommended to Add (2)
-
-**Partition** — Two-pass workaround (`KeepIf` + `RemoveIf`) traverses the slice twice. A standalone `Partition[T any](ts []T, fn func(T) bool) ([]T, []T)` is a single pass. Frequently used for splitting valid/invalid, active/inactive, etc.
-
-**Last** — Natural complement to `.First()`. Returns `option.Option[T]`. Method on `Mapper[T]`.
-
-### Deferred (4)
+### Deferred (3)
 
 **KeyBy, CountBy** — Both return `map[K]V` types, which require `K comparable`. These are standalone functions. Return plain maps — `kv.Values` bridges back to the fluent chain when needed. Defer until usage patterns emerge.
 
@@ -74,3 +68,7 @@ Not every comparison is a gap. These features exist in fluentfp but not in sambe
 **None** — `Mapper[T].None(fn func(T) bool) bool`. Complement to `.Any()`, returns true if no elements match. Returns true for empty slice. Trivial implementation (`!Any`) but eliminates negation at call sites and completes the Any/Every/None triad.
 
 **Compact** — `Compact[T comparable](ts []T) Mapper[T]`. Standalone function (Go requires `comparable` for `!=` against zero value — cannot be method on `Mapper[T any]`). Removes zero-value elements.
+
+**Partition** — `Partition[T any](ts []T, fn func(T) bool) (Mapper[T], Mapper[T])`. Standalone function (returns tuple, not chainable as single value). Single-pass split. Both results are independent Mappers.
+
+**Last** — `Mapper[T].Last() option.Option[T]`. Complement to First. Method on Mapper and MapperTo.

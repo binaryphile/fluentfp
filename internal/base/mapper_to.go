@@ -41,6 +41,14 @@ func (ts MapperTo[R, T]) First() option.Option[T] {
 	return option.Of(ts[0])
 }
 
+// Last returns the last element, or not-ok if the slice is empty.
+func (ts MapperTo[R, T]) Last() option.Option[T] {
+	if len(ts) == 0 {
+		return option.NotOk[T]()
+	}
+	return option.Of(ts[len(ts)-1])
+}
+
 // Each applies fn to each member of ts.
 func (ts MapperTo[R, T]) Each(fn func(T)) {
 	for _, t := range ts {

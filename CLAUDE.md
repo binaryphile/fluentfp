@@ -33,6 +33,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 .Sort(cmp func(T, T) int) Mapper[T]  // Sorted copy by comparator (use Asc/Desc)
 .Each(fn func(T))                      // Side-effect iteration
 .First() option.Option[T]               // First element
+.Last() option.Option[T]                // Last element
 .Find(fn func(T) bool) option.Option[T] // First matching element
 .IndexWhere(fn func(T) bool) option.Option[int] // Index of first match
 .Any(fn func(T) bool) bool            // True if any element matches
@@ -81,6 +82,7 @@ slice.Group[K comparable, T any]                                         // Type
 slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Mapper[Group[K, T]] // Group by key → chainable slice of groups
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
+slice.Partition[T any](ts []T, fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate
 slice.Map[T, R any](ts []T, fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
 slice.FindAs[R, T any](ts []T) option.Option[R]                         // First element that type-asserts to R
 slice.Contains[T comparable](ts []T, target T) bool                     // Check membership

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.36.0
+
+- **Partition** — `slice.Partition[T any](ts, fn)` splits a slice by predicate in one pass, returning `(Mapper[T], Mapper[T])`
+- **Last** — `.Last()` method on `Mapper` and `MapperTo`, returns `option.Option[T]`, complement to `.First()`
+
 ## v0.35.0
 
 - **BREAKING**: `GroupBy` returns `Mapper[Group[K, T]]` instead of `Entries[K, []T]` — groups chain directly (no `.Values()` bridge), preserve first-seen key order, and retain grouping keys throughout the chain
