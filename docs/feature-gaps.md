@@ -1,76 +1,49 @@
-# Feature Gap Analysis
+# Feature Gaps
 
-Features used in real Go projects that fluentfp does not yet provide, prioritized by observed usage and assessed for design fit.
+Remaining features observed in real Go projects that fluentfp does not yet provide, prioritized by evidence from the March 2026 usage survey (30+ lo repos, 20 go-linq repos, 14 non-FP code examples from Nomad/Vault/Kubernetes/lazygit). Full survey data in Era under tags `lo-survey`, `go-linq-survey`, `code-patterns`.
 
-For fluentfp's design constraints referenced below, see [design.md](design.md) (D1, D2, D9).
+For fluentfp's design constraints, see [design.md](design.md).
 
-## Methodology
+## Priority 1: Real gap, clean design fit
 
-Qualitative assessment based on GitHub code search for `samber/lo` function calls across public importers — the largest Go FP user base (~17k stars). Patterns were identified by observing which lo functions appear repeatedly in real codebases, not by counting unique repos or call sites. Feature availability in `repeale/fp-go` and `rjNemo/underscore` was cross-referenced, but usage evidence comes from lo importers only (fp-go and underscore have negligible external adoption).
+### MapValues — transform map values in place
 
-## Gap Table
+`kv.MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) map[K]V2`
 
-"Available In" shows which libraries offer the feature, not adoption. Design Fit categories:
+**Evidence:** 27 lo search lines. `kv.Map` covers map→slice but there's no map→map transform. Every `lo.MapValues` call site would need `kv.Map` + `slice.KeyBy` roundtrip today.
 
-- **Method (chainable)** — returns `Mapper[T]`, fits D1
-- **Method (terminal)** — returns non-Mapper type (bool, option, int), fits existing pattern (`.Any()`, `.First()`, `.Len()`)
-- **Standalone function** — needs extra type parameter per D9 or returns non-slice type
-- **Doesn't fit** — breaks fluent model or has trivial workaround
+**Design fit:** Standalone function in `kv` package. Returns `map[K]V2` (not Mapper — preserves map structure). Clean parallel to `kv.Map` (map→slice) vs `kv.MapValues` (map→map).
 
-Recommendation criteria: **Add** = high usage + clean design fit. **Defer** = moderate usage or needs design exploration. **Skip** = trivial workaround exists.
+### Entries.KeepIf — filter map entries by predicate
 
-| Feature | Description | Available In | fluentfp Workaround | Design Fit | Rec |
-|---------|-------------|-------------|-------------------|------------|-----|
-| GroupBy | Group elements by key → `Mapper[Group[K, T]]` | lo, underscore, fp-go | `Fold` with map accumulator | `slice.GroupBy` (returns `Mapper[Group[K, T]]`, needs `K comparable`) | **Done** |
-| Contains | Membership check for any `comparable` | lo, underscore, fp-go | `String.Contains` for strings only; `.Any(eq)` for others | Standalone — needs `T comparable` constraint | **Done** |
-| KeyBy | Build `map[K]V` from slice + key fn | lo | `Fold` with map accumulator | Standalone (returns map, needs `K comparable`) | **Done** |
-| Compact | Remove zero values from slice | lo | `KeepIf` with non-zero predicate | Standalone — needs `T comparable` for zero check | **Done** |
-| Flatten | Flatten `[][]T` → `[]T` | lo, underscore, fp-go | `FlatMap` with identity function | Standalone — `Mapper[T any]` can't constrain `T` to `[]U`; needs `Flatten[T](tss [][]T) []T` | Defer |
-| Chunk | Split slice into fixed-size batches | lo, underscore | None | Standalone (returns `[][]T`) | **Done** |
-| Partition | Split into matches/non-matches | lo, fp-go | Two `KeepIf`/`RemoveIf` passes | Standalone (returns tuple `(Mapper[T], Mapper[T])`) | **Done** |
-| Last | Last element as option | lo, fp-go | `TakeLast(1)` then index, or `Fold` | Method (terminal) — returns `option.Option[T]`, same as `.First()` | **Done** |
-| CountBy | Count elements per group → `map[K]int` | lo | `Fold` with counting map | Standalone (returns map, needs `K comparable`) | Defer |
-| Every/None | All/no elements match predicate | lo, underscore, fp-go | `!Any(pred)` for None; no direct Every | Method (terminal) — returns bool, same as `.Any()` | **Done** |
+`kv.From(m).KeepIf(fn func(K, V) bool) Entries[K, V]`
 
-## Differentiators (fluentfp features not in competitors)
+**Evidence:** Surfaced in survey examples 3.4 (Nomad driver info) and 3.10 (Kubernetes pod cleanups). Current workaround: `kv.Map` to extract values into Mapper, filter, then re-collect — loses keys and requires reconstruction.
 
-Not every comparison is a gap. These features exist in fluentfp but not in samber/lo, go-funk, or go-linq:
+**Design fit:** Method on `Entries[K, V]`, returns `Entries[K, V]`. Natural companion to existing `.Values()` and `.Keys()`. Also enables `RemoveIf` on Entries for symmetry.
 
-| Feature | Description | Competitors |
-|---------|-------------|-------------|
-| Method chaining | `slice.From(ts).KeepIf(f).ToString(g)` — left-to-right pipelines | lo and underscore use standalone functions (inside-out when composed); go-linq chains but requires `interface{}` |
-| Option/Either types | `option.Option[T]`, `either.Either[L,R]` with typed methods | lo returns `(T, bool)` tuples; go-funk/go-linq have no equivalent |
-| Unzip (2/3/4) | Extract multiple fields in one pass | No competitor offers multi-field extraction |
-| MapAccum | Stateful mapping with accumulated state | No competitor equivalent |
-| value.Of/When | Value-first conditional selection | No competitor equivalent |
-| Concise callbacks | No `_ int` index params, no `interface{}` wrappers | lo requires `func(T, int)` wrappers; go-funk/go-linq need `interface{}` casts. underscore matches fluentfp here |
+## Priority 2: Moderate evidence, worth considering
 
-## Analysis
+### Flatten — shorthand for [][]T → []T
 
-### Deferred (2)
+`slice.Flatten[T any](tss [][]T) Mapper[T]`
 
-**CountBy** — Returns `map[K]int`, which requires `K comparable`. Standalone function. Returns a plain map — `kv.Values` bridges back to the fluent chain when needed. Defer until usage patterns emerge.
+**Evidence:** 23 lo search lines. Current workaround is `.FlatMap(func(t []T) []T { return t })` which works but is verbose and requires explaining the identity pattern.
 
-### Resolved
+**Design fit:** Standalone function (can't be a method — `Mapper[T any]` can't constrain `T` to `[]U`). Returns `Mapper[T]` for chaining.
 
-**Flatten** — The workaround `FlatMap(identity)` doesn't work cleanly because `Mapper[T any]` doesn't constrain `T` to be a slice type. A standalone `Flatten[T any](tss [][]T) []T` works but breaks the fluent chain. Defer until the use case is encountered in practice.
+### CountBy — count elements per group
 
-### Implemented
+`slice.CountBy[T any, K comparable](ts []T, fn func(T) K) map[K]int`
 
-**GroupBy** — `slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Mapper[Group[K, T]]`. Lives in `slice` package (takes slice input). Returns `Mapper[Group[K, T]]` — groups chain directly via `.KeepIf`, `.Sort`, etc. Groups preserve first-seen key order.
+**Evidence:** 16 lo search lines. Current workaround `.KeepIf(pred).Len()` works for single-predicate counting but requires N passes for N categories.
 
-**Chunk** — `Chunk[T any](ts []T, size int) [][]T`. Standalone function (returns `[][]T`, not `Mapper`). Splits a slice into sub-slices of at most `size` elements. Panics if `size <= 0`.
+**Design fit:** Standalone function, returns `map[K]int`. Low priority — `GroupBy` + `.Len()` on each group covers multi-category counting.
 
-**Contains** — `slice.Contains[T comparable](ts []T, target T) bool`. Standalone function (cannot be a method on `Mapper[T any]` because `T` isn't constrained to `comparable`).
+## Decided against
 
-**Every** — `Mapper[T].Every(fn func(T) bool) bool`. Method on Mapper, complement to `.Any()`. Returns true for empty slice (vacuous truth).
-
-**None** — `Mapper[T].None(fn func(T) bool) bool`. Complement to `.Any()`, returns true if no elements match. Returns true for empty slice. Trivial implementation (`!Any`) but eliminates negation at call sites and completes the Any/Every/None triad.
-
-**Compact** — `Compact[T comparable](ts []T) Mapper[T]`. Standalone function (Go requires `comparable` for `!=` against zero value — cannot be method on `Mapper[T any]`). Removes zero-value elements.
-
-**Partition** — `Partition[T any](ts []T, fn func(T) bool) (Mapper[T], Mapper[T])`. Standalone function (returns tuple, not chainable as single value). Single-pass split. Both results are independent Mappers.
-
-**Last** — `Mapper[T].Last() option.Option[T]`. Complement to First. Method on Mapper and MapperTo.
-
-**KeyBy** — `KeyBy[T any, K comparable](ts []T, fn func(T) K) map[K]T`. Standalone function (returns map, needs `K comparable`). Builds an index from slice elements by extracted key. Last value wins for duplicate keys.
+| Feature | lo lines | Why skip |
+|---------|----------|----------|
+| FilterMap (filter+map in one pass) | 34 | `.KeepIf().Convert()` chain is idiomatic in fluentfp |
+| Times (generate N items) | 23 | Trivial loop, not a collection operation |
+| FromPtr / ToPtr | 26/25 | `option.NonNil` covers the useful case; `&v` is fine |
