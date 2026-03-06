@@ -286,6 +286,14 @@ kv.From[K comparable, V any](m map[K]V) Entries[K, V]   // Wrap map for fluent o
 kv.From(m).ToValues() slice.Mapper[V]                    // Extract values
 kv.From(m).ToKeys() slice.Mapper[K]                      // Extract keys
 
+// Mapping methods on Entries (same set as Mapper[T])
+.ToAny(fn func(K, V) any) Mapper[any]
+.ToBool(fn func(K, V) bool) Mapper[bool]
+.ToFloat64(fn func(K, V) float64) Float64
+.ToInt(fn func(K, V) int) Int
+.ToString(fn func(K, V) string) String
+// ... plus ToByte, ToError, ToFloat32, ToInt32, ToInt64, ToRune
+
 // Cross-type transformation — all types inferred
 kv.Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) slice.Mapper[T]
 
@@ -312,6 +320,9 @@ actives := kv.Values(userMap).KeepIf(User.IsActive)
 
 // Extract keys
 names := kv.Keys(configMap)
+
+// Transform entries to built-in type
+labels := kv.From(m).ToString(func(k string, v int) string { return fmt.Sprintf("%s=%d", k, v) })
 
 // Wrapper form
 vals := kv.From(m).ToValues()
