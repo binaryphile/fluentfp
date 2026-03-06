@@ -2476,3 +2476,20 @@ Commit: f48f401
 [x] Source link to Kubernetes with commit SHA
 [x] Manual and fluentfp versions accurate
 [x] Ecosystem context documented
+2026-03-07T04:42:00Z | Interaction: grade analysis -> B+/87, grade plan -> B/85
+2026-03-07T04:42:00Z | Interaction: grade analysis -> B+/87, grade plan -> B/85
+2026-03-07T04:50:00Z | Interaction: improve -> fixed 6 broken rewrites (Entries.KeepIf, String.Sort/Join, identity), added _ int concrete example, noted API gaps honestly, cross-referenced existing showcase entries, clarified lo counts are not per-repo
+2026-03-07T04:55:00Z | Interaction: grade plan -> B+/88, then improve
+2026-03-07T05:00:00Z | Interaction: grade plan (round 2) -> B+/87, then improve
+2026-03-07T05:05:00Z | Interaction: improve (round 2) -> fixed 3.14 identity/String.Sort, added LOC accounting note, flagged 3.13 mutation-inside-Each, specified Era deliverable format (3 tagged memories)
+2026-03-07T05:10:00Z | Interaction: improve (round 3)
+2026-03-07T05:12:00Z | Interaction: improve (round 3) -> fixed 3.1 semantic bug (KeyBy doesn't keep max-by-time, replaced with Fold), corrected 3.6 false strings.Compare claim, removed last identity reference
+2026-03-06T21:55:51Z | Contract: FP library usage survey synthesis
+[ ] Publish research findings to Era
+[ ] Close task 11546
+2026-03-06T21:56:28Z | Completion: FP library usage survey
+[x] Research findings published to Era (lo, go-linq, non-FP patterns)
+[x] Task 11546 closed
+2026-03-06T22:07:56Z | Completion: FP library usage survey
+[x] Research findings published to Era (lo, go-linq, non-FP patterns)
+[x] Task 11546 closed
