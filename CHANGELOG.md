@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.41.0
+
+- **stream** package — lazy memoized sequences with state-machine memoization (thunks execute outside locks)
+  - Constructors: `From`, `Of`, `Generate`, `Repeat`, `Unfold`
+  - Lazy operations: `KeepIf`, `Convert`, `Take`, `TakeWhile`, `Drop`, `DropWhile`, `Map`
+  - Terminal operations: `Each`, `Collect`, `Find`, `Any`, `Seq`, `Fold`
+  - Head-eager, tail-lazy. Pure/in-memory sources only.
+
 ## v0.40.0
 
 - **result** package — `Result[R]` defined type with `Ok`/`Err` constructors, `Convert`/`Map`/`Fold`, `PanicError` with `Unwrap`, `CollectAll`/`CollectOk`

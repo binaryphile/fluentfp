@@ -2684,3 +2684,32 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] 18 test functions + benchmarks pass with -race
 [x] doc.go export verification
 [x] CLAUDE.md, CHANGELOG.md, docs/ updated
+2026-03-07T19:55:54Z | Contract: Phase 1 — stream package (pure sources)
+[ ] Stream[T] type with memoized cell internals
+[ ] Constructors (From, Of, Cons, ConsLazy, Generate, Repeat, Unfold)
+[ ] Lazy operations (KeepIf, Convert, Take, TakeWhile, Drop, DropWhile, Map)
+[ ] Terminal operations (Each, Collect, Find, Any, Seq, Fold)
+[ ] Validation panics for nil callbacks
+[ ] Tests pass (with -race)
+[ ] CLAUDE.md + CHANGELOG + design.md updated
+2026-03-07T20:10:00Z | Interaction: grade -> B-/82, KeepIf over-forces, sync.Once panic poisoning, Seq docs overclaim, test gaps
+2026-03-07T20:15:00Z | Interaction: improve -> Repeat self-ref cell, strengthen persistence docs, add head-eager notes, CLAUDE.md update
+2026-03-07T20:35:00Z | Interaction: grade -> B-/external, user code under lock, Seq overclaim, stale docs, naming inconsistency, test gaps
+2026-03-07T20:45:00Z | Interaction: improve -> fix docs (stale sync.Once, Seq overclaim, nontermination, head-eager, retry precision, under-lock rationale), replace jargon (cons-list, corecursion), add tests (permanent panic, concurrent+panic, head-eager), keep Unfold name (dual of Fold)
+2026-03-07T21:00:00Z | Interaction: grade -> C+/external, under-lock execution not resolved (D), reentrancy claim overconfident, "concurrent access is safe" too broad, contract creep concerns
+2026-03-07T21:05:58Z | Contract: Showcase examples for stream, result, FanOut
+[ ] FanOut showcase entry with real-world before/after
+[ ] Stream showcase entry with real-world before/after
+[ ] Result coverage (standalone or via FanOut entry)
+[ ] "Adapter tax" section updated
+2026-03-07T21:15:00Z | Interaction: improve -> state machine for getTail (thunks execute outside lock), narrowed concurrency claims, reentrancy constraint documented, catch-and-rethrow for panic retry
+2026-03-07T21:11:34Z | Interaction: improve -> stale CHANGELOG fix, relaxed panic assertion, added TestConcurrentPermanentPanic
+2026-03-07T21:15:18Z | Interaction: improve -> fixed stale "corecursion" jargon in CLAUDE.md Unfold comment
+2026-03-07T21:21:51Z | Completion: Phase 1 — stream package (pure sources)
+[x] Stream[T] type with state-machine memoized cell internals
+[x] Constructors (From, Of, Generate, Repeat, Unfold)
+[x] Lazy operations (KeepIf, Convert, Take, TakeWhile, Drop, DropWhile, Map)
+[x] Terminal operations (Each, Collect, Find, Any, Seq, Fold)
+[x] Validation panics for nil callbacks
+[x] Tests pass (with -race), including concurrent panic retry
+[x] Docs updated (CLAUDE.md, CHANGELOG.md, design.md)

@@ -244,6 +244,81 @@ result.CollectAll[R any](results []Result[R]) ([]R, error)  // all Ok → values
 result.CollectOk[R any](results []Result[R]) []R             // Ok values only
 ```
 
+### stream Package
+
+```go
+import "github.com/binaryphile/fluentfp/stream"
+
+// Stream[T] — lazy memoized persistent sequence. Zero value is empty stream.
+// Head-eager, tail-lazy: when a cell exists its head is known, only the tail
+// is deferred. State machine memoization (thunks execute outside internal locks)
+// with retry-on-panic. Pure/in-memory sources only (effectful sources deferred).
+//
+// Persistence caveat: holding a reference to an early cell pins all forced
+// suffix cells. Callbacks must not force the same cell being evaluated (deadlock).
+
+// Constructors
+stream.From[T any](ts []T) Stream[T]                              // Lazy from slice
+stream.Of[T any](vs ...T) Stream[T]                                // Variadic convenience
+stream.Generate[T any](seed T, fn func(T) T) Stream[T]             // Infinite: seed, fn(seed), ...
+stream.Repeat[T any](v T) Stream[T]                                // Infinite constant
+stream.Unfold[T, S any](seed S, fn func(S) (T, S, bool)) Stream[T] // Dual of Fold (step function)
+
+// Accessors (non-consuming)
+.IsEmpty() bool
+.First() option.Option[T]
+.Tail() Stream[T]
+
+// Lazy operations (return Stream)
+.KeepIf(func(T) bool) Stream[T]    // Filter (scans to first match eagerly)
+.Convert(func(T) T) Stream[T]      // Same-type transform
+.Take(int) Stream[T]               // First n elements
+.TakeWhile(func(T) bool) Stream[T] // While predicate holds
+.Drop(int) Stream[T]               // Skip n (forces skipped cells)
+.DropWhile(func(T) bool) Stream[T] // Skip while true
+
+// Standalone lazy (cross-type needs extra type param)
+stream.Map[T, R any](Stream[T], func(T) R) Stream[R]
+
+// Terminal operations
+.Each(func(T))                          // Side-effect (requires finite)
+.Collect() []T                          // Materialize to slice (requires finite)
+.Find(func(T) bool) option.Option[T]   // Short-circuits on match
+.Any(func(T) bool) bool                // Short-circuits on match
+.Seq() iter.Seq[T]                      // Bridge to Go range protocol
+
+// Standalone terminal
+stream.Fold[T, R any](Stream[T], R, func(R, T) R) R  // Reduce (requires finite)
+```
+
+### stream Patterns
+
+```go
+// Finite stream from slice
+items := stream.From(data).KeepIf(isValid).Take(10).Collect()
+
+// Infinite sequence with Take
+naturals := stream.Generate(0, func(n int) int { return n + 1 })
+first10 := naturals.Take(10).Collect()
+
+// Fibonacci via Unfold
+type pair struct{ a, b int }
+fib := stream.Unfold(pair{0, 1}, func(p pair) (int, pair, bool) {
+    return p.a, pair{p.b, p.a + p.b}, true
+})
+
+// Cross-type map (standalone)
+names := stream.Map(users, User.Name).Collect()
+
+// Bridge to slice.From for further chaining
+actives := slice.From(stream.From(data).KeepIf(isValid).Collect())
+
+// Bridge to Go range
+for v := range stream.Of(1, 2, 3).Seq() {
+    fmt.Println(v)
+}
+```
+
 ### option Package
 
 ```go

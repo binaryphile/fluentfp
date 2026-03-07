@@ -13,6 +13,7 @@ flowchart TD
     kv --> base
     value --> option
     result
+    stream --> option
     pair["pair (tuple/pair)"]
     must
     lof
@@ -26,6 +27,7 @@ flowchart TD
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
 | `result` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk` collectors |
+| `stream` | Lazy memoized sequences with per-cell mutex memoization. Head-eager, tail-lazy. Pure sources only. |
 | `must` | Panic-on-error enforcement for initialization invariants |
 | `value` | Conditional value selection with eager/lazy evaluation |
 | `pair` | Tuple construction and pairwise slice operations |
@@ -187,6 +189,38 @@ A standalone package with zero internal imports — not an alias for `Either[err
 
 **Collectors return `[]R`:** Plain slices, not `Mapper[R]`. Callers wrap with `slice.From()` for chaining. This keeps `result` as a standalone package with zero internal imports — cleaner layering than leaking `internal/base` through a public API.
 
+### D12: Stream as lazy memoized linked list
+
+```go
+type Stream[T any] struct { cell *cell[T] }
+type cell[T any] struct {
+    head  T
+    mu    sync.Mutex
+    tail  func() *cell[T]  // thunk; nil after successful evaluation
+    next  *cell[T]          // memoized result
+    state uint8             // pending → evaluating → forced
+    wait  chan struct{}      // closed when evaluation completes
+}
+```
+
+A persistent lazy sequence where each cell's head is eager and tail is lazy, evaluated at most once. Uses a state machine (pending → evaluating → forced) so thunks execute outside the internal mutex. Waiters block on a channel, not on user callback execution. Panicking thunks reset to pending for retry.
+
+**Value type with internal pointer** (follows D4/D5 pattern): zero `Stream` is empty (nil cell). Internal pointer enables shared memoization — two references to the same stream share forced cells.
+
+**Head-eager, tail-lazy:** when a cell exists, its head is known. Only the tail is deferred. Simplifies all operations — no "maybe empty" cells. Works well for pure/in-memory sources; inadequate for effectful/blocking sources (deferred to future phase).
+
+**Not in internal/base:** Stream is fundamentally different from Mapper (lazy vs eager, linked list vs slice). Separate top-level package with no dependency on `internal/base` or `slice`.
+
+**Collect returns `[]T`:** Plain slice, not `Mapper[T]`. Keeps stream independent. Users bridge with `slice.From()`.
+
+**Convert vs Map:** Same D9 constraint as Mapper. `Convert(func(T) T)` is a method (same type). `Map[T,R]` is standalone (cross-type needs extra type param).
+
+**Retention model:** Memoization is the cost of persistence. Holding a reference to an early cell pins all forced suffix cells reachable from it. `From([]T)` closures capture subslice views — can pin the original backing array until those closures are forced or the head becomes unreachable. Niling the tail closure after successful forcing releases the closure and its captures, but does not release the `head` or `next` pointer.
+
+**Panic semantics:** State machine with catch-and-rethrow. If a tail thunk panics, the cell resets to pending and the panic is re-raised (preserving value, not stack trace). Future accesses retry. Callback purity is assumed for deterministic retry. `sync.Once` would permanently poison the cell.
+
+**Reentrancy constraint:** Callbacks must not force the same cell being evaluated (deadlock). This includes indirect paths — e.g., a Map callback that forces the Map result stream. This is inherent to memoized lazy evaluation, not specific to the locking implementation.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.
@@ -311,7 +345,9 @@ Where packages depend on each other, and why:
 | `Entries.Values` → `Mapper[V]` | Bridges map values into slice pipelines. Used by `kv.From(m).Values()` for map-to-slice conversion. |
 | `FanOut` → `result.Result[R]` | Per-item results for concurrent traversal. `Mapper[Result[R]]` preserves chainability — callers filter, partition, or collect results using existing Mapper methods. |
 | `FanOut` → `result.PanicError` | Recovered panics wrapped as errors. `errors.As(err, &pe)` detects panic-originated failures. Preserves error chains via `Unwrap()`. |
+| `Stream.First` → `option.Option[T]` | Same pattern as `Mapper.First` — absence is normal, not exceptional. |
+| `Stream.Find` → `option.Option[T]` | Same pattern as `Mapper.Find` — no match is normal. |
 
-`lof`, `must`, and `pair` have no fluentfp import dependencies — they are leaf packages by design. Both `slice` and `kv` depend only on `internal/base` — neither imports the other.
+`lof`, `must`, `pair`, and `stream` have no `internal/base` dependency. `stream` depends only on `option` (for First/Find). Both `slice` and `kv` depend only on `internal/base` — neither imports the other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.
