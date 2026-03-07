@@ -2531,3 +2531,11 @@ Key feedback: (1) MapValues should return Entries[K,V2] not map[K]V2] for chaini
 [x] Parallelism documented in feature-gaps.md (evidence: Deprioritized section added)
 [x] Parallelism demoted in slice/README.md (evidence: section replaced with note)
 [x] Parallelism noted in CLAUDE.md (evidence: low-demand marker added)
+2026-03-07T02:05:30Z | Contract: Showcase entry for kv.MapValues
+[ ] Add showcase entry before css-checker entry
+[ ] Entry uses verified Nomad source (commit 000e1028d589)
+[ ] Follows existing showcase format
+2026-03-07T02:10:17Z | Completion: Showcase entry for kv.MapValues
+[x] Showcase entry added (evidence: docs/showcase.md lines 299-336)
+[x] Entry uses verified Nomad source (evidence: csi_hook.go#L140-L151, commit 000e1028d589)
+[x] Follows existing showcase format (evidence: matches lazygit Partition entry structure)

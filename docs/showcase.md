@@ -296,6 +296,45 @@ for _, line := range slice.Compact(strings.Split(string(content), "\n")) {
 
 ---
 
+### Map value transform boilerplate — hashicorp/nomad
+
+**Source:** [csi_hook.go#L140-L151](https://github.com/hashicorp/nomad/blob/000e1028d589/client/allocrunner/csi_hook.go#L140-L151)
+**Pain point:** Make-iterate-transform loop repeated for each map projection; Nomad wrote a generic utility to avoid it
+
+Nomad already solved this — they wrote a generic `ConvertMap` utility ([helper/funcs.go#L431-L440](https://github.com/hashicorp/nomad/blob/000e1028d589/helper/funcs.go#L431-L440)) to avoid repeating the raw loop. The original below shows what the code looks like without that utility: two 4-line make-iterate-assign loops extracting different views from the same `volumeResults` map. `kv.MapValues` provides the same operation without writing or maintaining the utility.
+
+**Original** (without the utility — 10 lines):
+```go
+mounts := make(map[string]*csimanager.MountInfo, len(c.volumeResults))
+for k, result := range c.volumeResults {
+    mounts[k] = result.stub.MountInfo
+}
+c.hookResources.SetCSIMounts(mounts)
+
+stubs := make(map[string]*state.CSIVolumeStub, len(c.volumeResults))
+for k, result := range c.volumeResults {
+    stubs[k] = result.stub
+}
+c.allocRunnerShim.SetCSIVolumes(stubs)
+```
+
+**fluentfp:**
+```go
+// toMountInfo extracts the mount info from a volume publish result.
+toMountInfo := func(r *volumePublishResult) *csimanager.MountInfo { return r.stub.MountInfo }
+// toStub extracts the volume stub from a publish result.
+toStub := func(r *volumePublishResult) *state.CSIVolumeStub { return r.stub }
+
+c.hookResources.SetCSIMounts(kv.MapValues(c.volumeResults, toMountInfo))
+c.allocRunnerShim.SetCSIVolumes(kv.MapValues(c.volumeResults, toStub))
+```
+
+**What changed:** Two 4-line loops become two function calls — the intermediate variables disappear and the transforms pass directly to the setters. The named transform functions (`toMountInfo`, `toStub`) are new — the original inlines field access directly in the loop body — but they make the call site read as intent: "map values to mount info." Nomad's `ConvertMap` is already generic; even with generics, the loop body is boilerplate that a library absorbs. `kv.MapValues` additionally returns `Entries[K,V2]` for chaining (e.g., `.KeepIf(pred).Values()`), which a raw-map return doesn't support.
+
+**What's eliminated:** Write amplification — the same make-iterate-transform loop repeated for each map projection. Each instance is individually trivial (4 lines), but the pattern compounds wherever maps carry richer values than callers need. The risk is copy-paste error across structurally identical code: wrong source field, wrong target type, wrong map variable — all compile silently when the types happen to align.
+
+---
+
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
