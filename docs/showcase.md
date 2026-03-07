@@ -323,14 +323,12 @@ c.allocRunnerShim.SetCSIVolumes(stubs)
 ```go
 // toMountInfo extracts the mount info from a volume publish result.
 toMountInfo := func(r *volumePublishResult) *csimanager.MountInfo { return r.stub.MountInfo }
-// toStub extracts the volume stub from a publish result.
-toStub := func(r *volumePublishResult) *state.CSIVolumeStub { return r.stub }
 
 c.hookResources.SetCSIMounts(kv.MapValues(c.volumeResults, toMountInfo))
-c.allocRunnerShim.SetCSIVolumes(kv.MapValues(c.volumeResults, toStub))
+c.allocRunnerShim.SetCSIVolumes(kv.MapValues(c.volumeResults, (*volumePublishResult).GetStub))
 ```
 
-**What changed:** Two 4-line loops become two function calls — the intermediate variables disappear and the transforms pass directly to the setters. The named transform functions (`toMountInfo`, `toStub`) are new — the original inlines field access directly in the loop body — but they make the call site read as intent: "map values to mount info." Nomad's `ConvertMap` is already generic; even with generics, the loop body is boilerplate that a library absorbs. `kv.MapValues` additionally returns `Entries[K,V2]` for chaining (e.g., `.KeepIf(pred).Values()`), which a raw-map return doesn't support.
+**What changed:** Two 4-line loops become two function calls — the intermediate variables disappear and the transforms pass directly to the setters. The stub extraction uses a method expression (`(*volumePublishResult).GetStub`); the mount info extraction needs a named function because it traverses two levels (`r.stub.MountInfo`). Nomad's `ConvertMap` is already generic; even with generics, the loop body is boilerplate that a library absorbs. `kv.MapValues` additionally returns `Entries[K,V2]` for chaining (e.g., `.KeepIf(pred).Values()`), which a raw-map return doesn't support.
 
 **What's eliminated:** Write amplification — the same make-iterate-transform loop repeated for each map projection. Each instance is individually trivial (4 lines), but the pattern compounds wherever maps carry richer values than callers need. The risk is copy-paste error across structurally identical code: wrong source field, wrong target type, wrong map variable — all compile silently when the types happen to align.
 
