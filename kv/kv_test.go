@@ -1,7 +1,9 @@
 package kv
 
 import (
+	"reflect"
 	"sort"
+	"strconv"
 	"testing"
 )
 
@@ -126,6 +128,139 @@ func TestKeys(t *testing.T) {
 		got := Keys[string, int](nil)
 		if len(got) != 0 {
 			t.Errorf("Keys() = %v, want empty", got)
+		}
+	})
+}
+
+func TestMapValues(t *testing.T) {
+	t.Run("transforms values", func(t *testing.T) {
+		m := map[string]int{"a": 1, "b": 2, "c": 3}
+		got := MapValues(m, strconv.Itoa)
+		want := map[string]string{"a": "1", "b": "2", "c": "3"}
+		if !reflect.DeepEqual(map[string]string(got), want) {
+			t.Errorf("MapValues() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("preserves keys exactly", func(t *testing.T) {
+		m := map[string]int{"x": 10, "y": 20}
+		got := MapValues(m, func(v int) int { return v * 2 })
+		want := map[string]int{"x": 20, "y": 40}
+		if !reflect.DeepEqual(map[string]int(got), want) {
+			t.Errorf("MapValues() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("empty map returns non-nil empty map", func(t *testing.T) {
+		got := MapValues(map[string]int{}, strconv.Itoa)
+		if got == nil {
+			t.Error("MapValues() returned nil, want non-nil empty map")
+		}
+		if len(got) != 0 {
+			t.Errorf("MapValues() len = %d, want 0", len(got))
+		}
+	})
+
+	t.Run("nil map returns non-nil empty map", func(t *testing.T) {
+		got := MapValues[string](nil, strconv.Itoa)
+		if got == nil {
+			t.Error("MapValues() returned nil, want non-nil empty map")
+		}
+		if len(got) != 0 {
+			t.Errorf("MapValues() len = %d, want 0", len(got))
+		}
+	})
+
+	t.Run("result chains with Entries methods", func(t *testing.T) {
+		m := map[string]int{"a": 1, "b": 2, "c": 3}
+		// isLong returns true if the string value has more than 1 character.
+		isLong := func(_ string, v string) bool { return len(v) > 1 }
+		got := MapValues(m, strconv.Itoa).KeepIf(isLong)
+		if len(got) != 0 {
+			t.Errorf("MapValues().KeepIf() = %v, want empty (all single-digit)", got)
+		}
+	})
+}
+
+func TestKeepIf(t *testing.T) {
+	// valueOver1 returns true if the value exceeds 1.
+	valueOver1 := func(_ string, v int) bool { return v > 1 }
+
+	t.Run("keeps matching entries", func(t *testing.T) {
+		m := map[string]int{"a": 1, "b": 2, "c": 3}
+		got := From(m).KeepIf(valueOver1)
+		want := map[string]int{"b": 2, "c": 3}
+		if !reflect.DeepEqual(map[string]int(got), want) {
+			t.Errorf("KeepIf() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("chains with Values", func(t *testing.T) {
+		m := map[string]int{"a": 1, "b": 2, "c": 3}
+		got := From(m).KeepIf(valueOver1).Values()
+		sort.Ints(got)
+		want := []int{2, 3}
+		if !reflect.DeepEqual([]int(got), want) {
+			t.Errorf("KeepIf().Values() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("empty map returns empty", func(t *testing.T) {
+		got := From(map[string]int{}).KeepIf(valueOver1)
+		if len(got) != 0 {
+			t.Errorf("KeepIf() = %v, want empty", got)
+		}
+	})
+
+	t.Run("nil map returns empty", func(t *testing.T) {
+		got := From[string, int](nil).KeepIf(valueOver1)
+		if len(got) != 0 {
+			t.Errorf("KeepIf() = %v, want empty", got)
+		}
+	})
+
+	t.Run("no matches returns empty", func(t *testing.T) {
+		m := map[string]int{"a": 0, "b": -1}
+		got := From(m).KeepIf(valueOver1)
+		if len(got) != 0 {
+			t.Errorf("KeepIf() = %v, want empty", got)
+		}
+	})
+
+	t.Run("all match returns all entries", func(t *testing.T) {
+		m := map[string]int{"a": 5, "b": 10}
+		got := From(m).KeepIf(valueOver1)
+		want := map[string]int{"a": 5, "b": 10}
+		if !reflect.DeepEqual(map[string]int(got), want) {
+			t.Errorf("KeepIf() = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestRemoveIf(t *testing.T) {
+	// valueOver1 returns true if the value exceeds 1.
+	valueOver1 := func(_ string, v int) bool { return v > 1 }
+
+	t.Run("removes matching entries", func(t *testing.T) {
+		m := map[string]int{"a": 1, "b": 2, "c": 3}
+		got := From(m).RemoveIf(valueOver1)
+		want := map[string]int{"a": 1}
+		if !reflect.DeepEqual(map[string]int(got), want) {
+			t.Errorf("RemoveIf() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("empty map returns empty", func(t *testing.T) {
+		got := From(map[string]int{}).RemoveIf(valueOver1)
+		if len(got) != 0 {
+			t.Errorf("RemoveIf() = %v, want empty", got)
+		}
+	})
+
+	t.Run("nil map returns empty", func(t *testing.T) {
+		got := From[string, int](nil).RemoveIf(valueOver1)
+		if len(got) != 0 {
+			t.Errorf("RemoveIf() = %v, want empty", got)
 		}
 	})
 }

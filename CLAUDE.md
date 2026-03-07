@@ -310,6 +310,8 @@ import "github.com/binaryphile/fluentfp/kv"
 kv.From[K comparable, V any](m map[K]V) Entries[K, V]   // Convert map for fluent ops
 kv.From(m).Values() Mapper[V]                          // Extract values
 kv.From(m).Keys() Mapper[K]                            // Extract keys
+kv.From(m).KeepIf(fn func(K, V) bool) Entries[K, V]    // Filter: keep matching
+kv.From(m).RemoveIf(fn func(K, V) bool) Entries[K, V]  // Filter: remove matching
 
 // Mapping methods on Entries (same set as Mapper[T])
 .ToAny(fn func(K, V) any) Mapper[any]
@@ -325,6 +327,9 @@ kv.Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) Mapper[T]
 // Cross-type transformation — explicit T (when inference doesn't suffice)
 kv.MapTo[T any, K comparable, V any](m map[K]V) MapperTo[T, K, V]
 kv.MapTo[T](m).Map(fn func(K, V) T) Mapper[T]
+
+// Map-preserving value transform — all types inferred, returns Entries for chaining
+kv.MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) Entries[K, V2]
 
 // Standalone shortcuts
 kv.Values[K comparable, V any](m map[K]V) Mapper[V]  // = From(m).Values()
@@ -351,6 +356,15 @@ labels := kv.From(m).ToString(func(k string, v int) string { return fmt.Sprintf(
 
 // Wrapper form
 vals := kv.From(m).Values()
+
+// Transform map values (preserve keys), chains with Entries methods
+counts := kv.MapValues(rawCounts, strconv.Itoa)
+
+// Filter map entries by predicate, then extract values
+actives := kv.From(configs).KeepIf(isEnabled).Values()
+
+// MapValues + KeepIf chain (no wrapping needed — MapValues returns Entries)
+valid := kv.MapValues(raw, parseConfig).KeepIf(configIsValid)
 ```
 
 ### lof Package (Lower-Order Functions)

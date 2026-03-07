@@ -4,24 +4,6 @@ Remaining features observed in real Go projects that fluentfp does not yet provi
 
 For fluentfp's design constraints, see [design.md](design.md).
 
-## Priority 1: Real gap, clean design fit
-
-### MapValues — transform map values in place
-
-`kv.MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) map[K]V2`
-
-**Evidence:** 27 lo search lines. `kv.Map` covers map→slice but there's no map→map transform. Every `lo.MapValues` call site would need `kv.Map` + `slice.KeyBy` roundtrip today.
-
-**Design fit:** Standalone function in `kv` package. Returns `map[K]V2` (not Mapper — preserves map structure). Clean parallel to `kv.Map` (map→slice) vs `kv.MapValues` (map→map).
-
-### Entries.KeepIf — filter map entries by predicate
-
-`kv.From(m).KeepIf(fn func(K, V) bool) Entries[K, V]`
-
-**Evidence:** Surfaced in survey examples 3.4 (Nomad driver info) and 3.10 (Kubernetes pod cleanups). Current workaround: `kv.Map` to extract values into Mapper, filter, then re-collect — loses keys and requires reconstruction.
-
-**Design fit:** Method on `Entries[K, V]`, returns `Entries[K, V]`. Natural companion to existing `.Values()` and `.Keys()`. Also enables `RemoveIf` on Entries for symmetry.
-
 ## Priority 2: Moderate evidence, worth considering
 
 ### Flatten — shorthand for [][]T → []T

@@ -28,6 +28,30 @@ func (e Entries[K, V]) Keys() Mapper[K] {
 	return result
 }
 
+// KeepIf returns a new Entries containing only the key-value pairs where fn returns true.
+func (e Entries[K, V]) KeepIf(fn func(K, V) bool) Entries[K, V] {
+	result := make(map[K]V, len(e))
+	for k, v := range e {
+		if fn(k, v) {
+			result[k] = v
+		}
+	}
+
+	return result
+}
+
+// RemoveIf returns a new Entries containing only the key-value pairs where fn returns false.
+func (e Entries[K, V]) RemoveIf(fn func(K, V) bool) Entries[K, V] {
+	result := make(map[K]V, len(e))
+	for k, v := range e {
+		if !fn(k, v) {
+			result[k] = v
+		}
+	}
+
+	return result
+}
+
 // ToAny returns the result of applying fn to each key-value pair.
 func (e Entries[K, V]) ToAny(fn func(K, V) any) Mapper[any] {
 	result := make([]any, 0, len(e))

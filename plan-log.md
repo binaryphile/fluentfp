@@ -2493,3 +2493,22 @@ Commit: f48f401
 2026-03-06T22:07:56Z | Completion: FP library usage survey
 [x] Research findings published to Era (lo, go-linq, non-FP patterns)
 [x] Task 11546 closed
+2026-03-07T00:36:30Z | Contract: P1 feature gaps - MapValues, Entries.KeepIf/RemoveIf
+[ ] kv.MapValues standalone function
+[ ] Entries.KeepIf/RemoveIf methods
+[ ] Tests pass
+[ ] doc.go export validation
+[ ] CLAUDE.md updated
+[ ] feature-gaps.md updated
+2026-03-07T00:45:00Z | Interaction: grade -> 7.75/10 weighted (API 8/10, Impl 7/10, Tests 7/10, Docs 9/10)
+Key feedback: (1) MapValues should return Entries[K,V2] not map[K]V2] for chaining consistency, (2) RemoveIf needs more test cases, (3) KeepIf/RemoveIf capacity hint warrants benchmarking consideration
+2026-03-07T00:48:00Z | Interaction: improve -> MapValues returns Entries[K,V2] for chaining, RemoveIf edge case tests added, test casts fixed for defined type
+2026-03-07T00:52:00Z | Interaction: grade analysis B+/87, grade results B+/88, improve -> updated CLAUDE.md chaining pattern, fixed plan file return type, articulated slice.KeyBy vs kv.MapValues design distinction
+2026-03-07T00:56:00Z | Interaction: grade results A-/91, improve -> removed misleading "all type parameters inferred" from MapValues godoc
+2026-03-07T00:51:37Z | Completion: P1 feature gaps
+[x] kv.MapValues standalone function
+[x] Entries.KeepIf/RemoveIf methods
+[x] Tests pass
+[x] doc.go export validation
+[x] CLAUDE.md updated
+[x] feature-gaps.md updated

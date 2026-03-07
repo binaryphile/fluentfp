@@ -15,8 +15,11 @@ func _() {
 	_ = Entries[int, int].ToRune
 	_ = Entries[int, int].ToString
 	_ = Entries[int, int].Values
+	_ = Entries[int, int].KeepIf
+	_ = Entries[int, int].RemoveIf
 
 	_ = Map[int, int, int]
+	_ = MapValues[int, int, int]
 	_ = MapTo[int, int, int]
 	_ = MapperTo[int, int, int].Map
 

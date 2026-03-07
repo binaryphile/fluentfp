@@ -42,6 +42,17 @@ func Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) base.Mapper[T] {
 	return result
 }
 
+// MapValues transforms each value in m using fn, preserving keys.
+// Returns Entries for chaining (e.g., MapValues(m, fn).KeepIf(pred).Values()).
+func MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) base.Entries[K, V2] {
+	result := make(map[K]V2, len(m))
+	for k, v := range m {
+		result[k] = fn(v)
+	}
+
+	return result
+}
+
 // MapTo wraps a map for transformation to type T.
 // Usage: kv.MapTo[TargetType](m).Map(fn)
 func MapTo[T any, K comparable, V any](m map[K]V) MapperTo[T, K, V] {
