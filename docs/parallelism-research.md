@@ -136,7 +136,7 @@ Any parallel abstraction in fluentfp must justify its value over this pattern. T
 
 ### Parallel I/O in FP Languages
 
-Cross-language research reveals universal consensus: **per-item scheduling for I/O, static chunking for CPU-bound.** No FP language uses static chunking for I/O workloads.
+Cross-language research reveals broad convergence: **per-item scheduling for I/O, static chunking for CPU-bound.** Static chunking is rarely the preferred choice for I/O workloads across surveyed FP languages.
 
 | Language | Primitive | Scheduling | Error Model | Order | Bounding |
 |----------|-----------|------------|-------------|-------|----------|
@@ -169,7 +169,7 @@ Eight patterns emerged from the survey:
 | 6. Execution Policy               | C++ STL               | None          | Possible      | No             | Marginal benefit over separate function               |
 | 7. Bounded Concurrent Traversal   | Elixir, Erlang, Rust  | Full          | Per-item      | Yes            | Per-item scheduling; proven for I/O                   |
 
-**Key finding:** Two distinct primitives serve two workloads. CPU-bound: static chunking (Rayon, existing ParallelMap) — uniform work per item, batch scheduling amortizes overhead. I/O-bound: per-item scheduling with per-item results (Elixir, Erlang, Rust) — handles skew, preserves individual outcomes. Multi-stage parallel composition is rare even in Rust (Rayon consumers). The right Go abstractions are "parallel map" for CPU and "bounded concurrent traversal" for I/O, not "parallel pipeline."
+**Key finding:** Two distinct primitives serve two workloads. CPU-bound: static chunking (Rayon, existing ParallelMap) — uniform work per item, batch scheduling amortizes overhead. I/O-bound: bounded dynamic scheduling with per-item results (Elixir, Erlang, Rust) — handles skew, preserves individual outcomes. Multi-stage parallel composition is rare even in Rust (Rayon consumers). The right Go abstractions are "parallel map" for CPU and "bounded concurrent traversal" for I/O, not "parallel pipeline."
 
 ---
 
@@ -187,6 +187,8 @@ Go methods cannot introduce new type parameters, preventing fluent cross-type ch
 
 Go's `(T, error)` returns conflict with method chaining. The Go-idiomatic approach is a standalone function returning `([]R, error)` — conc's `iter.MapErr` pattern. An alternative is per-item results (`Mapper[Result[R]]`), which preserves chainability at the cost of Go-idiom familiarity. See Section 7 for the tradeoff.
 
+**Fail-fast is an execution policy, not a result-collapsing operation.** In an eager API that materializes all results before returning, best-effort fail-fast requires the caller to cancel the context — `result.CollectAll` is post-hoc extraction of the first error, not an execution control mechanism. See Section 7 usage examples for the pattern.
+
 ### Runtime
 
 Go's M:N scheduler uses work-stealing between P queues, but this is general-purpose, not data-parallel. Go lacks library-controlled thread pools, data-parallel split/join primitives, and collection-level parallel iterator abstractions. Static chunking and per-item scheduling (errgroup `SetLimit`) are the available approximations.
@@ -195,18 +197,18 @@ Go's M:N scheduler uses work-stealing between P queues, but this is general-purp
 
 Goetz's N*Q heuristic: parallelism pays when `N * Q > scheduling_overhead`.
 
-**Relative costs in Go** (not benchmarked in fluentfp — see Appendix B):
-- Per-item scheduling (errgroup) adds overhead proportional to N (one goroutine launch + closure + mutex per item)
+**Relative costs in Go** (not benchmarked in fluentfp — hypotheses to validate in Appendix B):
+- Per-item scheduling (errgroup) adds overhead proportional to N (goroutine launch + closure + semaphore contention + select per item)
 - Static chunking (fluentfp) adds overhead proportional to workers (one goroutine + WaitGroup per chunk), independent of N
-- Context checks are negligible relative to any meaningful per-item work
-- Ordering via indexed writes adds no overhead beyond pre-allocation
+- Context checks are cheap relative to any meaningful per-item work
+- Ordering via indexed writes is cheap (distinct indices, no synchronization) but not free (cache-line effects possible with large R, GC pressure from pre-allocated result slice)
 
 **Directional guidance:**
 - If per-item work is sub-microsecond and N is small, parallelism almost certainly loses to scheduling overhead
 - If per-item work is I/O-bound (milliseconds+), parallelism almost always wins regardless of strategy
 - Between those extremes, benchmark your workload — the crossover point depends on hardware and Go version
 
-**CPU vs I/O scheduling tradeoff:** Static chunking is inappropriate for I/O workloads — one slow item blocks its entire chunk, leaving fast workers idle. Per-item scheduling adds per-goroutine overhead but handles skew correctly. The tradeoff is higher scheduling cost for better load balancing. For I/O work (milliseconds per item), the scheduling overhead is negligible.
+**CPU vs I/O scheduling tradeoff:** Static chunking is inappropriate for I/O workloads — one slow item blocks its entire chunk, leaving fast workers idle. Per-item scheduling adds per-goroutine overhead but handles skew correctly. The tradeoff is higher scheduling cost for better load balancing. For I/O work (milliseconds per item), the scheduling overhead is expected to be negligible — this hypothesis should be validated by benchmarking (Appendix B). Additional overhead sources not yet measured: `debug.Stack()` allocation on panic recovery, semaphore channel contention under high N with small n.
 
 ---
 
@@ -273,7 +275,7 @@ How many surveyed call sites are clean fits for `FanOut(ctx, n, items, fn) Mappe
 - conc's `iter.MapErr` already serves part of this gap.
 
 **The strongest evidence for:**
-- Universal cross-language consensus on per-item scheduling for I/O — 7 FP languages converged independently on bounded concurrent traversal. None use static chunking for I/O.
+- Broad cross-language convergence on bounded dynamic scheduling for I/O — 7 surveyed FP languages converged independently on per-item scheduling. Static chunking is rarely preferred for I/O.
 - Per-item results proven in production: Erlang (25+ years telecom), Elixir (Phoenix), Rust (tokio ecosystem). The pattern is battle-tested, not experimental.
 - Go is weak here — errgroup fuses execution and error policy, preventing composition. First error discards partial results. fluentfp can import the proven pattern that Go's stdlib lacks.
 - `Mapper[Result[R]]` preserves the chainability that fluentfp users chose the library for. `(Mapper[R], error)` breaks the chain.
@@ -305,6 +307,13 @@ func FanOut[T, R any](
 
 Where `Result[R]` is a type alias `Either[error, R]` in a `result` package. fluentfp's existing `Either[L, R]` provides Left, Right, Get, GetLeft, Map, Fold, IsRight, IsLeft — the alias reuses all of these with zero duplication. If Result-specific methods are needed later (`MapErr`, `Must`), they can be added as standalone functions without breaking the alias.
 
+**Constructors:**
+
+```go
+func Ok[R any](r R) Result[R]     // = either.Right[error, R](r)
+func Err[R any](e error) Result[R] // = either.Left[error, R](e)
+```
+
 **Usage:**
 ```go
 // Fan out HTTP calls, get per-item results
@@ -316,44 +325,91 @@ isOk := func(r Result[Response]) bool { return r.IsRight() }
 getBody := func(r Result[Response]) string { return r.GetOr(Response{}).Body }
 bodies := results.KeepIf(isOk).ToString(getBody)
 
-// Consume: fail-fast (first error by index order)
+// Consume: collect results (first error by index order)
 responses, err := result.CollectAll(results)
 
 // Consume: partition successes and failures
 oks, errs := slice.Partition(results, isOk)
 ```
 
+**Best-effort fail-fast** requires the caller to cancel the context — FanOut does not cancel automatically on error:
+
+```go
+ctx, cancel := context.WithCancel(parentCtx)
+defer cancel()
+failFast := func(ctx context.Context, url string) (Response, error) {
+    resp, err := fetchURL(ctx, url)
+    if err != nil { cancel() }
+    return resp, err
+}
+results := slice.FanOut(ctx, 8, urls, failFast)
+// Best-effort: once cancellation is observed, the scheduler stops
+// submitting remaining items. Some additional items may still be
+// scheduled due to select race with permit acquisition. Already-started
+// items continue cooperatively until fn returns.
+```
+
 ### Why FanOut (Not ParallelMapCtx or EachCtx)
 
-**FanOut subsumes both.** Map-with-errors is FanOut directly. Side-effect fan-out is FanOut where you discard results. Per-item results make error tracking automatic for both use cases — one function instead of two.
+**Two wrappers, one engine.** Map-with-errors is FanOut. Side-effect fan-out is FanOutEach. Both share one internal traversal engine — separate public APIs, not "FanOut where you discard results."
+
+```go
+func FanOutEach[T any](
+    ctx context.Context,
+    n   int,
+    ts  []T,
+    fn  func(context.Context, T) error,
+) []error
+```
+
+Returns `[]error` with `len(errs) == len(ts)` — nil entries for successes, preserving index correspondence with input. Callers use `errors.Join(errs...)` to collapse, or iterate to find failed indices.
+
+`FanOutEach` shares all scheduling, cancellation, validation, and panic semantics with `FanOut` — only the result projection differs.
 
 **Per-item results preserve chainability.** `Mapper[Result[R]]` composes with KeepIf, Partition, Map. A `(Mapper[R], error)` return breaks the chain and discards partial results. The caller controls error policy at consumption time:
-- `result.CollectAll(results)` — returns `(Mapper[R], error)` where error is the first `Err` by index order (fail-fast collapse)
+- `result.CollectAll(results)` — returns `(Mapper[R], error)` where error is the first `Err` by index order (post-hoc extraction, not execution control)
 - `result.CollectOk(results)` — returns `Mapper[R]` containing only successes (keep-successes)
 - `slice.Partition(results, isOk)` — split into successes and failures for independent handling
 
 **Naming:** `FanOut` chosen over `ConcurrentMap` (long, doesn't signal per-item results), `MapResults` (doesn't signal concurrency), `TraverseN` (opaque to Go developers). The fan-out/fan-in pattern is well-known in Go (Go Blog: Pipelines). The name signals "concurrent I/O dispatch" without promising CPU parallelism. Naming can be revised during internal use.
 
-**Ergonomic caveat:** Pure side effects return `Result[struct{}]`, which is awkward. If internal use reveals many pure-side-effect call sites, add `FanOutEach(ctx, n, ts, fn func(context.Context, T) error) []error` as a convenience that returns only the errors.
-
 ### API Semantics
 
 | Condition | Behavior |
 |-----------|----------|
-| `n <= 0` | Panic (consistent with existing `ParallelMap`) |
-| `n == 1` | Sequential execution, no goroutine |
+| `n <= 0` | Panic (programmer error, consistent with existing `ParallelMap`) |
+| `ctx == nil` | Panic (programmer error) |
+| `fn == nil` | Panic (programmer error) |
+| Validation precedence | Programmer errors (n<=0, nil ctx, nil fn) checked first, then empty input |
+| `n == 1` | Sequential execution, no goroutine. Same panic-recovery and cancellation semantics as concurrent path (check `ctx` between items, mark tail `Err(ctx.Err())`) |
 | `n > len(ts)` | Clamps to `len(ts)` |
 | `len(ts) == 0` | Returns empty `Mapper[Result[R]]`, no work |
 | `ctx` cancelled before scheduling item | Item gets `Err(ctx.Err())`, cardinality preserved |
 | `fn` returns error | Recorded as `Err` for that item; does NOT cancel siblings (caller controls via ctx) |
-| `fn` panics | Caught by worker, converted to `Err` with panic value (see Appendix C) |
+| `fn` panics | Caught by worker, converted to `Err` wrapping `PanicError` (see Appendix C) |
+| `fn` blocks forever | FanOut blocks. Cooperative cancellation only — at most `n` stuck workers |
 | Ordering | Always preserved (indexed writes) |
 
-**Cancellation model:** Semaphore acquired before spawn (bounds goroutine count). `select` on `ctx.Done()` before semaphore acquire — responsive cancellation. In-flight items continue cooperatively until fn returns; only unscheduled items get immediate `Err(ctx.Err())`. This matches errgroup's cooperative cancellation and Elixir's model.
+**Cancellation model:** Semaphore acquired before spawn (bounds goroutine count). Scheduling loop races permit acquisition against cancellation:
+
+```go
+select {
+case sem <- struct{}{}:
+    // permit acquired — launch worker goroutine
+case <-ctx.Done():
+    // cancelled — mark remaining items Err(ctx.Err())
+}
+```
+
+A sequential pre-check (`if ctx.Err() != nil`) is insufficient — it can block indefinitely on the semaphore after cancellation. The `select` ensures responsive cancellation.
+
+In-flight items continue cooperatively until fn returns and record their actual result, even if ctx was cancelled during execution. Unscheduled items get `Err(ctx.Err())` once cancellation is observed by the scheduler — due to `select` non-determinism, some additional items may still acquire permits after cancellation. FanOut cannot stop or reclaim a stuck fn. Bounded concurrency limits blast radius to n stuck workers. This matches errgroup's cooperative cancellation and Elixir's model.
 
 ### Implementation
 
-Semaphore (buffered channel) + WaitGroup + indexed writes. Package placement: `slice.FanOut` — sits alongside existing `ParallelMap`. Both are collection-level parallel operations; different scheduling models don't warrant separate packages.
+Semaphore (buffered channel) + WaitGroup + indexed writes. An alternative implementation uses a transient worker pool with a shared task queue — same dynamic scheduling, potentially less goroutine churn. Both should be benchmarked (see Appendix B). Semaphore+goroutine-per-item is simpler to implement and reason about; start there.
+
+Package placement: `slice.FanOut` and `slice.FanOutEach` — sit alongside existing `ParallelMap`. Both are collection-level parallel operations; different scheduling models don't warrant separate packages.
 
 ### Relationship to Existing Ops
 
@@ -363,25 +419,28 @@ hashes := slice.ParallelMap(slice.From(files), 8, computeHash)
 
 // I/O-bound, fallible: fn can fail, needs cancellation, skewed work
 results := slice.FanOut(ctx, 8, urls, fetchURL)
+
+// I/O-bound, side-effect: fn performs action, may fail
+errs := slice.FanOutEach(ctx, 8, gateways, pushConfig)
 ```
 
-ParallelMap stays for CPU-bound. FanOut is the I/O primitive. Different names, different scheduling, different error models — clearly separated.
+ParallelMap stays for CPU-bound. FanOut/FanOutEach are the I/O primitives. Different names, different scheduling, different error models — clearly separated.
 
 Keep `ParallelMap`, `ParallelKeepIf`, and `ParallelEach` as-is. Zero adoption is a signal to not *expand* them, but they are correct and tested — deprecation should follow a failed experiment, not precede it.
 
 ### Deprecation Criteria
 
-If `FanOut` does not meet these criteria within 6 months or 2 releases, deprecate it:
+Gates before public release:
 
-| Criterion | Threshold |
-|-----------|-----------|
-| Internal usage | Fewer than 2 production call sites in charybdis/era |
-| External signal | No issues, PRs, or examples from other users |
-| Performance | No measurable advantage over a documented errgroup helper |
-| Wrong primitive | Users mainly want fail-fast, collect-all, or weighted concurrency — indicating per-item results is the wrong default |
-| Semantic burden | Edge-case docs/caveats exceed the value of the abstraction |
+| Gate | Signal |
+|------|--------|
+| Usage breadth | Internal call sites cover both map-returning and side-effecting use cases |
+| API fit | Callers use FanOut/FanOutEach directly — not immediately wrapping into a different abstraction (the real signal that the API shape is wrong) |
+| Performance | Benchmarks show measurable win over static chunking on skewed I/O, OR clear ergonomic reduction over errgroup helper with no major perf regression |
+| Semantics | No unresolved bugs across nil ctx, nil fn, cancellation, panic recovery, n==1 |
+| External signal | At least one issue, PR, or example from a non-author user |
 
-If deprecation triggers, remove `FanOut` and document the errgroup pattern as a recipe instead.
+If these gates are not met within 6 months or 2 releases, remove `FanOut`/`FanOutEach` and document the errgroup pattern as a recipe instead.
 
 ### Next Steps
 
@@ -420,7 +479,7 @@ Replace `sync.WaitGroup` with pond internally. **Rejected** — semantic mismatc
 
 ### (g) Fail-fast `ParallelMapCtx`
 
-`ParallelMapCtx(ctx, m, workers, fn) (Mapper[R], error)` — matches Go errgroup semantics. **Considered** — familiar Go shape, but breaks the fluent chain and discards partial results on first error. Less composable than per-item results. If fail-fast is needed, use `result.CollectAll` on FanOut output — same semantics, derived from the more general base.
+`ParallelMapCtx(ctx, m, workers, fn) (Mapper[R], error)` — matches Go errgroup semantics. **Considered** — familiar Go shape, but breaks the fluent chain and discards partial results on first error. Less composable than per-item results. If fail-fast execution is needed, the caller cancels ctx in their fn — fail-fast is an execution policy, not a return type.
 
 ### (h) Adapter direction
 
@@ -437,6 +496,7 @@ Before making `FanOut` public, benchmark the actual overhead.
 2. **Crossover point** — minimum per-item cost where parallelism outperforms sequential (at N=100, 1000, 10000)
 3. **Per-item scheduling (FanOut) vs errgroup `SetLimit` vs static chunking (ParallelMap)** — under uniform and skewed workloads
 4. **Skewed workload** — mix of fast (1ms) and slow (100ms) items; this is where per-item scheduling should outperform static chunking
+5. **Implementation strategy** — semaphore+goroutine-per-item vs transient worker pool+task queue, under uniform and skewed workloads. Both achieve bounded dynamic scheduling; goroutine-per-item is simpler, worker pool may have less goroutine churn
 
 **Success criteria:**
 - Scheduling overhead per item is small relative to per-item work cost (measure, don't assume a threshold)
@@ -465,7 +525,22 @@ Write benchmarks alongside implementation, not after.
 
 Per-item results make panic handling cleaner than in fail-fast models. Each item's failure is independently observable — analogous to Erlang's process isolation.
 
-**Recommended: catch and convert.** FanOut workers catch panics via `recover()`, convert to `Err` result for that item. Other workers continue unaffected. Caller inspects errors. This is ergonomically clean with per-item results and matches Erlang's model.
+**Recommended: catch and convert.** Each worker wraps only the user callback `fn(ctx, t)` in `recover()` — not the entire worker body. This prevents library bugs from being silently converted to per-item errors. The recovered panic is wrapped as `Err` for that item. Other workers continue unaffected. Caller inspects errors via `errors.As(*PanicError)`. This is ergonomically clean with per-item results and matches Erlang's model.
+
+**Concrete error type:**
+
+```go
+// PanicError wraps a recovered panic value with its stack trace.
+// Callers detect panic-originated failures via errors.As.
+type PanicError struct {
+    Value any    // the value passed to panic()
+    Stack []byte // captured via debug.Stack() in the recovery goroutine
+}
+
+func (e *PanicError) Error() string {
+    return fmt.Sprintf("panic: %v", e.Value)
+}
+```
 
 **Alternative: propagate.** Go default. Process crashes. Simpler mental model but loses partial results. Some Go developers consider library panic recovery wrong behavior.
 

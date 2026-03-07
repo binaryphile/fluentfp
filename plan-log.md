@@ -2610,3 +2610,32 @@ Key findings:
 2026-03-07T15:03:10Z | Completion: Add caveats to Kubernetes Compact showcase
 [x] Behavior difference noted
 [x] Extra pass + allocation noted
+2026-03-07T15:10:00Z | Interaction: external grade C+/75 on parallelism-research.md as implementation spec
+Key blockers: CollectAll≠fail-fast, cancel semantics loose, panic inconsistent with n==1,
+nil ctx/fn unspecified, goroutine-per-item vs worker pool not evaluated, Result[struct{}] smell,
+"universal consensus" overstated. Good research memo, not implementation-ready spec.
+2026-03-07T15:21:04Z | Contract: Revise parallelism research to implementation spec
+[ ] Fail-fast mechanism documented
+[ ] Cancellation semantics precise
+[ ] Edge cases specified (nil ctx/fn, blocking fn)
+[ ] n==1 panic consistency
+[ ] PanicError type defined
+[ ] FanOutEach promoted to co-equal
+[ ] Overclaims softened
+[ ] Deprecation criteria sharpened
+2026-03-07T15:30:00Z | Interaction: external grade B/84 on revised parallelism-research.md
+Remaining flags: fail-fast is best-effort not strict, "mark all remaining" too strong,
+FanOutEach helper story thin (slice.Compact confusion), recovery scope unspecified,
+n==1 cancellation parity implicit, FanOutEach semantics inheritance not stated.
+C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
+2026-03-07T15:35:00Z | Interaction: improve -> 6 fixes from B/84 review: best-effort fail-fast, cancellation wording softened, recovery scope specified, slice.Compact(errs) removed, FanOutEach semantics inheritance, n==1 cancellation parity
+2026-03-07T15:40:00Z | Interaction: grade -> A-/91, improve -> fixed dangling "once observed" in cancellation comment
+2026-03-07T15:38:31Z | Completion: Revise parallelism research to implementation spec
+[x] Fail-fast mechanism documented (best-effort, caller cancels ctx)
+[x] Cancellation semantics precise (select racing, non-determinism noted)
+[x] Edge cases specified (nil ctx/fn panic, blocking fn cooperative)
+[x] n==1 panic and cancellation consistency
+[x] PanicError type defined (recovery scoped to user callback)
+[x] FanOutEach promoted to co-equal (semantics inheritance stated)
+[x] Overclaims softened (broad convergence, best-effort, hypotheses)
+[x] Deprecation criteria sharpened (behavioral gates)
