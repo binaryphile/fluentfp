@@ -335,6 +335,42 @@ c.allocRunnerShim.SetCSIVolumes(kv.MapValues(c.volumeResults, toStub))
 
 ---
 
+### Map entry filtering — cilium/cilium
+
+**Source:** [utils.go#L195-L205](https://github.com/cilium/cilium/blob/1f4767436188aa748d1318d0a1e79a2f6f2e1f60/pkg/k8s/utils/utils.go#L195-L205)
+**Pain point:** Entire function exists to filter map entries by key prefix — 8 lines of loop scaffolding around a one-line predicate
+
+Cilium labels Kubernetes resources with prefixed keys (`io.cilium.*`). When passing labels to contexts that shouldn't see Cilium internals, the code strips them. The function's entire purpose is map filtering — make, iterate, skip-if-match, assign, return.
+
+**Original** (10 lines):
+```go
+func RemoveCiliumLabels(labels map[string]string) map[string]string {
+    res := map[string]string{}
+    for k, v := range labels {
+        if strings.HasPrefix(k, k8sconst.LabelPrefix) {
+            continue
+        }
+        res[k] = v
+    }
+    return res
+}
+```
+
+**fluentfp:**
+```go
+func RemoveCiliumLabels(labels map[string]string) map[string]string {
+    // isCiliumLabel returns true if the key has the Cilium label prefix.
+    isCiliumLabel := func(k, _ string) bool { return strings.HasPrefix(k, k8sconst.LabelPrefix) }
+    return kv.From(labels).RemoveIf(isCiliumLabel)
+}
+```
+
+**What changed:** The 8-line function body collapses to a predicate definition and a single `RemoveIf` call. The predicate (`isCiliumLabel`) names the condition that was buried in the if-continue block — the original inlines `strings.HasPrefix` directly in the loop. `kv.From` is a zero-cost type conversion; `RemoveIf` returns `Entries[K,V]` (a defined type over `map[K]V`), which is assignable to the `map[string]string` return type.
+
+**What's eliminated:** Loop scaffolding around a predicate. The original is a function that exists solely to filter — it has no other logic. The 5-line loop body (make, for-range, if-continue, assign, return) is the same structure every map filter uses, differing only in the predicate. `RemoveIf` reduces map filtering to its essential part: the condition.
+
+---
+
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
