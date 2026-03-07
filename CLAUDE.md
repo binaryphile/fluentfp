@@ -366,6 +366,53 @@ type Result struct {
 connected := result.IsConnected.OrFalse()
 ```
 
+### fn Package (Function Combinators)
+
+```go
+import "github.com/binaryphile/fluentfp/fn"
+
+// Composition — left-to-right: Pipe(f, g)(x) = g(f(x))
+fn.Pipe[A, B, C any](f func(A) B, g func(B) C) func(A) C
+
+// Partial application — fix first arg: Bind(f, x)(y) = f(x, y)
+fn.Bind[A, B, C any](f func(A, B) C, a A) func(B) C
+
+// Partial application — fix second arg: BindR(f, y)(x) = f(x, y)
+fn.BindR[A, B, C any](f func(A, B) C, b B) func(A) C
+
+// Multi-function dispatch — apply multiple fns to same arg
+fn.Dispatch2[A, B, C any](f func(A) B, g func(A) C) func(A) (B, C)
+fn.Dispatch3[A, B, C, D any](f func(A) B, g func(A) C, h func(A) D) func(A) (B, C, D)
+
+// Independent application — apply separate fns to separate args
+fn.Cross[A, B, C, D any](f func(A) C, g func(B) D) func(A, B) (C, D)
+```
+
+### fn Patterns
+
+```go
+// Compose transforms for slice.Convert
+normalize := fn.Pipe(strings.TrimSpace, strings.ToLower)
+slice.From(strs).Convert(normalize)
+
+// Partial application in chains
+add := func(a, b int) int { return a + b }
+slice.From(nums).Convert(fn.Bind(add, 5))
+
+// Multi-step Pipe (uniform commas rule: extract intermediate)
+fg := fn.Pipe(f, g)
+fn.Pipe(fg, h)
+
+// Dispatch2 — extract multiple fields, bridge to pair for composition
+getName := func(u User) string { return u.Name }
+getAge := func(u User) int { return u.Age }
+p := pair.Of(fn.Dispatch2(getName, getAge)(user))
+
+// Cross — apply separate transforms to separate values
+both := fn.Cross(double, toUpper)
+d, u := both(5, "hello")  // 10, "HELLO"
+```
+
 ### must Package
 
 ```go

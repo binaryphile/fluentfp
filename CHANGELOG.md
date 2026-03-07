@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.42.0
+
+- **fn** package — function combinators for composition and partial application
+  - `Pipe` — left-to-right composition
+  - `Bind`, `BindR` — partial application (fix first/second arg)
+  - `Dispatch2`, `Dispatch3` — apply multiple fns to same arg
+  - `Cross` — apply separate fns to separate args
+  - Based on Stone's "Algorithms: A Functional Programming Approach"
+
 ## v0.41.0
 
 - **stream** package — lazy memoized sequences with state-machine memoization (thunks execute outside locks)

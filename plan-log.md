@@ -2713,3 +2713,18 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] Validation panics for nil callbacks
 [x] Tests pass (with -race), including concurrent panic retry
 [x] Docs updated (CLAUDE.md, CHANGELOG.md, design.md)
+2026-03-07T21:45:00Z | Interaction: grade -> D+/45 external, fn package plan. Transform doesn't earn existence, FP cosplay risk, inference unproven, naming conflicts with library philosophy, need real call sites before committing to public API
+2026-03-07T22:31:44Z | Contract: fn package — Pipe, Bind, BindR, Dispatch, Cross
+[ ] Pipe, Bind, BindR, Dispatch2, Dispatch3, Cross
+[ ] Nil panics
+[ ] Tests pass (with -race)
+[ ] CLAUDE.md + CHANGELOG updated
+[ ] Era tasks updated
+2026-03-07T22:35:00Z | Interaction: grade -> B-/82, fix parallel wording, doc.go stub, add examples, reconsider Bind naming
+2026-03-07T22:40:00Z | Interaction: improve -> removed Stone refs from individual docs, added Dispatch2/Cross CLAUDE.md patterns, added Dispatch2+pair.Of integration test
+2026-03-07T22:46:31Z | Completion: fn package
+[x] Pipe, Bind, BindR, Dispatch2, Dispatch3, Cross (fn/*.go)
+[x] Nil panics (10 tests covering all function params)
+[x] Tests pass with -race (27 tests: 19 unit + 1 reusability + 7 examples)
+[x] CLAUDE.md + CHANGELOG updated
+[x] Era tasks #12780-12783, #12795 → done
