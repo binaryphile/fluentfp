@@ -132,6 +132,7 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Transform**: `Convert`, `FlatMap`, `Map` (MapperTo), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `UniqueBy`, `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`
 - **Parallel**: `ParallelMap`, `ParallelKeepIf`, `ParallelEach` — concurrent versions for CPU/IO-bound transforms. Goroutine overhead makes these slower for trivial operations; only beneficial when `fn` does meaningful work per element. Run `go test -bench=BenchmarkParallel ./slice/` for numbers on your hardware.
+- **Concurrent I/O**: `FanOut`, `FanOutEach` — bounded concurrent traversal with per-item scheduling, context-aware cancellation, and panic recovery. Returns `Mapper[result.Result[R]]` for chainability. See [result](../result/) for `CollectAll`/`CollectOk`.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
 

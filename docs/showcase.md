@@ -415,6 +415,183 @@ summaries := slice.Map(duplicates, toSummary)
 
 ---
 
+### Bounded concurrent requests — errgroup pattern
+
+**Reference:** [Advanced Go Concurrency](https://encore.dev/blog/advanced-go-concurrency), Encore Blog (the original uses an older style with manual semaphore and mutex; the version below is normalized to modern Go with `errgroup.SetLimit`, available since Go 1.20)
+
+**Pain point:** Concurrent collection traversal requires orchestration code that dominates the business logic
+
+The pattern: fetch weather info for a list of cities with at most 10 simultaneous goroutines. Modern Go uses `errgroup.WithContext` and `SetLimit` to eliminate the manual semaphore and mutex from older versions. What remains is the goroutine-launching loop with closure captures, index management, and result-slot bookkeeping — 21 lines of orchestration around `City(ctx, city)`.
+
+**Original** (21 lines — modern Go with `errgroup.SetLimit`):
+```go
+func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
+    g, ctx := errgroup.WithContext(ctx)
+    g.SetLimit(10)
+
+    res := make([]*Info, len(cities))
+    for i, city := range cities {
+        i, city := i, city
+        g.Go(func() error {
+            info, err := City(ctx, city)
+            if err != nil {
+                return err
+            }
+            res[i] = info
+            return nil
+        })
+    }
+    if err := g.Wait(); err != nil {
+        return nil, err
+    }
+    return res, nil
+}
+```
+
+**fluentfp:**
+```go
+func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
+    results := slice.FanOut(ctx, 10, cities, City)
+    return result.CollectAll(results)
+}
+```
+
+**What changed:** The errgroup loop becomes two function calls. `City` already matches FanOut's `func(context.Context, T) (R, error)` signature, so it passes directly — no wrapper, no closure. `slice.FanOut` handles goroutine launching, bounding, and result collection — `results[i]` corresponds to `cities[i]` without manual indexing. `result.CollectAll` returns all values if every item succeeded, or the first error by input position otherwise.
+
+**This is not a drop-in replacement.** The two versions differ in fail-fast behavior. With `errgroup.WithContext`, the first error cancels the derived context — if `City` respects that context, in-flight requests stop promptly. FanOut stops *scheduling* new items when its context is cancelled, but already-started items run to completion unless the callback independently checks the context. FanOut may therefore produce more completed results (and more external side effects) after a failure than the errgroup version.
+
+For workloads where fast cancellation matters — rate-limited APIs, expensive external calls, or cost-sensitive operations — this behavioral difference is significant and should inform the choice.
+
+**What's eliminated:**
+
+1. **Goroutine closure management** — The errgroup version requires a closure that captures loop variables, manages the error return path, and writes to the correct result slot. FanOut passes each item by value to the callback, eliminating the closure entirely.
+2. **Result-slot bookkeeping** — Preallocating `res`, writing `res[i]` inside the closure, and returning `res` after `Wait`. FanOut manages indexing internally and returns typed `Result[R]` per item. (Note: writing to distinct indices of a preallocated slice is safe without a mutex — the original Encore blog used one, but it's unnecessary for distinct index writes.)
+3. **Lack of panic recovery** — if `City` panics in the errgroup version, the goroutine crashes the program. FanOut recovers panics per item and wraps them as `*result.PanicError` with a stack trace, detectable via `errors.As`.
+4. **First-error-only reporting** — `g.Wait()` returns one error and discards the rest. FanOut preserves every item's outcome as `Result[R]`, so callers can inspect individual successes and failures. `result.CollectOk` gathers successes while skipping failures — a lenient mode that errgroup doesn't support without additional bookkeeping.
+
+*Caveats: FanOut uses per-item semaphore scheduling (one goroutine per item), which is optimal for variable-latency I/O. For CPU-bound work on large slices where items have uniform cost, `slice.ParallelMap` uses batch chunking with lower overhead. The source is a blog post, not immutable repository code — the original above is a normalized version of the pattern, updated to current Go idioms.*
+
+---
+
+### Lazy sequences without goroutines — golang/go (stdlib test suite)
+
+**Source:** [test/chan/sieve1.go](https://github.com/golang/go/blob/6885bad7dd86880be6929c02085e5c7a67ff2887/test/chan/sieve1.go)
+**Pain point:** Channels and goroutines used as a lazy evaluation mechanism for pure computation — each discovered prime spawns a permanent goroutine that never cleans up
+
+Before iterator-like libraries, Go code often used channels and goroutines to model lazy sequences. The stdlib's own `test/chan/sieve1.go` is a canonical example: three functions (`Generate`, `Filter`, `Sieve`) form a channel pipeline that produces primes via distributed trial division. The file's header calls it "classical inefficient concurrent prime sieve." It exists to exercise Go's concurrency primitives, not as production code — but the pattern it demonstrates (channel-based lazy evaluation) appeared in real codebases for lack of alternatives.
+
+This comparison is not algorithmically equivalent. The original distributes trial division across N goroutines (each checking divisibility by one specific prime); the replacement uses a single `isPrime` predicate that checks all factors up to √n. Both produce identical output for any N, but the implementation strategy is different. The value demonstrated is that `stream` can express lazy evaluation — generate, filter, take — without goroutines or channels.
+
+**Original** (25 lines — `Generate`, `Filter`, `Sieve`):
+```go
+func Generate(ch chan<- int) {
+    for i := 2; ; i++ {
+        ch <- i
+    }
+}
+
+func Filter(in <-chan int, out chan<- int, prime int) {
+    for i := range in {
+        if i%prime != 0 {
+            out <- i
+        }
+    }
+}
+
+func Sieve(primes chan<- int) {
+    ch := make(chan int)
+    go Generate(ch)
+    for {
+        prime := <-ch
+        primes <- prime
+        ch1 := make(chan int)
+        go Filter(ch, ch1, prime)
+        ch = ch1
+    }
+}
+
+// Usage: 5 lines
+primes := make(chan int)
+go Sieve(primes)
+for i := 0; i < 25; i++ {
+    fmt.Println(<-primes)
+}
+// 26+ goroutines remain live until process exit — no cancellation/cleanup path
+```
+
+**Extracted (fluentfp side only):**
+```go
+// inc returns the next integer.
+inc := func(n int) int { return n + 1 }
+
+// isPrime returns true if n has no divisors other than 1 and itself.
+isPrime := func(n int) bool {
+    for i := 2; i*i <= n; i++ {
+        if n%i == 0 {
+            return false
+        }
+    }
+    return true
+}
+```
+
+**fluentfp:**
+```go
+primes := stream.Generate(2, inc).KeepIf(isPrime).Take(25).Collect()
+```
+
+**What changed:** The channel pipeline becomes a lazy stream pipeline that produces the same first N primes without goroutines or channels. `stream.Generate` produces 2, 3, 4, ... lazily via deferred thunks. `.KeepIf(isPrime)` filters candidates eagerly to the first match, then defers the rest. `.Take(25)` bounds the sequence. `.Collect()` materializes to a slice.
+
+The two versions use different algorithms to achieve the same result. The sieve distributes trial division across N goroutines — each `Filter` goroutine checks divisibility by one specific prime. The stream version concentrates trial division in `isPrime`, checking all factors up to √n per candidate. For 25 primes the performance difference is negligible; the sieve's goroutine scheduling overhead exceeds any saved arithmetic.
+
+**What's eliminated:** Goroutine and channel resource accumulation. The original creates goroutines that run for the lifetime of the process: `Generate` loops infinitely, each `Filter` loops until its input channel closes (which never happens). Go's [garbage collector cannot collect goroutines](https://go.dev/blog/pipelines) — they must exit on their own. In a short-lived program like the test, the process exits before this matters; in a long-lived server using the same pattern, the goroutines would accumulate indefinitely.
+
+The stream version uses zero goroutines and zero channels. Lazy evaluation comes from deferred thunks, not concurrency primitives. Once the stream reference is dropped, all cells are eligible for garbage collection — no cleanup protocol needed.
+
+*Caveats: This is a pedagogical example from Go's test suite, not a production rewrite. It demonstrates that `stream` can express lazy generate-filter-take pipelines without concurrency primitives. Stream cells are individually heap-allocated and memoized via state machine transitions. For sequences that fit comfortably in memory and will be fully consumed, `slice.From` with eager methods is more efficient. Streams excel where laziness matters: infinite sequences, early termination, or expensive-to-compute elements.*
+
+*Historical note: Channel-based lazy evaluation was a common approach in Go's early years. The [Tour of Go](https://go.dev/tour) teaches channel-based Fibonacci; the stdlib test suite includes this sieve. Alternatives existed (closures, stateful iterators, callback-based enumeration), but channels were idiomatic. Go 1.23 added `iter.Seq` for push-based iteration; `stream.Seq()` bridges to `range` for interoperability with the standard protocol.*
+
+---
+
+### Error dispatch as expression — hashicorp/consul
+
+**Source:** [agent/connect/parsing.go](https://github.com/hashicorp/consul/blob/554b4ba24f8680308afa7bbbdcc7494cedff7ea1/agent/connect/parsing.go#L64)
+**Pain point:** `if err != nil` forces error dispatch into statement form — the two-arm branch can't be used as an expression inside struct literals, function arguments, or return statements
+
+`CertSubjects` calls `parseCerts`, then dispatches on error vs success to produce a `string`: error message on failure, formatted subjects on success. The dispatch requires two `return` paths, splitting what is conceptually one value into branching control flow.
+
+**Original** (13 lines):
+```go
+func CertSubjects(pem string) string {
+    certs, err := parseCerts(pem)
+    if err != nil {
+        return err.Error()
+    }
+    var buf strings.Builder
+    for _, cert := range certs {
+        buf.WriteString(cert.Subject.String())
+        buf.WriteString("\n")
+    }
+    return buf.String()
+}
+```
+
+**fluentfp** (`parseCertsResult` wraps `parseCerts` into a `Result`; `errString` and `formatSubjects` are each one to three lines — roughly 10 lines total, not shown):
+```go
+func CertSubjects(pem string) string {
+    return result.Fold(parseCertsResult(pem), errString, formatSubjects)
+}
+```
+
+**What changed:** `result.Fold` collapses the two-arm dispatch into a single expression. Like `either.Fold`, it requires both handlers — miss one and it doesn't compile. The error path and success path are symmetric function arguments rather than asymmetric `if`/`else` branches.
+
+**What's eliminated:** The branching control flow and the two `return` statements. The `strings.Builder` moves into `formatSubjects` rather than disappearing, but the function's intent — "format certificates or return the error message" — reads directly from the Fold call.
+
+*Caveats: The total code is similar — the three named functions add roughly 10 lines, comparable to the 13-line original body. The win is structural (expression form, exhaustive dispatch) rather than a line-count reduction. For a standalone function with two `return` paths, the original is already clear. Fold pays off more when the dispatch appears inside a struct literal or when the exhaustive-dispatch guarantee matters across many call sites.*
+
+---
+
 ### The adapter tax
 
 The examples above all shorten code — but that's the symptom, not the cause. The cause is *adapter tax*: the cost a library charges for entering and leaving its world.
@@ -423,6 +600,6 @@ Think of a woodworking shop built on standard lumber. **Raw loops** are hand too
 
 *The best tool for a single cut is still a hand saw. But when you're making 48 identical cabinet doors, the power tool makes the job easier and less error-prone.*
 
-**Good fit:** Repetitive config merges (Nomad's 48 cabinet doors), conditional struct construction (Consul), slice pipelines tangled with type assertions (go-linq). Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
+**Good fit:** Repetitive config merges (Nomad's 48 cabinet doors), conditional struct construction (Consul), slice pipelines tangled with type assertions (go-linq). Bounded concurrent I/O where errgroup orchestration dominates the business logic — `FanOut` replaces the goroutine-launching loop with typed per-item results and panic capture (with different fail-fast semantics — see the FanOut entry above). Lazy sequences where channels are used primarily as an iteration mechanism — `stream` provides lazy evaluation without goroutine accumulation. Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
 **Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Pipelines are harder to step through in a debugger than loops. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `NonZero`, `NonEmpty`) that reads clearly once learned but has an onboarding cost.

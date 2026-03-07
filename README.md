@@ -238,6 +238,8 @@ for i, item := range items {
 | [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
 | [must](must/) | Invariant enforcement | `Get`, `BeNil`, `Of` |
 | [value](value/) | Conditional value selection | `Of().When().Or()` |
+| [result](result/) | Typed error handling | `Ok`, `Err`, `CollectAll`, `CollectOk` |
+| [stream](stream/) | Lazy sequences | `Generate`, `Unfold`, `Take`, `Collect` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 | [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
 
@@ -254,6 +256,9 @@ Zero reflection. Zero global state. Zero build tags.
 
 ## Recent Additions
 
+- **v0.41.0**: `stream` package — lazy memoized persistent sequences (`Generate`, `Unfold`, `Take`, `KeepIf`, `Seq`)
+- **v0.40.0**: `result` package — `Result[R]` type with `Ok`/`Err`, `CollectAll`/`CollectOk`, `PanicError`
+- **v0.40.0**: `slice.FanOut`/`FanOutEach` — bounded concurrent traversal with per-item results and panic recovery
 - **NEW**: `kv.MapValues`, `Entries.KeepIf`/`RemoveIf` — map value transforms and entry filtering
 - **v0.24.0**: **BREAKING** — `Max()`, `Min()` return plain values (zero if empty) instead of `option.Option[T]`
 - **v0.23.0**: `Int` converted from alias to defined type. `Max()`, `Min()`, `Sum()` on `Int`; `Max()`, `Min()` on `Float64`

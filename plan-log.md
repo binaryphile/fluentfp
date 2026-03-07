@@ -2728,3 +2728,8 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] Tests pass with -race (27 tests: 19 unit + 1 reusability + 7 examples)
 [x] CLAUDE.md + CHANGELOG updated
 [x] Era tasks #12780-12783, #12795 → done
+2026-03-07T22:47:39Z | Completion: Showcase examples for stream, result, FanOut
+[x] FanOut showcase entry (evidence: new entry in showcase.md)
+[x] Stream showcase entry (evidence: new entry in showcase.md)
+[x] Result coverage (evidence: standalone entry in showcase.md)
+[x] "Adapter tax" section updated (evidence: new text in section)
