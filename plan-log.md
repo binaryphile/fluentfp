@@ -2651,3 +2651,17 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] Rename source files (non_map → non_call)
 [x] Update docs, CLAUDE.md, CHANGELOG, showcase
 [x] Tests pass
+2026-03-07T18:36:27Z | Contract: Phase 1 — result package
+[ ] Result defined type + Ok/Err constructors (Err(nil) panics)
+[ ] Result methods (IsOk, IsErr, Get, GetOr, GetErr, Convert, MustGet, IfOk, IfErr)
+[ ] Standalone functions (Map, Fold)
+[ ] PanicError type
+[ ] CollectAll/CollectOk
+[ ] Tests pass
+2026-03-07T18:39:57Z | Completion: Phase 1 — result package
+[x] Result defined type + Ok/Err constructors (Err(nil) panics)
+[x] Result methods (IsOk, IsErr, Get, GetOr, GetErr, Convert, MustGet, IfOk, IfErr)
+[x] Standalone functions (Map, Fold)
+[x] PanicError type
+[x] CollectAll/CollectOk
+[x] Tests pass
