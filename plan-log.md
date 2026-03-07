@@ -2563,3 +2563,40 @@ Key feedback: (1) MapValues should return Entries[K,V2] not map[K]V2] for chaini
 [x] Batch parallel analyzed fairly
 [x] Go-specific constraints addressed
 [x] Concrete recommendation with API sketch
+2026-03-07T00:00:00Z | Interaction: external grade -> 67/100 (doc 74/100, adapter 8/20)
+Key findings:
+- Static chunking contradicts skewed I/O motivating workloads (strategic contradiction)
+- 3/11 MapCtx fit supports internal helper, not public API
+- "Internal first" not operationalized (no named owner, target sites, checkpoint)
+- Adapter direction is abstraction accretion: WithCtx fine, rest adds surface without solving cancellation
+- WithCtx+must.Of sidesteps panic policy, doesn't resolve it
+- Result as alias is fine only if Either already has all needed methods
+- Recommendation: bounded work queue (errgroup-style), not static chunking, for I/O workloads
+2026-03-07T00:00:00Z | Interaction: external grade FanOut proposal -> 58/100
+Key findings:
+- Return type wrong for Go default: Mapper[Result[R]] optimizes chainability over idiomatic error handling
+- Fail-fast is the dominant Go case; CollectAll is not equivalent to real fail-fast
+- Cancellation overstated: no ctx check before scheduling, no stop-on-cancel
+- API bundles too many axes (CPU/IO + fallible/infallible + ctx + scheduling + wrapping)
+- Incoherent with committed document: different API thesis, needs real revision
+- Result=Either brings FP baggage; simple Outcome struct may be better
+- Name "FanOut" doesn't signal map, ordered output, or per-item results
+- Reviewer: implement both options internally, decide after usage
+2026-03-07T07:21:09Z | Contract: Parallelism research revision — FanOut direction
+[ ] Cross-language FP research integrated
+[ ] CPU/IO primitive split articulated
+[ ] Recommendation uses per-item scheduling + per-item results
+[ ] ParallelMapCtx moved to Considered Alternatives
+[ ] Implementation semantics address reviewer criticisms
+[ ] Document under 520 lines
+2026-03-07T08:37:49Z | Interaction: grade final results A-/90 -> improved 5 issues (§4.3 contradiction, forward ref, stale alt, CollectAll spec, type alias tension)
+2026-03-07T14:17:39Z | Interaction: grade final results A-/91 -> improved 4 issues (pattern count, IsRight/isOk inconsistency, zero undefined, Scala URL)
+2026-03-07T14:23:15Z | Interaction: grade final results A/93 -> improved 2 issues (stale parallel package ref, FanOutEach return type)
+2026-03-07T14:50:15Z | Interaction: grade final results A/94 -> improved 2 issues (standalone readability, method expression comment)
+2026-03-07T14:51:25Z | Completion: Parallelism research revision — FanOut direction
+[x] Cross-language FP research integrated (§2 Parallel I/O in FP Languages, 7-language table)
+[x] CPU/IO primitive split articulated (§3 key finding, §4 cost model, §7 direction)
+[x] Recommendation uses per-item scheduling + per-item results (§7 FanOut API sketch)
+[x] ParallelMapCtx moved to Considered Alternatives (§8(g))
+[x] Implementation semantics address reviewer criticisms (§7 semantics table, cancellation model)
+[x] Document under 520 lines (506 lines)
