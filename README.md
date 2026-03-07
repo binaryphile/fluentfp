@@ -233,6 +233,7 @@ for i, item := range items {
 | Package | Purpose | Key Functions |
 |---------|---------|---------------|
 | [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
+| [kv](kv/) | Map transforms | `KeepIf`, `MapValues`, `Map`, `Values` |
 | [option](option/) | Nil safety | `Of`, `Get`, `Or`, `NonZero`, `NonNil` |
 | [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
 | [must](must/) | Invariant enforcement | `Get`, `BeNil`, `Of` |
@@ -253,6 +254,7 @@ Zero reflection. Zero global state. Zero build tags.
 
 ## Recent Additions
 
+- **NEW**: `kv.MapValues`, `Entries.KeepIf`/`RemoveIf` — map value transforms and entry filtering
 - **v0.24.0**: **BREAKING** — `Max()`, `Min()` return plain values (zero if empty) instead of `option.Option[T]`
 - **v0.23.0**: `Int` converted from alias to defined type. `Max()`, `Min()`, `Sum()` on `Int`; `Max()`, `Min()` on `Float64`
 - **v0.14.0**: `value` package replaces `ternary` — value-first conditional selection

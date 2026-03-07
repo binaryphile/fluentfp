@@ -100,7 +100,7 @@ slice.Unzip2[T, A, B](ts []T, fa func(T) A, fb func(T) B) (Mapper[A], Mapper[B])
 slice.Unzip3[T, A, B, C](...)
 slice.Unzip4[T, A, B, C, D](...)
 
-// Parallel operations
+// Parallel operations (low demand — zero adoption in lo/go-linq survey)
 slice.ParallelMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
 .ParallelKeepIf(workers int, fn func(T) bool) Mapper[T]  // method on Mapper and MapperTo
 .ParallelEach(workers int, fn func(T))                     // method on Mapper and MapperTo
@@ -110,7 +110,7 @@ slice.ParallelMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
 // MapperTo[R, T].ParallelMap IS a method because both type params are on the receiver.
 ```
 
-### Parallel Patterns
+### Parallel Patterns (low demand — zero adoption observed in lo/go-linq survey)
 
 ```go
 // workers semantics: workers=1 runs sequentially (no goroutine overhead),

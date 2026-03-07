@@ -2512,3 +2512,22 @@ Key feedback: (1) MapValues should return Entries[K,V2] not map[K]V2] for chaini
 [x] doc.go export validation
 [x] CLAUDE.md updated
 [x] feature-gaps.md updated
+2026-03-06T22:15:00Z | Interaction: grade -> 80/100, key issues: feature-gaps placement wrong (parallelism exists in codebase), showcase source is hope not plan, parallelism framing unclear
+2026-03-06T22:30:00Z | Interaction: grade plan -> A-/91, fixed: Recent Additions missing, CLAUDE.md parallel comment line 103 not addressed, kv table position ambiguous
+2026-03-06T22:35:00Z | Interaction: grade plan -> A-/92, fixed: Deprioritized section placement unspecified, version number speculative
+2026-03-07T01:16:39Z | Contract: kv docs and parallelism decision
+[ ] kv/README.md created (tagline, hero, examples, operations, links)
+[ ] kv added to project README Packages table + Recent Additions
+[ ] Parallelism documented as deprioritized in feature-gaps.md
+[ ] Parallelism demoted in slice/README.md
+[ ] Parallelism noted as low-demand in CLAUDE.md
+2026-03-07T01:25:00Z | Interaction: external grade -> 76/100, valid: hero unused var, cross-pkg chaining, inline lambda, premature version; noise: concurrency/error handling/benchmarks are Go basics not kv-specific
+2026-03-07T01:30:00Z | Interaction: /a /w /i -> grading analysis, final results, then improve
+2026-03-07T01:40:00Z | Interaction: /w /i -> A-/92, fixed: Operations intro overstated "All methods"
+2026-03-07T01:45:00Z | Interaction: /w /i -> A-/92, fixed: Recent Additions entry lacked bold prefix, now uses **NEW**
+2026-03-07T01:37:52Z | Completion: kv docs and parallelism decision
+[x] kv/README.md created (evidence: file exists, follows option/README.md format)
+[x] kv added to project README Packages table + Recent Additions (evidence: both visible)
+[x] Parallelism documented in feature-gaps.md (evidence: Deprioritized section added)
+[x] Parallelism demoted in slice/README.md (evidence: section replaced with note)
+[x] Parallelism noted in CLAUDE.md (evidence: low-demand marker added)
