@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.39.0
+
+- **BREAKING**: Rename `NonZeroWith`/`NonEmptyWith`/`NonNilWith` → `NonZeroCall`/`NonEmptyCall`/`NonNilCall` — aligns with `OrCall`/`GetOrCall` convention
+
 ## v0.38.0
 
 - **KeyBy** — `slice.KeyBy[T any, K comparable](ts, fn)` builds `map[K]T` from a slice by extracted key (last value wins for duplicates)

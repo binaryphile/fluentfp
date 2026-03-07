@@ -15,17 +15,17 @@ func NonNil[T any](t *T) option.Option[T] {
 	return option.NonNil(t)
 }
 
-// NonZeroWith returns an ok option of fn(t) if t is not the zero value, or not-ok otherwise.
-func NonZeroWith[T comparable, R any](t T, fn func(T) R) option.Option[R] {
-	return option.NonZeroWith(t, fn)
+// NonZeroCall returns an ok option of fn(t) if t is not the zero value, or not-ok otherwise.
+func NonZeroCall[T comparable, R any](t T, fn func(T) R) option.Option[R] {
+	return option.NonZeroCall(t, fn)
 }
 
-// NonEmptyWith returns an ok option of fn(s) if s is not empty, or not-ok otherwise.
-func NonEmptyWith[R any](s string, fn func(string) R) option.Option[R] {
-	return option.NonEmptyWith(s, fn)
+// NonEmptyCall returns an ok option of fn(s) if s is not empty, or not-ok otherwise.
+func NonEmptyCall[R any](s string, fn func(string) R) option.Option[R] {
+	return option.NonEmptyCall(s, fn)
 }
 
-// NonNilWith returns an ok option of fn(*t) if t is not nil, or not-ok otherwise.
-func NonNilWith[T any, R any](t *T, fn func(T) R) option.Option[R] {
-	return option.NonNilWith(t, fn)
+// NonNilCall returns an ok option of fn(*t) if t is not nil, or not-ok otherwise.
+func NonNilCall[T any, R any](t *T, fn func(T) R) option.Option[R] {
+	return option.NonNilCall(t, fn)
 }

@@ -2639,3 +2639,15 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] FanOutEach promoted to co-equal (semantics inheritance stated)
 [x] Overclaims softened (broad convergence, best-effort, hypotheses)
 [x] Deprecation criteria sharpened (behavioral gates)
+2026-03-07T16:15:12Z | Contract: Rename NonZeroWith/NonEmptyWith/NonNilWith → NonZeroCall/NonEmptyCall/NonNilCall
+[ ] Rename functions in option and value packages
+[ ] Rename source files (non_map → non_call)
+[ ] Update docs, CLAUDE.md, CHANGELOG, showcase
+[ ] Tests pass
+2026-03-07T16:20:00Z | Interaction: grade -> A-/92 analysis, A/94 results
+2026-03-07T16:20:30Z | Interaction: improve -> verifying no remaining references
+2026-03-07T16:25:23Z | Completion: Rename NonZeroWith → NonZeroCall
+[x] Rename functions in option and value packages
+[x] Rename source files (non_map → non_call)
+[x] Update docs, CLAUDE.md, CHANGELOG, showcase
+[x] Tests pass

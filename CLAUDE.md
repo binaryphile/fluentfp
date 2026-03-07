@@ -203,10 +203,10 @@ option.NonZero(t T) Option[T]           // Ok if not zero value ("", 0, false, e
 option.NonEmpty(s string) String       // Ok if non-empty (string alias for NonZero)
 option.NonNil(ptr *T) Option[T]         // From pointer (nil = not-ok)
 
-// Create + transform (check presence and map in one call)
-option.NonZeroWith(t T, fn func(T) R) Option[R]       // If not zero, apply fn
-option.NonEmptyWith(s string, fn func(string) R) Option[R]  // If non-empty, apply fn
-option.NonNilWith(ptr *T, fn func(T) R) Option[R]     // If non-nil, deref and apply fn
+// Create + transform (check presence and apply fn in one step)
+option.NonZeroCall(t T, fn func(T) R) Option[R]       // If not zero, apply fn
+option.NonEmptyCall(s string, fn func(string) R) Option[R]  // If non-empty, apply fn
+option.NonNilCall(ptr *T, fn func(T) R) Option[R]     // If non-nil, deref and apply fn
 
 // Using options
 .Get() (T, bool)                       // Comma-ok unwrap

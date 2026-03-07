@@ -98,7 +98,7 @@ Once you have a `Option[T]`, the same API works regardless of where the value ca
 `Option[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null).
 
 - **Create**: `Of`, `New`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `Getenv`, `Lookup`
-- **Create + Transform**: `NonZeroWith`, `NonEmptyWith`, `NonNilWith` — check presence and transform in one call
+- **Create + Transform**: `NonZeroCall`, `NonEmptyCall`, `NonNilCall` — check presence and apply fn in one step
 - **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse`
 - **Transform**: `Convert`, `Map`, `ToString`, `ToInt`, other `To*`, `ToOpt`
 - **Filter**: `KeepIf`, `RemoveIf`
