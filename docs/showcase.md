@@ -344,12 +344,18 @@ c.allocRunnerShim.SetCSIVolumes(stubs)
 
 Cilium labels Kubernetes resources with prefixed keys (`io.cilium.*`). When passing labels to contexts that shouldn't see Cilium internals, the code strips them. The function's entire purpose is map filtering — make, iterate, skip-if-match, assign, return.
 
+**Extracted (both sides share):**
+```go
+// isCiliumLabel returns true if the key has the Cilium label prefix.
+isCiliumLabel := func(k, _ string) bool { return strings.HasPrefix(k, k8sconst.LabelPrefix) }
+```
+
 **Original** (10 lines):
 ```go
 func RemoveCiliumLabels(labels map[string]string) map[string]string {
     res := map[string]string{}
     for k, v := range labels {
-        if strings.HasPrefix(k, k8sconst.LabelPrefix) {
+        if isCiliumLabel(k, v) {
             continue
         }
         res[k] = v
@@ -361,13 +367,11 @@ func RemoveCiliumLabels(labels map[string]string) map[string]string {
 **fluentfp:**
 ```go
 func RemoveCiliumLabels(labels map[string]string) map[string]string {
-    // isCiliumLabel returns true if the key has the Cilium label prefix.
-    isCiliumLabel := func(k, _ string) bool { return strings.HasPrefix(k, k8sconst.LabelPrefix) }
     return kv.From(labels).RemoveIf(isCiliumLabel)
 }
 ```
 
-**What changed:** The 8-line function body collapses to a predicate definition and a single `RemoveIf` call. The predicate (`isCiliumLabel`) names the condition that was buried in the if-continue block — the original inlines `strings.HasPrefix` directly in the loop. `kv.From` is a zero-cost type conversion; `RemoveIf` returns `Entries[K,V]` (a defined type over `map[K]V`), which is assignable to the `map[string]string` return type.
+**What changed:** Once the predicate is extracted, the 8-line function body collapses to a single `RemoveIf` call. `kv.From` is a zero-cost type conversion; `RemoveIf` returns `Entries[K,V]` (a defined type over `map[K]V`), which is assignable to the `map[string]string` return type.
 
 **What's eliminated:** Loop scaffolding around a predicate. The original is a function that exists solely to filter — it has no other logic. The 5-line loop body (make, for-range, if-continue, assign, return) is the same structure every map filter uses, differing only in the predicate. `RemoveIf` reduces map filtering to its essential part: the condition.
 
