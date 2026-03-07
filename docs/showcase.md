@@ -366,12 +366,10 @@ func RemoveCiliumLabels(labels map[string]string) map[string]string {
 
 **fluentfp:**
 ```go
-func RemoveCiliumLabels(labels map[string]string) map[string]string {
-    return kv.From(labels).RemoveIf(isCiliumLabel)
-}
+filtered := kv.From(labels).RemoveIf(isCiliumLabel)
 ```
 
-**What changed:** Once the predicate is extracted, the 8-line function body collapses to a single `RemoveIf` call. `kv.From` is a zero-cost type conversion; `RemoveIf` returns `Entries[K,V]` (a defined type over `map[K]V`), which is assignable to the `map[string]string` return type.
+**What changed:** The 10-line function disappears — it exists only to wrap the loop. At the call site, `kv.From(labels).RemoveIf(isCiliumLabel)` is a single expression that replaces both the function call and its implementation. `kv.From` is a zero-cost type conversion; `RemoveIf` returns `Entries[K,V]` (a defined type over `map[K]V`), assignable anywhere `map[string]string` is expected.
 
 **What's eliminated:** Loop scaffolding around a predicate. The original is a function that exists solely to filter — it has no other logic. The 5-line loop body (make, for-range, if-continue, assign, return) is the same structure every map filter uses, differing only in the predicate. `RemoveIf` reduces map filtering to its essential part: the condition.
 
