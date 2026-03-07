@@ -285,12 +285,13 @@ for _, line := range lines {
 
 **fluentfp:**
 ```go
-for _, line := range slice.Compact(strings.Split(string(content), "\n")) {
+lines := strings.Split(string(content), "\n")
+for _, line := range slice.Compact(lines) {
     // parse mount entry...
 }
 ```
 
-**What changed:** The 3-line empty-string guard disappears. `Compact` filters zero values before iteration begins, so the loop body handles only real data. The intermediate variable (`lines`) also goes away — `strings.Split` feeds directly into `Compact`. The pattern scales: every file that parses newline-delimited data with `strings.Split` needs the same guard, and `Compact` eliminates all of them.
+**What changed:** The 3-line empty-string guard disappears. `Compact` filters zero values before iteration begins, so the loop body handles only real data. The pattern scales: every file that parses newline-delimited data with `strings.Split` needs the same guard, and `Compact` eliminates all of them.
 
 **What's eliminated:** Defensive boilerplate forced by a stdlib design choice. `strings.Split("a\nb\n", "\n")` returns `["a", "b", ""]` — the trailing empty entry is a well-known pain point with its own [declined stdlib proposal](https://github.com/golang/go/issues/33393). Without a built-in filter, every caller writes the same 3-line guard. The guards are individually trivial but collectively they're noise that obscures the parsing logic that follows.
 
