@@ -2600,3 +2600,13 @@ Key findings:
 [x] ParallelMapCtx moved to Considered Alternatives (§8(g))
 [x] Implementation semantics address reviewer criticisms (§7 semantics table, cancellation model)
 [x] Document under 520 lines (506 lines)
+2026-03-07T14:57:19Z | Contract: Add caveats to Kubernetes Compact showcase
+[ ] Behavior difference noted
+[ ] Extra pass + allocation noted
+2026-03-07T14:59:38Z | Interaction: grade -> A-/91, improve -> clarified blank-line congruence (original guard also skips all empties), "second pass" -> "extra pass"
+2026-03-07T15:00:26Z | Interaction: grade -> A/93, improve -> split caveats into own paragraph, trimmed trailing redundancy
+2026-03-07T15:01:14Z | Interaction: grade -> A/94, improve -> removed trailing space on line 294
+2026-03-07T15:01:44Z | Interaction: improve -> tightened hedging ("happens to do" -> "does too"), sharpened comment framing
+2026-03-07T15:03:10Z | Completion: Add caveats to Kubernetes Compact showcase
+[x] Behavior difference noted
+[x] Extra pass + allocation noted
