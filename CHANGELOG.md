@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.40.0
+
+- **result** package — `Result[R]` defined type with `Ok`/`Err` constructors, `Convert`/`Map`/`Fold`, `PanicError` with `Unwrap`, `CollectAll`/`CollectOk`
+- **FanOut** — `slice.FanOut[T, R](ctx, n, ts, fn)` bounded concurrent traversal with per-item results, semaphore scheduling, panic recovery, context-aware cancellation
+- **FanOutEach** — `slice.FanOutEach[T](ctx, n, ts, fn)` side-effect variant returning `[]error`
+
 ## v0.39.0
 
 - **BREAKING**: Rename `NonZeroWith`/`NonEmptyWith`/`NonNilWith` → `NonZeroCall`/`NonEmptyCall`/`NonNilCall` — aligns with `OrCall`/`GetOrCall` convention

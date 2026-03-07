@@ -9,8 +9,10 @@ flowchart TD
     base["internal/base"] --> option
     base --> either
     slice --> base
+    slice --> result
     kv --> base
     value --> option
+    result
     pair["pair (tuple/pair)"]
     must
     lof
@@ -23,6 +25,7 @@ flowchart TD
 | `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapTo, Values, Keys) |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
+| `result` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk` collectors |
 | `must` | Panic-on-error enforcement for initialization invariants |
 | `value` | Conditional value selection with eager/lazy evaluation |
 | `pair` | Tuple construction and pairwise slice operations |
@@ -167,6 +170,23 @@ Standalone functions for operations needing extra type parameters or custom trav
 
 **Why it matters:** Defined types enable zero-cost conversion to/from the underlying type. Struct wrappers break this — but they're only used for intermediate transformation types that are consumed immediately (`.Map(fn)`).
 
+### D11: Result as standalone defined type
+
+```go
+type Result[R any] struct {
+    value R
+    err   error
+}
+```
+
+A standalone package with zero internal imports — not an alias for `Either[error, R]`.
+
+**Why not an alias for Either:** Either uses Left/Right naming — wrong for a result type where callers want `IsOk()`/`IsErr()`, not `IsRight()`/`IsLeft()`. Changing from alias to defined type later would be contract-breaking. A standalone type can add methods freely (`Convert`, `MustGet`, `IfOk`, `IfErr`) without polluting Either's API.
+
+**Zero value:** `Result[R]{}` has `err: nil`, making it a valid `Ok(zeroR)`. Matches D4 (Option zero is not-ok) and D5 (Either zero is Left) in providing useful zero values.
+
+**Collectors return `[]R`:** Plain slices, not `Mapper[R]`. Callers wrap with `slice.From()` for chaining. This keeps `result` as a standalone package with zero internal imports — cleaner layering than leaking `internal/base` through a public API.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.
@@ -289,6 +309,8 @@ Where packages depend on each other, and why:
 | `Mapper.Single` → `either.Either[int, T]` | Failure carries information (the actual count). A plain error would discard it. |
 | `value.When` → `option.Option[T]` | Reuses option's `Or`/`OrZero` extraction rather than duplicating. |
 | `Entries.Values` → `Mapper[V]` | Bridges map values into slice pipelines. Used by `kv.From(m).Values()` for map-to-slice conversion. |
+| `FanOut` → `result.Result[R]` | Per-item results for concurrent traversal. `Mapper[Result[R]]` preserves chainability — callers filter, partition, or collect results using existing Mapper methods. |
+| `FanOut` → `result.PanicError` | Recovered panics wrapped as errors. `errors.As(err, &pe)` detects panic-originated failures. Preserves error chains via `Unwrap()`. |
 
 `lof`, `must`, and `pair` have no fluentfp import dependencies — they are leaf packages by design. Both `slice` and `kv` depend only on `internal/base` — neither imports the other.
 

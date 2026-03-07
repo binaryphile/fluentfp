@@ -103,6 +103,8 @@ func _() {
 	_ = Asc[int, int]
 	_ = Desc[int, int]
 
+	_ = FanOut[int, int]
+	_ = FanOutEach[int]
 	_ = FindAs[int, int]
 	_ = Fold[int, int]
 	_ = Map[int, int]

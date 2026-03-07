@@ -2665,3 +2665,22 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] PanicError type
 [x] CollectAll/CollectOk
 [x] Tests pass
+2026-03-07T18:40:15Z | Contract: Phase 2 — FanOut/FanOutEach + docs
+[ ] FanOut engine with semaphore + panic recovery + cancellation guarantees
+[ ] FanOutEach wrapper
+[ ] Comprehensive tests (including concurrency bound, already-cancelled ctx, panic variants, -race)
+[ ] Benchmarks
+[ ] CLAUDE.md + CHANGELOG updated
+[ ] Tests pass (with -race)
+2026-03-07T00:00:00Z | Interaction: grade -> B/82, 20 items — cancellation doc wording, FanOutEach panic message inconsistency, weak/brittle tests (ClampsN, cancellation deadlock, sequential-only panic), benchmark mislabeled, missing coverage (sequential cancellation, FanOutEach cancellation, concurrent panic, error identity), CLAUDE.md typo, slice/doc.go not updated
+2026-03-07T00:00:00Z | Interaction: improve -> fixed cancellation guarantee #3 wording ("occurs" not "observed"), FanOutEach validates all 3 params with own messages, replaced TestFanOutClampsN with real clamp test, fixed TestFanOutCancellationMidFlight deadlock risk (atomic+gate), added TestFanOutPanicConcurrent/TestFanOutSequentialCancellation/TestFanOutMixedStates/TestFanOutEachAlreadyCancelledCtx/TestFanOutEachCancellationMidFlight, fixed error identity in TestFanOutErrorInFn, renamed benchmark to VsSemaphore with honest comment, renamed CPU bench labels, added FanOut/FanOutEach to slice/doc.go
+2026-03-07T00:00:00Z | Interaction: self-grade -> B+/87 — busy-wait spin in tests, sequential cancellation test soft assertion, itoa style
+2026-03-07T00:00:00Z | Interaction: improve -> added runtime.Gosched() to busy-wait spins, tightened TestFanOutSequentialCancellation (cancel at item 1, assert items 2-4 all Err deterministically)
+2026-03-07T00:00:00Z | Interaction: grade -> A-/90, improve -> fixed import grouping, replaced hand-rolled itoa with strconv.Itoa
+2026-03-07T00:00:00Z | Interaction: grade -> A-/91, improve -> added b.ReportAllocs() to all benchmarks, extracted assertMaxConcurrency test helper (deduped ClampsN + ConcurrencyBound)
+2026-03-07T19:55:28Z | Completion: Phase 2 — FanOut/FanOutEach
+[x] FanOut engine with semaphore + WaitGroup + panic recovery
+[x] FanOutEach convenience wrapper
+[x] 18 test functions + benchmarks pass with -race
+[x] doc.go export verification
+[x] CLAUDE.md, CHANGELOG.md, docs/ updated

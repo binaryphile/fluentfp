@@ -4,7 +4,7 @@
 
 **System:** fluentfp
 **In scope:** Collection transformation, optional value handling, typed alternatives, invariant enforcement, conditional value selection, tuple operations, builtin function adapters for higher-order use
-**Out of scope:** General concurrency, I/O, serialization, error handling strategies, logging
+**Out of scope:** General concurrency, I/O, serialization, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive.
 
 ## System Invariants
 
@@ -65,7 +65,7 @@
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
 - 2d. Developer needs elements grouped by a derived key: System groups elements into a map from key to elements sharing that key.
 - 2e. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error.
-- 2f. Developer needs transformations applied concurrently: System applies transformations concurrently, preserving element order in the result.
+- 2f. Developer needs transformations applied concurrently: System applies transformations concurrently, preserving element order in the result. For I/O-bound workloads with per-item error handling, system schedules items individually with bounded concurrency, returns per-item success/failure results, recovers panics as errors, and respects context cancellation. For CPU-bound workloads, system partitions work into batches.
 - 2g. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
 - 2h. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements.
 - 2i. Developer needs to split a collection into fixed-size batches: System divides the collection into sub-collections of the specified size; the last batch may be smaller.

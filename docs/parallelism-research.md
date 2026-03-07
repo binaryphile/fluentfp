@@ -444,10 +444,10 @@ If these gates are not met within 6 months or 2 releases, remove `FanOut`/`FanOu
 
 ### Next Steps
 
-1. **Implement `FanOut` as internal helper** — use it in charybdis and era. Do not make it public API until internal usage validates the design.
-2. **Write benchmarks alongside implementation** — validate cost model against errgroup on skewed I/O. See Appendix B.
+1. ~~**Implement `FanOut` as internal helper**~~ — **Done (v0.40.0).** Implemented as public API (`slice.FanOut`, `slice.FanOutEach`) with full test suite including race detection. Key design divergence from this document: `Result[R]` is a standalone defined type (not an `Either[error, R]` alias) — see [design.md §D11](design.md) for rationale.
+2. ~~**Write benchmarks alongside implementation**~~ — **Done.** Scheduling overhead, I/O-bound simulation, CPU-bound comparison, small input, and FanOut vs raw semaphore+WaitGroup benchmarks in `slice/benchmark_fanout_test.go`.
 3. **Evaluate against deprecation criteria** after real usage.
-4. **Panic recovery policy** — FanOut catches panics (per-item results make this natural); ParallelMap does not. See Appendix C.
+4. ~~**Panic recovery policy**~~ — **Done.** FanOut catches panics (per-item `PanicError` with `Unwrap()` for error chain preservation); ParallelMap does not. See Appendix C.
 
 ---
 

@@ -105,6 +105,10 @@ slice.ParallelMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
 .ParallelKeepIf(workers int, fn func(T) bool) Mapper[T]  // method on Mapper and MapperTo
 .ParallelEach(workers int, fn func(T))                     // method on Mapper and MapperTo
 
+// FanOut — bounded concurrent traversal for I/O workloads (per-item scheduling)
+slice.FanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]]
+slice.FanOutEach[T any](ctx context.Context, n int, ts []T, fn func(context.Context, T) error) []error
+
 // Map, ParallelMap, Fold, and MapAccum are standalone (not methods) because they return
 // a different type R — Go can't infer R from Mapper[T]'s receiver.
 // MapperTo[R, T].ParallelMap IS a method because both type params are on the receiver.
@@ -129,6 +133,18 @@ actives := slice.From(users).ParallelKeepIf(4, User.IsExpensiveCheck)
 
 // Side-effects (e.g., sending notifications)
 slice.From(users).ParallelEach(4, notifyUser)
+
+// FanOut — bounded concurrent traversal for I/O workloads (per-item scheduling)
+// Returns Mapper[result.Result[R]] for chainability. Panic recovery per item.
+// Context-aware: cancellation stops scheduling new work promptly.
+results := slice.FanOut(ctx, 8, urls, fetchURL)
+
+// FanOutEach — side-effect variant, returns []error (nil entries = success)
+errs := slice.FanOutEach(ctx, 4, configs, pushConfig)
+
+// FanOut vs ParallelMap:
+// - FanOut: per-item scheduling, context-aware, error/panic per item (I/O-bound)
+// - ParallelMap: batch chunking, no context, no error handling (CPU-bound)
 ```
 
 ### slice Patterns
@@ -190,6 +206,43 @@ either.Fold[L, R, T any](e Either[L, R], onLeft func(L) T, onRight func(R) T) T
 ```
 
 Convention: Left = failure/error, Right = success. Mnemonic: "Right is right" (correct).
+
+### result Package
+
+```go
+import "github.com/binaryphile/fluentfp/result"
+
+// Type — zero value is a valid Ok(zeroR)
+result.Result[R]
+
+// Constructors
+result.Ok[R any](r R) Result[R]           // Ok result containing r
+result.Err[R any](e error) Result[R]      // Err result; panics if e is nil
+
+// Methods
+.IsOk() bool                              // err == nil
+.IsErr() bool                             // err != nil
+.Get() (R, bool)                          // comma-ok for value
+.GetOr(defaultVal R) R                    // value or default
+.GetErr() (error, bool)                   // comma-ok for error
+.Convert(fn func(R) R) Result[R]          // transform value if ok
+.MustGet() R                              // value or panic
+.IfOk(fn func(R))                         // side-effect if ok
+.IfErr(fn func(error))                    // side-effect if err
+
+// Standalone functions
+result.Map[R, S any](res Result[R], fn func(R) S) Result[S]                   // cross-type transform
+result.Fold[R, T any](res Result[R], onErr func(error) T, onOk func(R) T) T   // dispatch by state
+
+// PanicError — wraps recovered panic value + stack trace
+result.PanicError{ Value any; Stack []byte }  // detect via errors.As
+(*PanicError).Error() string                   // "panic: %v"
+(*PanicError).Unwrap() error                   // preserves error chains
+
+// Collectors
+result.CollectAll[R any](results []Result[R]) ([]R, error)  // all Ok → values; first Err → error
+result.CollectOk[R any](results []Result[R]) []R             // Ok values only
+```
 
 ### option Package
 
