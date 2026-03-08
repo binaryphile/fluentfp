@@ -136,4 +136,79 @@ See [comparison](../comparison.md) for the full library comparison.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
 
+## FanOut
+
+`FanOut` runs a function on every element of a slice concurrently, limited to `n` at a time. Each element gets its own goroutine. Results come back in input order — `output[i]` corresponds to `input[i]`.
+
+```go
+results := slice.FanOut(ctx, 10, cities, City)
+infos, err := result.CollectAll(results)
+```
+
+`FanOutEach` is the side-effect variant for operations that don't produce values — it returns `[]error` instead of `Mapper[result.Result[R]]`.
+
+### How it works
+
+1. A dispatch loop iterates the input slice, acquiring a semaphore slot before launching each goroutine.
+2. Each goroutine calls `fn(ctx, item)`, stores the result, releases its semaphore slot, and exits.
+3. After the loop, all goroutines are joined. No goroutine outlives `FanOut`.
+
+The semaphore is a buffered channel of size `n`. When all slots are taken, the dispatch loop blocks until a running goroutine finishes and releases one.
+
+### Cancellation
+
+FanOut passes `ctx` to every callback. When `ctx` is cancelled:
+
+- **Dispatch stops.** The loop checks `ctx` before acquiring each semaphore slot. Unscheduled items get `Err(ctx.Err())` without launching a goroutine.
+- **In-flight callbacks continue** until `fn` returns. FanOut does not kill goroutines — it waits for them. If `fn` checks `ctx` (e.g., via `http.NewRequestWithContext`), it can exit early. If `fn` ignores `ctx`, it runs to completion.
+
+FanOut returns only after every started goroutine has finished — no goroutine leaks.
+
+### Fail-fast
+
+By default, one item's error does not cancel siblings. If you want fail-fast — stop everything on the first error — cancel the context from within `fn`:
+
+```go
+ctx, cancel := context.WithCancel(parentCtx)
+defer cancel()
+
+// failFast wraps City to cancel siblings on first error.
+failFast := func(callCtx context.Context, name string) (*Info, error) {
+    info, err := City(callCtx, name)
+    if err != nil {
+        cancel()
+        return nil, err
+    }
+    return info, nil
+}
+
+results := slice.FanOut(ctx, 10, cities, failFast)
+```
+
+This is opt-in because many I/O workloads want partial results — fetch what you can, report what failed. Use `result.CollectOk(results)` to gather successes and discard failures.
+
+### Panic recovery
+
+If `fn` panics, that item's result becomes `Err` wrapping a `*result.PanicError` (with the panic value and stack trace). Other items are unaffected. Detect panics with `errors.As`:
+
+```go
+var pe *result.PanicError
+if errors.As(err, &pe) {
+    log.Printf("panic: %v\n%s", pe.Value, pe.Stack)
+}
+```
+
+### FanOut vs ParallelMap
+
+| | FanOut | ParallelMap |
+|---|---|---|
+| **Scheduling** | Per-item (semaphore) | Batch chunking |
+| **Context** | Passed to `fn` | None |
+| **Errors** | Per-item `Result[R]` | None (panic crashes) |
+| **Use case** | I/O-bound (HTTP, DB) | CPU-bound (parsing, hashing) |
+
+The scheduling difference matters for I/O. Per-item scheduling means as soon as one HTTP call finishes, the next item starts — the semaphore slot is immediately reused. Batch chunking divides items into equal groups; if one item in a batch is slow, its worker sits occupied while faster workers in other batches finish and go idle. For CPU-bound work with uniform cost per item, batches avoid the per-item goroutine overhead.
+
+Use `FanOut` when items have variable latency and you need error handling. Use `ParallelMap` when items have uniform cost and `fn` can't fail.
+
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation, the [main README](../README.md) for installation and performance characteristics, and the [showcase](../docs/showcase.md) for real-world rewrites.

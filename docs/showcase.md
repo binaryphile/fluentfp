@@ -520,9 +520,6 @@ for i := 0; i < 25; i++ {
 
 **fluentfp:**
 ```go
-// inc returns the next integer.
-inc := func(n int) int { return n + 1 }
-
 // isPrime returns true if n has no divisors other than 1 and itself.
 isPrime := func(n int) bool {
     for i := 2; i*i <= n; i++ {
@@ -533,7 +530,7 @@ isPrime := func(n int) bool {
     return true
 }
 
-primes := stream.Generate(2, inc).KeepIf(isPrime).Take(25).Collect()
+primes := stream.Generate(2, lof.Inc).KeepIf(isPrime).Take(25).Collect()
 ```
 
 **What changed:** The channel pipeline becomes a lazy stream pipeline that produces the same first N primes without goroutines or channels. `stream.Generate` produces 2, 3, 4, ... lazily via deferred thunks. `.KeepIf(isPrime)` filters candidates eagerly to the first match, then defers the rest. `.Take(25)` bounds the sequence. `.Collect()` materializes to a slice.
@@ -570,8 +567,11 @@ func CertSubjects(pem string) string {
 }
 ```
 
-**fluentfp** (`errString` is a one-liner that calls `.Error()`):
+**fluentfp:**
 ```go
+// errString returns the error's message.
+errString := func(e error) string { return e.Error() }
+
 func CertSubjects(pem string) string {
     parseCertsResult := result.Lift(parseCerts)
     return result.Fold(parseCertsResult(pem), errString, formatSubjects)
