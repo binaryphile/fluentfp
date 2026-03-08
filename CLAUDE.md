@@ -98,6 +98,7 @@ slice.Group[K comparable, T any]                                         // Type
 slice.GroupBy[T any, K comparable](ts Mapper[T], fn func(T) K) Mapper[Group[K, T]] // Group by key → chainable slice of groups
 slice.KeyBy[T any, K comparable](ts Mapper[T], fn func(T) K) map[K]T              // Index elements by extracted key (last wins)
 slice.Chunk[T any](ts Mapper[T], size int) [][]T                              // Split into fixed-size batches
+slice.Flatten[T any](tss [][]T) Mapper[T]                                     // Concatenate nested slices (inverse of Chunk)
 slice.Compact[T comparable](ts Mapper[T]) Mapper[T]                           // Remove zero-value elements
 slice.Partition[T any](ts Mapper[T], fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate; also .Partition method
 slice.Map[T, R any](ts Mapper[T], fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)

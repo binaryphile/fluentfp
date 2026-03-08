@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.49.0
+
+- **slice** — `Flatten[T any](tss [][]T) Mapper[T]` — concatenate nested slices into a single flat slice
+
 ## v0.48.0
 
 - **slice** — Set operations: `Intersect`, `Difference`, `Union`

@@ -99,6 +99,7 @@ func _() {
 	_ = Compact[int]
 	_ = Contains[int]
 	_ = Difference[int]
+	_ = Flatten[int]
 	_ = FromSet[int]
 	_ = Group[int, int]{}
 	_ = GroupBy[int, int]
