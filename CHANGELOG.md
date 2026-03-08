@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.55.0
+
+- **BREAKING**: Remove `Dispatch2`/`Dispatch3` from `hof` — single-value case is cleaner as plain Go (`a, b := f(x), g(x)`); collection-level equivalent already exists as `Unzip2`/`Unzip3`/`Unzip4`
+
 ## v0.54.0
 
 - **BREAKING**: Rename `fn` → `hof` — avoids collision with `fn` parameter name used throughout codebase; `hof` (higher-order functions) pairs with `lof` (lower-order functions)
@@ -77,7 +81,6 @@
 - **hof** package — function combinators for composition and partial application
   - `Pipe` — left-to-right composition
   - `Bind`, `BindR` — partial application (fix first/second arg)
-  - `Dispatch2`, `Dispatch3` — apply multiple fns to same arg
   - `Cross` — apply separate fns to separate args
   - Based on Stone's "Algorithms: A Functional Programming Approach"
 

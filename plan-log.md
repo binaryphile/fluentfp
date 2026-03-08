@@ -3032,3 +3032,15 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] All Go source updated (evidence: go test/vet pass)
 [x] All docs updated (evidence: no stale 'fn.' package refs in docs)
 [x] Tests pass (evidence: go test ./hof/...)
+2026-03-08T20:42:06Z | Interaction: grade -> A-/92, missing pair import cleanup and UC-7 renumbering
+2026-03-08T20:43:16Z | Interaction: grade -> A/96, added pair import cleanup in example_test.go
+2026-03-08T20:46:41Z | Interaction: grade -> A/96, doc.go package comment still mentions multi-function dispatch
+2026-03-08T20:48:30Z | Contract: Remove Dispatch2/Dispatch3
+[ ] dispatch.go deleted
+[ ] Tests and docs updated
+[ ] All tests pass
+2026-03-08T21:15:00Z | Interaction: grade -> A-/93, no stale refs found, transition reads clean
+2026-03-08T20:55:46Z | Completion: Remove Dispatch2/Dispatch3
+[x] dispatch.go deleted (evidence: file gone)
+[x] Tests and docs updated (evidence: go test/vet pass, no stale refs)
+[x] All tests pass (evidence: go test ./...)

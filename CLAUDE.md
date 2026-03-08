@@ -445,10 +445,6 @@ hof.Bind[A, B, C any](f func(A, B) C, a A) func(B) C
 // Partial application — fix second arg: BindR(f, y)(x) = f(x, y)
 hof.BindR[A, B, C any](f func(A, B) C, b B) func(A) C
 
-// Multi-function dispatch — apply multiple fns to same arg
-hof.Dispatch2[A, B, C any](f func(A) B, g func(A) C) func(A) (B, C)
-hof.Dispatch3[A, B, C, D any](f func(A) B, g func(A) C, h func(A) D) func(A) (B, C, D)
-
 // Independent application — apply separate fns to separate args
 hof.Cross[A, B, C, D any](f func(A) C, g func(B) D) func(A, B) (C, D)
 
@@ -471,11 +467,6 @@ slice.From(nums).Convert(hof.Bind(add, 5))
 // Multi-step Pipe (uniform commas rule: extract intermediate)
 fg := hof.Pipe(f, g)
 hof.Pipe(fg, h)
-
-// Dispatch2 — extract multiple fields, bridge to pair for composition
-getName := func(u User) string { return u.Name }
-getAge := func(u User) int { return u.Age }
-p := pair.Of(hof.Dispatch2(getName, getAge)(user))
 
 // Cross — apply separate transforms to separate values
 both := hof.Cross(double, toUpper)

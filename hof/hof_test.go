@@ -8,7 +8,6 @@ import (
 
 	"github.com/binaryphile/fluentfp/hof"
 	"github.com/binaryphile/fluentfp/slice"
-	"github.com/binaryphile/fluentfp/tuple/pair"
 )
 
 // mustPanic verifies that f panics with the expected message.
@@ -99,75 +98,6 @@ func TestBindR_NilF(t *testing.T) {
 	})
 }
 
-// --- Dispatch2 ---
-
-func TestDispatch2_AppliesBothFns(t *testing.T) {
-	double := func(n int) int { return n * 2 }
-	toString := func(n int) string { return strconv.Itoa(n) }
-
-	d, s := hof.Dispatch2(double, toString)(5)
-
-	if d != 10 {
-		t.Errorf("first = %d, want 10", d)
-	}
-	if s != "5" {
-		t.Errorf("second = %q, want %q", s, "5")
-	}
-}
-
-func TestDispatch2_NilF(t *testing.T) {
-	mustPanic(t, "hof.Dispatch2: f must not be nil", func() {
-		hof.Dispatch2[int, int, int](nil, func(n int) int { return n })
-	})
-}
-
-func TestDispatch2_NilG(t *testing.T) {
-	mustPanic(t, "hof.Dispatch2: g must not be nil", func() {
-		hof.Dispatch2[int, int, int](func(n int) int { return n }, nil)
-	})
-}
-
-// --- Dispatch3 ---
-
-func TestDispatch3_AppliesAllFns(t *testing.T) {
-	double := func(n int) int { return n * 2 }
-	toString := func(n int) string { return strconv.Itoa(n) }
-	isEven := func(n int) bool { return n%2 == 0 }
-
-	d, s, e := hof.Dispatch3(double, toString, isEven)(4)
-
-	if d != 8 {
-		t.Errorf("first = %d, want 8", d)
-	}
-	if s != "4" {
-		t.Errorf("second = %q, want %q", s, "4")
-	}
-	if e != true {
-		t.Errorf("third = %v, want true", e)
-	}
-}
-
-func TestDispatch3_NilF(t *testing.T) {
-	id := func(n int) int { return n }
-	mustPanic(t, "hof.Dispatch3: f must not be nil", func() {
-		hof.Dispatch3[int, int, int, int](nil, id, id)
-	})
-}
-
-func TestDispatch3_NilG(t *testing.T) {
-	id := func(n int) int { return n }
-	mustPanic(t, "hof.Dispatch3: g must not be nil", func() {
-		hof.Dispatch3[int, int, int, int](id, nil, id)
-	})
-}
-
-func TestDispatch3_NilH(t *testing.T) {
-	id := func(n int) int { return n }
-	mustPanic(t, "hof.Dispatch3: h must not be nil", func() {
-		hof.Dispatch3[int, int, int, int](id, id, nil)
-	})
-}
-
 // --- Cross ---
 
 func TestCross_AppliesSeparateFns(t *testing.T) {
@@ -232,20 +162,6 @@ func TestBind_WithSliceConvert(t *testing.T) {
 
 	if !slices.Equal([]int(got), []int{6, 7, 8}) {
 		t.Errorf("got %v, want [6 7 8]", got)
-	}
-}
-
-func TestDispatch2_WithPairOf(t *testing.T) {
-	double := func(n int) int { return n * 2 }
-	toString := func(n int) string { return strconv.Itoa(n) }
-
-	p := pair.Of(hof.Dispatch2(double, toString)(5))
-
-	if p.First != 10 {
-		t.Errorf("pair.First = %d, want 10", p.First)
-	}
-	if p.Second != "5" {
-		t.Errorf("pair.Second = %q, want %q", p.Second, "5")
 	}
 }
 

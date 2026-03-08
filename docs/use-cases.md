@@ -271,13 +271,11 @@
 **Extensions:**
 - 2a. Developer needs left-to-right composition of two transforms: System composes them so the first feeds into the second.
 - 2b. Developer needs to fix one argument of a two-argument function: System returns a one-argument function with the fixed argument captured. Either the first or second argument can be fixed.
-- 2c. Developer needs to apply multiple functions to the same argument, producing multiple results: System applies all functions and returns the results together.
-- 2d. Developer needs to apply separate functions to separate arguments: System applies each function independently and returns the results together.
-- 2e. Developer needs a pass-through or identity key extractor: System provides a function that returns its argument unchanged.
-- 2f. Developer needs a predicate that checks equality to a known value: System returns a function that tests its argument against the captured value.
+- 2c. Developer needs to apply separate functions to separate arguments: System applies each function independently and returns the results together.
+- 2d. Developer needs a pass-through or identity key extractor: System provides a function that returns its argument unchanged.
+- 2e. Developer needs a predicate that checks equality to a known value: System returns a function that tests its argument against the captured value.
 
 **Sub-Variations:**
 - Composition: left-to-right (Pipe)
 - Partial application: fix first arg (Bind), fix second arg (BindR)
-- Multi-dispatch: 2 or 3 functions
 - Building blocks: identity function, equality predicate

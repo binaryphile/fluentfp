@@ -1288,17 +1288,6 @@ applyRate := hof.Bind(multiply, exchangeRate)
 converted := slice.From(amounts).Convert(applyRate)
 ```
 
-Multi-field extraction with `hof.Dispatch2` — extract payer and beneficiary from each transaction in one pass:
-
-```go
-extract := hof.Dispatch2(Transaction.GetPayer, Transaction.GetBeneficiary)
-
-for _, t := range transactions {
-    payer, beneficiary := extract(t)
-    fmt.Printf("%s -> %s\n", payer, beneficiary)
-}
-```
-
 **What this brings to Go:** Go functions compose via nesting — `toTransaction(splitFields(normalize(line)))` — which reads inside-out, opposite to the data flow. Sequential assignment reads top-to-bottom but forces naming intermediate values. `hof.Pipe` provides left-to-right composition: the pipeline reads in the direction data flows. The Spark insight — that ETL steps are named, testable, composable transforms — translates directly.
 
 ---

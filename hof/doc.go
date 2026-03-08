@@ -1,6 +1,6 @@
 // Package hof provides function combinators for composition, partial application,
-// and multi-function dispatch. Based on Stone's "Algorithms: A Functional
-// Programming Approach" (pipe, sect, dispatch, cross).
+// and independent application. Based on Stone's "Algorithms: A Functional
+// Programming Approach" (pipe, sect, cross).
 package hof
 
 // Compile-time export verification. Every fluentfp package uses this pattern
@@ -12,10 +12,6 @@ func _() {
 	// Partial application
 	_ = Bind[int, int, int]
 	_ = BindR[int, int, int]
-
-	// Multi-function dispatch
-	_ = Dispatch2[int, int, int]
-	_ = Dispatch3[int, int, int, int]
 
 	// Independent application
 	_ = Cross[int, int, int, int]

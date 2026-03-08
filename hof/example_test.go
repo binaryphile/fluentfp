@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/binaryphile/fluentfp/hof"
-	"github.com/binaryphile/fluentfp/tuple/pair"
 )
 
 func ExamplePipe() {
@@ -46,29 +45,6 @@ func ExampleBindR() {
 
 	fmt.Println(subtractThree(10))
 	// Output: 7
-}
-
-func ExampleDispatch2() {
-	// Apply two functions to the same value.
-	double := func(n int) int { return n * 2 }
-	toString := func(n int) string { return strconv.Itoa(n) }
-
-	both := hof.Dispatch2(double, toString)
-	d, s := both(5)
-
-	fmt.Println(d, s)
-	// Output: 10 5
-}
-
-func ExampleDispatch2_withPair() {
-	// Bridge multi-return to pair.Pair for downstream composition.
-	double := func(n int) int { return n * 2 }
-	toString := func(n int) string { return strconv.Itoa(n) }
-
-	p := pair.Of(hof.Dispatch2(double, toString)(5))
-
-	fmt.Println(p.First, p.Second)
-	// Output: 10 5
 }
 
 func ExampleCross() {
