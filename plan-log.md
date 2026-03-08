@@ -2894,3 +2894,21 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 2026-03-08T06:37:34Z | Completion: Task #13447 - SQL serialization for Option
 [x] Value/Scan implementation (tests pass)
 [x] Tests, CLAUDE.md, CHANGELOG, use-cases.md, design.md updated (go vet clean)
+2026-03-08T06:51:16Z | Contract: Add Go/fluentfp translations to Stone algorithms guide
+[ ] S3 Tool Box — fn.Pipe, fn.Bind, fn.Dispatch2, fn.Cross examples
+[ ] S5 Euclid's — complete Go translation
+[ ] S7 List ops — complete set of fluentfp equivalents
+[ ] S7 Sources — stream.Unfold, stream.Generate, stream.Map examples
+[ ] S8 Bags/Sets/Tables — slice set ops, kv operations
+[ ] S9 Quicksort — .Partition improvement
+[ ] S10 Cartesian product — slice.Map + slice.Fold version
+[ ] S16-S17 — update cross-reference to reflect new fluentfp tools
+2026-03-08T06:58:50Z | Interaction: improve -> fixed unfold-list ordering (Go block before concept intro), named countdown step function for consistency
+2026-03-08T06:59:00Z | Completion: Go/fluentfp translations in Stone algorithms guide
+[x] S3 Tool Box examples
+[x] S5 Euclid's translation
+[x] S7 List ops + Sources
+[x] S8 Bags/Sets/Tables
+[x] S9 Quicksort .Partition
+[x] S10 Cartesian product
+[x] S16-S17 cross-reference updated
