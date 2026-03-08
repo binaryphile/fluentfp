@@ -2791,3 +2791,9 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Prepend and PrependLazy added (evidence: stream/constructors.go)
 [x] Tests pass (evidence: go test -race ./stream/)
 [x] CLAUDE.md updated (evidence: Prepend in stream API section)
+2026-03-08T01:22:25Z | Contract: Prepend/PrependLazy doc gaps
+[ ] doc.go updated
+[ ] CHANGELOG.md updated
+2026-03-08T01:34:39Z | Completion: Prepend/PrependLazy doc gaps
+[x] doc.go updated
+[x] CHANGELOG.md updated

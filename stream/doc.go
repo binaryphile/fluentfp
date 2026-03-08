@@ -36,6 +36,8 @@ func _() {
 	_ = Generate[int]
 	_ = Repeat[int]
 	_ = Unfold[int, int]
+	_ = Prepend[int]
+	_ = PrependLazy[int]
 
 	// Standalone functions
 	_ = Map[int, string]

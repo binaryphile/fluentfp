@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.46.0
+
+- **stream** — `Prepend` and `PrependLazy` constructors
+  - `Prepend(v, s)` — cons: v as head, s as eager tail
+  - `PrependLazy(v, tail)` — cons: v as head, lazy tail thunk (memoized, retry-on-panic)
+
 ## v0.45.0
 
 - **slice** — Standalone functions accept `Mapper[T]` instead of `[]T`
