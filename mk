@@ -22,6 +22,7 @@ Usage:
     open          -- list open tasks
     audit         -- full task reconciliation
     claim         -- claim a task
+    unclaim       -- release a claim
     claims        -- list active claims
 
   Options:
@@ -79,6 +80,12 @@ cmd.claim() {
     echo "warning: task #$1 already claimed" >&2
   fi
   era publish -s $TaskStream --type claim -m "refs=$1,claimer=$2" "Claimed #$1 by $2"
+}
+
+cmd.unclaim() {
+  [[ $# -ge 1 ]] || { echo "usage: $Prog unclaim <id>" >&2; return 1; }
+  [[ $1 =~ ^[0-9]+$ ]] || { echo "error: '$1' is not a numeric ID" >&2; return 1; }
+  era publish -s $TaskStream --type unclaim -m "refs=$1" "Unclaimed #$1"
 }
 
 cmd.claims() {

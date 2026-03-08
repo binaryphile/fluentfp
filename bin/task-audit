@@ -71,6 +71,9 @@ def reconcile(events):
             for ref in extract_refs(e):
                 claimer = (e.get("metadata") or {}).get("claimer", "?")
                 claims[ref] = {"claimer": claimer, "date": e["created_at"][:10]}
+        elif et == "unclaim":
+            for ref in extract_refs(e):
+                claims.pop(ref, None)
 
     return tasks, done_refs, claims
 
