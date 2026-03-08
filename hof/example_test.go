@@ -1,6 +1,7 @@
 package hof_test
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -57,4 +58,39 @@ func ExampleCross() {
 
 	fmt.Println(d, u)
 	// Output: 10 HELLO
+}
+
+func ExampleThrottle() {
+	// Wrap a function so at most 3 calls run concurrently.
+	// doubleIt doubles the input.
+	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
+	throttled := hof.Throttle(3, doubleIt)
+
+	result, err := throttled(context.Background(), 5)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	fmt.Println(result)
+	// Output: 10
+}
+
+func ExampleThrottleWeighted() {
+	// Wrap a function so total cost of concurrent calls never exceeds 100.
+	// processItem returns the item unchanged.
+	processItem := func(_ context.Context, n int) (int, error) { return n, nil }
+	// itemCost uses the item value as its cost.
+	itemCost := func(n int) int { return n }
+
+	throttled := hof.ThrottleWeighted(100, itemCost, processItem)
+
+	result, err := throttled(context.Background(), 42)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	fmt.Println(result)
+	// Output: 42
 }

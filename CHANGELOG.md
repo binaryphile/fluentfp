@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.56.0
+
+- **hof** — Concurrency control: `Throttle`, `ThrottleWeighted`
+  - `Throttle[T, R](n, fn)` — wraps function with count-based concurrency limit
+  - `ThrottleWeighted[T, R](capacity, cost, fn)` — wraps function with cost-based concurrency limit
+  - Returned function is safe for concurrent use from multiple goroutines
+  - Context cancellation during acquire returns `ctx.Err()` with partial rollback
+
 ## v0.55.0
 
 - **BREAKING**: Remove `Dispatch2`/`Dispatch3` from `hof` — single-value case is cleaner as plain Go (`a, b := f(x), g(x)`); collection-level equivalent already exists as `Unzip2`/`Unzip3`/`Unzip4`

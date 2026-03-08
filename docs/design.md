@@ -157,7 +157,7 @@ Also provides `lof.IsNonEmpty` as a predicate for `KeepIf` (filtering non-empty 
 
 ### D14: hof as function combinators
 
-Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), and standard building blocks (`Identity`, `Eq`).
+Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), standard building blocks (`Identity`, `Eq`), and concurrency control (`Throttle`/`ThrottleWeighted`).
 
 **Why needed:** Go functions are values but lack composition operators. `hof` provides the glue that lets developers build new functions from existing ones — for use in fluentfp chains or standalone. `Pipe(trim, toLower)` builds a transform; `Bind(add, 5)` fixes an argument; `Eq(target)` builds a predicate.
 
@@ -255,6 +255,28 @@ FanOut — partial acquire rolls back on ctx cancellation.
 **FanOut vs ParallelMap:** FanOut does per-item scheduling (one goroutine per
 item) — optimal for variable-latency I/O. ParallelMap does batch chunking —
 lower overhead for CPU-bound uniform work on large slices.
+
+### D15: Throttle as concurrency-controlling function wrapper
+
+`Throttle` and `ThrottleWeighted` wrap a function with concurrency control,
+returning a function with the same signature. The returned function blocks
+callers until concurrency budget is available.
+
+**Relationship to FanOut (D13):** FanOut processes a batch (slice → results),
+managing goroutine lifecycle and recovering panics. Throttle wraps a single
+function for streaming use — callers manage their own goroutines. Panics
+propagate naturally, consistent with all other hof functions.
+
+**Statefulness:** First stateful hof function — captures a channel semaphore
+in the returned closure. Acceptable because the primary operation is still
+function wrapping (takes a function, returns a function), and the statefulness
+is fully encapsulated — callers interact with a plain function value.
+
+**Acquire serialization (weighted only):** ThrottleWeighted uses a mutex to
+serialize the multi-token acquire loop. Without it, N concurrent goroutines
+each partially acquiring tokens can fill the channel, deadlocking all of them.
+FanOutWeighted avoids this via its sequential scheduling loop. The mutex is
+released before fn runs, so fn execution is fully concurrent.
 
 ## Allocation Model
 

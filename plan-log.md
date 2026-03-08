@@ -3058,3 +3058,30 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Actor-goal list updated (evidence: new row for lazy sequences)
 [x] UC-7 lof extension added (evidence: 2f extension present)
 [x] UC-8 stream UC added (evidence: full UC-8 section present)
+2026-03-08T22:56:47Z | Contract: Add Throttle/ThrottleWeighted to hof
+[ ] hof.Throttle limits concurrent calls by count
+[ ] hof.ThrottleWeighted limits concurrent calls by total cost
+[ ] Context cancellation during acquire returns ctx.Err()
+[ ] Pre-cancelled context returns immediately
+[ ] Partial acquire rollback on cancellation (weighted only)
+[ ] Returned function is safe for concurrent use
+[ ] All tests pass
+[ ] Documentation updated
+2026-03-08T23:09:53Z | Interaction: grade -> A-/92, review implementation for issues
+2026-03-08T23:12:27Z | Interaction: improve -> reviewing for remaining issues
+2026-03-08T23:15:47Z | Interaction: improve -> strengthened PartialAcquireRollback test: cost-5 verification proves all tokens freed (cost-1 would pass even with a leaked token)
+2026-03-08T23:17:43Z | Interaction: improve -> reviewing for additional gaps
+2026-03-08T23:18:14Z | Interaction: improve -> added TestThrottleWeightedPanicReleasesSlot (multi-token panic release verification)
+2026-03-08T23:20:24Z | Interaction: improve -> reviewing implementation and docs for remaining gaps
+2026-03-08T23:21:22Z | Interaction: improve -> no further issues found after reviewing implementation, D15, CLAUDE.md
+2026-03-08T23:40:11Z | Interaction: improve -> reviewing for remaining gaps
+2026-03-08T23:40:41Z | Interaction: improve -> final review of all diffs, no further issues
+2026-03-08T23:41:03Z | Completion: Add Throttle/ThrottleWeighted to hof
+[x] hof.Throttle limits concurrent calls by count (TestThrottleBasic, TestThrottleConcurrencyBound)
+[x] hof.ThrottleWeighted limits concurrent calls by total cost (TestThrottleWeightedConcurrencyBound, TestThrottleWeightedVariableCosts)
+[x] Context cancellation during acquire returns ctx.Err() (TestThrottleContextCancelled, TestThrottleWeightedContextCancelled)
+[x] Pre-cancelled context returns immediately (TestThrottlePreCancelledContext, TestThrottleWeightedPreCancelledContext)
+[x] Partial acquire rollback on cancellation (TestThrottleWeightedPartialAcquireRollback - cost-5 verification)
+[x] Returned function is safe for concurrent use (TestThrottleConcurrencyBound 10 goroutines, TestThrottleWeightedConcurrencyBound 10 goroutines)
+[x] All tests pass (go test ./... -count=1 all green)
+[x] Documentation updated (CLAUDE.md, design.md D14+D15, use-cases.md UC-7 2g, CHANGELOG.md, doc.go, example_test.go)

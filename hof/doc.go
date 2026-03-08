@@ -1,6 +1,6 @@
 // Package hof provides function combinators for composition, partial application,
-// and independent application. Based on Stone's "Algorithms: A Functional
-// Programming Approach" (pipe, sect, cross).
+// independent application, and concurrency control. Based on Stone's "Algorithms:
+// A Functional Programming Approach" (pipe, sect, cross).
 package hof
 
 // Compile-time export verification. Every fluentfp package uses this pattern
@@ -19,4 +19,8 @@ func _() {
 	// Building blocks
 	_ = Identity[int]
 	_ = Eq[int]
+
+	// Concurrency control
+	_ = Throttle[int, int]
+	_ = ThrottleWeighted[int, int]
 }

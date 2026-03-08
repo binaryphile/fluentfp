@@ -451,6 +451,10 @@ hof.Cross[A, B, C, D any](f func(A) C, g func(B) D) func(A, B) (C, D)
 // Building blocks
 hof.Identity[T any](t T) T                    // Returns argument unchanged; hof.Identity[string] as function value
 hof.Eq[T comparable](target T) func(T) bool   // Equality predicate factory
+
+// Concurrency control — wrap function with concurrency budget
+hof.Throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
+hof.ThrottleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
 ```
 
 ### hof Patterns
@@ -477,6 +481,15 @@ groups := slice.GroupBy(statuses, hof.Identity[string])
 
 // Equality predicate for Every/Any
 allSkipped := slice.From(statuses).Every(hof.Eq(Skipped))
+
+// Throttle — at most 5 concurrent API calls
+callAPI := hof.Throttle(5, fetchFromAPI)
+
+// ThrottleWeighted — bound by total in-flight bytes
+processMsg := hof.ThrottleWeighted(maxBytes, Message.Size, handleMessage)
+for msg := range subscription {
+    go processMsg(ctx, msg)  // blocks inside until budget available
+}
 ```
 
 ### must Package

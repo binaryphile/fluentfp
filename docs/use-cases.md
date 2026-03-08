@@ -276,12 +276,14 @@
 - 2d. Developer needs a pass-through or identity key extractor: System provides a function that returns its argument unchanged.
 - 2e. Developer needs a predicate that checks equality to a known value: System returns a function that tests its argument against the captured value.
 - 2f. Developer needs to pass a Go builtin as a higher-order argument: System provides a first-class function wrapping the builtin, usable anywhere a function value is expected.
+- 2g. Developer needs a function that enforces a concurrency budget when called from multiple goroutines: System returns a function with the same signature that blocks callers until budget is available, bounding by call count or per-call cost.
 
 **Sub-Variations:**
 - Composition: left-to-right (Pipe)
 - Partial application: fix first arg (Bind), fix second arg (BindR)
 - Building blocks: identity function, equality predicate
 - Builtin adapters: length, printing, string predicates, successor
+- Concurrency control: by count (Throttle), by cost (ThrottleWeighted)
 
 ---
 
