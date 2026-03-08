@@ -31,7 +31,7 @@ def extract_refs(event):
     refs.update(int(x) for x in re.findall(r"#(\d+)", payload))
 
     # 2. metadata fields
-    for key in ("refs", "completed_task_id", "resolves", "task_id"):
+    for key in ("refs", "ref", "closes", "completed_task_id", "resolves", "task_id"):
         val = meta.get(key, "")
         if val:
             refs.update(int(x) for x in re.findall(r"\d+", str(val)))
