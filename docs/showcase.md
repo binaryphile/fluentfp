@@ -885,11 +885,6 @@ func allMatch(statuses []Status, status Status) bool {
 
 **fluentfp:**
 ```go
-// isStatus returns a predicate that checks equality to the given status.
-isStatus := func(target Status) func(Status) bool {
-	return func(s Status) bool { return s == target }
-}
-
 func FigureOut(statuses []Status) Status {
 	if len(statuses) == 0 {
 		return Updated
@@ -897,9 +892,9 @@ func FigureOut(statuses []Status) Status {
 
 	ss := slice.From(statuses)
 	switch {
-	case ss.Every(isStatus(Skipped)):
+	case ss.Every(fn.Eq(Skipped)):
 		return Skipped
-	case ss.Every(isStatus(Preparing)):
+	case ss.Every(fn.Eq(Preparing)):
 		return Preparing
 	case slice.Contains(statuses, Outdated):
 		return Outdated
@@ -913,9 +908,9 @@ func FigureOut(statuses []Status) Status {
 }
 ```
 
-**What changed:** The `allMatch` and `contains` utility functions disappear — replaced by `.Every()` and `slice.Contains()`. The cascade logic in `FigureOut` is unchanged but reads with named quantifiers instead of forwarding to boilerplate helpers. The `if/else-if` chain becomes a `switch` that expresses the priority rules as a flat list. The explicit empty check at the top replaces the implicit `len == 0 → false` in `allMatch` — `.Every()` uses vacuous truth (empty returns true), so the guard preserves the original behavior.
+**What changed:** The `allMatch` and `contains` utility functions disappear — replaced by `.Every()` and `slice.Contains()`. The custom `isStatus` predicate factory becomes `fn.Eq` — a standard building block that returns an equality predicate for any comparable type. The cascade logic in `FigureOut` is unchanged but reads with named quantifiers instead of forwarding to boilerplate helpers. The `if/else-if` chain becomes a `switch` that expresses the priority rules as a flat list. The explicit empty check at the top replaces the implicit `len == 0 → false` in `allMatch` — `.Every()` uses vacuous truth (empty returns true), so the guard preserves the original behavior.
 
-**What's eliminated:** Boilerplate quantifier functions. Every Go project that needs "do all elements match?" or "does any element match?" re-implements the same 8-line loop. These functions aren't domain logic — they're missing standard library operations. `.Every()` and `slice.Contains()` replace them with named operations, letting `FigureOut` focus on the status priority rules.
+**What's eliminated:** Boilerplate quantifier functions and a custom predicate factory. Every Go project that needs "do all elements match?" or "does any element match?" re-implements the same 8-line loop. The `isStatus` factory — three lines to capture a target and return a closure — is the same pattern every project writes when it needs equality predicates for `Every`/`Any`. These functions aren't domain logic — they're missing standard library operations. `.Every()`, `slice.Contains()`, and `fn.Eq` replace them with named operations, letting `FigureOut` focus on the status priority rules.
 
 ---
 
@@ -1010,9 +1005,6 @@ func combinedStatus(statuses []string) string {
 
 **fluentfp:**
 ```go
-// statusValue returns the status unchanged (identity key for grouping by value).
-statusValue := func(s string) string { return s }
-
 // groupKey extracts the key from a status group.
 groupKey := func(g slice.Group[string, string]) string { return g.Key }
 
@@ -1022,15 +1014,15 @@ formatGroup := func(g slice.Group[string, string]) string {
 }
 
 func combinedStatus(statuses []string) string {
-	groups := slice.GroupBy(statuses, statusValue)
+	groups := slice.GroupBy(statuses, fn.Identity[string])
 	formatted := slice.SortBy(groups, groupKey).ToString(formatGroup)
 	return strings.Join(formatted, ", ")
 }
 ```
 
-**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `SortBy` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility.
+**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `SortBy` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `fn.Identity[string]`, a standard building block for "group by value" patterns.
 
-**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, and the pipeline makes each transformation step visible as a named operation.
+**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `fn.Identity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
 
 ---
 

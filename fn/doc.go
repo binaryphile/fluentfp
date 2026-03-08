@@ -19,4 +19,8 @@ func _() {
 
 	// Independent application
 	_ = Cross[int, int, int, int]
+
+	// Building blocks
+	_ = Identity[int]
+	_ = Eq[int]
 }

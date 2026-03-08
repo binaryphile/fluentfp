@@ -451,6 +451,10 @@ fn.Dispatch3[A, B, C, D any](f func(A) B, g func(A) C, h func(A) D) func(A) (B, 
 
 // Independent application — apply separate fns to separate args
 fn.Cross[A, B, C, D any](f func(A) C, g func(B) D) func(A, B) (C, D)
+
+// Building blocks
+fn.Identity[T any](t T) T                    // Returns argument unchanged; fn.Identity[string] as function value
+fn.Eq[T comparable](target T) func(T) bool   // Equality predicate factory
 ```
 
 ### fn Patterns
@@ -476,6 +480,12 @@ p := pair.Of(fn.Dispatch2(getName, getAge)(user))
 // Cross — apply separate transforms to separate values
 both := fn.Cross(double, toUpper)
 d, u := both(5, "hello")  // 10, "HELLO"
+
+// Identity as GroupBy key extractor (group by value)
+groups := slice.GroupBy(statuses, fn.Identity[string])
+
+// Equality predicate for Every/Any
+allSkipped := slice.From(statuses).Every(fn.Eq(Skipped))
 ```
 
 ### must Package

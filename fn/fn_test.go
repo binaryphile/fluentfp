@@ -260,3 +260,56 @@ func TestPipe_Chaining(t *testing.T) {
 		t.Errorf("Pipe chain (5) = %q, want %q", got, "11")
 	}
 }
+
+// --- Identity ---
+
+func TestIdentity_ReturnsSameValue(t *testing.T) {
+	if got := fn.Identity(42); got != 42 {
+		t.Errorf("Identity(42) = %d, want 42", got)
+	}
+	if got := fn.Identity("hello"); got != "hello" {
+		t.Errorf("Identity(hello) = %q, want %q", got, "hello")
+	}
+}
+
+func TestIdentity_WithGroupBy(t *testing.T) {
+	statuses := []string{"running", "exited", "running", "running"}
+
+	groups := slice.GroupBy(statuses, fn.Identity[string])
+
+	if got := len(groups); got != 2 {
+		t.Fatalf("GroupBy(Identity) produced %d groups, want 2", got)
+	}
+}
+
+// --- Eq ---
+
+func TestEq_MatchesTarget(t *testing.T) {
+	pred := fn.Eq(42)
+
+	if got := pred(42); got != true {
+		t.Errorf("Eq(42)(42) = %v, want true", got)
+	}
+}
+
+func TestEq_RejectsNonTarget(t *testing.T) {
+	pred := fn.Eq(42)
+
+	if got := pred(99); got != false {
+		t.Errorf("Eq(42)(99) = %v, want false", got)
+	}
+}
+
+func TestEq_WithEvery(t *testing.T) {
+	allSame := slice.From([]string{"a", "a", "a"}).Every(fn.Eq("a"))
+
+	if !allSame {
+		t.Error("Every(Eq(a)) on [a a a] = false, want true")
+	}
+
+	notAllSame := slice.From([]string{"a", "b", "a"}).Every(fn.Eq("a"))
+
+	if notAllSame {
+		t.Error("Every(Eq(a)) on [a b a] = true, want false")
+	}
+}

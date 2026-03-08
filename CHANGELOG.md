@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.53.0
+
+- **fn** — Building block combinators: `Identity`, `Eq`
+  - `Identity[T any](t T) T` — returns argument unchanged; use `fn.Identity[string]` as function value for key extractors
+  - `Eq[T comparable](target T) func(T) bool` — equality predicate factory for `Every`/`Any` patterns
+
 ## v0.52.0
 
 - **slice** — Weighted concurrent traversal: `FanOutWeighted`, `FanOutEachWeighted`

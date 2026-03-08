@@ -3002,3 +3002,19 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Entry 3: prometheus/prometheus Fold (State() running-max → slice.Fold with kv.Values)
 [x] Entry 4: docker/compose GroupBy pipeline (combinedStatus → GroupBy/SortBy/ToString)
 [x] Committed and pushed
+2026-03-08T19:55:54Z | Contract: Add fn.Identity and fn.Eq combinators
+[ ] fn.Identity implementation + test
+[ ] fn.Eq implementation + test
+[ ] doc.go, CLAUDE.md, CHANGELOG.md updated
+[ ] design.md D14 added
+[ ] use-cases.md UC-7 added
+[ ] Showcase entries updated with new functions
+2026-03-08T20:03:10Z | Interaction: improve -> reviewing fn.Identity/fn.Eq implementation
+2026-03-08T20:05:03Z | Interaction: grade -> A-/92, showcase analysis text didn't mention fn.Eq/fn.Identity
+2026-03-08T20:05:42Z | Completion: Add fn.Identity and fn.Eq combinators
+[x] fn.Identity implementation + test (fn/identity.go, TestIdentity_*)
+[x] fn.Eq implementation + test (fn/eq.go, TestEq_*)
+[x] doc.go, CLAUDE.md, CHANGELOG.md updated
+[x] design.md D14 added
+[x] use-cases.md UC-7 added
+[x] Showcase entries updated with fn.Eq and fn.Identity
