@@ -95,24 +95,24 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 // Standalone functions
 slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set members as collection (inverse of ToSet)
 slice.Group[K comparable, T any]                                         // Type: struct with Key K, Items []T
-slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Mapper[Group[K, T]] // Group by key → chainable slice of groups
-slice.KeyBy[T any, K comparable](ts []T, fn func(T) K) map[K]T              // Index elements by extracted key (last wins)
-slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
-slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
-slice.Partition[T any](ts []T, fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate; also .Partition method
-slice.Map[T, R any](ts []T, fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
-slice.FindAs[R, T any](ts []T) option.Option[R]                         // First element that type-asserts to R
-slice.Contains[T comparable](ts []T, target T) bool                     // Check membership
-slice.ToSet[T comparable](ts []T) map[T]bool                           // Convert slice to set for O(1) lookup
-slice.ToSetBy[T any, K comparable](ts []T, fn func(T) K) map[K]bool   // Set from extracted keys
-slice.UniqueBy[T any, K comparable](ts []T, fn func(T) K) Mapper[T]   // Dedup by key, preserving order
-slice.SortBy[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T]    // Sorted copy, ascending by key
-slice.SortByDesc[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] // Sorted copy, descending by key
+slice.GroupBy[T any, K comparable](ts Mapper[T], fn func(T) K) Mapper[Group[K, T]] // Group by key → chainable slice of groups
+slice.KeyBy[T any, K comparable](ts Mapper[T], fn func(T) K) map[K]T              // Index elements by extracted key (last wins)
+slice.Chunk[T any](ts Mapper[T], size int) [][]T                              // Split into fixed-size batches
+slice.Compact[T comparable](ts Mapper[T]) Mapper[T]                           // Remove zero-value elements
+slice.Partition[T any](ts Mapper[T], fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate; also .Partition method
+slice.Map[T, R any](ts Mapper[T], fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
+slice.FindAs[R, T any](ts Mapper[T]) option.Option[R]                         // First element that type-asserts to R
+slice.Contains[T comparable](ts Mapper[T], target T) bool                     // Check membership
+slice.ToSet[T comparable](ts Mapper[T]) map[T]bool                           // Convert slice to set for O(1) lookup
+slice.ToSetBy[T any, K comparable](ts Mapper[T], fn func(T) K) map[K]bool   // Set from extracted keys
+slice.UniqueBy[T any, K comparable](ts Mapper[T], fn func(T) K) Mapper[T]   // Dedup by key, preserving order
+slice.SortBy[T any, K cmp.Ordered](ts Mapper[T], fn func(T) K) Mapper[T]    // Sorted copy, ascending by key
+slice.SortByDesc[T any, K cmp.Ordered](ts Mapper[T], fn func(T) K) Mapper[T] // Sorted copy, descending by key
 slice.Asc[T any, S cmp.Ordered](key func(T) S) func(T, T) int         // Ascending comparator from key
 slice.Desc[T any, S cmp.Ordered](key func(T) S) func(T, T) int        // Descending comparator from key
-slice.Fold[T, R](ts []T, initial R, fn func(R, T) R) R
-slice.MapAccum[T, R, S](ts []T, init S, fn func(S, T) (S, R)) (S, Mapper[R])  // Fold + collect outputs
-slice.Unzip2[T, A, B](ts []T, fa func(T) A, fb func(T) B) (Mapper[A], Mapper[B])
+slice.Fold[T, R](ts Mapper[T], initial R, fn func(R, T) R) R
+slice.MapAccum[T, R, S](ts Mapper[T], init S, fn func(S, T) (S, R)) (S, Mapper[R])  // Fold + collect outputs
+slice.Unzip2[T, A, B](ts Mapper[T], fa func(T) A, fb func(T) B) (Mapper[A], Mapper[B])
 slice.Unzip3[T, A, B, C](...)
 slice.Unzip4[T, A, B, C, D](...)
 
@@ -122,8 +122,8 @@ slice.ParallelMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
 .ParallelEach(workers int, fn func(T))                     // method on Mapper and MapperTo
 
 // FanOut — bounded concurrent traversal for I/O workloads (per-item scheduling)
-slice.FanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]]
-slice.FanOutEach[T any](ctx context.Context, n int, ts []T, fn func(context.Context, T) error) []error
+slice.FanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) Mapper[result.Result[R]]
+slice.FanOutEach[T any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) error) []error
 
 // Map, ParallelMap, Fold, and MapAccum are standalone (not methods) because they return
 // a different type R — Go can't infer R from Mapper[T]'s receiver.
@@ -286,6 +286,8 @@ stream.Of[T any](vs ...T) Stream[T]                                // Variadic c
 stream.Generate[T any](seed T, fn func(T) T) Stream[T]             // Infinite: seed, fn(seed), ...
 stream.Repeat[T any](v T) Stream[T]                                // Infinite constant
 stream.Unfold[T, S any](seed S, fn func(S) (T, S, bool)) Stream[T] // Dual of Fold (step function)
+stream.Prepend[T any](v T, s Stream[T]) Stream[T]                 // Cons: v as head, s as tail (eager link)
+stream.PrependLazy[T any](v T, tail func() Stream[T]) Stream[T]   // Cons: v as head, lazy tail thunk
 
 // Accessors (non-consuming)
 .IsEmpty() bool
@@ -328,6 +330,14 @@ first10 := naturals.Take(10).Collect()
 type pair struct{ a, b int }
 fib := stream.Unfold(pair{0, 1}, func(p pair) (int, pair, bool) {
     return p.a, pair{p.b, p.a + p.b}, true
+})
+
+// Prepend element to existing stream (eager link)
+withHeader := stream.Prepend(header, stream.From(rows))
+
+// Build stream incrementally with lazy tail
+countdown := stream.PrependLazy(n, func() stream.Stream[int] {
+    return countdownFrom(n - 1)
 })
 
 // Cross-type map (standalone)

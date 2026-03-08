@@ -6,7 +6,7 @@ import (
 )
 
 // SortBy returns a sorted copy of ts, ordered ascending by the key extracted via fn.
-func SortBy[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] {
+func SortBy[T any, K cmp.Ordered](ts Mapper[T], fn func(T) K) Mapper[T] {
 	c := make([]T, len(ts))
 	copy(c, ts)
 	slices.SortFunc(c, func(a, b T) int { return cmp.Compare(fn(a), fn(b)) })
@@ -14,7 +14,7 @@ func SortBy[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] {
 }
 
 // SortByDesc returns a sorted copy of ts, ordered descending by the key extracted via fn.
-func SortByDesc[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] {
+func SortByDesc[T any, K cmp.Ordered](ts Mapper[T], fn func(T) K) Mapper[T] {
 	c := make([]T, len(ts))
 	copy(c, ts)
 	slices.SortFunc(c, func(a, b T) int { return cmp.Compare(fn(b), fn(a)) })

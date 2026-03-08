@@ -26,7 +26,7 @@ import (
 //  7. fn errors do NOT cancel siblings. The caller controls fail-fast by cancelling ctx in fn.
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
-func FanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+func FanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
 	return fanOut(ctx, n, ts, fn)
 }
 
@@ -38,7 +38,7 @@ func FanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Contex
 // detectable via errors.As.
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
-func FanOutEach[T any](ctx context.Context, n int, ts []T, fn func(context.Context, T) error) []error {
+func FanOutEach[T any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) error) []error {
 	if n <= 0 {
 		panic("slice.FanOutEach: n must be > 0")
 	}
@@ -67,7 +67,7 @@ func FanOutEach[T any](ctx context.Context, n int, ts []T, fn func(context.Conte
 }
 
 // fanOut is the internal engine shared by FanOut and FanOutEach.
-func fanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+func fanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
 	if n <= 0 {
 		panic("slice.FanOut: n must be > 0")
 	}

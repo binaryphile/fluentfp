@@ -2771,3 +2771,17 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Compile-time verification in doc.go
 [x] Tests: Mapper table-driven, MapperTo smoke, parity
 [x] CLAUDE.md and CHANGELOG.md updated
+2026-03-08T01:02:55Z | Contract: Change []T params to Mapper[T] in slice package
+[ ] 20 standalone functions updated
+[ ] All tests pass
+[ ] CLAUDE.md standalone signatures updated
+[ ] CHANGELOG.md updated
+2026-03-08T01:06:13Z | Contract: stream.Prepend/PrependLazy
+[ ] Prepend and PrependLazy added
+[ ] Tests pass (including concurrency and panic tests)
+[ ] CLAUDE.md updated
+2026-03-08T01:09:30Z | Completion: Change []T params to Mapper[T] in slice package
+[x] 20 standalone functions updated
+[x] All tests pass
+[x] CLAUDE.md standalone signatures updated
+[x] CHANGELOG.md updated

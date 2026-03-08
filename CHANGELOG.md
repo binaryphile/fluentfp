@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.45.0
+
+- **slice** — Standalone functions accept `Mapper[T]` instead of `[]T`
+  - 20 functions updated: `Chunk`, `Compact`, `Contains`, `FanOut`, `FanOutEach`, `FindAs`, `Fold`, `GroupBy`, `KeyBy`, `Map`, `MapAccum`, `Partition`, `SortBy`, `SortByDesc`, `ToSet`, `ToSetBy`, `UniqueBy`, `Unzip2`, `Unzip3`, `Unzip4`
+  - Not a breaking change — Go allows passing `[]T` where `Mapper[T]` is expected
+
 ## v0.44.0
 
 - **slice** — `Partition` method on `Mapper[T]` and `MapperTo[R, T]`

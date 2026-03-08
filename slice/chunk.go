@@ -3,7 +3,7 @@ package slice
 // Chunk splits ts into sub-slices of at most size elements.
 // The last chunk may have fewer than size elements.
 // Panics if size <= 0.
-func Chunk[T any](ts []T, size int) [][]T {
+func Chunk[T any](ts Mapper[T], size int) [][]T {
 	if size <= 0 {
 		panic("slice.Chunk: size must be positive")
 	}
