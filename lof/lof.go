@@ -31,6 +31,11 @@ func IsNonBlank(s string) bool {
 	return strings.TrimSpace(s) != ""
 }
 
+// Inc returns n + 1. Successor function for use with stream.Generate and similar.
+func Inc(n int) int {
+	return n + 1
+}
+
 // IfNonEmpty returns s and whether s is non-empty.
 // Converts "empty string = absent" returns to Go's comma-ok idiom.
 //

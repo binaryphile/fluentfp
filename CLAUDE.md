@@ -595,6 +595,7 @@ import "github.com/binaryphile/fluentfp/lof"
 lof.Println(s string)                   // Wraps fmt.Println for Each
 lof.Len(ts []T) int                     // Wraps len
 lof.StringLen(s string) int             // Wraps len for strings
+lof.Inc(n int) int                      // Successor function (n + 1) for stream.Generate
 lof.IsNonEmpty(s string) bool           // Predicate for KeepIf on string slices
 lof.IsNonBlank(s string) bool           // True if s contains non-whitespace characters
 lof.IfNonEmpty(s string) (string, bool) // Comma-ok for "empty = absent" returns
