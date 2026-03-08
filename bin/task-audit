@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Task stream audit tool. Matches task events against task-done events."""
+
+import json
+import re
+import subprocess
+import sys
+
+TASK_TYPES = {"task", "bug", "task_created"}
+DONE_TYPES = {"task-done", "taskdone", "done"}
+
+
+def read_events(stream):
+    result = subprocess.run(
+        ["era", "read", "--json", "--limit", "10000", stream],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"error: era read failed: {result.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+    return json.loads(result.stdout) if result.stdout.strip() else []
+
+
+def extract_refs(event):
+    """Extract all task IDs referenced by a done/claim event."""
+    refs = set()
+    payload = event.get("payload", "")
+    meta = event.get("metadata") or {}
+
+    # 1. #NNN in payload text
+    refs.update(int(x) for x in re.findall(r"#(\d+)", payload))
+
+    # 2. metadata fields
+    for key in ("refs", "completed_task_id", "resolves", "task_id"):
+        val = meta.get(key, "")
+        if val:
+            refs.update(int(x) for x in re.findall(r"\d+", str(val)))
+
+    # 3. JSON payload fields
+    try:
+        pj = json.loads(payload)
+        if isinstance(pj, dict):
+            for key in ("resolves", "refs"):
+                val = pj.get(key, "")
+                if val:
+                    refs.update(int(x) for x in re.findall(r"\d+", str(val)))
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    return refs
+
+
+def reconcile(events):
+    """Partition events into tasks, done refs, and claims."""
+    tasks = {}       # id → {id, type, payload, date}
+    done_refs = set()
+    claims = {}      # task_id → {claimer, date}
+
+    for e in events:
+        et = e["event_type"].lower()
+        if et in TASK_TYPES:
+            tasks[e["id"]] = {
+                "id": e["id"],
+                "type": e["event_type"],
+                "payload": e["payload"],
+                "date": e["created_at"][:10],
+            }
+        elif et in DONE_TYPES:
+            done_refs.update(extract_refs(e))
+        elif et == "claim":
+            for ref in extract_refs(e):
+                claimer = (e.get("metadata") or {}).get("claimer", "?")
+                claims[ref] = {"claimer": claimer, "date": e["created_at"][:10]}
+
+    return tasks, done_refs, claims
+
+
+def truncate(s, width):
+    return s[:width - 1] + "…" if len(s) > width else s
+
+
+def cmd_open(tasks, done_refs, claims):
+    open_tasks = sorted(
+        (t for t in tasks.values() if t["id"] not in done_refs),
+        key=lambda t: t["id"],
+    )
+    if not open_tasks:
+        print("no open tasks")
+        return
+    for t in open_tasks:
+        claim = claims.get(t["id"])
+        tag = f"  [claimed:{claim['claimer']}]" if claim else ""
+        payload = truncate(t["payload"].replace("\n", " "), 80)
+        print(f"#{t['id']}  {t['date']}  {t['type']}{tag}  {payload}")
+
+
+def cmd_audit(tasks, done_refs, claims):
+    matched = {tid: t for tid, t in tasks.items() if tid in done_refs}
+    unmatched = {tid: t for tid, t in tasks.items() if tid not in done_refs}
+    print(f"total: {len(tasks)}  matched: {len(matched)}  open: {len(unmatched)}")
+    if unmatched:
+        print(f"\n--- open ({len(unmatched)}) ---")
+        for tid in sorted(unmatched):
+            t = unmatched[tid]
+            claim = claims.get(tid)
+            tag = f"  [claimed:{claim['claimer']}]" if claim else ""
+            payload = truncate(t["payload"].replace("\n", " "), 80)
+            print(f"  #{tid}  {t['date']}  {t['type']}{tag}  {payload}")
+    if matched:
+        print(f"\n--- matched ({len(matched)}) ---")
+        for tid in sorted(matched):
+            t = matched[tid]
+            payload = truncate(t["payload"].replace("\n", " "), 60)
+            print(f"  #{tid}  {t['date']}  {t['type']}  {payload}")
+
+
+def cmd_claims(tasks, done_refs, claims):
+    active = {
+        tid: c for tid, c in claims.items()
+        if tid not in done_refs
+    }
+    if not active:
+        print("no active claims")
+        return
+    for tid in sorted(active):
+        c = active[tid]
+        task = tasks.get(tid)
+        payload = truncate(task["payload"].replace("\n", " "), 60) if task else "(unknown task)"
+        print(f"#{tid}  {c['date']}  {c['claimer']}  {payload}")
+
+
+def cmd_check(tasks, done_refs, claims, task_id):
+    claim = claims.get(task_id)
+    if claim and task_id not in done_refs:
+        print(claim["claimer"])
+        sys.exit(1)
+    sys.exit(0)
+
+
+def main():
+    if len(sys.argv) < 3:
+        print("usage: task-audit <mode> <stream> [<id>]", file=sys.stderr)
+        print("modes: open, audit, claims, check", file=sys.stderr)
+        sys.exit(1)
+
+    mode = sys.argv[1]
+    stream = sys.argv[2]
+
+    events = read_events(stream)
+    tasks, done_refs, claims = reconcile(events)
+
+    if mode == "open":
+        cmd_open(tasks, done_refs, claims)
+    elif mode == "audit":
+        cmd_audit(tasks, done_refs, claims)
+    elif mode == "claims":
+        cmd_claims(tasks, done_refs, claims)
+    elif mode == "check":
+        if len(sys.argv) < 4:
+            print("usage: task-audit check <stream> <id>", file=sys.stderr)
+            sys.exit(1)
+        cmd_check(tasks, done_refs, claims, int(sys.argv[3]))
+    else:
+        print(f"error: unknown mode '{mode}'", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
