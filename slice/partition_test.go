@@ -33,3 +33,62 @@ func TestPartition(t *testing.T) {
 		})
 	}
 }
+
+func TestMapper_Partition(t *testing.T) {
+	isEven := func(n int) bool { return n%2 == 0 }
+
+	tests := []struct {
+		name      string
+		input     Mapper[int]
+		wantMatch []int
+		wantRest  []int
+	}{
+		{name: "some match", input: Mapper[int]{1, 2, 3, 4, 5}, wantMatch: []int{2, 4}, wantRest: []int{1, 3, 5}},
+		{name: "all match", input: Mapper[int]{2, 4, 6}, wantMatch: []int{2, 4, 6}, wantRest: []int{}},
+		{name: "none match", input: Mapper[int]{1, 3, 5}, wantMatch: []int{}, wantRest: []int{1, 3, 5}},
+		{name: "empty slice", input: Mapper[int]{}, wantMatch: []int{}, wantRest: []int{}},
+		{name: "nil slice", input: nil, wantMatch: []int{}, wantRest: []int{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotMatch, gotRest := tt.input.Partition(isEven)
+			if !reflect.DeepEqual([]int(gotMatch), tt.wantMatch) {
+				t.Errorf("Partition() match = %v, want %v", gotMatch, tt.wantMatch)
+			}
+			if !reflect.DeepEqual([]int(gotRest), tt.wantRest) {
+				t.Errorf("Partition() rest = %v, want %v", gotRest, tt.wantRest)
+			}
+		})
+	}
+}
+
+func TestMapperTo_Partition(t *testing.T) {
+	isEven := func(n int) bool { return n%2 == 0 }
+
+	gotMatch, gotRest := MapperTo[string, int]{1, 2, 3, 4, 5}.Partition(isEven)
+	wantMatch := []int{2, 4}
+	wantRest := []int{1, 3, 5}
+
+	if !reflect.DeepEqual([]int(gotMatch), wantMatch) {
+		t.Errorf("MapperTo.Partition() match = %v, want %v", gotMatch, wantMatch)
+	}
+	if !reflect.DeepEqual([]int(gotRest), wantRest) {
+		t.Errorf("MapperTo.Partition() rest = %v, want %v", gotRest, wantRest)
+	}
+}
+
+func TestPartition_MatchesStandalone(t *testing.T) {
+	isEven := func(n int) bool { return n%2 == 0 }
+
+	input := []int{1, 2, 3, 4, 5}
+	standaloneMatch, standaloneRest := Partition(input, isEven)
+	methodMatch, methodRest := Mapper[int](input).Partition(isEven)
+
+	if !reflect.DeepEqual([]int(standaloneMatch), []int(methodMatch)) {
+		t.Errorf("parity match: Partition = %v, Mapper.Partition = %v", standaloneMatch, methodMatch)
+	}
+	if !reflect.DeepEqual([]int(standaloneRest), []int(methodRest)) {
+		t.Errorf("parity rest: Partition = %v, Mapper.Partition = %v", standaloneRest, methodRest)
+	}
+}

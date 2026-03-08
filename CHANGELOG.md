@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.44.0
+
+- **slice** — `Partition` method on `Mapper[T]` and `MapperTo[R, T]`
+  - Method equivalent of standalone `Partition` for fluent chains
+  - Enables: `slice.From(users).KeepIf(pred).Partition(fn)`
+
 ## v0.43.0
 
 - **slice** — `KeyByString`, `KeyByInt` methods on `Mapper[T]` and `MapperTo[R, T]`

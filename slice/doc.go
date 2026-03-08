@@ -30,6 +30,7 @@ func _() {
 	_ = Mapper[int].Len
 	_ = Mapper[int].ParallelEach
 	_ = Mapper[int].ParallelKeepIf
+	_ = Mapper[int].Partition
 	_ = Mapper[int].RemoveIf
 	_ = Mapper[int].Reverse
 	_ = Mapper[int].Single
@@ -57,6 +58,7 @@ func _() {
 	_ = MapperTo[int, int].ParallelEach
 	_ = MapperTo[int, int].ParallelKeepIf
 	_ = MapperTo[int, int].ParallelMap
+	_ = MapperTo[int, int].Partition
 	_ = MapperTo[int, int].RemoveIf
 	_ = MapperTo[int, int].Reverse
 	_ = MapperTo[int, int].Single

@@ -7,6 +7,19 @@
 - **Language**: Go
 - **Package Management**: Go modules
 
+### mk — project task management
+
+```
+./mk task <description>            # publish a task event
+./mk done <id>[,<id>...] [evidence] # publish a task-done event
+./mk open                          # list open tasks
+./mk audit                         # full task reconciliation
+./mk claim <id> <name>             # claim a task
+./mk claims                        # list active claims
+```
+
+Stream name derived from project directory: `tasks.fluentfp`.
+
 ## Code Style: fluentfp
 
 ### slice Package - Complete API
@@ -25,6 +38,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 // Mapper[T] methods (also on MapperTo)
 .KeepIf(fn func(T) bool) Mapper[T]     // Filter: keep matching
 .RemoveIf(fn func(T) bool) Mapper[T]   // Filter: remove matching
+.Partition(fn func(T) bool) (Mapper[T], Mapper[T]) // Split by predicate (single pass)
 .Convert(fn func(T) T) Mapper[T]       // Map to same type
 .FlatMap(fn func(T) []T) Mapper[T]     // Expand + concat
 .Take(n int) Mapper[T]                 // First n elements
@@ -85,7 +99,7 @@ slice.GroupBy[T any, K comparable](ts []T, fn func(T) K) Mapper[Group[K, T]] // 
 slice.KeyBy[T any, K comparable](ts []T, fn func(T) K) map[K]T              // Index elements by extracted key (last wins)
 slice.Chunk[T any](ts []T, size int) [][]T                              // Split into fixed-size batches
 slice.Compact[T comparable](ts []T) Mapper[T]                           // Remove zero-value elements
-slice.Partition[T any](ts []T, fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate
+slice.Partition[T any](ts []T, fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate; also .Partition method
 slice.Map[T, R any](ts []T, fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
 slice.FindAs[R, T any](ts []T) option.Option[R]                         // First element that type-asserts to R
 slice.Contains[T comparable](ts []T, target T) bool                     // Check membership
@@ -186,6 +200,9 @@ actives := kv.Values(byID).KeepIf(User.IsActive)
 
 // KeyByString/KeyByInt — method form chains directly from slice.From
 byName := slice.From(users).KeepIf(User.IsActive).KeyByString(User.GetName)
+
+// Partition — split by predicate in fluent chain
+active, inactive := slice.From(users).Partition(User.IsActive)
 ```
 
 ### either Package

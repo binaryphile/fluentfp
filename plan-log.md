@@ -2757,3 +2757,17 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] Of function added (evidence: result/result.go)
 [x] Tests pass (evidence: go test ./result/)
 [x] CLAUDE.md updated (evidence: result.Of in API section)
+$(date -u +%Y-%m-%dT%H:%M:%SZ) | Contract: Partition method on Mapper and MapperTo
+[ ] Mapper[T].Partition method delegates to base.Partition
+[ ] MapperTo[R,T].Partition method delegates to base.Partition
+[ ] slice.Partition delegates to base.Partition
+[ ] Compile-time verification in doc.go
+[ ] Tests: Mapper table-driven, MapperTo smoke, parity
+[ ] CLAUDE.md and CHANGELOG.md updated
+$(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and MapperTo
+[x] Mapper[T].Partition method delegates to base.Partition
+[x] MapperTo[R,T].Partition method delegates to base.Partition
+[x] slice.Partition delegates to base.Partition
+[x] Compile-time verification in doc.go
+[x] Tests: Mapper table-driven, MapperTo smoke, parity
+[x] CLAUDE.md and CHANGELOG.md updated

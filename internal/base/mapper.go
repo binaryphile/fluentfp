@@ -186,6 +186,14 @@ func (ts Mapper[T]) RemoveIf(fn func(T) bool) Mapper[T] {
 	return results
 }
 
+// Partition splits ts into two slices: elements where fn returns true, and elements where it returns false.
+// Single pass. Both results are independent slices.
+// For use in standalone form, see the Partition function in the slice package.
+func (ts Mapper[T]) Partition(fn func(T) bool) (Mapper[T], Mapper[T]) {
+	match, rest := Partition(ts, fn)
+	return match, rest
+}
+
 // Take returns the first n elements of ts.
 func (ts Mapper[T]) Take(n int) Mapper[T] {
 	n = max(0, n)
