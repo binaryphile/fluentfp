@@ -637,23 +637,23 @@ func Difference(a, b []string, lowercase bool) []string {
 **fluentfp:**
 ```go
 func Difference(a, b []string, lowercase bool) []string {
-    normalize := strings.TrimSpace
+    toNormalized := strings.TrimSpace
     if lowercase {
-        normalize = fn.Pipe(strings.TrimSpace, strings.ToLower)
+        toNormalized = fn.Pipe(strings.TrimSpace, strings.ToLower)
     }
 
     // identity extracts sort key for alphabetical ordering.
     identity := func(s string) string { return s }
 
-    normA := slice.Compact(slice.From(a).Convert(normalize))
-    normB := slice.Compact(slice.From(b).Convert(normalize))
+    normA := slice.Compact(slice.From(a).Convert(toNormalized))
+    normB := slice.Compact(slice.From(b).Convert(toNormalized))
     diff := slice.Difference(normA, normB)
 
     return slice.SortBy(diff, identity)
 }
 ```
 
-**What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `Compact` for blank removal. Normalization separates into `.Convert(normalize)`, making it visible that lowercasing is a *transform*, not part of the set operation.
+**What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `Compact` for blank removal. Normalization separates into `.Convert(toNormalized)`, making it visible that lowercasing is a *transform*, not part of the set operation.
 
 **What's eliminated:** The build-then-delete pattern (`for range a → map[a] = {}; for range b → delete(map, b)`) is the manual idiom for set difference in Go. It requires reasoning about map mutation — deletions during a scan of a different slice — which is correct but non-obvious at a glance. `slice.Difference` names the intent directly. The early-return inconsistency (main path normalizes; empty-`b` path doesn't) disappears because the pipeline processes all inputs uniformly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
 
@@ -911,8 +911,8 @@ active := slice.From(allModules).ParallelKeepIf(8, isEnabled)
 ```go
 // ObjectPage holds one page of S3 object listings.
 type ObjectPage struct {
-    Objects           []Object
-    ContinuationToken string // empty when no more pages
+    Objects                 []Object
+    ContinuationTokenOption option.String
 }
 
 // listObjects calls S3 for one page of object listings.
@@ -927,8 +927,8 @@ func listObjects(bucket, token string) ObjectPage {
     objects := slice.Map(out.Contents, toObject)
 
     return ObjectPage{
-        Objects:           objects,
-        ContinuationToken: aws.ToString(out.NextContinuationToken),
+        Objects:                 objects,
+        ContinuationTokenOption: option.NonEmpty(aws.ToString(out.NextContinuationToken)),
     }
 }
 ```
@@ -938,11 +938,12 @@ func listObjects(bucket, token string) ObjectPage {
 // pageStep lists one page and advances the continuation token.
 pageStep := func(token string) (ObjectPage, string, bool) {
     page := listObjects(bucket, token)
-    if page.ContinuationToken == "" {
+    next, hasMore := page.ContinuationTokenOption.Get()
+    if !hasMore {
         return page, "", len(page.Objects) > 0
     }
 
-    return page, page.ContinuationToken, true
+    return page, next, true
 }
 
 pages := stream.Unfold("", pageStep)
