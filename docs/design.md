@@ -103,6 +103,8 @@ Not a pointer, not an interface.
 
 **Not an interface:** would require type assertions at extraction, losing the compile-time safety that value types provide.
 
+**Serialization:** Option implements `json.Marshaler`/`Unmarshaler` and `sql.Scanner`/`driver.Valuer`. Both use the same semantics: Ok ↔ value, NotOk ↔ null/NULL. SQL implementation delegates to `sql.Null[T]`, which handles all driver type conversions (int64→int, []byte→string, etc.) and custom Scanner/Valuer delegation internally.
+
 Pre-defined aliases (`String`, `Int`, `Bool`, `Error`) improve readability at usage sites. For the user-facing case for options over pointers, see [nil-safety.md](../nil-safety.md).
 
 ### D5: Either[L,R] with right-bias

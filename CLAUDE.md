@@ -392,6 +392,10 @@ option.Map[T, R](o Option[T], fn func(T) R) Option[R]          // Cross-type tra
 option.FlatMap[T, R](o Option[T], fn func(T) Option[R]) Option[R] // Cross-type monadic bind
 option.Lift(fn func(T)) func(Option[T]) // Lift side-effect function to accept option
 
+// Serialization — Option implements these interfaces:
+// json.Marshaler/Unmarshaler: Ok(v) ↔ JSON value, NotOk ↔ null
+// sql.Scanner/driver.Valuer:  Ok(v) ↔ column value, NotOk ↔ NULL
+
 // Pre-defined types
 option.String, option.Int, option.Bool, option.Error
 ```

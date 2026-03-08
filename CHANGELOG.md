@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.51.0
+
+- **option** — SQL serialization: `sql.Scanner` and `driver.Valuer` for `Option[T]`
+  - Ok(v) ↔ column value, NotOk ↔ NULL
+  - Delegates to `sql.Null[T]` for type conversion
+
 ## v0.50.0
 
 - **result** — `Lift[A, R any](fn func(A) (R, error)) func(A) Result[R]` — wrap fallible function to return Result

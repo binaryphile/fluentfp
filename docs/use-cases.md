@@ -150,6 +150,8 @@
 - 3d. Fallback is expensive to compute: System evaluates fallback only when absent.
 - 3e. Developer needs to chain operations that each may produce absence: System applies each operation in sequence, short-circuiting to absent if any step produces absence. No manual unwrapping between steps.
 - 2c. Value is present but needs transformation to a different type: System checks presence and transforms in one step, returning absence if the original was absent.
+- 4a. Developer stores optional value in a database column: System maps present to the column value and absent to SQL NULL. Type conversion between Go types and SQL driver types is handled automatically.
+- 4b. Developer serializes optional value to JSON: System maps present to the JSON value and absent to null.
 
 **Sub-Variations:**
 - Specialized variants for common value types (string, int, bool, error)

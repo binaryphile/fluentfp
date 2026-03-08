@@ -2888,3 +2888,9 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Take bug fix: no extra source evaluation
 [x] From nil guard: empty input short-circuits pipeline
 [x] TestLaziness: validates lazy evaluation + Take short-circuit
+2026-03-08T06:29:27Z | Contract: Task #13447 - Add SQL serialization for Option
+[ ] Value/Scan implementation
+[ ] Tests, CLAUDE.md, CHANGELOG, use-cases.md, design.md updated
+2026-03-08T06:37:34Z | Completion: Task #13447 - SQL serialization for Option
+[x] Value/Scan implementation (tests pass)
+[x] Tests, CLAUDE.md, CHANGELOG, use-cases.md, design.md updated (go vet clean)
