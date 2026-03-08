@@ -2852,3 +2852,8 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Table-driven tests for all three (38 total, go test passes)
 [x] doc.go, CLAUDE.md, CHANGELOG.md updated (go vet clean)
 [x] Showcase entry: go-secure-stdlib Difference (30 lines → 10)
+2026-03-08T03:46:13Z | Interaction: improve -> third self-review pass
+2026-03-08T03:47:57Z | Completion: Task #13556 - Showcase entries for set operations
+[x] KubeEdge entry (intersect + difference)
+[x] docker-gen entry (intersect with dedup)
+[x] Filecoin Lotus entry (union aliasing hazard)

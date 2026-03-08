@@ -519,7 +519,7 @@ for i := 0; i < 25; i++ {
 // 26+ goroutines remain live until process exit — no cancellation/cleanup path
 ```
 
-**Extracted (fluentfp side only):**
+**fluentfp:**
 ```go
 // inc returns the next integer.
 inc := func(n int) int { return n + 1 }
@@ -533,10 +533,7 @@ isPrime := func(n int) bool {
     }
     return true
 }
-```
 
-**fluentfp:**
-```go
 primes := stream.Generate(2, inc).KeepIf(isPrime).Take(25).Collect()
 ```
 
@@ -643,7 +640,6 @@ func Difference(a, b []string, lowercase bool) []string {
 **fluentfp:**
 ```go
 func Difference(a, b []string, lowercase bool) []string {
-    // normalize trims whitespace and optionally lowercases.
     normalize := strings.TrimSpace
     if lowercase {
         normalize = fn.Pipe(strings.TrimSpace, strings.ToLower)
@@ -652,7 +648,6 @@ func Difference(a, b []string, lowercase bool) []string {
     // identity extracts sort key for alphabetical ordering.
     identity := func(s string) string { return s }
 
-    // Pipeline: normalize → remove blanks → difference → sort.
     normA := slice.Compact(slice.From(a).Convert(normalize))
     normB := slice.Compact(slice.From(b).Convert(normalize))
     diff := slice.Difference(normA, normB)
@@ -672,7 +667,7 @@ func Difference(a, b []string, lowercase bool) []string {
 **Source:** [reconcile.go#L320-L346](https://github.com/kubeedge/kubeedge/blob/master/cloud/pkg/policycontroller/manager/reconcile.go#L320-L346)
 **Pain point:** Two nearly identical 12-line functions — `intersectSlice` and `subtractSlice` — differing only in `if m[v]` vs `if !m[v]`
 
-KubeEdge (7.4k stars, CNCF project) extends Kubernetes to edge nodes. When reconciling ServiceAccountAccess policies, the controller compares old and new target node lists to determine which nodes were added and which are unchanged. Both functions follow the same structure: allocate `map[string]bool`, populate from one slice, iterate the other checking membership. Note `subtractSlice`'s confusing parameter names: it builds a map from `source` but iterates `subTarget`, so `subtractSlice(old, new)` returns elements in `new` not in `old` — the opposite of what "subtract source" suggests.
+KubeEdge (7.4k stars, CNCF project) extends Kubernetes to edge nodes. When reconciling ServiceAccountAccess policies, the controller compares old and new target node lists to determine which nodes were added and which are unchanged. Both functions follow the same structure: allocate `map[string]bool`, populate from one slice, iterate the other checking membership. Note `subtractSlice`'s parameter names: it builds a map from `source` but iterates `subTarget`, returning elements in `subTarget` not in `source`. The reader must trace through the loop to determine which parameter is subtracted from which.
 
 **Original** (24 lines):
 ```go
@@ -783,7 +778,7 @@ func union(a, b []string) []string {
 }
 ```
 
-The mutation is subtle: `a = append(a, elem)` may overwrite elements in the caller's backing array if `a` has spare capacity:
+The aliasing hazard: `a = append(a, elem)` may overwrite elements in the caller's backing array if `a` has spare capacity:
 
 ```go
 paths := make([]string, 0, 10)
@@ -802,7 +797,7 @@ combined := slice.Union(paths, other)
 
 **What changed:** `slice.Union` always returns a new slice. The deduplication and ordering semantics are identical (first-occurrence order, all of `a` first, then extras from `b`), but without the aliasing hazard.
 
-**What's eliminated:** The class of bug where building results by appending to an input slice creates hidden aliasing. The failure mode — silent corruption when the caller later appends to the original — is difficult to reproduce and diagnose. `slice.Union` eliminates this by construction: it always allocates a new backing array.
+**What's eliminated:** The aliasing hazard where building results by appending to an input slice shares the backing array with the caller. The failure mode — silent corruption when the caller later appends to the original — is difficult to reproduce and diagnose. `slice.Union` eliminates this by construction: it always allocates a new backing array. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
 
 *See also: [ddev/ddev](https://github.com/ddev/ddev) (3.5k stars) implements `SubtractSlices` with the same map-and-iterate pattern for Docker container configurations. [Permify/permify](https://github.com/Permify/permify) (5.8k stars) implements `intersect` for authorization subject filtering in its Google Zanzibar-inspired engine.*
 
