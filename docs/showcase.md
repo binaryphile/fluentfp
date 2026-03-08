@@ -135,8 +135,8 @@ if b.RaftProtocol != 0 {
 **fluentfp:**
 ```go
 result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.BootstrapExpect      = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
-result.RaftProtocol         = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
+result.BootstrapExpect = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
+result.RaftProtocol = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
 ```
 
 **What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
@@ -534,12 +534,9 @@ func CertSubjects(pem string) string {
 
 **fluentfp:**
 ```go
-// errString returns the error's message.
-errString := func(e error) string { return e.Error() }
-
 func CertSubjects(pem string) string {
     parseCertsResult := result.Lift(parseCerts)
-    return result.Fold(parseCertsResult(pem), errString, formatSubjects)
+    return result.Fold(parseCertsResult(pem), error.Error, formatSubjects)
 }
 ```
 
@@ -601,78 +598,23 @@ func Difference(a, b []string, lowercase bool) []string {
 
 **fluentfp:**
 ```go
-func Difference(a, b []string, lowercase bool) []string {
+func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     toNormalized := strings.TrimSpace
     if lowercase {
         toNormalized = hof.Pipe(strings.TrimSpace, strings.ToLower)
     }
 
-    // identity extracts sort key for alphabetical ordering.
-    identity := func(s string) string { return s }
-
-    normA := slice.Compact(slice.From(a).Convert(toNormalized))
-    normB := slice.Compact(slice.From(b).Convert(toNormalized))
+    normA := slice.Compact(a.Convert(toNormalized))
+    normB := slice.Compact(b.Convert(toNormalized))
     diff := slice.Difference(normA, normB)
 
-    return slice.SortBy(diff, identity)
+    return slice.SortBy(diff, hof.Identity[string])
 }
 ```
 
 **What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `Compact` for blank removal. Normalization separates into `.Convert(toNormalized)`, making it visible that lowercasing is a *transform*, not part of the set operation.
 
 **What's eliminated:** The build-then-delete pattern (`for range a → map[a] = {}; for range b → delete(map, b)`) is the manual idiom for set difference in Go. It requires reasoning about map mutation — deletions during a scan of a different slice — which is correct but non-obvious at a glance. `slice.Difference` names the intent directly. The early-return inconsistency (main path normalizes; empty-`b` path doesn't) disappears because the pipeline processes all inputs uniformly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
-
----
-
-### Edge policy reconciliation — kubeedge/kubeedge
-
-**Source:** [reconcile.go#L320-L346](https://github.com/kubeedge/kubeedge/blob/master/cloud/pkg/policycontroller/manager/reconcile.go#L320-L346)
-**Pain point:** Two nearly identical 12-line functions — `intersectSlice` and `subtractSlice` — differing only in `if m[v]` vs `if !m[v]`
-
-KubeEdge (7.4k stars, CNCF project) extends Kubernetes to edge nodes. When reconciling ServiceAccountAccess policies, the controller compares old and new target node lists to determine which nodes were added and which are unchanged. Both functions follow the same structure: allocate `map[string]bool`, populate from one slice, iterate the other checking membership. Note `subtractSlice`'s parameter names: it builds a map from `source` but iterates `subTarget`, returning elements in `subTarget` not in `source`. The reader must trace through the loop to determine which parameter is subtracted from which.
-
-**Original** (24 lines):
-```go
-func intersectSlice(old, new []string) []string {
-	var intersect = []string{}
-	var oldMap = make(map[string]bool)
-	for _, oldItem := range old {
-		oldMap[oldItem] = true
-	}
-	for _, newItem := range new {
-		if oldMap[newItem] {
-			intersect = append(intersect, newItem)
-		}
-	}
-	return intersect
-}
-
-func subtractSlice(source, subTarget []string) []string {
-	var subtract = []string{}
-	var oldMap = make(map[string]bool)
-	for _, oldItem := range source {
-		oldMap[oldItem] = true
-	}
-	for _, newItem := range subTarget {
-		if !oldMap[newItem] {
-			subtract = append(subtract, newItem)
-		}
-	}
-	return subtract
-}
-```
-
-**fluentfp:**
-```go
-common := slice.Intersect(oldNodes, newNodes)
-added := slice.Difference(newNodes, oldNodes)
-```
-
-**What changed:** Two functions with identical structure — allocate map, populate, iterate, check — collapse to two function calls. The 24-line pair becomes 2 lines that read as English: "common nodes" and "added nodes."
-
-**What's eliminated:** The copy-paste boilerplate pattern where the only meaningful difference is `if m[v]` vs `if !m[v]`. Each copy carries the same allocation mechanics, iteration, and accumulation — none of which communicates intent. The confusing parameter ordering disappears too: `slice.Difference(a, b)` reads as "a minus b" — no ambiguity about which argument is the lookup set.
-
-*See also: [kubernetes/autoscaler](https://github.com/kubernetes/autoscaler) (8.8k stars) implements the same pattern with `subtractNodesByName` and `intersectNodes` — 30+ lines across 4 functions because nodes are structs keyed by name, requiring an extra name-extraction helper.*
 
 ---
 
@@ -850,16 +792,15 @@ func allMatch(statuses []Status, status Status) bool {
 
 **fluentfp:**
 ```go
-func FigureOut(statuses []Status) Status {
-	if len(statuses) == 0 {
+func FigureOut(statuses slice.Mapper[Status]) Status {
+	if statuses.Len() == 0 {
 		return Updated
 	}
 
-	ss := slice.From(statuses)
 	switch {
-	case ss.Every(hof.Eq(Skipped)):
+	case statuses.Every(hof.Eq(Skipped)):
 		return Skipped
-	case ss.Every(hof.Eq(Preparing)):
+	case statuses.Every(hof.Eq(Preparing)):
 		return Preparing
 	case slice.Contains(statuses, Outdated):
 		return Outdated
