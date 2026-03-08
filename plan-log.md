@@ -2948,3 +2948,11 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] FanOutWeighted + FanOutEachWeighted implemented
 [x] Tests pass (go test ./slice/...)
 [x] doc.go, CLAUDE.md, CHANGELOG.md updated
+2026-03-08T17:46:04Z | Contract: Phase 1 - Stone book Ch 2 Go/fluentfp translations
+[ ] 2.1 List Mapping Go examples (map → .Convert/slice.Map)
+[ ] 2.3 Procedure Sections Go examples (sect → fn.Bind/BindR)
+[ ] 2.4 Couplers Go examples (pipe/cross/dispatch → fn.Pipe/Cross/Dispatch2)
+2026-03-08T17:53:17Z | Completion: Phase 1 - Stone book Ch 2 Go/fluentfp translations
+[x] 2.1 List Mapping Go examples
+[x] 2.3 Procedure Sections Go examples
+[x] 2.4 Couplers Go examples
