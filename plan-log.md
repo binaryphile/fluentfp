@@ -2912,3 +2912,26 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] S9 Quicksort .Partition
 [x] S10 Cartesian product
 [x] S16-S17 cross-reference updated
+2026-03-08T16:02:39Z | Contract: Cockburn gap analysis — use-cases.md
+[ ] UC-3: Renumber 2c → 3f, restore monotonic order
+[ ] UC-4: Merge split Extensions block
+[ ] UC-6: Reorder extensions 1a before 2a
+[ ] UC-2: Add code reviewer stakeholder
+2026-03-08T16:05:12Z | Interaction: improve -> reviewing for missed issues
+2026-03-08T16:05:50Z | Completion: Cockburn gap analysis — use-cases.md
+[x] UC-3: Renumber 2c → 3f (monotonic order restored)
+[x] UC-4: Merge split Extensions block
+[x] UC-6: Reorder 1a before 2a
+[x] UC-2: Add code reviewer stakeholder
+2026-03-08T16:22:46Z | Contract: Cockburn gap analysis round 2 — use-cases.md
+[ ] UC-3: Undo 3f, restore 2c, reposition after 2b
+[ ] UC-4 ext 3c → 2a
+[ ] UC-1 ext 2d: Fix GroupBy description
+[ ] UC-2 ext 2j: Differentiate as KeyBy
+[ ] UC-4: Add ext 3c for FlatMap chaining
+2026-03-08T16:25:42Z | Completion: Cockburn gap analysis round 2 — use-cases.md
+[x] UC-3: Restored 2c, repositioned after 2b
+[x] UC-4 ext 3c → 2a
+[x] UC-1 ext 2d: Fixed GroupBy description
+[x] UC-2 ext 2j: Differentiated as KeyBy
+[x] UC-4: Added ext 3c for FlatMap chaining

@@ -63,7 +63,7 @@
 - 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order.
 - 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
-- 2d. Developer needs elements grouped by a derived key: System groups elements into a map from key to elements sharing that key.
+- 2d. Developer needs elements grouped by a derived key: System groups elements into a chainable collection of groups, each containing a key and the elements sharing that key.
 - 2e. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error.
 - 2f. Developer needs transformations applied concurrently: System applies transformations concurrently, preserving element order in the result. For I/O-bound workloads with per-item error handling, system schedules items individually with bounded concurrency, returns per-item success/failure results, recovers panics as errors, and respects context cancellation. For CPU-bound workloads, system partitions work into batches.
 - 2g. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
@@ -87,6 +87,7 @@
 
 **Stakeholders:**
 - Developer: correct scalar, optional, or aggregate result
+- Code reviewer: derivation reads as intent, not accumulation mechanics
 
 **Postconditions:**
 - Result correctly summarizes or extracts from the collection
@@ -110,14 +111,14 @@
 - 2g. Developer checks whether all elements satisfy a criterion: System tests every element and returns true only if all match.
 - 2h. Developer checks whether a specific value exists in the collection: System tests membership and returns true if found.
 - 2i. Developer checks that no elements satisfy a criterion: System tests every element and returns true only if none match.
-- 2j. Developer needs elements grouped by a derived key: System groups elements into a map from key to elements sharing that key.
+- 2j. Developer needs elements indexed by a derived key for O(1) lookup: System produces a map from extracted keys to elements.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
 - Element search: first element, first matching, first type-compatible, index of first matching
 - Condition checks: any match, all match, no match, membership
 - Multi-field extraction: 2, 3, or 4 fields simultaneously
-- Grouping: by extracted key
+- Indexing: by extracted key for O(1) lookup
 
 ---
 
@@ -144,12 +145,12 @@
 **Extensions:**
 - 2a. Value comes from a pointer (nil means absent): System extracts the pointed-to value when non-nil.
 - 2b. Value is a zero value that should mean absent: System treats zero as absent.
+- 2c. Value is present but needs transformation to a different type: System checks presence and transforms in one step, returning absence if the original was absent.
 - 3a. Developer needs a side effect only when present: System calls the function only when present; does nothing when absent.
 - 3b. Developer needs a side effect only when absent: System calls the function only when absent; does nothing when present.
 - 3c. Developer needs to filter an already-present value: System applies filter, converting to absent if not met.
 - 3d. Fallback is expensive to compute: System evaluates fallback only when absent.
 - 3e. Developer needs to chain operations that each may produce absence: System applies each operation in sequence, short-circuiting to absent if any step produces absence. No manual unwrapping between steps.
-- 2c. Value is present but needs transformation to a different type: System checks presence and transforms in one step, returning absence if the original was absent.
 - 4a. Developer stores optional value in a database column: System maps present to the column value and absent to SQL NULL. Type conversion between Go types and SQL driver types is handled automatically.
 - 4b. Developer serializes optional value to JSON: System maps present to the JSON value and absent to null.
 
@@ -179,11 +180,10 @@
 3. Developer processes: extracting with a default, applying branch-specific logic, or handling both branches to produce a unified result.
 
 **Extensions:**
+- 2a. Developer has a fallible function returning (R, error) and needs it to return Result instead: System wraps the function, producing a new function with the same input that returns a Result.
 - 3a. Developer needs both branches handled with different logic, producing unified result: System applies appropriate branch function.
 - 3b. Developer needs to transform only the success branch: System transforms, passing failure through.
-
-**Extensions (continued):**
-- 3c. Developer has a fallible function returning (R, error) and needs it to return Result instead: System wraps the function, producing a new function with the same input that returns a Result.
+- 3c. Developer needs to chain operations that each may fail: System applies each operation in sequence, short-circuiting to failure if any step fails. No manual error checking between steps.
 
 **Sub-Variations:**
 - Convention: left = failure, right = success
@@ -237,8 +237,8 @@
 4. System evaluates: if condition holds, returns preferred value; otherwise returns fallback.
 
 **Extensions:**
-- 2a. Preferred value is expensive to compute: System defers computation until condition confirmed true. If false, expensive computation never runs.
 - 1a. Developer needs the first non-zero value from a sequence of candidates: System evaluates candidates in order and returns the first non-zero, or zero if all are zero.
+- 2a. Preferred value is expensive to compute: System defers computation until condition confirmed true. If false, expensive computation never runs.
 
 **Sub-Variations:**
 - Eager: value computed before condition check (cheap values)
