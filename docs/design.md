@@ -17,7 +17,7 @@ flowchart TD
     pair["pair (tuple/pair)"]
     must
     lof
-    fn
+    hof
 ```
 
 | Package | Role |
@@ -155,13 +155,13 @@ Wraps Go builtins (`len`, `fmt.Println`) as first-class functions for higher-ord
 
 Also provides `lof.IsNonEmpty` as a predicate for `KeepIf` (filtering non-empty strings), and `lof.IfNonEmpty` which bridges the "empty string = absent" convention to `(string, bool)` for `option.New`.
 
-### D14: fn as function combinators
+### D14: hof as function combinators
 
 Provides composition (`Pipe`), partial application (`Bind`/`BindR`), multi-dispatch (`Dispatch2`/`Dispatch3`), independent application (`Cross`), and standard building blocks (`Identity`, `Eq`).
 
-**Why needed:** Go functions are values but lack composition operators. `fn` provides the glue that lets developers build new functions from existing ones — for use in fluentfp chains or standalone. `Pipe(trim, toLower)` builds a transform; `Bind(add, 5)` fixes an argument; `Eq(target)` builds a predicate.
+**Why needed:** Go functions are values but lack composition operators. `hof` provides the glue that lets developers build new functions from existing ones — for use in fluentfp chains or standalone. `Pipe(trim, toLower)` builds a transform; `Bind(add, 5)` fixes an argument; `Eq(target)` builds a predicate.
 
-**Boundary with lof (D8):** `fn` returns functions (higher-order — operates on functions). `lof` returns values (lower-order — wraps builtins as first-class functions for use in chains). `fn.Pipe` *builds* a transform; `lof.Len` *is* a transform.
+**Boundary with lof (D8):** `hof` returns functions (higher-order — operates on functions). `lof` returns values (lower-order — wraps builtins as first-class functions for use in chains). `hof.Pipe` *builds* a transform; `lof.Len` *is* a transform.
 
 **Based on:** Stone's "Algorithms: A Functional Programming Approach" — `Pipe` is left-to-right composition, `Bind`/`BindR` are sections (partial application), `Dispatch` and `Cross` are multi-function combinators.
 
@@ -383,6 +383,6 @@ Where packages depend on each other, and why:
 | `Stream.First` → `option.Option[T]` | Same pattern as `Mapper.First` — absence is normal, not exceptional. |
 | `Stream.Find` → `option.Option[T]` | Same pattern as `Mapper.Find` — no match is normal. |
 
-`fn`, `lof`, `must`, `pair`, and `stream` have no `internal/base` dependency. `stream` depends only on `option` (for First/Find). Both `slice` and `kv` depend only on `internal/base` — neither imports the other.
+`hof`, `lof`, `must`, `pair`, and `stream` have no `internal/base` dependency. `stream` depends only on `option` (for First/Find). Both `slice` and `kv` depend only on `internal/base` — neither imports the other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.

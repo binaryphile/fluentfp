@@ -431,61 +431,61 @@ type Result struct {
 connected := result.IsConnected.OrFalse()
 ```
 
-### fn Package (Function Combinators)
+### hof Package (Function Combinators)
 
 ```go
-import "github.com/binaryphile/fluentfp/fn"
+import "github.com/binaryphile/fluentfp/hof"
 
 // Composition — left-to-right: Pipe(f, g)(x) = g(f(x))
-fn.Pipe[A, B, C any](f func(A) B, g func(B) C) func(A) C
+hof.Pipe[A, B, C any](f func(A) B, g func(B) C) func(A) C
 
 // Partial application — fix first arg: Bind(f, x)(y) = f(x, y)
-fn.Bind[A, B, C any](f func(A, B) C, a A) func(B) C
+hof.Bind[A, B, C any](f func(A, B) C, a A) func(B) C
 
 // Partial application — fix second arg: BindR(f, y)(x) = f(x, y)
-fn.BindR[A, B, C any](f func(A, B) C, b B) func(A) C
+hof.BindR[A, B, C any](f func(A, B) C, b B) func(A) C
 
 // Multi-function dispatch — apply multiple fns to same arg
-fn.Dispatch2[A, B, C any](f func(A) B, g func(A) C) func(A) (B, C)
-fn.Dispatch3[A, B, C, D any](f func(A) B, g func(A) C, h func(A) D) func(A) (B, C, D)
+hof.Dispatch2[A, B, C any](f func(A) B, g func(A) C) func(A) (B, C)
+hof.Dispatch3[A, B, C, D any](f func(A) B, g func(A) C, h func(A) D) func(A) (B, C, D)
 
 // Independent application — apply separate fns to separate args
-fn.Cross[A, B, C, D any](f func(A) C, g func(B) D) func(A, B) (C, D)
+hof.Cross[A, B, C, D any](f func(A) C, g func(B) D) func(A, B) (C, D)
 
 // Building blocks
-fn.Identity[T any](t T) T                    // Returns argument unchanged; fn.Identity[string] as function value
-fn.Eq[T comparable](target T) func(T) bool   // Equality predicate factory
+hof.Identity[T any](t T) T                    // Returns argument unchanged; hof.Identity[string] as function value
+hof.Eq[T comparable](target T) func(T) bool   // Equality predicate factory
 ```
 
-### fn Patterns
+### hof Patterns
 
 ```go
 // Compose transforms for slice.Convert
-normalize := fn.Pipe(strings.TrimSpace, strings.ToLower)
+normalize := hof.Pipe(strings.TrimSpace, strings.ToLower)
 slice.From(strs).Convert(normalize)
 
 // Partial application in chains
 add := func(a, b int) int { return a + b }
-slice.From(nums).Convert(fn.Bind(add, 5))
+slice.From(nums).Convert(hof.Bind(add, 5))
 
 // Multi-step Pipe (uniform commas rule: extract intermediate)
-fg := fn.Pipe(f, g)
-fn.Pipe(fg, h)
+fg := hof.Pipe(f, g)
+hof.Pipe(fg, h)
 
 // Dispatch2 — extract multiple fields, bridge to pair for composition
 getName := func(u User) string { return u.Name }
 getAge := func(u User) int { return u.Age }
-p := pair.Of(fn.Dispatch2(getName, getAge)(user))
+p := pair.Of(hof.Dispatch2(getName, getAge)(user))
 
 // Cross — apply separate transforms to separate values
-both := fn.Cross(double, toUpper)
+both := hof.Cross(double, toUpper)
 d, u := both(5, "hello")  // 10, "HELLO"
 
 // Identity as GroupBy key extractor (group by value)
-groups := slice.GroupBy(statuses, fn.Identity[string])
+groups := slice.GroupBy(statuses, hof.Identity[string])
 
 // Equality predicate for Every/Any
-allSkipped := slice.From(statuses).Every(fn.Eq(Skipped))
+allSkipped := slice.From(statuses).Every(hof.Eq(Skipped))
 ```
 
 ### must Package

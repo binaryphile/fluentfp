@@ -1,7 +1,7 @@
-// Package fn provides function combinators for composition, partial application,
+// Package hof provides function combinators for composition, partial application,
 // and multi-function dispatch. Based on Stone's "Algorithms: A Functional
 // Programming Approach" (pipe, sect, dispatch, cross).
-package fn
+package hof
 
 // Compile-time export verification. Every fluentfp package uses this pattern
 // to ensure exported symbols remain available across refactors.

@@ -639,7 +639,7 @@ func Difference(a, b []string, lowercase bool) []string {
 func Difference(a, b []string, lowercase bool) []string {
     toNormalized := strings.TrimSpace
     if lowercase {
-        toNormalized = fn.Pipe(strings.TrimSpace, strings.ToLower)
+        toNormalized = hof.Pipe(strings.TrimSpace, strings.ToLower)
     }
 
     // identity extracts sort key for alphabetical ordering.
@@ -892,9 +892,9 @@ func FigureOut(statuses []Status) Status {
 
 	ss := slice.From(statuses)
 	switch {
-	case ss.Every(fn.Eq(Skipped)):
+	case ss.Every(hof.Eq(Skipped)):
 		return Skipped
-	case ss.Every(fn.Eq(Preparing)):
+	case ss.Every(hof.Eq(Preparing)):
 		return Preparing
 	case slice.Contains(statuses, Outdated):
 		return Outdated
@@ -908,9 +908,9 @@ func FigureOut(statuses []Status) Status {
 }
 ```
 
-**What changed:** The `allMatch` and `contains` utility functions disappear — replaced by `.Every()` and `slice.Contains()`. The custom `isStatus` predicate factory becomes `fn.Eq` — a standard building block that returns an equality predicate for any comparable type. The cascade logic in `FigureOut` is unchanged but reads with named quantifiers instead of forwarding to boilerplate helpers. The `if/else-if` chain becomes a `switch` that expresses the priority rules as a flat list. The explicit empty check at the top replaces the implicit `len == 0 → false` in `allMatch` — `.Every()` uses vacuous truth (empty returns true), so the guard preserves the original behavior.
+**What changed:** The `allMatch` and `contains` utility functions disappear — replaced by `.Every()` and `slice.Contains()`. The custom `isStatus` predicate factory becomes `hof.Eq` — a standard building block that returns an equality predicate for any comparable type. The cascade logic in `FigureOut` is unchanged but reads with named quantifiers instead of forwarding to boilerplate helpers. The `if/else-if` chain becomes a `switch` that expresses the priority rules as a flat list. The explicit empty check at the top replaces the implicit `len == 0 → false` in `allMatch` — `.Every()` uses vacuous truth (empty returns true), so the guard preserves the original behavior.
 
-**What's eliminated:** Boilerplate quantifier functions and a custom predicate factory. Every Go project that needs "do all elements match?" or "does any element match?" re-implements the same 8-line loop. The `isStatus` factory — three lines to capture a target and return a closure — is the same pattern every project writes when it needs equality predicates for `Every`/`Any`. These functions aren't domain logic — they're missing standard library operations. `.Every()`, `slice.Contains()`, and `fn.Eq` replace them with named operations, letting `FigureOut` focus on the status priority rules.
+**What's eliminated:** Boilerplate quantifier functions and a custom predicate factory. Every Go project that needs "do all elements match?" or "does any element match?" re-implements the same 8-line loop. The `isStatus` factory — three lines to capture a target and return a closure — is the same pattern every project writes when it needs equality predicates for `Every`/`Any`. These functions aren't domain logic — they're missing standard library operations. `.Every()`, `slice.Contains()`, and `hof.Eq` replace them with named operations, letting `FigureOut` focus on the status priority rules.
 
 ---
 
@@ -1014,15 +1014,15 @@ formatGroup := func(g slice.Group[string, string]) string {
 }
 
 func combinedStatus(statuses []string) string {
-	groups := slice.GroupBy(statuses, fn.Identity[string])
+	groups := slice.GroupBy(statuses, hof.Identity[string])
 	formatted := slice.SortBy(groups, groupKey).ToString(formatGroup)
 	return strings.Join(formatted, ", ")
 }
 ```
 
-**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `SortBy` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `fn.Identity[string]`, a standard building block for "group by value" patterns.
+**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `SortBy` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `hof.Identity[string]`, a standard building block for "group by value" patterns.
 
-**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `fn.Identity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
+**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `hof.Identity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
 
 ---
 
@@ -1191,7 +1191,7 @@ Find a specific object without fetching the entire bucket:
 ```go
 // containsKey returns true if the page contains an object with the target key.
 containsKey := func(p ObjectPage) bool {
-    return slice.From(p.Objects).Any(fn.BindR(Object.HasKey, targetKey))
+    return slice.From(p.Objects).Any(hof.BindR(Object.HasKey, targetKey))
 }
 
 found := pages.Find(containsKey)
@@ -1250,7 +1250,7 @@ for _, line := range lines {
 
 **fluentfp:**
 ```go
-normalize := fn.Pipe(strings.TrimSpace, strings.ToLower)
+normalize := hof.Pipe(strings.TrimSpace, strings.ToLower)
 
 // splitFields splits a normalized line into pipe-delimited fields.
 splitFields := func(line string) []string { return strings.Split(line, "|") }
@@ -1267,31 +1267,31 @@ toTransaction := func(fields []string) Transaction {
     }
 }
 
-parseFields := fn.Pipe(splitFields, toTransaction)
-parseLine := fn.Pipe(normalize, parseFields)
+parseFields := hof.Pipe(splitFields, toTransaction)
+parseLine := hof.Pipe(normalize, parseFields)
 
 transactions := slice.Map(lines, parseLine)
 byBeneficiary := slice.GroupBy(transactions, Transaction.GetBeneficiary)
 ```
 
-`fn.Pipe` creates a new function from two existing ones — matching `andThen`'s left-to-right flow. `normalize` is reusable anywhere strings need cleaning, just as Spark transforms are reusable across different pipelines. `parseLine` composes three stages — normalize, split, convert — into a single `func(string) Transaction`, testable in isolation. The intermediate `parseFields` follows the uniform commas rule: each `Pipe` call has exactly two arguments at one nesting level.
+`hof.Pipe` creates a new function from two existing ones — matching `andThen`'s left-to-right flow. `normalize` is reusable anywhere strings need cleaning, just as Spark transforms are reusable across different pipelines. `parseLine` composes three stages — normalize, split, convert — into a single `func(string) Transaction`, testable in isolation. The intermediate `parseFields` follows the uniform commas rule: each `Pipe` call has exactly two arguments at one nesting level.
 
-Partial application with `fn.Bind` creates parameterized transforms — similar to how Spark ETL functions accept column names as parameters:
+Partial application with `hof.Bind` creates parameterized transforms — similar to how Spark ETL functions accept column names as parameters:
 
 ```go
 // multiply returns the product of two float64 values.
 multiply := func(a, b float64) float64 { return a * b }
 
 // applyRate converts each amount using a fixed exchange rate.
-applyRate := fn.Bind(multiply, exchangeRate)
+applyRate := hof.Bind(multiply, exchangeRate)
 
 converted := slice.From(amounts).Convert(applyRate)
 ```
 
-Multi-field extraction with `fn.Dispatch2` — extract payer and beneficiary from each transaction in one pass:
+Multi-field extraction with `hof.Dispatch2` — extract payer and beneficiary from each transaction in one pass:
 
 ```go
-extract := fn.Dispatch2(Transaction.GetPayer, Transaction.GetBeneficiary)
+extract := hof.Dispatch2(Transaction.GetPayer, Transaction.GetBeneficiary)
 
 for _, t := range transactions {
     payer, beneficiary := extract(t)
@@ -1299,7 +1299,7 @@ for _, t := range transactions {
 }
 ```
 
-**What this brings to Go:** Go functions compose via nesting — `toTransaction(splitFields(normalize(line)))` — which reads inside-out, opposite to the data flow. Sequential assignment reads top-to-bottom but forces naming intermediate values. `fn.Pipe` provides left-to-right composition: the pipeline reads in the direction data flows. The Spark insight — that ETL steps are named, testable, composable transforms — translates directly.
+**What this brings to Go:** Go functions compose via nesting — `toTransaction(splitFields(normalize(line)))` — which reads inside-out, opposite to the data flow. Sequential assignment reads top-to-bottom but forces naming intermediate values. `hof.Pipe` provides left-to-right composition: the pipeline reads in the direction data flows. The Spark insight — that ETL steps are named, testable, composable transforms — translates directly.
 
 ---
 

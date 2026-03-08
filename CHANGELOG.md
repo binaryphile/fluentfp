@@ -1,9 +1,13 @@
 # Changelog
 
+## v0.54.0
+
+- **BREAKING**: Rename `fn` → `hof` — avoids collision with `fn` parameter name used throughout codebase; `hof` (higher-order functions) pairs with `lof` (lower-order functions)
+
 ## v0.53.0
 
-- **fn** — Building block combinators: `Identity`, `Eq`
-  - `Identity[T any](t T) T` — returns argument unchanged; use `fn.Identity[string]` as function value for key extractors
+- **hof** — Building block combinators: `Identity`, `Eq`
+  - `Identity[T any](t T) T` — returns argument unchanged; use `hof.Identity[string]` as function value for key extractors
   - `Eq[T comparable](target T) func(T) bool` — equality predicate factory for `Every`/`Any` patterns
 
 ## v0.52.0
@@ -70,7 +74,7 @@
 
 ## v0.42.0
 
-- **fn** package — function combinators for composition and partial application
+- **hof** package — function combinators for composition and partial application
   - `Pipe` — left-to-right composition
   - `Bind`, `BindR` — partial application (fix first/second arg)
   - `Dispatch2`, `Dispatch3` — apply multiple fns to same arg

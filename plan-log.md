@@ -3018,3 +3018,17 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] design.md D14 added
 [x] use-cases.md UC-7 added
 [x] Showcase entries updated with fn.Eq and fn.Identity
+2026-03-08T20:13:16Z | Interaction: improve -> B+/85, added mkdir -p, separate git mv for fn_test.go, CHANGELOG v0.53.0 update, precise grep pattern
+2026-03-08T20:14:17Z | Interaction: grade -> A/95, plan ready
+2026-03-08T20:14:33Z | Contract: Rename fn package to hof
+[ ] Directory renamed fn/ → hof/
+[ ] All Go source updated (package decls, panics, imports, references)
+[ ] All docs updated (CLAUDE.md, CHANGELOG.md, design.md, showcase.md)
+[ ] Tests pass
+2026-03-08T20:17:37Z | Interaction: improve -> reviewing fn→hof rename implementation
+2026-03-08T20:18:41Z | Interaction: grade -> A-/93, found 3 stale fn refs: eq.go godoc, identity.go godoc, CHANGELOG v0.42.0
+2026-03-08T20:19:17Z | Completion: Rename fn package to hof
+[x] Directory renamed fn/ → hof/ (evidence: ls hof/)
+[x] All Go source updated (evidence: go test/vet pass)
+[x] All docs updated (evidence: no stale 'fn.' package refs in docs)
+[x] Tests pass (evidence: go test ./hof/...)
