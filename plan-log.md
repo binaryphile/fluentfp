@@ -2836,3 +2836,19 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Union — deduped combination, a order first then b extras (13 tests pass)
 [x] Table-driven tests for all three (38 total, go test -v passes)
 [x] doc.go, CLAUDE.md, CHANGELOG.md updated (go vet clean)
+2026-03-08T03:27:53Z | Contract: Task #13556 - Showcase entries for set operations
+[ ] KubeEdge entry (intersect + difference)
+[ ] docker-gen entry (intersect with dedup)
+[ ] Filecoin Lotus entry (union mutation safety)
+2026-03-08T03:30:08Z | Interaction: improve -> fix location (before adapter tax), match main showcase format (Source/Pain point/Original/What changed/What's eliminated), use actual project code not reconstructions
+2026-03-07T23:20:00Z | Interaction: improve -> fix uniform commas + named function violations in showcase entry
+2026-03-07T23:30:00Z | Interaction: improve -> fifth self-review of set operations
+2026-03-07T23:40:00Z | Interaction: improve -> sixth self-review of set operations and showcase
+2026-03-08T03:41:34Z | Interaction: improve -> second self-review pass
+2026-03-08T03:42:01Z | Completion: Task #13444 - Set operations
+[x] Intersect — elements in both, deduped, order from a (13 tests pass)
+[x] Difference — elements in a not in b, deduped, order from a (12 tests pass)
+[x] Union — deduped combination, a order first then b extras (13 tests pass)
+[x] Table-driven tests for all three (38 total, go test passes)
+[x] doc.go, CLAUDE.md, CHANGELOG.md updated (go vet clean)
+[x] Showcase entry: go-secure-stdlib Difference (30 lines → 10)

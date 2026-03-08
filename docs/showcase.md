@@ -592,6 +592,222 @@ func CertSubjects(pem string) string {
 
 ---
 
+### Manual set difference — hashicorp/go-secure-stdlib
+
+**Source:** [strutil.go#L354-L384](https://github.com/hashicorp/go-secure-stdlib/blob/main/strutil/strutil.go#L354-L384)
+**Pain point:** Set difference implemented with three loops: build map, delete matches, collect survivors — interleaved with unrelated concerns (lowercase, dedup, sort)
+
+This utility is a dependency of HashiCorp Vault (80k+ stars), Consul, Nomad, and Boundary. The original function tangles four concerns — normalization, deduplication, set difference, and sorting — into one 30-line body because the set operation has no standalone primitive. With `slice.Difference` as a building block, each concern separates into its own expression. The original also calls `RemoveDuplicates` which trims whitespace and skips blank entries; we include that preprocessing in the fluentfp version for a fair comparison.
+
+Note: the original's early returns (lines 3–11) skip the `RemoveDuplicates` preprocessing — when `b` is empty, the function returns `a` without trimming, deduplication, or sorting. The fluentfp version handles all inputs consistently.
+
+**Original** (30 lines, plus `RemoveDuplicates` helper not shown):
+```go
+func Difference(a, b []string, lowercase bool) []string {
+    if len(a) == 0 {
+        return a
+    }
+    if len(b) == 0 {
+        if !lowercase {
+            return a
+        }
+        newA := make([]string, len(a))
+        for i, v := range a {
+            newA[i] = strings.ToLower(v)
+        }
+        return newA
+    }
+
+    a = RemoveDuplicates(a, lowercase)
+    b = RemoveDuplicates(b, lowercase)
+
+    itemsMap := map[string]struct{}{}
+    for _, aVal := range a {
+        itemsMap[aVal] = struct{}{}
+    }
+    for _, bVal := range b {
+        if _, ok := itemsMap[bVal]; ok {
+            delete(itemsMap, bVal)
+        }
+    }
+
+    items := []string{}
+    for item := range itemsMap {
+        items = append(items, item)
+    }
+    sort.Strings(items)
+    return items
+}
+```
+
+**fluentfp:**
+```go
+func Difference(a, b []string, lowercase bool) []string {
+    // normalize trims whitespace and optionally lowercases.
+    normalize := strings.TrimSpace
+    if lowercase {
+        normalize = fn.Pipe(strings.TrimSpace, strings.ToLower)
+    }
+
+    // identity extracts sort key for alphabetical ordering.
+    identity := func(s string) string { return s }
+
+    // Pipeline: normalize → remove blanks → difference → sort.
+    normA := slice.Compact(slice.From(a).Convert(normalize))
+    normB := slice.Compact(slice.From(b).Convert(normalize))
+    diff := slice.Difference(normA, normB)
+
+    return slice.SortBy(diff, identity)
+}
+```
+
+**What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `Compact` for blank removal. Normalization separates into `.Convert(normalize)`, making it visible that lowercasing is a *transform*, not part of the set operation.
+
+**What's eliminated:** The build-then-delete pattern (`for range a → map[a] = {}; for range b → delete(map, b)`) is the manual idiom for set difference in Go. It requires reasoning about map mutation — deletions during a scan of a different slice — which is correct but non-obvious at a glance. `slice.Difference` names the intent directly. The early-return inconsistency (main path normalizes; empty-`b` path doesn't) disappears because the pipeline processes all inputs uniformly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
+
+---
+
+### Edge policy reconciliation — kubeedge/kubeedge
+
+**Source:** [reconcile.go#L320-L346](https://github.com/kubeedge/kubeedge/blob/master/cloud/pkg/policycontroller/manager/reconcile.go#L320-L346)
+**Pain point:** Two nearly identical 12-line functions — `intersectSlice` and `subtractSlice` — differing only in `if m[v]` vs `if !m[v]`
+
+KubeEdge (7.4k stars, CNCF project) extends Kubernetes to edge nodes. When reconciling ServiceAccountAccess policies, the controller compares old and new target node lists to determine which nodes were added and which are unchanged. Both functions follow the same structure: allocate `map[string]bool`, populate from one slice, iterate the other checking membership. Note `subtractSlice`'s confusing parameter names: it builds a map from `source` but iterates `subTarget`, so `subtractSlice(old, new)` returns elements in `new` not in `old` — the opposite of what "subtract source" suggests.
+
+**Original** (24 lines):
+```go
+func intersectSlice(old, new []string) []string {
+	var intersect = []string{}
+	var oldMap = make(map[string]bool)
+	for _, oldItem := range old {
+		oldMap[oldItem] = true
+	}
+	for _, newItem := range new {
+		if oldMap[newItem] {
+			intersect = append(intersect, newItem)
+		}
+	}
+	return intersect
+}
+
+func subtractSlice(source, subTarget []string) []string {
+	var subtract = []string{}
+	var oldMap = make(map[string]bool)
+	for _, oldItem := range source {
+		oldMap[oldItem] = true
+	}
+	for _, newItem := range subTarget {
+		if !oldMap[newItem] {
+			subtract = append(subtract, newItem)
+		}
+	}
+	return subtract
+}
+```
+
+**fluentfp:**
+```go
+common := slice.Intersect(oldNodes, newNodes)
+added := slice.Difference(newNodes, oldNodes)
+```
+
+**What changed:** Two functions with identical structure — allocate map, populate, iterate, check — collapse to two function calls. The 24-line pair becomes 2 lines that read as English: "common nodes" and "added nodes."
+
+**What's eliminated:** The copy-paste boilerplate pattern where the only meaningful difference is `if m[v]` vs `if !m[v]`. Each copy carries the same allocation mechanics, iteration, and accumulation — none of which communicates intent. The confusing parameter ordering disappears too: `slice.Difference(a, b)` reads as "a minus b" — no ambiguity about which argument is the lookup set.
+
+*See also: [kubernetes/autoscaler](https://github.com/kubernetes/autoscaler) (8.8k stars) implements the same pattern with `subtractNodesByName` and `intersectNodes` — 30+ lines across 4 functions because nodes are structs keyed by name, requiring an extra name-extraction helper.*
+
+---
+
+### Deduplicated template intersection — nginx-proxy/docker-gen
+
+**Source:** [functions.go#L39-L55](https://github.com/nginx-proxy/docker-gen/blob/main/internal/template/functions.go#L39-L55)
+**Pain point:** Intersection with dedup requires three loops and two maps — plus loses ordering
+
+docker-gen (4.6k stars) generates nginx config files from Docker container metadata. It exposes an `intersect` template function for finding containers common to two lists. Because template inputs may contain duplicates, the result must be deduplicated — requiring a second map beyond the membership-check map, plus a third loop to extract keys.
+
+**Original** (16 lines, 3 loops, 2 maps):
+```go
+func intersect(l1, l2 []string) []string {
+	m := make(map[string]bool)
+	m2 := make(map[string]bool)
+	for _, v := range l2 {
+		m2[v] = true
+	}
+	for _, v := range l1 {
+		if m2[v] {
+			m[v] = true
+		}
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+```
+
+**fluentfp:**
+```go
+result := slice.Intersect(l1, l2)
+```
+
+**What changed:** Three loops and two maps collapse to one function call. `slice.Intersect` handles deduplication automatically — no separate dedup map needed.
+
+**What's eliminated:** The `for k := range m` extraction loop — which silently loses the original ordering. docker-gen's result comes back in map iteration order (nondeterministic), while `slice.Intersect` preserves first-occurrence order from the first argument. The ordering surprise disappears because there's no intermediate map to iterate. The meaningless variable names (`m` for dedup, `m2` for membership) also disappear — the function name `Intersect` communicates what both maps were doing.
+
+---
+
+### Storage path union with aliasing hazard — filecoin-project/lotus
+
+**Source:** [db_index.go#L100-L113](https://github.com/filecoin-project/lotus/blob/master/storage/paths/db_index.go#L100-L113)
+**Pain point:** Union appends to input slice `a`, creating hidden aliasing between input and output
+
+Filecoin Lotus (3k stars) is the reference implementation of the Filecoin blockchain. When managing storage paths for sector data, it computes the union of two path lists. The implementation appends non-duplicate elements from `b` directly onto the `a` slice rather than allocating a new result.
+
+**Original** (13 lines, mutates input):
+```go
+func union(a, b []string) []string {
+	m := make(map[string]bool)
+
+	for _, elem := range a {
+		m[elem] = true
+	}
+
+	for _, elem := range b {
+		if _, ok := m[elem]; !ok {
+			a = append(a, elem)
+		}
+	}
+	return a
+}
+```
+
+The mutation is subtle: `a = append(a, elem)` may overwrite elements in the caller's backing array if `a` has spare capacity:
+
+```go
+paths := make([]string, 0, 10)
+paths = append(paths, "/mnt/storage1")
+other := []string{"/mnt/storage2"}
+
+combined := union(paths, other)
+// paths and combined share backing array —
+// future appends to paths could corrupt combined
+```
+
+**fluentfp:**
+```go
+combined := slice.Union(paths, other)
+```
+
+**What changed:** `slice.Union` always returns a new slice. The deduplication and ordering semantics are identical (first-occurrence order, all of `a` first, then extras from `b`), but without the aliasing hazard.
+
+**What's eliminated:** The class of bug where building results by appending to an input slice creates hidden aliasing. The failure mode — silent corruption when the caller later appends to the original — is difficult to reproduce and diagnose. `slice.Union` eliminates this by construction: it always allocates a new backing array.
+
+*See also: [ddev/ddev](https://github.com/ddev/ddev) (3.5k stars) implements `SubtractSlices` with the same map-and-iterate pattern for Docker container configurations. [Permify/permify](https://github.com/Permify/permify) (5.8k stars) implements `intersect` for authorization subject filtering in its Google Zanzibar-inspired engine.*
+
+---
+
 ### The adapter tax
 
 The examples above all shorten code — but that's the symptom, not the cause. The cause is *adapter tax*: the cost a library charges for entering and leaving its world.
