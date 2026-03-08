@@ -187,7 +187,7 @@ tokens := splitTokens(s).Convert(strings.ToLower).KeepIf(lof.IsNonBlank)
 
 **Design note: standalone vs method form.** For a single cross-type map, fluentfp's standalone `slice.Map` infers both types — same inference as lo, without the `_ int` wrapper:
 ```go
-// lo — requires wrapper to discard index
+// lo - still requires wrapper to discard index
 getAddr := func(u User, _ int) Address { return u.Address() }
 addrs := lo.Map(users, getAddr)
 
@@ -327,13 +327,13 @@ c.allocRunnerShim.SetCSIVolumes(stubs)
 toMountInfo := func(r *volumePublishResult) *csimanager.MountInfo { return r.stub.MountInfo }
 
 mounts := kv.MapValues(c.volumeResults, toMountInfo)
-stubs := kv.MapValues(c.volumeResults, (*volumePublishResult).GetStub)
+stubs := kv.MapValues(c.volumeResults, (*volumePublishResult).Stub)
 
 c.hookResources.SetCSIMounts(mounts)
 c.allocRunnerShim.SetCSIVolumes(stubs)
 ```
 
-**What changed:** Two 4-line loops become two `kv.MapValues` calls. The stub extraction uses a method expression (`(*volumePublishResult).GetStub`); the mount info extraction needs a named function because it traverses two levels (`r.stub.MountInfo`). Nomad's `ConvertMap` is already generic; even with generics, the loop body is boilerplate that a library absorbs. `kv.MapValues` additionally returns `Entries[K,V2]` for chaining (e.g., `.KeepIf(pred).Values()`), which a raw-map return doesn't support.
+**What changed:** Two 4-line loops become two `kv.MapValues` calls. The stub extraction uses a method expression (`(*volumePublishResult).Stub`); the mount info extraction needs a named function because it traverses two levels (`r.stub.MountInfo`). Nomad's `ConvertMap` is already generic; even with generics, the loop body is boilerplate that a library absorbs. `kv.MapValues` additionally returns `Entries[K,V2]` for chaining (e.g., `.KeepIf(pred).Values()`), which a raw-map return doesn't support.
 
 **What's eliminated:** Write amplification — the same make-iterate-transform loop repeated for each map projection. Each instance is individually trivial (4 lines), but the pattern compounds wherever maps carry richer values than callers need. The risk is copy-paste error across structurally identical code: wrong source field, wrong target type, wrong map variable — all compile silently when the types happen to align.
 
@@ -431,7 +431,6 @@ func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
 
     res := make([]*Info, len(cities))
     for i, city := range cities {
-        i, city := i, city
         g.Go(func() error {
             info, err := City(ctx, city)
             if err != nil {
@@ -516,7 +515,7 @@ go Sieve(primes)
 for i := 0; i < 25; i++ {
     fmt.Println(<-primes)
 }
-// 26+ goroutines remain live until process exit — no cancellation/cleanup path
+// 27 goroutines remain live until process exit — no cancellation/cleanup path
 ```
 
 **fluentfp:**
