@@ -3,7 +3,7 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, optional value handling, typed alternatives, invariant enforcement, conditional value selection, tuple operations, builtin function adapters for higher-order use
+**In scope:** Collection transformation, lazy sequence processing, optional value handling, typed alternatives, invariant enforcement, conditional value selection, tuple operations, builtin function adapters for higher-order use
 **Out of scope:** General concurrency, I/O, serialization, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive.
 
 ## System Invariants
@@ -33,6 +33,7 @@
 | Enforce invariants during initialization | Blue | med |
 | Select a value conditionally with a fallback | Blue | low |
 | Construct reusable functions from existing ones | Blue | low |
+| Process elements from a sequence on demand | Blue | med |
 | Replace manual loop patterns with composable operations across the codebase | White | — |
 
 ## Use Cases
@@ -274,8 +275,52 @@
 - 2c. Developer needs to apply separate functions to separate arguments: System applies each function independently and returns the results together.
 - 2d. Developer needs a pass-through or identity key extractor: System provides a function that returns its argument unchanged.
 - 2e. Developer needs a predicate that checks equality to a known value: System returns a function that tests its argument against the captured value.
+- 2f. Developer needs to pass a Go builtin as a higher-order argument: System provides a first-class function wrapping the builtin, usable anywhere a function value is expected.
 
 **Sub-Variations:**
 - Composition: left-to-right (Pipe)
 - Partial application: fix first arg (Bind), fix second arg (BindR)
 - Building blocks: identity function, equality predicate
+- Builtin adapters: length, printing, string predicates, successor
+
+---
+
+### UC-8: Process a Lazy Sequence
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: correct elements processed without materializing entire sequence
+- Code reviewer: lazy pipeline reads as intent, evaluation boundaries are clear
+
+**Postconditions:**
+- Requested elements have been produced or processed
+- Full sequence was not required to exist in memory simultaneously
+- Source sequence is unchanged and can be reused (persistence)
+
+**Minimal Guarantee:** Partially consumed sequences remain valid for further operations. Evaluation failures do not corrupt the sequence.
+
+**Main Scenario:**
+1. Developer has a sequence that is large, infinite, or expensive to compute, and needs to process a subset of its elements.
+2. Developer constructs a lazy sequence from the source.
+3. Developer specifies transformations: filtering, converting, limiting count, skipping elements, or changing element types.
+4. Developer terminates the pipeline: collecting to a slice, iterating for side effects, searching for a match, or reducing to a single value.
+
+**Extensions:**
+- 1a. Sequence is empty: System produces a valid empty result for any terminal operation.
+- 2a. Source is a slice: System wraps it as a lazy sequence; elements are produced on demand from the underlying slice.
+- 2b. Source is an infinite mathematical series: System generates elements from a seed and step function; the sequence never terminates.
+- 2c. Source is a constant value repeated indefinitely: System produces the same value on each access.
+- 2d. Source is a step function with termination: System unfolds from a seed, producing elements until the step function signals stop.
+- 2e. Source is a recursive definition: System accepts a head value and a deferred tail computation, building the sequence lazily.
+- 3a. Developer needs cross-type transformation: System transforms elements to a different type.
+- 4a. Developer needs to bridge to a Go range loop: System provides an iterator compatible with Go's range protocol.
+- 4b. Developer needs to bridge to slice operations: System materializes to a plain slice for use with eager collection operations.
+
+**Sub-Variations:**
+- Construction: from slice, variadic, generate (infinite), repeat (constant), unfold (step function), prepend (eager cons), prepend lazy (deferred cons)
+- Filtering: by predicate
+- Limiting: by count (take), by predicate (take-while)
+- Skipping: by count (drop), by predicate (drop-while)
+- Transformation: same-type (method), cross-type (standalone)
+- Termination: collect, each, find, any, fold, seq

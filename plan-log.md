@@ -3048,3 +3048,13 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [ ] Entry deleted from showcase.md
 2026-03-08T21:03:02Z | Completion: Remove K8s Compact showcase entry
 [x] Entry deleted from showcase.md (evidence: grep finds no mount_linux ref)
+2026-03-08T21:56:10Z | Contract: Add missing UCs for stream and lof
+[ ] System scope updated
+[ ] Actor-goal list updated
+[ ] UC-7 lof extension added
+[ ] UC-8 stream UC added
+2026-03-08T21:58:29Z | Completion: Add missing UCs for stream and lof
+[x] System scope updated (evidence: "lazy sequence processing" in scope line)
+[x] Actor-goal list updated (evidence: new row for lazy sequences)
+[x] UC-7 lof extension added (evidence: 2f extension present)
+[x] UC-8 stream UC added (evidence: full UC-8 section present)
