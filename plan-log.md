@@ -2990,3 +2990,15 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Search Round 3: Unfold patterns (skipped — stretch goal, Amazonka already covers from Haskell, Go pagination APIs handle internally)
 [x] Self-graded and iterated (B+ -> A- after filtering simple membership checks, verifying source links, documenting limitations)
 [x] Compile candidate list (5 candidates across 5 distinct projects, covering Every/Any and Fold gaps)
+2026-03-08T19:34:14Z | Contract: Add 4 showcase entries for Stone algorithm patterns
+[ ] Write Entry 1: grafana/grafana Every
+[ ] Write Entry 2: portainer/portainer Every+Any
+[ ] Write Entry 3: prometheus/prometheus Fold
+[ ] Write Entry 4: docker/compose GroupBy pipeline
+[ ] Commit and push
+2026-03-08T19:44:12Z | Completion: Add 4 showcase entries for Stone algorithm patterns
+[x] Entry 1: grafana/grafana Every (areAllMappingsNewFormat → .Every(isNewFormat))
+[x] Entry 2: portainer/portainer Every+Any (allMatch/contains → .Every()/slice.Contains())
+[x] Entry 3: prometheus/prometheus Fold (State() running-max → slice.Fold with kv.Values)
+[x] Entry 4: docker/compose GroupBy pipeline (combinedStatus → GroupBy/SortBy/ToString)
+[x] Committed and pushed

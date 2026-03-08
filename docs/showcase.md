@@ -800,6 +800,240 @@ combined := slice.Union(paths, other)
 
 ---
 
+### Schema migration predicate loop — grafana/grafana
+
+**Source:** [v30.go#L218-L231](https://github.com/grafana/grafana/blob/a72e02f88a2a9d50f43fe4350926abe970fddd21/apps/dashboard/pkg/migration/schemaversion/v30.go#L218-L231)
+**Pain point:** Nested type assertions with continue/return-false bury the "all mappings valid?" intent
+
+Grafana (72.5k stars) migrates dashboard JSON schemas across versions. `upgradeValueMappings` skips panels whose value mappings are already in the new format, delegating to `areAllMappingsNewFormat`. The function iterates through `[]interface{}` elements, performing a type assertion to `map[string]interface{}`, then a second type assertion to extract the `"type"` key as a string, then checks non-emptiness. Three nesting levels of `if`/`ok` with `continue` on success and `return false` on failure — the reader must trace exit polarity through each branch to confirm "this returns true when all mappings pass."
+
+**Original:**
+```go
+func areAllMappingsNewFormat(oldMappings []interface{}) bool {
+	for _, mapping := range oldMappings {
+		if mappingMap, ok := mapping.(map[string]interface{}); ok {
+			if mappingType, ok := mappingMap["type"].(string); ok && mappingType != "" {
+				continue
+			} else {
+				return false
+			}
+		}
+	}
+	return true
+}
+```
+
+**fluentfp:**
+```go
+// isNewFormat returns true if the mapping has a non-empty "type" key.
+isNewFormat := func(mapping any) bool {
+	m, ok := mapping.(map[string]any)
+	if !ok {
+		return true // non-map entries don't invalidate
+	}
+	t, ok := m["type"].(string)
+	return ok && t != ""
+}
+
+slice.From(oldMappings).Every(isNewFormat)
+```
+
+**What changed:** The universal quantifier is named — `.Every(isNewFormat)` reads as "all mappings are new format." The type-assertion logic moves into a predicate with a single `return` expressing the positive case.
+
+**What's eliminated:** Exit polarity ambiguity. In the original, `continue` means "this one passed," `return false` means "this one failed," and `return true` after the loop means "all passed" — the reader must trace three levels of nesting to confirm the polarity. `.Every(pred)` names the quantifier directly; the predicate encapsulates the assertion logic with a single boolean expression.
+
+---
+
+### Image status resolution cascade — portainer/portainer
+
+**Source:** [status.go#L83-L101](https://github.com/portainer/portainer/blob/e8cee12384d54581f24b3802ea381661e49d8a08/api/docker/images/status.go#L83-L101) (FigureOut), [status.go#L278-L298](https://github.com/portainer/portainer/blob/e8cee12384d54581f24b3802ea381661e49d8a08/api/docker/images/status.go#L278-L298) (allMatch, contains)
+**Pain point:** Two hand-rolled quantifier functions exist solely because Go lacks `.Every()` and `.Any()`
+
+Portainer (36.8k stars) manages Docker environments. When determining the overall status of a set of container images, `FigureOut` cascades through priority rules: if all statuses match a single value, return that value; if any status is `Outdated`, `Processing`, or `Error`, return it. The logic itself is clear, but it depends on two utility functions — `allMatch` (8-line universal quantifier) and `contains` (a wrapper around `slices.Contains`) — that every Go project re-implements because the language lacks built-in predicate operations on slices.
+
+**Original:**
+```go
+func FigureOut(statuses []Status) Status {
+	if allMatch(statuses, Skipped) {
+		return Skipped
+	}
+	if allMatch(statuses, Preparing) {
+		return Preparing
+	}
+	if contains(statuses, Outdated) {
+		return Outdated
+	} else if contains(statuses, Processing) {
+		return Processing
+	} else if contains(statuses, Error) {
+		return Error
+	}
+	return Updated
+}
+
+func allMatch(statuses []Status, status Status) bool {
+	if len(statuses) == 0 {
+		return false
+	}
+	for _, s := range statuses {
+		if s != status {
+			return false
+		}
+	}
+	return true
+}
+```
+
+**fluentfp:**
+```go
+// isStatus returns a predicate that checks equality to the given status.
+isStatus := func(target Status) func(Status) bool {
+	return func(s Status) bool { return s == target }
+}
+
+func FigureOut(statuses []Status) Status {
+	if len(statuses) == 0 {
+		return Updated
+	}
+
+	ss := slice.From(statuses)
+	switch {
+	case ss.Every(isStatus(Skipped)):
+		return Skipped
+	case ss.Every(isStatus(Preparing)):
+		return Preparing
+	case slice.Contains(statuses, Outdated):
+		return Outdated
+	case slice.Contains(statuses, Processing):
+		return Processing
+	case slice.Contains(statuses, Error):
+		return Error
+	default:
+		return Updated
+	}
+}
+```
+
+**What changed:** The `allMatch` and `contains` utility functions disappear — replaced by `.Every()` and `slice.Contains()`. The cascade logic in `FigureOut` is unchanged but reads with named quantifiers instead of forwarding to boilerplate helpers. The `if/else-if` chain becomes a `switch` that expresses the priority rules as a flat list. The explicit empty check at the top replaces the implicit `len == 0 → false` in `allMatch` — `.Every()` uses vacuous truth (empty returns true), so the guard preserves the original behavior.
+
+**What's eliminated:** Boilerplate quantifier functions. Every Go project that needs "do all elements match?" or "does any element match?" re-implements the same 8-line loop. These functions aren't domain logic — they're missing standard library operations. `.Every()` and `slice.Contains()` replace them with named operations, letting `FigureOut` focus on the status priority rules.
+
+---
+
+### Alert state reduction — prometheus/prometheus
+
+**Source:** [alerting.go#L550-L565](https://github.com/prometheus/prometheus/blob/7dea9af4939e52221e5a0e3d02c7838e7d76c799/rules/alerting.go#L550-L565)
+**Pain point:** Running-max loop over map values with manual accumulator initialization and comparison
+
+Prometheus (63.1k stars) evaluates alerting rules against time-series data. `AlertingRule.State()` computes the aggregate state of an alert group by finding the maximum `AlertState` across all active alerts stored in a `map[uint64]*Alert`. The pattern is a textbook fold — initialize an accumulator (`maxState := StateInactive`), iterate, conditionally update — but written as a mutation loop. The reader must identify `maxState` as a running maximum, verify the comparison direction (`>`), and mentally distinguish this from filter or count patterns that use similar loop shapes.
+
+**Original:**
+```go
+func (r *AlertingRule) State() AlertState {
+	r.activeMtx.Lock()
+	defer r.activeMtx.Unlock()
+
+	if r.evaluationTimestamp.Load().IsZero() {
+		return StateUnknown
+	}
+
+	maxState := StateInactive
+	for _, a := range r.active {
+		if a.State > maxState {
+			maxState = a.State
+		}
+	}
+
+	return maxState
+}
+```
+
+**fluentfp:**
+```go
+// maxAlertState returns the higher of the accumulator and the alert's state.
+maxAlertState := func(maxSoFar AlertState, a *Alert) AlertState {
+	if a.State > maxSoFar {
+		return a.State
+	}
+	return maxSoFar
+}
+
+func (r *AlertingRule) State() AlertState {
+	r.activeMtx.Lock()
+	defer r.activeMtx.Unlock()
+
+	if r.evaluationTimestamp.Load().IsZero() {
+		return StateUnknown
+	}
+
+	return slice.Fold(kv.Values(r.active), StateInactive, maxAlertState)
+}
+```
+
+**What changed:** The mutation loop becomes `slice.Fold` with an explicit initial value and combining function. The mutex acquisition and early return stay imperative — fluentfp replaces the mechanical reduction, not the concurrency control. `kv.Values` bridges from map to slice without an intermediate variable.
+
+**What's eliminated:** The accumulator mutation pattern. In the original, the reader must identify `maxState` as a running maximum (not a filter, not a counter, not a last-seen value), verify the comparison direction, and trace initialization through to the return. `Fold` co-locates all three components — initial value, combining function, collection — in a single expression that names the operation.
+
+---
+
+### Status frequency formatting — docker/compose
+
+**Source:** [ls.go#L95-L116](https://github.com/docker/compose/blob/bfb5511d0d6f8250b088d0251bc21c041516ddb8/pkg/compose/ls.go#L95-L116)
+**Pain point:** Two interleaved concerns — counting occurrences and tracking insertion order — with coordinated map + slice + conditional append
+
+Docker Compose (37.1k stars) lists project stacks with `docker compose ls`. For each stack, `combinedStatus` formats container statuses as `"running(3), exited(1)"`. The implementation interleaves two concerns: a frequency map (`nbByStatus`) tracks counts while a separate `keys` slice preserves first-seen order (appending only when the key is new). A second loop builds the output string with manual comma separation. The reader must mentally separate the counting logic from the ordering logic to understand either one.
+
+**Original:**
+```go
+func combinedStatus(statuses []string) string {
+	nbByStatus := map[string]int{}
+	keys := []string{}
+	for _, status := range statuses {
+		nb, ok := nbByStatus[status]
+		if !ok {
+			nb = 0
+			keys = append(keys, status)
+		}
+		nbByStatus[status] = nb + 1
+	}
+	sort.Strings(keys)
+	result := ""
+	for _, status := range keys {
+		nb := nbByStatus[status]
+		if result != "" {
+			result += ", "
+		}
+		result += fmt.Sprintf("%s(%d)", status, nb)
+	}
+	return result
+}
+```
+
+**fluentfp:**
+```go
+// statusValue returns the status unchanged (identity key for grouping by value).
+statusValue := func(s string) string { return s }
+
+// groupKey extracts the key from a status group.
+groupKey := func(g slice.Group[string, string]) string { return g.Key }
+
+// formatGroup formats a status group as "status(count)".
+formatGroup := func(g slice.Group[string, string]) string {
+	return fmt.Sprintf("%s(%d)", g.Key, len(g.Items))
+}
+
+func combinedStatus(statuses []string) string {
+	groups := slice.GroupBy(statuses, statusValue)
+	formatted := slice.SortBy(groups, groupKey).ToString(formatGroup)
+	return strings.Join(formatted, ", ")
+}
+```
+
+**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `SortBy` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility.
+
+**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, and the pipeline makes each transformation step visible as a named operation.
+
+---
+
 ### The adapter tax
 
 The examples above all shorten code — but that's the symptom, not the cause. The cause is *adapter tax*: the cost a library charges for entering and leaving its world.
