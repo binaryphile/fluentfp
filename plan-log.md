@@ -2970,3 +2970,9 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] 1 bag note added
 [x] Placement after Stone's explanations
 [x] Arity caveats where Stone is more general
+2026-03-08T18:30:00Z | Contract: Phase 3 - Ch 4-7 audit + sorting note
+[ ] 1 sorting note added to Ch 4
+[ ] Ch 4-7 audit documented (no other blocks needed)
+2026-03-08T18:48:00Z | Completion: Phase 3 - Ch 4-7 audit + sorting note
+[x] 1 sorting note added (evidence: grep shows note at line 8253)
+[x] Project complete — all chapters audited
