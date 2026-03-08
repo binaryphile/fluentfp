@@ -2976,3 +2976,17 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 2026-03-08T18:48:00Z | Completion: Phase 3 - Ch 4-7 audit + sorting note
 [x] 1 sorting note added (evidence: grep shows note at line 8253)
 [x] Project complete — all chapters audited
+2026-03-08T19:07:46Z | Contract: Find showcase items for Stone algorithm patterns
+[ ] Check aggregation points (awesome-go, blog posts, existing showcase sources)
+[ ] Search Round 1: Every/Any patterns in popular Go projects
+[ ] Search Round 2: Fold patterns in popular Go projects
+[ ] Search Round 3: Unfold patterns (stretch goal)
+[ ] Self-grade and iterate before presenting
+[ ] Compile candidate list with source links and pattern classification
+2026-03-08T19:22:01Z | Completion: Find showcase items for Stone algorithm patterns
+[x] Aggregation points checked (awesome-go, Go stdlib proposals #67453/#68532/#75202, samber/lo demand validation, blog posts)
+[x] Search Round 1: Every/Any patterns (grafana/grafana areAllMappingsNewFormat, portainer/portainer allMatch, grafana/loki allMatch — all verified at source)
+[x] Search Round 2: Fold patterns (prometheus/prometheus State() running max, docker/compose combinedStatus two-phase fold — both verified at source)
+[x] Search Round 3: Unfold patterns (skipped — stretch goal, Amazonka already covers from Haskell, Go pagination APIs handle internally)
+[x] Self-graded and iterated (B+ -> A- after filtering simple membership checks, verifying source links, documenting limitations)
+[x] Compile candidate list (5 candidates across 5 distinct projects, covering Every/Any and Fold gaps)
