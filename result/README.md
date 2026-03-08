@@ -19,6 +19,9 @@ values := result.CollectOk(results)
 // Construct
 ok := result.Ok(42)
 fail := result.Err[int](errors.New("not found"))
+
+// From (T, error) — wraps any Go function's return
+res := result.Of(strconv.Atoi("42"))
 ```
 
 ```go
@@ -71,7 +74,7 @@ If the panic value was an `error`, `PanicError.Unwrap()` returns it — enabling
 
 ## Operations
 
-**Create**: `Ok`, `Err`
+**Create**: `Ok`, `Err`, `Of` (from `(T, error)` pair)
 
 **Extract**: `Get`, `GetOr`, `GetErr`, `IsOk`, `IsErr`, `MustGet`
 

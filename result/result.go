@@ -27,6 +27,16 @@ func Err[R any](e error) Result[R] {
 	return Result[R]{err: e}
 }
 
+// Of returns a Result from a (value, error) pair — the signature returned by
+// most Go functions. If err is non-nil the result is Err; otherwise Ok.
+func Of[R any](r R, err error) Result[R] {
+	if err != nil {
+		return Err[R](err)
+	}
+
+	return Ok(r)
+}
+
 // methods
 
 // IsOk reports whether r is an Ok result.

@@ -30,6 +30,62 @@ func TestErrNilPanics(t *testing.T) {
 	result.Err[int](nil)
 }
 
+func TestOf(t *testing.T) {
+	// sentinelErr is a specific error for identity checking.
+	sentinelErr := errors.New("fail")
+
+	tests := []struct {
+		name    string
+		value   int
+		err     error
+		wantVal int
+		wantOk  bool
+	}{
+		{
+			name:    "nil error returns ok",
+			value:   42,
+			err:     nil,
+			wantVal: 42,
+			wantOk:  true,
+		},
+		{
+			name:    "non-nil error returns err",
+			value:   99,
+			err:     sentinelErr,
+			wantVal: 0,
+			wantOk:  false,
+		},
+		{
+			name:    "zero value with nil error returns ok",
+			value:   0,
+			err:     nil,
+			wantVal: 0,
+			wantOk:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := result.Of(tt.value, tt.err)
+			val, ok := got.Get()
+			if val != tt.wantVal || ok != tt.wantOk {
+				t.Errorf("Of: got (%d, %t), want (%d, %t)", val, ok, tt.wantVal, tt.wantOk)
+			}
+		})
+	}
+
+	t.Run("preserves error identity", func(t *testing.T) {
+		got := result.Of(0, sentinelErr)
+		err, ok := got.GetErr()
+		if !ok {
+			t.Fatal("expected Err result")
+		}
+		if !errors.Is(err, sentinelErr) {
+			t.Errorf("Of: error identity not preserved")
+		}
+	})
+}
+
 func TestConvert(t *testing.T) {
 	// double doubles an int.
 	double := func(n int) int { return n * 2 }

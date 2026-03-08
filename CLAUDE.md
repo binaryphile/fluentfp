@@ -223,6 +223,7 @@ result.Result[R]
 // Constructors
 result.Ok[R any](r R) Result[R]           // Ok result containing r
 result.Err[R any](e error) Result[R]      // Err result; panics if e is nil
+result.Of[R any](r R, err error) Result[R] // Ok if err == nil; Err otherwise
 
 // Methods
 .IsOk() bool                              // err == nil

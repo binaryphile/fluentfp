@@ -2749,3 +2749,11 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] Example test — ExampleMapper_KeyByString
 [x] CLAUDE.md + CHANGELOG updated (API section + patterns + v0.43.0)
 [x] Era task #12981 done event published
+2026-03-08T00:10:05Z | Contract: result.Of conditional constructor
+[ ] Of function added
+[ ] Tests pass
+[ ] CLAUDE.md updated
+2026-03-08T00:16:19Z | Completion: result.Of conditional constructor
+[x] Of function added (evidence: result/result.go)
+[x] Tests pass (evidence: go test ./result/)
+[x] CLAUDE.md updated (evidence: result.Of in API section)
