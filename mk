@@ -17,6 +17,8 @@ Usage:
 
   Commands:
 
+    test          -- run all tests
+
     task          -- publish a task event
     done          -- publish a task-done event
     open          -- list open tasks
@@ -36,6 +38,12 @@ BinDir=bin
 ProjectRoot=$PROJECT_ROOT
 TaskStream=tasks.$(basename "$ProjectRoot")
 TaskAudit=$ProjectRoot/$BinDir/task-audit
+
+## commands
+
+cmd.test() {
+  mk.Cue go test ./...
+}
 
 ## task stream commands
 
