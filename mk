@@ -33,7 +33,7 @@ Usage:
 END
 
 BinDir=bin
-ProjectRoot=$(cd "$(dirname "$0")" && pwd)
+ProjectRoot=$PROJECT_ROOT
 TaskStream=tasks.$(basename "$ProjectRoot")
 TaskAudit=$ProjectRoot/$BinDir/task-audit
 
