@@ -2956,3 +2956,17 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] 2.1 List Mapping Go examples
 [x] 2.3 Procedure Sections Go examples
 [x] 2.4 Couplers Go examples
+2026-03-08T18:06:41Z | Contract: Phase 2 - Ch 3 Data Structures Go translations
+[ ] 5 Go blocks added (filter/partition, every/any, constant-source, map-source+unfold-source, set ops)
+[ ] 1 bag note added
+[ ] Placement after Stone's explanations (not interrupting narrative)
+[ ] Arity caveats where Stone is more general
+2026-03-08T18:09:47Z | Interaction: grade -> B+/88, reviewing placement and content quality
+2026-03-08T18:11:09Z | Interaction: improve -> fixed arity caveat format (blockquote→plain bold, colon placement) to match Phase 1 style
+2026-03-08T18:11:52Z | Interaction: grade -> A-/91, looking for remaining issues
+2026-03-08T18:13:36Z | Interaction: improve -> fixed bag note section reference (S3.7 → "for lists" — section numbers aren't explicit in markdown)
+2026-03-08T18:15:00Z | Completion: Phase 2 - Ch 3 Data Structures
+[x] 5 Go blocks added (evidence: grep count in ch 3 range = 6, minus 1 existing = 5 new)
+[x] 1 bag note added
+[x] Placement after Stone's explanations
+[x] Arity caveats where Stone is more general
