@@ -78,6 +78,20 @@ func (ts MapperTo[R, T]) KeepIf(fn func(T) bool) MapperTo[R, T] {
 	return results
 }
 
+// KeyByInt indexes elements by an int key derived from fn.
+// If multiple elements produce the same key, the last one wins.
+// For other key types, use the standalone KeyBy function.
+func (ts MapperTo[R, T]) KeyByInt(fn func(T) int) map[int]T {
+	return KeyBy(ts, fn)
+}
+
+// KeyByString indexes elements by a string key derived from fn.
+// If multiple elements produce the same key, the last one wins.
+// For other key types, use the standalone KeyBy function.
+func (ts MapperTo[R, T]) KeyByString(fn func(T) string) map[string]T {
+	return KeyBy(ts, fn)
+}
+
 // Len returns the length of the slice.
 func (ts MapperTo[R, T]) Len() int {
 	return len(ts)

@@ -2733,3 +2733,19 @@ C+/75 -> B/84 = meaningful improvement. Not yet A-level implementation spec.
 [x] Stream showcase entry (evidence: new entry in showcase.md)
 [x] Result coverage (evidence: standalone entry in showcase.md)
 [x] "Adapter tax" section updated (evidence: new text in section)
+2026-03-07T23:28:54Z | Contract: KeyBy methods on Mapper[T]
+[ ] KeyByString, KeyByInt methods on Mapper and MapperTo
+[ ] Compile-time verification in slice/doc.go
+[ ] Tests pass (with -race)
+[ ] Example test
+[ ] CLAUDE.md + CHANGELOG updated
+[ ] Era task #12981 updated
+2026-03-07T23:35:00Z | Interaction: grade -> B-/80, delegate to shared helper, add MapperTo tests, parity test, doc improvements
+2026-03-07T23:40:00Z | Interaction: improve -> shared keyBy helper, MapperTo smoke tests, parity tests, doc improvements
+2026-03-08T00:05:28Z | Completion: KeyBy methods
+[x] KeyByString, KeyByInt methods on Mapper and MapperTo (delegate to shared base.KeyBy)
+[x] Compile-time verification in slice/doc.go (4 entries: 2 Mapper + 2 MapperTo)
+[x] Tests pass (with -race) — all 12 packages, 10 new test cases
+[x] Example test — ExampleMapper_KeyByString
+[x] CLAUDE.md + CHANGELOG updated (API section + patterns + v0.43.0)
+[x] Era task #12981 done event published

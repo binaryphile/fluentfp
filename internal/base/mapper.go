@@ -131,6 +131,20 @@ func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Option[int] {
 	return option.NotOk[int]()
 }
 
+// KeyByInt indexes elements by an int key derived from fn.
+// If multiple elements produce the same key, the last one wins.
+// For other key types, use the standalone KeyBy function.
+func (ts Mapper[T]) KeyByInt(fn func(T) int) map[int]T {
+	return KeyBy(ts, fn)
+}
+
+// KeyByString indexes elements by a string key derived from fn.
+// If multiple elements produce the same key, the last one wins.
+// For other key types, use the standalone KeyBy function.
+func (ts Mapper[T]) KeyByString(fn func(T) string) map[string]T {
+	return KeyBy(ts, fn)
+}
+
 // KeepIf returns a new slice containing the members of ts for which fn returns true.
 // It is the complement of RemoveIf.
 func (ts Mapper[T]) KeepIf(fn func(T) bool) Mapper[T] {

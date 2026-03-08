@@ -40,6 +40,8 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 .Every(fn func(T) bool) bool          // True if all elements match (vacuous truth when empty)
 .None(fn func(T) bool) bool           // True if no elements match (vacuous truth when empty)
 .Clone() Mapper[T]                     // Shallow copy with independent backing array
+.KeyByInt(fn func(T) int) map[int]T   // Index elements by int key (last wins)
+.KeyByString(fn func(T) string) map[string]T // Index elements by string key (last wins)
 .Single() either.Either[int, T]        // Right if exactly one; Left(count) otherwise
 .Len() int                             // Count elements
 
@@ -181,6 +183,9 @@ duplicates := slice.GroupBy(styleList, valueHash).KeepIf(hasDuplicates).Sort(sli
 // KeyBy — index for O(1) lookup, then bridge back to fluent chain
 byID := slice.KeyBy(users, User.GetID)
 actives := kv.Values(byID).KeepIf(User.IsActive)
+
+// KeyByString/KeyByInt — method form chains directly from slice.From
+byName := slice.From(users).KeepIf(User.IsActive).KeyByString(User.GetName)
 ```
 
 ### either Package

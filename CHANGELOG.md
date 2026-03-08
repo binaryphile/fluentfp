@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.43.0
+
+- **slice** — `KeyByString`, `KeyByInt` methods on `Mapper[T]` and `MapperTo[R, T]`
+  - Method equivalents of standalone `KeyBy` for the two most common key types
+  - Enables fluent chains: `slice.From(users).KeepIf(pred).KeyByString(fn)`
+
 ## v0.42.0
 
 - **fn** package — function combinators for composition and partial application

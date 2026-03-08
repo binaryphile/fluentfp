@@ -23,6 +23,8 @@ func _() {
 	_ = Mapper[int].First
 	_ = Mapper[int].FlatMap
 	_ = Mapper[int].IndexWhere
+	_ = Mapper[int].KeyByInt
+	_ = Mapper[int].KeyByString
 	_ = Mapper[int].KeepIf
 	_ = Mapper[int].Last
 	_ = Mapper[int].Len
@@ -47,6 +49,8 @@ func _() {
 	_ = MapperTo[int, int].Each
 	_ = MapperTo[int, int].FlatMap
 	_ = MapperTo[int, int].KeepIf
+	_ = MapperTo[int, int].KeyByInt
+	_ = MapperTo[int, int].KeyByString
 	_ = MapperTo[int, int].Last
 	_ = MapperTo[int, int].Len
 	_ = MapperTo[int, int].Map
