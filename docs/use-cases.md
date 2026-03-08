@@ -77,6 +77,7 @@
 - Sorting: ascending or descending by extracted key
 - Deduplication: by identity or by extracted key
 - Batching: by fixed size
+- Concurrent bounding: by item count (uniform cost) or by total cost (weighted)
 - Collection source: from slice, from map values, or from set members
 
 ---

@@ -129,6 +129,10 @@ slice.ParallelMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
 slice.FanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) Mapper[result.Result[R]]
 slice.FanOutEach[T any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) error) []error
 
+// FanOutWeighted — weighted concurrent traversal (total cost budget instead of item count)
+slice.FanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]]
+slice.FanOutEachWeighted[T any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) error) []error
+
 // Map, ParallelMap, Fold, and MapAccum are standalone (not methods) because they return
 // a different type R — Go can't infer R from Mapper[T]'s receiver.
 // MapperTo[R, T].ParallelMap IS a method because both type params are on the receiver.
@@ -162,9 +166,21 @@ results := slice.FanOut(ctx, 8, urls, fetchURL)
 // FanOutEach — side-effect variant, returns []error (nil entries = success)
 errs := slice.FanOutEach(ctx, 4, configs, pushConfig)
 
+// FanOutWeighted — weighted concurrent traversal (total cost budget)
+// Each item declares its cost; at most capacity units run concurrently.
+// itemCost returns cost for each item. Panics if cost <= 0 or cost > capacity.
+itemCost := func(f File) int { return f.SizeMB }
+results := slice.FanOutWeighted(ctx, 100, files, itemCost, processFile)
+
+// FanOutEachWeighted — side-effect variant
+errs := slice.FanOutEachWeighted(ctx, 50, jobs, jobCost, runJob)
+
 // FanOut vs ParallelMap:
 // - FanOut: per-item scheduling, context-aware, error/panic per item (I/O-bound)
 // - ParallelMap: batch chunking, no context, no error handling (CPU-bound)
+// FanOut vs FanOutWeighted:
+// - FanOut: uniform cost (at most n items)
+// - FanOutWeighted: variable cost (at most capacity units of cost)
 ```
 
 ### slice Patterns

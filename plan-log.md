@@ -2935,3 +2935,16 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] UC-1 ext 2d: Fixed GroupBy description
 [x] UC-2 ext 2j: Differentiated as KeyBy
 [x] UC-4: Added ext 3c for FlatMap chaining
+2026-03-08T16:55:23Z | Contract: FanOutWeighted — weighted concurrent traversal
+[ ] UC-1 ext 2f sub-variation for weighted bounding
+[ ] D13: FanOut concurrency model in design.md
+[ ] FanOutWeighted + FanOutEachWeighted implementation
+[ ] Tests mirroring existing FanOut coverage
+[ ] doc.go, CLAUDE.md, CHANGELOG.md
+2026-03-08T17:03:05Z | Interaction: grade -> A-/92, no changes needed
+2026-03-08T17:03:17Z | Completion: FanOutWeighted — weighted concurrent traversal
+[x] UC-1 sub-variation added
+[x] D13 added to design.md
+[x] FanOutWeighted + FanOutEachWeighted implemented
+[x] Tests pass (go test ./slice/...)
+[x] doc.go, CLAUDE.md, CHANGELOG.md updated

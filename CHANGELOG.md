@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.52.0
+
+- **slice** — Weighted concurrent traversal: `FanOutWeighted`, `FanOutEachWeighted`
+  - `FanOutWeighted[T, R](ctx, capacity, ts, cost, fn)` — bounds by total cost budget, not item count
+  - `FanOutEachWeighted[T](ctx, capacity, ts, cost, fn)` — side-effect variant
+  - Channel-based multi-token semaphore, zero external dependencies
+  - Same cancellation guarantees as `FanOut`, with partial acquire rollback
+
 ## v0.51.0
 
 - **option** — SQL serialization: `sql.Scanner` and `driver.Valuer` for `Option[T]`

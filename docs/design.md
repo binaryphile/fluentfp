@@ -225,6 +225,26 @@ A persistent lazy sequence where each cell's head is eager and tail is lazy, eva
 
 **Reentrancy constraint:** Callbacks must not force the same cell being evaluated (deadlock). This includes indirect paths — e.g., a Map callback that forces the Map result stream. This is inherent to memoized lazy evaluation, not specific to the locking implementation.
 
+### D13: FanOut concurrency model
+
+Channel-based semaphore: `make(chan struct{}, n)` bounds concurrent goroutines.
+Each item gets its own goroutine (per-item scheduling), suited for I/O-bound
+workloads with variable latency. Panic recovery per item via `runItem` with
+named return and defer/recover.
+
+**Why channel, not `x/sync/semaphore`:** Zero external dependencies. Channel
+semaphore is O(1) acquire/release for uniform-cost FanOut. For the weighted
+variant (multi-token acquire), it's O(cost) — negligible for practical ranges.
+
+**Weighted variant:** `FanOutWeighted` replaces "at most n items" with "at most
+capacity units of cost." Each item declares its cost; the scheduler acquires
+that many channel tokens before launching. Same cancellation guarantees as
+FanOut — partial acquire rolls back on ctx cancellation.
+
+**FanOut vs ParallelMap:** FanOut does per-item scheduling (one goroutine per
+item) — optimal for variable-latency I/O. ParallelMap does batch chunking —
+lower overhead for CPU-bound uniform work on large slices.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.

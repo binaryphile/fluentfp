@@ -163,6 +163,174 @@ loop:
 	return results
 }
 
+// FanOutWeighted applies fn to each element of ts concurrently, bounded by a total
+// cost budget rather than a fixed item count. Each item's cost is determined by the
+// cost function, and at most capacity units of cost run concurrently.
+//
+// Returns Mapper[result.Result[R]] with len == len(ts), where output[i] corresponds to ts[i].
+//
+// Same cancellation guarantees as FanOut. Partial acquire rollback: if ctx cancels
+// after acquiring some tokens for an item, the scheduler releases them and fills
+// remaining items with ctx.Err().
+//
+// Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
+// Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
+func FanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+	return fanOutWeighted(ctx, capacity, ts, cost, fn)
+}
+
+// FanOutEachWeighted applies fn to each element of ts concurrently, bounded by a
+// total cost budget. It is the side-effect variant of FanOutWeighted.
+//
+// Returns []error with len == len(ts). Nil entries indicate success.
+//
+// Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
+// Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
+func FanOutEachWeighted[T any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) error) []error {
+	if capacity <= 0 {
+		panic("slice.FanOutEachWeighted: capacity must be > 0")
+	}
+	if cost == nil {
+		panic("slice.FanOutEachWeighted: cost must not be nil")
+	}
+	if ctx == nil {
+		panic("slice.FanOutEachWeighted: ctx must not be nil")
+	}
+	if fn == nil {
+		panic("slice.FanOutEachWeighted: fn must not be nil")
+	}
+
+	// wrapFn adapts a side-effect fn to the engine's (R, error) signature.
+	wrapFn := func(ctx context.Context, t T) (struct{}, error) {
+		return struct{}{}, fn(ctx, t)
+	}
+
+	results := fanOutWeighted(ctx, capacity, ts, cost, wrapFn)
+
+	errs := make([]error, len(results))
+	for i, r := range results {
+		if err, ok := r.GetErr(); ok {
+			errs[i] = err
+		}
+	}
+
+	return errs
+}
+
+// fanOutWeighted is the internal engine for FanOutWeighted and FanOutEachWeighted.
+func fanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+	if capacity <= 0 {
+		panic("slice.FanOutWeighted: capacity must be > 0")
+	}
+	if cost == nil {
+		panic("slice.FanOutWeighted: cost must not be nil")
+	}
+	if ctx == nil {
+		panic("slice.FanOutWeighted: ctx must not be nil")
+	}
+	if fn == nil {
+		panic("slice.FanOutWeighted: fn must not be nil")
+	}
+
+	if len(ts) == 0 {
+		return Mapper[result.Result[R]]{}
+	}
+
+	results := make([]result.Result[R], len(ts))
+
+	// Already-cancelled ctx: fill all slots, no callbacks run.
+	if err := ctx.Err(); err != nil {
+		for i := range results {
+			results[i] = result.Err[R](err)
+		}
+
+		return results
+	}
+
+	sem := make(chan struct{}, capacity)
+	var wg sync.WaitGroup
+
+loop:
+	for i, t := range ts {
+		itemCost := cost(t)
+		if itemCost <= 0 {
+			panic("slice.FanOutWeighted: cost must be > 0")
+		}
+		if itemCost > capacity {
+			panic("slice.FanOutWeighted: cost must be <= capacity")
+		}
+
+		// Pre-select cancellation check.
+		if err := ctx.Err(); err != nil {
+			for j := i; j < len(results); j++ {
+				results[j] = result.Err[R](err)
+			}
+
+			break
+		}
+
+		// Multi-token acquire.
+		acquired := 0
+		cancelled := false
+
+		for acquired < itemCost {
+			select {
+			case <-ctx.Done():
+				cancelled = true
+			case sem <- struct{}{}:
+				acquired++
+			}
+
+			if cancelled {
+				break
+			}
+		}
+
+		if cancelled {
+			// Rollback: release already-acquired tokens.
+			for k := 0; k < acquired; k++ {
+				<-sem
+			}
+
+			for j := i; j < len(results); j++ {
+				results[j] = result.Err[R](ctx.Err())
+			}
+
+			break loop
+		}
+
+		// Post-select cancellation check — narrow the race window.
+		if err := ctx.Err(); err != nil {
+			for k := 0; k < itemCost; k++ {
+				<-sem
+			}
+
+			for j := i; j < len(results); j++ {
+				results[j] = result.Err[R](err)
+			}
+
+			break
+		}
+
+		wg.Add(1)
+
+		go func(i int, t T, itemCost int) {
+			defer wg.Done()
+			defer func() {
+				for k := 0; k < itemCost; k++ {
+					<-sem
+				}
+			}()
+
+			results[i] = runItem(ctx, t, fn)
+		}(i, t, itemCost)
+	}
+
+	wg.Wait()
+
+	return results
+}
+
 // runItem calls fn with panic recovery. Named return enables defer/recover to set the result.
 func runItem[T, R any](ctx context.Context, t T, fn func(context.Context, T) (R, error)) (res result.Result[R]) {
 	defer func() {

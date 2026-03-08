@@ -115,6 +115,8 @@ func _() {
 
 	_ = FanOut[int, int]
 	_ = FanOutEach[int]
+	_ = FanOutWeighted[int, int]
+	_ = FanOutEachWeighted[int]
 	_ = FindAs[int, int]
 	_ = Fold[int, int]
 	_ = Map[int, int]
