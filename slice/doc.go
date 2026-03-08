@@ -98,13 +98,16 @@ func _() {
 	_ = Chunk[int]
 	_ = Compact[int]
 	_ = Contains[int]
+	_ = Difference[int]
 	_ = FromSet[int]
 	_ = Group[int, int]{}
 	_ = GroupBy[int, int]
+	_ = Intersect[int]
 	_ = KeyBy[int, int]
 	_ = Partition[int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
+	_ = Union[int]
 
 	_ = Asc[int, int]
 	_ = Desc[int, int]

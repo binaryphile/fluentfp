@@ -2813,3 +2813,26 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] 4 entries added to docs/showcase.md (Starship/ParallelMap, Amazonka/Unfold, Spark/Pipe, ExAws/FanOut)
 [x] Each entry: prose description, Go code, what-this-brings-to-Go
 [x] No foreign-language code blocks
+2026-03-07T22:30:00Z | Interaction: improve -> self-review of set operations plan
+2026-03-07T22:35:00Z | Interaction: improve -> second self-review of set operations plan
+2026-03-08T03:01:27Z | Contract: Task #13444 - Add set operations (Intersect, Difference, Union)
+[ ] Intersect — elements in both, deduped, order from a
+[ ] Difference — elements in a not in b, deduped, order from a
+[ ] Union — deduped combination, a order first then b extras
+[ ] Table-driven tests for all three
+[ ] doc.go, CLAUDE.md, CHANGELOG.md updated
+2026-03-08T03:02:00Z | Contract: Task #13444 - Add set operations (Intersect, Difference, Union)
+[ ] Intersect — elements in both, deduped, order from a
+[ ] Difference — elements in a not in b, deduped, order from a
+[ ] Union — deduped combination, a order first then b extras
+[ ] Table-driven tests for all three
+[ ] doc.go, CLAUDE.md, CHANGELOG.md updated
+2026-03-07T23:05:00Z | Interaction: improve -> review capacity hints and implementation details
+2026-03-08T03:08:49Z | Interaction: improve -> remove unnecessary Mapper[int] conversions in tests, add Union early return for consistency
+2026-03-07T23:10:00Z | Interaction: improve -> add showcase entries for set operations
+2026-03-08T03:25:56Z | Completion: Task #13444 - Set operations
+[x] Intersect — elements in both, deduped, order from a (13 tests pass)
+[x] Difference — elements in a not in b, deduped, order from a (12 tests pass)
+[x] Union — deduped combination, a order first then b extras (13 tests pass)
+[x] Table-driven tests for all three (38 total, go test -v passes)
+[x] doc.go, CLAUDE.md, CHANGELOG.md updated (go vet clean)

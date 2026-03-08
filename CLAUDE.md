@@ -103,6 +103,9 @@ slice.Partition[T any](ts Mapper[T], fn func(T) bool) (Mapper[T], Mapper[T])  //
 slice.Map[T, R any](ts Mapper[T], fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
 slice.FindAs[R, T any](ts Mapper[T]) option.Option[R]                         // First element that type-asserts to R
 slice.Contains[T comparable](ts Mapper[T], target T) bool                     // Check membership
+slice.Difference[T comparable](a, b Mapper[T]) Mapper[T]                     // Elements in a not in b (deduped, order from a)
+slice.Intersect[T comparable](a, b Mapper[T]) Mapper[T]                      // Elements in both a and b (deduped, order from a)
+slice.Union[T comparable](a, b Mapper[T]) Mapper[T]                          // Deduplicated combination (a first, then b extras)
 slice.ToSet[T comparable](ts Mapper[T]) map[T]bool                           // Convert slice to set for O(1) lookup
 slice.ToSetBy[T any, K comparable](ts Mapper[T], fn func(T) K) map[K]bool   // Set from extracted keys
 slice.UniqueBy[T any, K comparable](ts Mapper[T], fn func(T) K) Mapper[T]   // Dedup by key, preserving order

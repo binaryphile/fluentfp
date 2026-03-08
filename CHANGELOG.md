@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.48.0
+
+- **slice** — Set operations: `Intersect`, `Difference`, `Union`
+  - `Intersect[T comparable](a, b Mapper[T]) Mapper[T]` — elements in both, deduped, order from a
+  - `Difference[T comparable](a, b Mapper[T]) Mapper[T]` — elements in a not in b, deduped, order from a
+  - `Union[T comparable](a, b Mapper[T]) Mapper[T]` — deduped combination, a first then b extras
+
 ## v0.47.0
 
 - **option** — `FlatMap` method and standalone function (monadic bind)
