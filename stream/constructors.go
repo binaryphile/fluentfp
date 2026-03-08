@@ -78,3 +78,32 @@ func Unfold[T, S any](seed S, fn func(S) (T, S, bool)) Stream[T] {
 		},
 	}}
 }
+
+// Prepend returns a stream with v as the head and s as the tail.
+// The tail reference is captured at construction — s itself may contain
+// unevaluated lazy cells, but the link from this cell to s is immediate.
+func Prepend[T any](v T, s Stream[T]) Stream[T] {
+	return Stream[T]{cell: &cell[T]{
+		head:  v,
+		next:  s.cell,
+		state: cellForced,
+	}}
+}
+
+// PrependLazy returns a stream with v as the head and a lazily-evaluated tail.
+// The tail function is called at most once when the tail is first accessed,
+// consistent with the package's memoized forcing semantics (see Stream type doc).
+// Panics if tail is nil.
+func PrependLazy[T any](v T, tail func() Stream[T]) Stream[T] {
+	if tail == nil {
+		panic("stream.PrependLazy: tail must not be nil")
+	}
+
+	return Stream[T]{cell: &cell[T]{
+		head: v,
+		tail: func() *cell[T] {
+			s := tail()
+			return s.cell
+		},
+	}}
+}

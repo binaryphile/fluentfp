@@ -335,10 +335,11 @@ fib := stream.Unfold(pair{0, 1}, func(p pair) (int, pair, bool) {
 // Prepend element to existing stream (eager link)
 withHeader := stream.Prepend(header, stream.From(rows))
 
-// Build stream incrementally with lazy tail
-countdown := stream.PrependLazy(n, func() stream.Stream[int] {
-    return countdownFrom(n - 1)
-})
+// Recursive stream with lazy tail (corecursion)
+func countdown(n int) stream.Stream[int] {
+    if n < 0 { return stream.Stream[int]{} }
+    return stream.PrependLazy(n, func() stream.Stream[int] { return countdown(n-1) })
+}
 
 // Cross-type map (standalone)
 names := stream.Map(users, User.Name).Collect()

@@ -2785,3 +2785,9 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] All tests pass
 [x] CLAUDE.md standalone signatures updated
 [x] CHANGELOG.md updated
+2026-03-08T01:12:13Z | Interaction: improve -> added Prepend/PrependLazy patterns to CLAUDE.md and usage example to stream/README.md
+2026-03-08T01:12:13Z | Interaction: improve -> fixed CLAUDE.md PrependLazy pattern to be self-contained (removed undefined countdownFrom)
+2026-03-08T01:12:26Z | Completion: stream.Prepend/PrependLazy
+[x] Prepend and PrependLazy added (evidence: stream/constructors.go)
+[x] Tests pass (evidence: go test -race ./stream/)
+[x] CLAUDE.md updated (evidence: Prepend in stream API section)

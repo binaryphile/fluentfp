@@ -49,6 +49,11 @@ for v := range stream.Of(1, 2, 3).Seq() {
 ```
 
 ```go
+// Prepend element (eager cons)
+withDefault := stream.Prepend(fallback, stream.From(items))
+```
+
+```go
 // Lazy from slice — useful when only a subset is needed
 first := stream.From(largeSlice).KeepIf(isValid).First()
 ```
@@ -74,7 +79,7 @@ Cells are memoized via state machine transitions — once a tail thunk evaluates
 
 ## Operations
 
-**Create**: `From`, `Of`, `Generate`, `Repeat`, `Unfold`
+**Create**: `From`, `Of`, `Generate`, `Repeat`, `Unfold`, `Prepend`, `PrependLazy`
 
 **Lazy** (return Stream): `KeepIf`, `Convert`, `Take`, `TakeWhile`, `Drop`, `DropWhile`, `Map` (standalone)
 

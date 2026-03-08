@@ -146,6 +146,168 @@ func TestUnfoldNilFnPanics(t *testing.T) {
 	})
 }
 
+// --- Prepend (domain) ---
+
+func TestPrepend(t *testing.T) {
+	t.Run("to empty stream (singleton)", func(t *testing.T) {
+		got := stream.Prepend(42, stream.From([]int(nil))).Collect()
+		assertSliceEqual(t, []int{42}, got)
+	})
+
+	t.Run("to non-empty stream", func(t *testing.T) {
+		got := stream.Prepend(1, stream.Of(2, 3)).Collect()
+		assertSliceEqual(t, []int{1, 2, 3}, got)
+	})
+}
+
+func TestPrepend_Chain(t *testing.T) {
+	// Repeated prepends build in order.
+	var empty stream.Stream[int]
+	got := stream.Prepend(1, stream.Prepend(2, stream.Prepend(3, empty))).Collect()
+	assertSliceEqual(t, []int{1, 2, 3}, got)
+}
+
+func TestPrepend_ZeroValueStream(t *testing.T) {
+	// Zero value of Stream[T] is empty — Prepend to it yields singleton.
+	var s stream.Stream[int]
+	got := stream.Prepend(99, s).Collect()
+	assertSliceEqual(t, []int{99}, got)
+}
+
+func TestPrepend_ConcurrentTail(t *testing.T) {
+	s := stream.Prepend(1, stream.Of(2, 3))
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	results := make([][]int, goroutines)
+
+	for i := range goroutines {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			results[idx] = s.Tail().Collect()
+		}(i)
+	}
+
+	wg.Wait()
+
+	want := []int{2, 3}
+	for i := range goroutines {
+		assertSliceEqual(t, want, results[i])
+	}
+}
+
+// --- PrependLazy (domain) ---
+
+func TestPrependLazy(t *testing.T) {
+	t.Run("basic", func(t *testing.T) {
+		got := stream.PrependLazy(1, func() stream.Stream[int] {
+			return stream.Of(2, 3)
+		}).Collect()
+		assertSliceEqual(t, []int{1, 2, 3}, got)
+	})
+
+	t.Run("thunk returns empty stream", func(t *testing.T) {
+		got := stream.PrependLazy(42, func() stream.Stream[int] {
+			return stream.From([]int(nil))
+		}).Collect()
+		assertSliceEqual(t, []int{42}, got)
+	})
+}
+
+func TestPrependLazy_NotCalledUntilTail(t *testing.T) {
+	var count atomic.Int64
+	s := stream.PrependLazy(1, func() stream.Stream[int] {
+		count.Add(1)
+		return stream.Of(2, 3)
+	})
+
+	// Thunk not called yet.
+	if got := count.Load(); got != 0 {
+		t.Errorf("thunk called %d times before Tail(), want 0", got)
+	}
+
+	_ = s.Tail()
+
+	if got := count.Load(); got != 1 {
+		t.Errorf("thunk called %d times after Tail(), want 1", got)
+	}
+}
+
+func TestPrependLazy_CalledOnce(t *testing.T) {
+	var count atomic.Int64
+	s := stream.PrependLazy(1, func() stream.Stream[int] {
+		count.Add(1)
+		return stream.Of(2, 3)
+	})
+
+	_ = s.Tail()
+	_ = s.Tail()
+	_ = s.Tail()
+
+	if got := count.Load(); got != 1 {
+		t.Errorf("thunk called %d times, want 1 (memoization)", got)
+	}
+}
+
+func TestPrependLazy_ConcurrentTail(t *testing.T) {
+	var count atomic.Int64
+	s := stream.PrependLazy(1, func() stream.Stream[int] {
+		count.Add(1)
+		return stream.Of(2, 3)
+	})
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	results := make([][]int, goroutines)
+
+	for i := range goroutines {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			results[idx] = s.Tail().Collect()
+		}(i)
+	}
+
+	wg.Wait()
+
+	if got := count.Load(); got != 1 {
+		t.Errorf("thunk called %d times across %d goroutines, want 1", got, goroutines)
+	}
+
+	want := []int{2, 3}
+	for i := range goroutines {
+		assertSliceEqual(t, want, results[i])
+	}
+}
+
+func TestPrependLazy_PanicInThunk(t *testing.T) {
+	var calls atomic.Int64
+	s := stream.PrependLazy(1, func() stream.Stream[int] {
+		c := calls.Add(1)
+		if c == 1 {
+			panic("transient failure")
+		}
+		return stream.Of(2, 3)
+	})
+
+	// First Tail() panics.
+	func() {
+		defer func() { recover() }()
+		_ = s.Tail()
+	}()
+
+	// Second Tail() retries and succeeds (retry-on-panic semantics).
+	got := s.Tail().Collect()
+	assertSliceEqual(t, []int{2, 3}, got)
+}
+
+func TestPrependLazy_NilPanics(t *testing.T) {
+	assertPanics(t, func() {
+		stream.PrependLazy(1, nil)
+	})
+}
+
 // --- KeepIf (domain, table-driven) ---
 
 func TestKeepIf(t *testing.T) {
@@ -848,6 +1010,7 @@ func TestNilCallbackPanics(t *testing.T) {
 		{"Fold", func() { stream.Fold[int](s, 0, nil) }},
 		{"Generate", func() { stream.Generate(0, nil) }},
 		{"Unfold", func() { stream.Unfold[int](0, nil) }},
+		{"PrependLazy", func() { stream.PrependLazy(1, nil) }},
 	}
 
 	for _, tt := range tests {
