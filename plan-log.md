@@ -2797,3 +2797,19 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 2026-03-08T01:34:39Z | Completion: Prepend/PrependLazy doc gaps
 [x] doc.go updated
 [x] CHANGELOG.md updated
+2026-03-08T01:52:56Z | Contract: Cross-language inspiration showcase
+[ ] 4 entries added to docs/showcase.md
+[ ] Each entry: prose description, Go code, what-changed, what-eliminated
+[ ] No foreign-language code blocks
+2026-03-08T01:58:00Z | Interaction: improve -> rewriting Go examples to solve same domain problem as source projects, not analogous problems
+2026-03-08T02:26:44Z | Contract: Option/Result FlatMap
+[ ] Option.FlatMap method and standalone
+[ ] Result.FlatMap method and standalone
+[ ] Tests, doc.go, CLAUDE.md, CHANGELOG updated
+2026-03-08T02:30:00Z | Interaction: improve -> fix fn.Bind/BindR misuse, uniform commas violation, CPU-bound claim, tighten prose
+2026-03-08T02:35:00Z | Interaction: improve -> deeper self-review pass
+2026-03-08T02:40:00Z | Interaction: improve -> add specific source file refs (match existing entry format), trim unverified See-also claims, restore parallel guidance
+2026-03-08T02:41:24Z | Completion: Cross-language inspiration showcase
+[x] 4 entries added to docs/showcase.md (Starship/ParallelMap, Amazonka/Unfold, Spark/Pipe, ExAws/FanOut)
+[x] Each entry: prose description, Go code, what-this-brings-to-Go
+[x] No foreign-language code blocks

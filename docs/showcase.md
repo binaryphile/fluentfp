@@ -603,3 +603,361 @@ Think of a woodworking shop built on standard lumber. **Raw loops** are hand too
 **Good fit:** Repetitive config merges (Nomad's 48 cabinet doors), conditional struct construction (Consul), slice pipelines tangled with type assertions (go-linq). Bounded concurrent I/O where errgroup orchestration dominates the business logic — `FanOut` replaces the goroutine-launching loop with typed per-item results and panic capture (with different fail-fast semantics — see the FanOut entry above). Lazy sequences where channels are used primarily as an iteration mechanism — `stream` provides lazy evaluation without goroutine accumulation. Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
 
 **Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Pipelines are harder to step through in a debugger than loops. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `NonZero`, `NonEmpty`) that reads clearly once learned but has an onboarding cost.
+
+---
+
+## Cross-Language Inspiration
+
+The entries above compare Go patterns. The entries below take a different angle: patterns that are idiomatic in other FP languages — Rust, Haskell, Scala, Elixir — and show how fluentfp brings the same expressiveness to Go. Each describes what a real project does in the original language, then shows Go code solving the same problem. These are not transliterations — they're idiomatic Go for the same domain, written from scratch using fluentfp.
+
+---
+
+### Parallel prompt module rendering — Starship (Rust/Rayon)
+
+**Source project:** [Starship](https://github.com/starship/starship) (44k+ stars) — cross-shell prompt written in Rust.
+
+**What Starship does:** When the prompt format includes `$all`, Starship evaluates dozens of independent prompt modules — git status, language versions, cloud context, battery level — in parallel using Rayon. Each module independently checks environment state, runs external commands, or reads files, then returns a list of display segments. Starship uses `par_iter().flat_map()` to evaluate all modules concurrently and flatten the results into an ordered segment list. The key: switching from sequential to parallel required changing one method call — the module-rendering function didn't change signature, didn't gain a worker ID, didn't need synchronization.
+
+Starship also uses `par_iter().filter_map()` for custom module configurations — filtering and rendering user-defined modules in parallel, where each module may need to run a shell command or check a file to decide whether to display.
+
+**Go equivalent:** A CLI dashboard that evaluates independent status modules in parallel — the same "render N independent widgets concurrently" problem Starship solves.
+
+**Extracted:**
+```go
+// Segment holds rendered output from one status module.
+type Segment struct {
+    Name  string
+    Text  string
+    Color string
+}
+
+// renderModule evaluates a single status module by name.
+// Each module reads local state independently.
+func renderModule(name string) Segment {
+    switch name {
+    case "git":
+        branch := must.Get(exec.Command("git", "branch", "--show-current").Output())
+        return Segment{Name: name, Text: strings.TrimSpace(string(branch)), Color: "green"}
+    case "go":
+        ver := must.Get(exec.Command("go", "version").Output())
+        return Segment{Name: name, Text: strings.Fields(string(ver))[2], Color: "cyan"}
+    case "load":
+        data := must.Get(os.ReadFile("/proc/loadavg"))
+        return Segment{Name: name, Text: strings.Fields(string(data))[0], Color: "yellow"}
+    default:
+        return Segment{Name: name, Text: "?"}
+    }
+}
+```
+
+**Sequential:**
+```go
+segments := slice.Map(enabledModules, renderModule)
+```
+
+**Parallel:**
+```go
+segments := slice.ParallelMap(enabledModules, 8, renderModule)
+```
+
+Same function, one call-site change — the Rayon pattern. `renderModule` doesn't gain a worker ID, doesn't need a mutex. `workers=1` runs sequentially with zero goroutine overhead, useful for deterministic testing:
+
+```go
+segments := slice.ParallelMap(enabledModules, 1, renderModule)
+```
+
+The method form matches Starship's `par_iter().filter_map()` — parallel filter for modules that should display:
+
+```go
+// isEnabled returns true if the module has something to show in the current environment.
+isEnabled := func(name string) bool {
+    switch name {
+    case "git":
+        return exec.Command("git", "rev-parse", "--git-dir").Run() == nil
+    case "go":
+        _, err := os.Stat("go.mod")
+        return err == nil
+    default:
+        return true
+    }
+}
+
+active := slice.From(allModules).ParallelKeepIf(8, isEnabled)
+```
+
+**What this brings to Go:** Starship demonstrates that parallelism is a property of the *traversal*, not the *transform*. The function you wrote for sequential use works unchanged. Without fluentfp, parallelizing this in Go requires a `sync.WaitGroup`, a result slice with index bookkeeping, goroutines with closure capture, and — if you want the filter variant — a mutex-protected accumulator. `ParallelMap` absorbs all of that: same function signature, one call-site change.
+
+*See also: [Polars](https://github.com/pola-rs/polars) (Rust DataFrame library) uses the same Rayon pattern for parallel group-by aggregation and parallel CSV row counting. [Tokei](https://github.com/XAMPPRocky/tokei) (code statistics tool) uses `par_iter_mut().for_each()` to aggregate line counts per language — matching `ParallelEach`.*
+
+---
+
+### Paginated AWS API traversal — Amazonka (Haskell)
+
+**Source project:** [Amazonka](https://github.com/brendanhay/amazonka) — the comprehensive Haskell SDK for Amazon Web Services.
+
+**What Amazonka does:** AWS APIs — S3 `ListObjects`, DynamoDB `Scan`, EC2 `DescribeInstances` — return paginated results with continuation tokens. Amazonka's `paginate` function abstracts this across hundreds of service APIs using Haskell's unfold pattern. The `AWSPager` typeclass provides a `page` method that extracts the next request from a response (using the continuation token), or signals no more pages. `paginate` unfolds successive API responses into a streaming Conduit pipeline — conceptually an unfold over the (request, response-token) state. Users consume pages lazily: the next API call happens only when the consumer demands the next page.
+
+**Go equivalent:** S3 object listing with cursor pagination — the exact problem Amazonka's `paginate` solves.
+
+**Extracted:**
+```go
+// ObjectPage holds one page of S3 object listings.
+type ObjectPage struct {
+    Objects           []Object
+    ContinuationToken string // empty when no more pages
+}
+
+// listObjects calls S3 for one page of object listings.
+func listObjects(bucket, token string) ObjectPage {
+    input := &s3.ListObjectsV2Input{
+        Bucket:            &bucket,
+        ContinuationToken: nilIfEmpty(token),
+    }
+
+    out := must.Get(client.ListObjectsV2(ctx, input))
+
+    objects := slice.Map(out.Contents, toObject)
+
+    return ObjectPage{
+        Objects:           objects,
+        ContinuationToken: aws.ToString(out.NextContinuationToken),
+    }
+}
+```
+
+**fluentfp:**
+```go
+// pageStep lists one page and advances the continuation token.
+pageStep := func(token string) (ObjectPage, string, bool) {
+    page := listObjects(bucket, token)
+    if page.ContinuationToken == "" {
+        return page, "", len(page.Objects) > 0
+    }
+
+    return page, page.ContinuationToken, true
+}
+
+pages := stream.Unfold("", pageStep)
+```
+
+The stream is lazy — `listObjects` is called only when the consumer forces the next element, matching Amazonka's demand-driven pagination. Collect all objects across pages:
+
+```go
+// collectObjects accumulates objects from each page into a single slice.
+collectObjects := func(acc []Object, p ObjectPage) []Object {
+    return append(acc, p.Objects...)
+}
+
+allObjects := stream.Fold(pages, []Object(nil), collectObjects)
+```
+
+Find a specific object without fetching the entire bucket:
+
+```go
+// containsKey returns true if the page contains an object with the target key.
+containsKey := func(p ObjectPage) bool {
+    return slice.From(p.Objects).Any(fn.BindR(Object.HasKey, targetKey))
+}
+
+found := pages.Find(containsKey)
+```
+
+Take the first N pages for sampling:
+
+```go
+sample := pages.Take(3).Collect()
+```
+
+**What this brings to Go:** Amazonka's `paginate` separates *how to get the next page* (the `AWSPager` step function) from *how many pages to consume* (the downstream pipeline). `stream.Unfold` provides the same separation. In Go, paginated API traversal typically uses a `for` loop that mixes the API call, token management, accumulation, and termination check in one block. The lazy evaluation means you never call S3 for a page you don't need — crucial when listing buckets with millions of objects.
+
+*See also: [Conduit](https://github.com/snoyberg/conduit) (Haskell's standard streaming library) provides `unfoldMC` as a general-purpose stream source generator. Scala 2.13's standard library added `Iterator.unfold` for the same pattern — used internally by [Cats](https://github.com/typelevel/cats) to implement stack-safe monadic recursion on lazy lists.*
+
+*Caveat: `stream.Unfold`'s step function is synchronous. For I/O-heavy pagination where you want to prefetch the next page while processing the current one, a channel-based approach would be more appropriate. The stream version is simpler and sufficient when per-page processing time dominates fetch latency.*
+
+---
+
+### Transform composition for ETL — Apache Spark (Scala)
+
+**Source project:** Apache Spark — the dominant big-data processing framework.
+
+**What Spark does:** Spark's `Dataset.transform` method accepts a function `DataFrame => DataFrame`. Production ETL pipelines compose these transforms with Scala's `andThen`: `extractPayerBeneficiary("details") andThen sumAmounts(dateTrunc, beneficiaryCol)` creates a single `DataFrame => DataFrame` passed to `.transform()`. Each transform is a named, testable unit; `andThen` sequences them left-to-right. The same pattern appears in [http4s](https://github.com/http4s/http4s) (Scala's HTTP library), where middleware like CORS, logging, and timeouts compose via `andThen` on `Client[F] => Client[F]` functions.
+
+**Go equivalent:** Financial transaction processing — parse raw text fields, then aggregate by beneficiary. The same extract-then-aggregate shape as the Spark ETL pipeline.
+
+**Extracted:**
+```go
+// Transaction holds a parsed financial transaction.
+type Transaction struct {
+    Date        time.Time
+    Payer       string
+    Beneficiary string
+    Amount      float64
+}
+
+// parseDetails extracts payer and beneficiary from a raw details string.
+parseDetails := func(raw string) (string, string) {
+    parts := strings.SplitN(raw, "->", 2)
+    return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+}
+```
+
+**Without composition:**
+```go
+for _, line := range lines {
+    trimmed := strings.TrimSpace(line)
+    lower := strings.ToLower(trimmed)
+    fields := strings.Split(lower, "|")
+    payer, beneficiary := parseDetails(fields[1])
+    amount := must.Get(strconv.ParseFloat(fields[2], 64))
+    // ... accumulate by beneficiary
+}
+```
+
+**fluentfp:**
+```go
+normalize := fn.Pipe(strings.TrimSpace, strings.ToLower)
+
+// splitFields splits a normalized line into pipe-delimited fields.
+splitFields := func(line string) []string { return strings.Split(line, "|") }
+
+// toTransaction parses fields into a Transaction.
+toTransaction := func(fields []string) Transaction {
+    payer, beneficiary := parseDetails(fields[1])
+
+    return Transaction{
+        Date:        must.Get(time.Parse("2006-01-02", fields[0])),
+        Payer:       payer,
+        Beneficiary: beneficiary,
+        Amount:      must.Get(strconv.ParseFloat(fields[2], 64)),
+    }
+}
+
+parseFields := fn.Pipe(splitFields, toTransaction)
+parseLine := fn.Pipe(normalize, parseFields)
+
+transactions := slice.Map(lines, parseLine)
+byBeneficiary := slice.GroupBy(transactions, Transaction.GetBeneficiary)
+```
+
+`fn.Pipe` creates a new function from two existing ones — matching `andThen`'s left-to-right flow. `normalize` is reusable anywhere strings need cleaning, just as Spark transforms are reusable across different pipelines. `parseLine` composes three stages — normalize, split, convert — into a single `func(string) Transaction`, testable in isolation. The intermediate `parseFields` follows the uniform commas rule: each `Pipe` call has exactly two arguments at one nesting level.
+
+Partial application with `fn.Bind` creates parameterized transforms — similar to how Spark ETL functions accept column names as parameters:
+
+```go
+// multiply returns the product of two float64 values.
+multiply := func(a, b float64) float64 { return a * b }
+
+// applyRate converts each amount using a fixed exchange rate.
+applyRate := fn.Bind(multiply, exchangeRate)
+
+converted := slice.From(amounts).Convert(applyRate)
+```
+
+Multi-field extraction with `fn.Dispatch2` — extract payer and beneficiary from each transaction in one pass:
+
+```go
+extract := fn.Dispatch2(Transaction.GetPayer, Transaction.GetBeneficiary)
+
+for _, t := range transactions {
+    payer, beneficiary := extract(t)
+    fmt.Printf("%s -> %s\n", payer, beneficiary)
+}
+```
+
+**What this brings to Go:** Go functions compose via nesting — `toTransaction(splitFields(normalize(line)))` — which reads inside-out, opposite to the data flow. Sequential assignment reads top-to-bottom but forces naming intermediate values. `fn.Pipe` provides left-to-right composition: the pipeline reads in the direction data flows. The Spark insight — that ETL steps are named, testable, composable transforms — translates directly.
+
+---
+
+### Multipart upload with bounded concurrency — ExAws S3 (Elixir)
+
+**Source projects:** [ExAws S3](https://github.com/ex-aws/ex_aws_s3) — the standard Elixir library for AWS S3 operations; [Hex](https://github.com/hexpm/hex) — the official Elixir/Erlang package manager.
+
+**What ExAws S3 does:** When uploading a large file to S3, the library splits it into chunks (default 5 MB each) and uploads them concurrently using `Task.async_stream` with `max_concurrency: 4` and a 30-second per-chunk timeout. Each concurrent task uploads one chunk and extracts the ETag from the response headers. After all chunks complete, the code checks for errors — if all succeeded, it calls S3's "complete multipart upload" with the sorted ETags. If any chunk failed, the entire upload fails. Without the concurrency bound, a 10 GB file split into 2,000 chunks would spawn 2,000 simultaneous HTTP connections.
+
+**What Hex does:** When you run `mix deps.get`, Hex downloads tarballs for all project dependencies using a bounded worker pool with a configurable concurrency limit (`HEX_HTTP_CONCURRENCY`). A project with 50+ dependencies downloads perhaps 8 at a time — faster than sequential, without saturating the connection or triggering rate limits.
+
+**Go equivalent:** S3 multipart upload — the same problem ExAws S3 solves. Split a file into chunks and upload them concurrently with bounded parallelism.
+
+**Extracted:**
+```go
+// ChunkUpload holds the part number and ETag of a successfully uploaded chunk.
+type ChunkUpload struct {
+    PartNumber int
+    ETag       string
+}
+
+// uploadChunk uploads one chunk of a multipart upload and returns its ETag.
+func uploadChunk(ctx context.Context, chunk Chunk) (ChunkUpload, error) {
+    partNum := aws.Int32(int32(chunk.PartNumber))
+
+    out, err := client.UploadPart(ctx, &s3.UploadPartInput{
+        Bucket:     &chunk.Bucket,
+        Key:        &chunk.Key,
+        UploadId:   &chunk.UploadID,
+        PartNumber: partNum,
+        Body:       bytes.NewReader(chunk.Data),
+    })
+    if err != nil {
+        return ChunkUpload{}, fmt.Errorf("part %d: %w", chunk.PartNumber, err)
+    }
+
+    return ChunkUpload{
+        PartNumber: chunk.PartNumber,
+        ETag:       aws.ToString(out.ETag),
+    }, nil
+}
+```
+
+**fluentfp:**
+```go
+results := slice.FanOut(ctx, 4, chunks, uploadChunk)
+uploads, err := result.CollectAll(results)
+```
+
+`FanOut` runs up to 4 chunk uploads concurrently — matching ExAws S3's `max_concurrency: 4`. Each chunk gets its own goroutine with independent error handling and panic recovery. `result.CollectAll` implements ExAws S3's "all must succeed" semantics: returns all `ChunkUpload` values if every chunk succeeded, or the first error otherwise. The sorted ETags feed into S3's `CompleteMultipartUpload`:
+
+```go
+if err != nil {
+    must.BeNil(abortMultipartUpload(ctx, bucket, key, uploadID))
+
+    return err
+}
+
+parts := slice.From(uploads).Sort(slice.Asc(ChunkUpload.GetPartNumber))
+completeMultipartUpload(ctx, bucket, key, uploadID, parts)
+```
+
+For Hex's dependency-download pattern — where partial success is acceptable (download what you can, report failures) — `result.CollectOk` provides the lenient mode:
+
+```go
+// fetchDep downloads a single dependency tarball.
+fetchDep := func(ctx context.Context, dep Dependency) (Tarball, error) {
+    return downloadTarball(ctx, dep.URL)
+}
+
+results := slice.FanOut(ctx, 8, deps, fetchDep)
+downloaded := result.CollectOk(results)
+```
+
+For fire-and-forget side effects, `FanOutEach` provides the side-effect variant:
+
+```go
+errs := slice.FanOutEach(ctx, 5, channels, sendNotification)
+```
+
+Each slot in `errs` corresponds to its input — `nil` means success, non-nil means failure. Panics are recovered and wrapped as `*result.PanicError` with a stack trace:
+
+```go
+for i, err := range errs {
+    var pe *result.PanicError
+    if errors.As(err, &pe) {
+        log.Printf("channel %s panicked: %v\n%s", channels[i], pe.Value, pe.Stack)
+    }
+}
+```
+
+**What this brings to Go:** ExAws S3 and Hex demonstrate that bounded concurrency with per-item error isolation is a production requirement. Go's `errgroup` implements first-error-aborts-all — when one goroutine fails, `Wait()` returns that single error. But multipart uploads need all-or-nothing with per-part results; dependency downloads need partial success. In Go, either mode requires a semaphore channel, a WaitGroup, per-goroutine `recover`, and a mutex-protected results or error slice — 20+ lines of orchestration. `FanOut` covers both: `CollectAll` for all-or-nothing, `CollectOk` for partial success, with panic recovery that `errgroup` lacks entirely.
+
+*See also: Elixir's own [Mix Erlang compiler](https://github.com/elixir-lang/elixir) uses `Task.async_stream` to scan Erlang source files for dependencies in parallel, bounded by CPU core count — matching `ParallelMap`'s CPU-bound use case rather than `FanOut`'s I/O-bound one.*
+
+**Contrast with the errgroup entry above:** The errgroup entry compares FanOut to errgroup for the `Cities` weather-fetching pattern. This entry shows two real-world Elixir projects that need the same operation with different success modes — all-or-nothing (ExAws S3) and partial success (Hex) — both served by `FanOut` with different collectors.
