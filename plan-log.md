@@ -3044,3 +3044,7 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] dispatch.go deleted (evidence: file gone)
 [x] Tests and docs updated (evidence: go test/vet pass, no stale refs)
 [x] All tests pass (evidence: go test ./...)
+2026-03-08T20:59:09Z | Contract: Remove K8s Compact showcase entry
+[ ] Entry deleted from showcase.md
+2026-03-08T21:03:02Z | Completion: Remove K8s Compact showcase entry
+[x] Entry deleted from showcase.md (evidence: grep finds no mount_linux ref)
