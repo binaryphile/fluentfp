@@ -9,6 +9,7 @@ func _() {
 	_ = Result[int].GetOr
 	_ = Result[int].GetErr
 	_ = Result[int].Convert
+	_ = Result[int].FlatMap
 	_ = Result[int].MustGet
 	_ = Result[int].IfOk
 	_ = Result[int].IfErr
@@ -17,6 +18,7 @@ func _() {
 	_ = Ok[int]
 	_ = Err[int]
 	_ = Map[int, string]
+	_ = FlatMap[int, string]
 	_ = Fold[int, string]
 	_ = CollectAll[int]
 	_ = CollectOk[int]

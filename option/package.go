@@ -18,6 +18,15 @@ func Map[T, R any](b Option[T], fn func(T) R) (_ Option[R]) {
 	return Of(fn(b.t))
 }
 
+// FlatMap returns the result of applying fn to the option's value if ok, or not-ok otherwise.
+func FlatMap[T, R any](b Option[T], fn func(T) Option[R]) (_ Option[R]) {
+	if !b.ok {
+		return
+	}
+
+	return fn(b.t)
+}
+
 // Lift transforms a function operating on T into one operating on Option[T].
 // The lifted function executes only when the option is ok.
 func Lift[T any](fn func(T)) func(Option[T]) {

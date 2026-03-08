@@ -13,6 +13,8 @@ func _() {
 	_ = Option[int].KeepIf
 	_ = Option[int].RemoveIf
 	_ = Option[int].ToOpt
+	_ = Option[int].Convert
+	_ = Option[int].FlatMap
 
 	type _ = Any
 	type _ = Bool
@@ -26,6 +28,7 @@ func _() {
 	_ = NonEmpty
 	_ = NonNil[int]
 	_ = NonZero[int]
+	_ = FlatMap(Option[int]{}, func(int) Option[int] { return Option[int]{} })
 	_ = Map(Option[int]{}, func(int) int { return 0 })
 	_ = NonEmptyCall("", func(string) int { return 0 })
 	_ = NonNilCall[int, int](nil, func(int) int { return 0 })

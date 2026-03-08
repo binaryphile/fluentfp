@@ -183,7 +183,7 @@ type Result[R any] struct {
 
 A standalone package with zero internal imports — not an alias for `Either[error, R]`.
 
-**Why not an alias for Either:** Either uses Left/Right naming — wrong for a result type where callers want `IsOk()`/`IsErr()`, not `IsRight()`/`IsLeft()`. Changing from alias to defined type later would be contract-breaking. A standalone type can add methods freely (`Convert`, `MustGet`, `IfOk`, `IfErr`) without polluting Either's API.
+**Why not an alias for Either:** Either uses Left/Right naming — wrong for a result type where callers want `IsOk()`/`IsErr()`, not `IsRight()`/`IsLeft()`. Changing from alias to defined type later would be contract-breaking. A standalone type can add methods freely (`Convert`, `FlatMap`, `MustGet`, `IfOk`, `IfErr`) without polluting Either's API.
 
 **Zero value:** `Result[R]{}` has `err: nil`, making it a valid `Ok(zeroR)`. Matches D4 (Option zero is not-ok) and D5 (Either zero is Left) in providing useful zero values.
 

@@ -263,3 +263,75 @@ func TestToOpt(t *testing.T) {
 		}
 	})
 }
+
+// --- Monadic Bind ---
+
+func TestFlatMap(t *testing.T) {
+	// lookup returns ok option if positive, not-ok otherwise.
+	lookup := func(n int) Option[int] {
+		if n > 0 {
+			return Of(n * 10)
+		}
+		return Option[int]{}
+	}
+
+	t.Run("ok with fn returning ok", func(t *testing.T) {
+		result := Of(5).FlatMap(lookup)
+		if v, ok := result.Get(); !ok || v != 50 {
+			t.Errorf("Of(5).FlatMap(lookup) = (%v, %v), want (50, true)", v, ok)
+		}
+	})
+
+	t.Run("ok with fn returning not-ok", func(t *testing.T) {
+		result := Of(-1).FlatMap(lookup)
+		if _, ok := result.Get(); ok {
+			t.Error("Of(-1).FlatMap(lookup) should be not-ok")
+		}
+	})
+
+	t.Run("not-ok short-circuits", func(t *testing.T) {
+		called := false
+		tracking := func(n int) Option[int] {
+			called = true
+			return Of(n)
+		}
+		result := New(42, false).FlatMap(tracking)
+		if _, ok := result.Get(); ok {
+			t.Error("not-ok.FlatMap() should be not-ok")
+		}
+		if called {
+			t.Error("FlatMap should not call fn on not-ok option")
+		}
+	})
+}
+
+func TestStandaloneFlatMap(t *testing.T) {
+	// parseInt returns ok option of int if input is "42", not-ok otherwise.
+	parseInt := func(s string) Option[int] {
+		if s == "42" {
+			return Of(42)
+		}
+		return Option[int]{}
+	}
+
+	t.Run("ok with fn returning ok", func(t *testing.T) {
+		result := FlatMap(Of("42"), parseInt)
+		if v, ok := result.Get(); !ok || v != 42 {
+			t.Errorf("FlatMap(Of(\"42\"), parseInt) = (%v, %v), want (42, true)", v, ok)
+		}
+	})
+
+	t.Run("ok with fn returning not-ok", func(t *testing.T) {
+		result := FlatMap(Of("bad"), parseInt)
+		if _, ok := result.Get(); ok {
+			t.Error("FlatMap(Of(\"bad\"), parseInt) should be not-ok")
+		}
+	})
+
+	t.Run("not-ok short-circuits", func(t *testing.T) {
+		result := FlatMap(New("", false), parseInt)
+		if _, ok := result.Get(); ok {
+			t.Error("FlatMap(not-ok, parseInt) should be not-ok")
+		}
+	})
+}

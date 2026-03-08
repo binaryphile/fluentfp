@@ -85,6 +85,15 @@ func (r Result[R]) Convert(fn func(R) R) Result[R] {
 	return Ok(fn(r.value))
 }
 
+// FlatMap returns the result of applying fn to the value if Ok, or r unchanged if Err.
+func (r Result[R]) FlatMap(fn func(R) Result[R]) Result[R] {
+	if r.err != nil {
+		return r
+	}
+
+	return fn(r.value)
+}
+
 // MustGet returns the value if r is Ok, or panics if r is Err.
 func (r Result[R]) MustGet() R {
 	if r.err != nil {
@@ -117,6 +126,15 @@ func Map[R, S any](res Result[R], fn func(R) S) Result[S] {
 	}
 
 	return Ok(fn(res.value))
+}
+
+// FlatMap returns the result of applying fn to the value if Ok, or Err with same error if Err.
+func FlatMap[R, S any](res Result[R], fn func(R) Result[S]) Result[S] {
+	if res.err != nil {
+		return Err[S](res.err)
+	}
+
+	return fn(res.value)
 }
 
 // Fold applies onErr if res is Err, or onOk if res is Ok.

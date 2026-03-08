@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.47.0
+
+- **option** — `FlatMap` method and standalone function (monadic bind)
+  - `(o Option[T]) FlatMap(fn func(T) Option[T]) Option[T]` — same-type chaining
+  - `option.FlatMap[T, R](o, fn func(T) Option[R]) Option[R]` — cross-type
+- **result** — `FlatMap` method and standalone function (monadic bind)
+  - `(r Result[R]) FlatMap(fn func(R) Result[R]) Result[R]` — same-type chaining
+  - `result.FlatMap[R, S](res, fn func(R) Result[S]) Result[S]` — cross-type
+
 ## v0.46.0
 
 - **stream** — `Prepend` and `PrependLazy` constructors

@@ -421,3 +421,79 @@ func TestCollectOk(t *testing.T) {
 		})
 	}
 }
+
+// --- Monadic Bind ---
+
+func TestResultFlatMap(t *testing.T) {
+	// validate returns Ok if positive, Err otherwise.
+	validate := func(n int) result.Result[int] {
+		if n > 0 {
+			return result.Ok(n * 10)
+		}
+		return result.Err[int](errors.New("non-positive"))
+	}
+
+	t.Run("ok with fn returning ok", func(t *testing.T) {
+		got := result.Ok(5).FlatMap(validate)
+		val, ok := got.Get()
+		if !ok || val != 50 {
+			t.Errorf("FlatMap: got (%d, %t), want (50, true)", val, ok)
+		}
+	})
+
+	t.Run("ok with fn returning err", func(t *testing.T) {
+		got := result.Ok(-1).FlatMap(validate)
+		if got.IsOk() {
+			t.Error("FlatMap: expected Err when fn returns Err")
+		}
+	})
+
+	t.Run("err short-circuits and preserves error", func(t *testing.T) {
+		sentinelErr := errors.New("original")
+		got := result.Err[int](sentinelErr).FlatMap(validate)
+		err, ok := got.GetErr()
+		if !ok {
+			t.Fatal("FlatMap: expected Err result")
+		}
+		if !errors.Is(err, sentinelErr) {
+			t.Errorf("FlatMap: error not preserved, got %v, want %v", err, sentinelErr)
+		}
+	})
+}
+
+func TestStandaloneFlatMap(t *testing.T) {
+	// stringify returns Ok string if positive, Err otherwise.
+	stringify := func(n int) result.Result[string] {
+		if n > 0 {
+			return result.Ok(fmt.Sprintf("%d", n*2))
+		}
+		return result.Err[string](errors.New("non-positive"))
+	}
+
+	t.Run("ok with fn returning ok", func(t *testing.T) {
+		got := result.FlatMap(result.Ok(5), stringify)
+		val, ok := got.Get()
+		if !ok || val != "10" {
+			t.Errorf("FlatMap: got (%q, %t), want (\"10\", true)", val, ok)
+		}
+	})
+
+	t.Run("ok with fn returning err", func(t *testing.T) {
+		got := result.FlatMap(result.Ok(-1), stringify)
+		if got.IsOk() {
+			t.Error("FlatMap: expected Err when fn returns Err")
+		}
+	})
+
+	t.Run("err short-circuits and preserves error", func(t *testing.T) {
+		sentinelErr := errors.New("original")
+		got := result.FlatMap(result.Err[int](sentinelErr), stringify)
+		err, ok := got.GetErr()
+		if !ok {
+			t.Fatal("FlatMap: expected Err result")
+		}
+		if !errors.Is(err, sentinelErr) {
+			t.Errorf("FlatMap: error not preserved, got %v, want %v", err, sentinelErr)
+		}
+	})
+}

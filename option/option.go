@@ -264,3 +264,12 @@ func (b Option[T]) Convert(fn func(T) T) (_ Option[T]) {
 
 	return Of(fn(b.t))
 }
+
+// FlatMap returns the result of applying fn to the option's value if ok, or not-ok otherwise.
+func (b Option[T]) FlatMap(fn func(T) Option[T]) (_ Option[T]) {
+	if !b.ok {
+		return
+	}
+
+	return fn(b.t)
+}

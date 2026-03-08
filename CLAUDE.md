@@ -249,12 +249,14 @@ result.Of[R any](r R, err error) Result[R] // Ok if err == nil; Err otherwise
 .GetOr(defaultVal R) R                    // value or default
 .GetErr() (error, bool)                   // comma-ok for error
 .Convert(fn func(R) R) Result[R]          // transform value if ok
+.FlatMap(fn func(R) Result[R]) Result[R]  // monadic bind (same-type)
 .MustGet() R                              // value or panic
 .IfOk(fn func(R))                         // side-effect if ok
 .IfErr(fn func(error))                    // side-effect if err
 
 // Standalone functions
 result.Map[R, S any](res Result[R], fn func(R) S) Result[S]                   // cross-type transform
+result.FlatMap[R, S any](res Result[R], fn func(R) Result[S]) Result[S]       // cross-type monadic bind
 result.Fold[R, T any](res Result[R], onErr func(error) T, onOk func(R) T) T   // dispatch by state
 
 // PanicError — wraps recovered panic value + stack trace
@@ -378,7 +380,11 @@ option.NonNilCall(ptr *T, fn func(T) R) Option[R]     // If non-nil, deref and a
 .OrFalse() bool                        // For option.Bool
 .KeepIf(fn func(T) bool) Option[T]     // Filter: keep if predicate passes
 .RemoveIf(fn func(T) bool) Option[T]  // Filter: remove if predicate passes
+.Convert(fn func(T) T) Option[T]      // Same-type transform
+.FlatMap(fn func(T) Option[T]) Option[T] // Monadic bind (same-type)
 .IfOk(fn func(T))                      // Side-effect if ok
+option.Map[T, R](o Option[T], fn func(T) R) Option[R]          // Cross-type transform
+option.FlatMap[T, R](o Option[T], fn func(T) Option[R]) Option[R] // Cross-type monadic bind
 option.Lift(fn func(T)) func(Option[T]) // Lift side-effect function to accept option
 
 // Pre-defined types

@@ -148,6 +148,7 @@
 - 3b. Developer needs a side effect only when absent: System calls the function only when absent; does nothing when present.
 - 3c. Developer needs to filter an already-present value: System applies filter, converting to absent if not met.
 - 3d. Fallback is expensive to compute: System evaluates fallback only when absent.
+- 3e. Developer needs to chain operations that each may produce absence: System applies each operation in sequence, short-circuiting to absent if any step produces absence. No manual unwrapping between steps.
 - 2c. Value is present but needs transformation to a different type: System checks presence and transforms in one step, returning absence if the original was absent.
 
 **Sub-Variations:**
