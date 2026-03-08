@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.50.0
+
+- **result** — `Lift[A, R any](fn func(A) (R, error)) func(A) Result[R]` — wrap fallible function to return Result
+
 ## v0.49.0
 
 - **slice** — `Flatten[T any](tss [][]T) Mapper[T]` — concatenate nested slices into a single flat slice

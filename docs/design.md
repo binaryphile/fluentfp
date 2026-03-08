@@ -187,6 +187,8 @@ A standalone package with zero internal imports — not an alias for `Either[err
 
 **Zero value:** `Result[R]{}` has `err: nil`, making it a valid `Ok(zeroR)`. Matches D4 (Option zero is not-ok) and D5 (Either zero is Left) in providing useful zero values.
 
+**Lift wraps fallible functions:** `Lift[A, R](fn func(A) (R, error)) func(A) Result[R]` converts a Go-idiomatic `(R, error)` function into one returning `Result[R]`. Mirrors `must.Of` (which wraps to panic-on-error). Single-arg arity covers the common case; multi-arg functions use `result.Of(fn(a, b))` directly.
+
 **Collectors return `[]R`:** Plain slices, not `Mapper[R]`. Callers wrap with `slice.From()` for chaining. This keeps `result` as a standalone package with zero internal imports — cleaner layering than leaking `internal/base` through a public API.
 
 ### D12: Stream as lazy memoized linked list

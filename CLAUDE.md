@@ -262,6 +262,7 @@ result.Of[R any](r R, err error) Result[R] // Ok if err == nil; Err otherwise
 result.Map[R, S any](res Result[R], fn func(R) S) Result[S]                   // cross-type transform
 result.FlatMap[R, S any](res Result[R], fn func(R) Result[S]) Result[S]       // cross-type monadic bind
 result.Fold[R, T any](res Result[R], onErr func(error) T, onOk func(R) T) T   // dispatch by state
+result.Lift[A, R any](fn func(A) (R, error)) func(A) Result[R]                // wrap fallible func
 
 // PanicError — wraps recovered panic value + stack trace
 result.PanicError{ Value any; Stack []byte }  // detect via errors.As

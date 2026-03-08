@@ -557,34 +557,32 @@ The stream version uses zero goroutines and zero channels. Lazy evaluation comes
 
 `CertSubjects` calls `parseCerts`, then dispatches on error vs success to produce a `string`: error message on failure, formatted subjects on success. The dispatch requires two `return` paths, splitting what is conceptually one value into branching control flow.
 
-**Original** (13 lines):
+Both versions use `formatSubjects` — a small function that joins certificate subjects with newlines. Extracting it is good practice regardless and makes the structural difference visible.
+
+**Original:**
 ```go
 func CertSubjects(pem string) string {
     certs, err := parseCerts(pem)
     if err != nil {
         return err.Error()
     }
-    var buf strings.Builder
-    for _, cert := range certs {
-        buf.WriteString(cert.Subject.String())
-        buf.WriteString("\n")
-    }
-    return buf.String()
+    return formatSubjects(certs)
 }
 ```
 
-**fluentfp** (`parseCertsResult` wraps `parseCerts` into a `Result`; `errString` and `formatSubjects` are each one to three lines — roughly 10 lines total, not shown):
+**fluentfp** (`errString` is a one-liner that calls `.Error()`):
 ```go
 func CertSubjects(pem string) string {
+    parseCertsResult := result.Lift(parseCerts)
     return result.Fold(parseCertsResult(pem), errString, formatSubjects)
 }
 ```
 
-**What changed:** `result.Fold` collapses the two-arm dispatch into a single expression. Like `either.Fold`, it requires both handlers — miss one and it doesn't compile. The error path and success path are symmetric function arguments rather than asymmetric `if`/`else` branches.
+**What changed:** Both versions call `formatSubjects` — the shared function creates a locus of equivalence. The difference is in how each version dispatches to it. The original uses `if err != nil` and two `return` paths. `result.Fold` collapses that into a single expression where both handlers are symmetric arguments. Miss one and it doesn't compile.
 
-**What's eliminated:** The branching control flow and the two `return` statements. The `strings.Builder` moves into `formatSubjects` rather than disappearing, but the function's intent — "format certificates or return the error message" — reads directly from the Fold call.
+**What's eliminated:** The branching control flow, the two `return` statements, and the intermediate `certs` variable. `Lift` wraps `parseCerts` into Result form; Fold dispatches on the outcome. The function's intent — "format certificates or return the error message" — reads directly from the Fold call.
 
-*Caveats: The total code is similar — the three named functions add roughly 10 lines, comparable to the 13-line original body. The win is structural (expression form, exhaustive dispatch) rather than a line-count reduction. For a standalone function with two `return` paths, the original is already clear. Fold pays off more when the dispatch appears inside a struct literal or when the exhaustive-dispatch guarantee matters across many call sites.*
+*Caveats: The line-count difference is small. The win is structural (expression form, exhaustive dispatch) rather than a line-count reduction. For a standalone function with two `return` paths, the original is already clear. Fold pays off more when the dispatch appears inside a struct literal or when the exhaustive-dispatch guarantee matters across many call sites.*
 
 ---
 

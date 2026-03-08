@@ -146,6 +146,13 @@ func Fold[R, T any](res Result[R], onErr func(error) T, onOk func(R) T) T {
 	return onOk(res.value)
 }
 
+// Lift wraps a fallible function into one that returns Result.
+func Lift[A, R any](fn func(A) (R, error)) func(A) Result[R] {
+	return func(a A) Result[R] {
+		return Of(fn(a))
+	}
+}
+
 // PanicError wraps a recovered panic value and its stack trace.
 // It is stored as *PanicError in Err results.
 // Callers detect it via errors.As(err, &pe) where pe is *PanicError.

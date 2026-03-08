@@ -180,6 +180,9 @@
 - 3a. Developer needs both branches handled with different logic, producing unified result: System applies appropriate branch function.
 - 3b. Developer needs to transform only the success branch: System transforms, passing failure through.
 
+**Extensions (continued):**
+- 3c. Developer has a fallible function returning (R, error) and needs it to return Result instead: System wraps the function, producing a new function with the same input that returns a Result.
+
 **Sub-Variations:**
 - Convention: left = failure, right = success
 - Extraction: value-and-presence pair, default value, lazy default

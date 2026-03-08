@@ -422,6 +422,33 @@ func TestCollectOk(t *testing.T) {
 	}
 }
 
+func TestLift(t *testing.T) {
+	// fallibleAtoi is a fallible string-to-int conversion.
+	fallibleAtoi := func(s string) (int, error) {
+		if s == "42" {
+			return 42, nil
+		}
+		return 0, errors.New("not 42")
+	}
+
+	lifted := result.Lift(fallibleAtoi)
+
+	t.Run("success wraps as ok", func(t *testing.T) {
+		got := lifted("42")
+		val, ok := got.Get()
+		if !ok || val != 42 {
+			t.Errorf("Lift: got (%d, %t), want (42, true)", val, ok)
+		}
+	})
+
+	t.Run("error wraps as err", func(t *testing.T) {
+		got := lifted("bad")
+		if got.IsOk() {
+			t.Error("Lift: expected Err result")
+		}
+	})
+}
+
 // --- Monadic Bind ---
 
 func TestResultFlatMap(t *testing.T) {
