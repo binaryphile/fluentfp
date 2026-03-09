@@ -4,33 +4,7 @@
 
 The thinnest abstraction that eliminates mechanical bugs from Go. Chain type-safe operations on slices, options, and sum types — no loop scaffolding, no intermediate variables, no reflection.
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for complete API documentation.
-
-## Why fluentfp
-
-Look at any Go codebase. Find a loop that filters a slice or extracts a field. Count the lines. You'll get six — variable declaration, for-range, if, append, two closing braces. One of those lines is your intent. The rest is scaffolding.
-
-fluentfp makes that one line:
-
-```go
-names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
-```
-
-**"So it's like go-linq."** No. go-linq gives you `[]any` back. You cast it, hope you got the type right, and find out at runtime if you didn't. fluentfp's `Mapper[T]` is defined as `[]T` — the result has methods but is still a `[]string`. Index it, range it, pass it to `strings.Join`, return it from a function typed `[]string`. No conversion. No unwrapping. Your function signatures don't change. fuego and gofp have the same `[]any` problem. fluentfp uses generics end-to-end. If it compiles, the types are right.
-
-**"I can write a loop in 30 seconds."** Sure. And in those 30 seconds you can typo an index variable, forget to initialize the accumulator, get an off-by-one, or silently shadow a variable in a nested loop. These aren't hypothetical — they're the bug classes that code review catches every week. fluentfp doesn't reduce them. It makes them structurally impossible. You can't get an off-by-one in a predicate because there's no index.
-
-**Method expressions eliminate wrapper closures.** Go lets you reference a method by its type name — `User.IsActive` becomes `func(User) bool`, with the receiver as the first argument. Pass it directly. No `func(u User) bool { return u.IsActive() }`. Chains read like intent: filter active, extract names.
-
-**`must` enforces invariants that should never fail.** `must.BeNil(err)` panics — and that's the point. It's for programmer errors and misconfiguration, not recoverable failures. You can't silently ignore an error with `_ = fn()` when `must.BeNil` forces you to either handle it or declare it an invariant. The distinction is explicit in the code.
-
-**`either.Fold` gives Go exhaustive pattern matching.** Go's type switches silently compile when you forget a case. You can lint for it, but linters are configuration — they can be turned off, forgotten, or never turned on. Fold requires both handlers — miss one and it doesn't compile. Use it at ten dispatch sites across your codebase and you have exhaustive matching the compiler enforces everywhere.
-
-**`option.Option[T]` unifies Go's three different ways of saying "maybe."** Nil pointers, zero values, and comma-ok returns all become one chainable type. `.Or("default")` replaces four lines of if-not-ok-then-assign-else-assign. Return an `option.String` from a method and the caller decides how to handle absence at the call site, not inside the method.
-
-**"What about performance?"** Single-stage chains match raw loops — same pre-allocation, same throughput, same allocations. Multi-stage chains add overhead from intermediate slices. If you're in a hot path counting nanoseconds, use a loop. The other 95% of your loops aren't hot paths.
-
-**It works with Go, not against it.** Results, while Mappers, can be passed as normal slices and become normal slices when you do — callers never import fluentfp. Options use comma-ok (`.Get() (T, bool)`), the same pattern as map lookups and type assertions. Expressions resolve to values that fit inside struct literals. Mutation, channels, and hot paths stay as loops. fluentfp fills the gaps in Go's toolbox without fighting Go's design.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for API docs and the **[showcase](docs/showcase.md)** for 16 before/after rewrites from real GitHub projects.
 
 ## Quick Start
 
@@ -50,7 +24,7 @@ for _, u := range users {                  // iteration
 }
 
 // After: intent only
-names := slice.From(users).KeepIf(User.IsActive).ToString(User.GetName)
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 ```
 
 That's a **fluent chain** — each step returns a value you can call the next method on, so the whole pipeline reads as a single expression: filter, then transform.
@@ -93,9 +67,11 @@ See [naming patterns](naming-in-hof.md) for when to use method expressions vs na
 
 ## What It Looks Like
 
-### Struct Returns
+Three highlights from the **[showcase](docs/showcase.md)**.
 
-Go struct literals already let you build and return a value in one statement — fluentfp keeps it that way when fields are conditional.
+### Conditional Struct Fields
+
+Go struct literals let you build and return a value in one statement — fluentfp keeps it that way when fields are conditional.
 
 <table>
 <tr><th>Before</th><th>After</th></tr>
@@ -137,37 +113,130 @@ return Alert{
 </tr>
 </table>
 
-### Set Construction
+Go has no inline conditional expression. `value.Of` fills that gap — each field resolves in place, so the struct literal stays a single statement. *From [hashicorp/consul](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530).*
 
-`ToSet` converts any `[]T` (where T is comparable) to `map[T]bool` for O(1) membership checks — useful when you'll test multiple values against the same list.
+### Sort, Trim, and Map-to-Slice
 
-```go
-allowedRoles := slice.ToSet(cfg.AllowedRoles) // map[string]bool — missing keys return false
-// hasAllowedRole reports whether the user's role is in the allowed set.
-hasAllowedRole := func(u User) bool { return allowedRoles[u.Role] }
-allowedUsers := slice.From(users).KeepIf(hasAllowedRole)
-```
+A network monitor's "top N processes by metric" function: convert a map to a slice, sort by a mode-dependent key, take the first N.
 
-### Environment Configuration
-
-Missing environment variable? Fall back to a default. `Getenv` returns an option — `.Or()` resolves it.
+<table>
+<tr><th>Before (18 lines)</th><th>After (2-line body)</th></tr>
+<tr>
+<td>
 
 ```go
-port := option.Getenv("PORT").Or("8080")
+func (s *Snapshot) TopNProcesses(
+    n int, mode ViewMode,
+) []ProcessesResult {
+    var items []ProcessesResult
+    for k, v := range s.Processes {
+        items = append(items, NewResult(k, v))
+    }
+    switch mode {
+    case ModeTableBytes:
+        sort.Slice(items, func(i, j int) bool {
+            return items[i].TotalBytes() >
+                items[j].TotalBytes()
+        })
+    case ModeTablePackets:
+        sort.Slice(items, func(i, j int) bool {
+            return items[i].TotalPackets() >
+                items[j].TotalPackets()
+        })
+    }
+    if len(items) < n {
+        n = len(items)
+    }
+    return items[:n]
+}
 ```
 
-### Invariant Enforcement
-
-`must` is for things that should never fail — misconfiguration, programmer errors. If they do, panic immediately instead of propagating a corrupt state.
+</td>
+<td>
 
 ```go
-err := os.Setenv("KEY", value)
-must.BeNil(err)
+var sortKey = map[ViewMode]func(
+    ProcessesResult,
+) int{
+    ModeTableBytes:   ProcessesResult.TotalBytes,
+    ModeTablePackets: ProcessesResult.TotalPackets,
+}
 
-port := must.Get(strconv.Atoi(os.Getenv("PORT")))
+func (s *Snapshot) TopNProcesses(
+    n int, mode ViewMode,
+) []ProcessesResult {
+    desc := slice.Desc(sortKey[mode])
+    return kv.Map(s.Processes, NewResult).
+        Sort(desc).Take(n)
+}
 ```
 
-For full before/after rewrites from real GitHub projects, see the [showcase](docs/showcase.md).
+</td>
+</tr>
+</table>
+
+`kv.Map` replaces the map-to-slice loop. Two duplicated `sort.Slice` closures with `func(i, j int) bool` become `.Sort(desc)` — method expressions in a map replace the switch. `.Take(n)` replaces the four-line bounds check. No index variables means no `items[i]`-vs-`items[j]` misreference. *From [chenjiandongx/sniffer](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93).*
+
+### Bounded Concurrent Requests
+
+Fetch weather for a list of cities with at most 10 simultaneous goroutines.
+
+<table>
+<tr><th>Before — errgroup (21 lines)</th><th>After (2 lines)</th></tr>
+<tr>
+<td>
+
+```go
+func Cities(
+    ctx context.Context, cities ...string,
+) ([]*Info, error) {
+    g, ctx := errgroup.WithContext(ctx)
+    g.SetLimit(10)
+    res := make([]*Info, len(cities))
+    for i, city := range cities {
+        g.Go(func() error {
+            info, err := City(ctx, city)
+            if err != nil {
+                return err
+            }
+            res[i] = info
+            return nil
+        })
+    }
+    if err := g.Wait(); err != nil {
+        return nil, err
+    }
+    return res, nil
+}
+```
+
+</td>
+<td>
+
+```go
+func Cities(
+    ctx context.Context, cities ...string,
+) ([]*Info, error) {
+    results := slice.FanOut(
+        ctx, 10, cities, City,
+    )
+    return result.CollectAll(results)
+}
+```
+
+</td>
+</tr>
+</table>
+
+`FanOut` replaces the goroutine-launching loop, closure captures, result-slot bookkeeping, and error aggregation. `City` passes directly — no wrapper needed. Unlike errgroup, FanOut recovers panics per item (as `*result.PanicError` with stack trace) and preserves every item's outcome. *From the [errgroup pattern](https://encore.dev/blog/advanced-go-concurrency).*
+
+## Why fluentfp
+
+**Type-safe end-to-end.** go-linq gives you `[]any` back — cast it and hope you got the type right. lo requires `func(T, int)` callbacks, so every stdlib function needs a wrapper to discard the unused index. fluentfp uses generics throughout: `Mapper[T]` is `[]T` with methods. If it compiles, the types are right.
+
+**Bugs you can't write.** You can't get an off-by-one in a predicate because there's no index. You can't shadow a loop variable because there's no loop. You can't forget to initialize an accumulator because there's no accumulator. These aren't hypothetical — they're the bug classes code review catches every week. fluentfp makes them structurally impossible.
+
+**Works with Go, not against it.** Mappers are slices — callers never import fluentfp. Options use comma-ok (`.Get() (T, bool)`), the same pattern as map lookups and type assertions. `either.Fold` gives you exhaustive dispatch the compiler enforces — miss a branch and it doesn't compile. `must.BeNil` makes invariant enforcement explicit. Mutation, channels, and hot paths stay as loops.
 
 ## Performance
 
@@ -180,7 +249,7 @@ Chains pre-allocate with `make([]T, 0, len(input))` internally — the same thin
 
 *1000 elements. See [full benchmarks](methodology.md#benchmark-results).*
 
-Multi-step chains pay one allocation per stage. Execution time varies — single-stage chains match raw loops, but multi-stage chains add overhead from intermediate slices and function call indirection. If you're counting nanoseconds, use a raw loop.
+Multi-step chains pay one allocation per stage. If you're counting nanoseconds, use a raw loop. The other 95% of your loops aren't hot paths.
 
 ## Measurable Impact
 
@@ -189,20 +258,14 @@ Multi-step chains pay one allocation per stage. Execution time varies — single
 | Mixed (typical) | 12% | 26% |
 | Pure pipeline | 47% | 95% |
 
-*Individual loops see up to 6× line reduction (as above). Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#code-metrics-tool-scc).*
-
-## Adopt What Fits
-
-Packages are independent — import one or all. A CLI might use only `slice` and `must`. A domain with sum-type state might add `either` and `option`. Same library, different surface area.
+*Individual loops see up to 6x line reduction. Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#code-metrics-tool-scc).*
 
 ## When to Use Loops
 
-The filter+map chain in Quick Start is a mechanical loop — iteration scaffolding around a predicate and a transform. fluentfp replaces those.
-
-It doesn't try to replace loops that do structural work. The most common: mutation in place.
+fluentfp replaces mechanical loops — iteration scaffolding around a predicate and a transform. It doesn't try to replace loops that do structural work:
 
 ```go
-// Find by ID, update, break — fluentfp operates on copies, not originals
+// Mutation in place — fluentfp operates on copies, not originals
 for i := range items {
     if items[i].ID == target {
         items[i].Status = "done"
@@ -211,37 +274,25 @@ for i := range items {
 }
 ```
 
-fluentfp builds new slices from old ones (functional transforms). This loop modifies an element in the original slice by index — a fundamentally different operation.
-
 Channel consumption (`for msg := range ch`), complex control flow (early return, labeled break), and performance-critical hot paths also stay as loops.
-
-But fluentfp helpers still compose inside justified loops:
-
-```go
-// Build results that need index-dependent logic — loop is necessary,
-// but value.Of keeps the conditional assignment as a single expression
-for i, item := range items {
-    results = append(results, Result{
-        Name:      item.Name,
-        Separator: value.Of(", ").When(i > 0).OrEmpty(),
-    })
-}
-```
 
 ## Packages
 
+Packages are independent — import one or all.
+
 | Package | Purpose | Key Functions |
 |---------|---------|---------------|
-| [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `ToString` |
+| [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `FanOut` |
 | [kv](kv/) | Map transforms | `KeepIf`, `MapValues`, `Map`, `Values` |
 | [option](option/) | Nil safety | `Of`, `Get`, `Or`, `NonZero`, `NonNil` |
 | [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
+| [result](result/) | Typed error handling | `Ok`, `Err`, `CollectAll`, `CollectOk` |
 | [must](must/) | Invariant enforcement | `Get`, `BeNil`, `Of` |
 | [value](value/) | Conditional value selection | `Of().When().Or()` |
-| [result](result/) | Typed error handling | `Ok`, `Err`, `CollectAll`, `CollectOk` |
 | [stream](stream/) | Lazy sequences | `Generate`, `Unfold`, `Take`, `Collect` |
+| [hof](hof/) | Function combinators | `Pipe`, `Bind`, `Throttle`, `OnErr` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
-| [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `StringLen` |
+| [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `Identity` |
 
 Zero reflection. Zero global state. Zero build tags.
 
@@ -259,15 +310,8 @@ Zero reflection. Zero global state. Zero build tags.
 - **v0.41.0**: `stream` package — lazy memoized persistent sequences (`Generate`, `Unfold`, `Take`, `KeepIf`, `Seq`)
 - **v0.40.0**: `result` package — `Result[R]` type with `Ok`/`Err`, `CollectAll`/`CollectOk`, `PanicError`
 - **v0.40.0**: `slice.FanOut`/`FanOutEach` — bounded concurrent traversal with per-item results and panic recovery
+- **NEW**: `hof` package — `Pipe`, `Bind`, `Throttle`, `OnErr` function combinators
 - **NEW**: `kv.MapValues`, `Entries.KeepIf`/`RemoveIf` — map value transforms and entry filtering
-- **v0.24.0**: **BREAKING** — `Max()`, `Min()` return plain values (zero if empty) instead of `option.Option[T]`
-- **v0.23.0**: `Int` converted from alias to defined type. `Max()`, `Min()`, `Sum()` on `Int`; `Max()`, `Min()` on `Float64`
-- **v0.14.0**: `value` package replaces `ternary` — value-first conditional selection
-- **v0.12.0**: **BREAKING** — `MapperTo.To` renamed to `MapperTo.Map` for clarity
-- **v0.8.0**: `either` package (Left/Right sum types), `ToInt32`/`ToInt64` (slice package)
-- **v0.7.0**: `NonZero` for comparable types (option package)
-- **v0.6.0**: `Fold`, `Unzip2/3/4`, `Zip`/`ZipWith` (pair package)
-- **v0.5.0**: `ToFloat64`, `ToFloat32`
 
 ## License
 
