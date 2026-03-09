@@ -10,51 +10,57 @@ Where the original code uses inline anonymous functions, we extract them into na
 
 ---
 
-### Conditional struct fields — hashicorp/consul
+### Sort-and-trim boilerplate — chenjiandongx/sniffer
 
-**Source:** [agent/agent.go#L2482-L2530](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530)
-**Pain point:** Intermediate variables and post-construction overrides for conditional struct fields
+**Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
+**Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
 
-The original is 31 lines (18 with fluentfp): three if-blocks assign temporary variables (`name`, `intervalStr`, `timeoutStr`), a 13-field struct literal references them, and a post-construction if-block overrides `Status`. Four conditional fields require staging across pre- and post-construction blocks. The examples below show one representative field per pattern.
+The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. We assume `TotalBytes` and `TotalPackets` methods on `ProcessesResult` (the original inlines this arithmetic) and a `NewResult` constructor for `kv.Map`. Both sides benefit from the methods; the difference is what remains — 18 lines to a two-line function body (plus a sort-key map defined once).
 
-**Original** (one field per pattern):
+**Original** (with methods — 22 → 18 lines):
 ```go
-name := chkType.Name
-if name == "" {
-    name = fmt.Sprintf("Service '%s' check", service.Service)
-}
+func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
+    var items []ProcessesResult
+    for k, v := range s.Processes {
+        items = append(items, NewResult(k, v))
+    }
 
-var intervalStr string
-if chkType.Interval != 0 {
-    intervalStr = chkType.Interval.String()
-}
+    switch mode {
+    case ModeTableBytes:
+        sort.Slice(items, func(i, j int) bool {
+            return items[i].TotalBytes() > items[j].TotalBytes()
+        })
+    case ModeTablePackets:
+        sort.Slice(items, func(i, j int) bool {
+            return items[i].TotalPackets() > items[j].TotalPackets()
+        })
+    }
 
-check := &structs.HealthCheck{
-    Name:     name,
-    Interval: intervalStr,
-    Status:   api.HealthCritical,
-    // ...10 other fields...
-}
-if chkType.Status != "" {
-    check.Status = chkType.Status
+    if len(items) < n {
+        n = len(items)
+    }
+    return items[:n]
 }
 ```
 
 **fluentfp:**
 ```go
-defaultName := fmt.Sprintf("Service '%s' check", service.Service)
+var sortFuncs = map[ViewMode]func(ProcessesResult) int{
+    ModeTableBytes:   ProcessesResult.TotalBytes,
+    ModeTablePackets: ProcessesResult.TotalPackets,
+}
 
-check := &structs.HealthCheck{
-    Name:     value.NonEmpty(chkType.Name).Or(defaultName),
-    Interval: value.NonZeroCall(chkType.Interval, time.Duration.String).Or(""),
-    Status:   value.NonEmpty(chkType.Status).Or(api.HealthCritical),
-    // ...10 other fields...
+func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
+    desc := slice.Desc(sortFuncs[mode])
+    return kv.Map(s.Processes, NewResult).Sort(desc).Take(n)
 }
 ```
 
-**What changed:** Temporary variables and their if-blocks collapse into the struct literal. `value.NonEmpty` handles "use this if non-empty, else default" (`Name`, `Status`). `value.NonZeroCall` handles "if this isn't zero, transform it; otherwise not-ok" (`Interval`) — the function is only called when the value is non-zero, preserving the short-circuit guard from the original. All conditional logic moves to the point of use — the struct literal fully describes the final object in one place, without temporal staging across pre- and post-construction blocks.
+**What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(desc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
 
-**What's eliminated:** Those temporary variables are the structural ingredients that enable shadowing bugs. [Temporal's first data-loss bug](https://temporal.io/blog/go-shadowing-bad-choices) came from `:=` inside an if-block shadowing an outer `err`, silently swallowing a Cassandra failure. Go's own `syscall.forkAndExecInChild` had the same class of bug ([#57208](https://github.com/golang/go/issues/57208)). The Consul original doesn't fall into the shadowing trap — but the trap is laid. The fluentfp rewrite has none: each field resolves inline with no intermediate variables to shadow. See [Error Prevention](../analysis.md#error-prevention) (Error shadowing).
+**What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `.Sort` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
+
+*Implementation note: `.Sort` returns a new sorted slice (one copy — see the introduction for allocation guidance). The `sortFuncs` map stores method expressions — Go turns `ProcessesResult.TotalBytes` into a `func(ProcessesResult) int`, which is exactly what `slice.Desc` expects.*
 
 ---
 

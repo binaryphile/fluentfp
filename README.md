@@ -56,46 +56,40 @@ See [naming patterns](naming-in-hof.md) for when to use method expressions vs na
 
 ## What It Looks Like
 
-The **[showcase](docs/showcase.md)** has 16 more, including [Conditional Struct Fields](docs/showcase.md#conditional-struct-fields--hashicorpconsul).
+The **[showcase](docs/showcase.md)** has 16 more, including [Sort, Trim, and Map-to-Slice](docs/showcase.md#sort-and-trim-boilerplate--chenjiandongxsniffer).
 
-### Sort, Trim, and Map-to-Slice
+### Conditional Struct Fields
 
-A network monitor's "top N processes by metric" function: convert a map to a slice, sort by a mode-dependent key, take the first N.
+Go struct literals let you build and return a value in one statement — fluentfp keeps it that way when fields are conditional.
 
 <table>
-<tr><th>Before (18 lines)</th><th>After (2-line body)</th></tr>
-<tr><td><pre><code class="language-go">func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
-    var items []ProcessesResult
-    for k, v := range s.Processes {
-        items = append(items, NewResult(k, v))
-    }
-    switch mode {
-    case ModeTableBytes:
-        sort.Slice(items, func(i, j int) bool {
-            return items[i].TotalBytes() &gt; items[j].TotalBytes()
-        })
-    case ModeTablePackets:
-        sort.Slice(items, func(i, j int) bool {
-            return items[i].TotalPackets() &gt; items[j].TotalPackets()
-        })
-    }
-    if len(items) &lt; n {
-        n = len(items)
-    }
-    return items[:n]
+<tr><th>Before</th><th>After</th></tr>
+<tr><td><pre><code class="language-go">var level string
+if overdue {
+    level = "critical"
+} else {
+    level = "info"
 }
-</code></pre></td><td><pre><code class="language-go">var sortKey = map[ViewMode]func(ProcessesResult) int{
-    ModeTableBytes:   ProcessesResult.TotalBytes,
-    ModeTablePackets: ProcessesResult.TotalPackets,
+var icon string
+if overdue {
+    icon = "!"
+} else {
+    icon = "✓"
 }
-func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
-    desc := slice.Desc(sortKey[mode])
-    return kv.Map(s.Processes, NewResult).Sort(desc).Take(n)
+return Alert{
+    Message: msg,
+    Level:   level,
+    Icon:    icon,
+}
+</code></pre></td><td><pre><code class="language-go">return Alert{
+    Message: msg,
+    Level:   value.Of("critical").When(overdue).Or("info"),
+    Icon:    value.Of("!").When(overdue).Or("✓"),
 }
 </code></pre></td></tr>
 </table>
 
-`kv.Map` replaces the map-to-slice loop. Two duplicated `sort.Slice` closures with `func(i, j int) bool` become `.Sort(desc)` — method expressions in a map replace the switch. `.Take(n)` replaces the four-line bounds check. No index variables means no `items[i]`-vs-`items[j]` misreference. *From [chenjiandongx/sniffer](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93).*
+Go has no inline conditional expression. `value.Of` fills that gap — each field resolves in place, so the struct literal stays a single statement. *From [hashicorp/consul](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530).*
 
 ### Bounded Concurrent Requests
 
