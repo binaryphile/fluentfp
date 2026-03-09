@@ -52,8 +52,11 @@
 
 **Minimal Guarantee:** Original collection is never modified, regardless of transformation outcome.
 
+**Preconditions:**
+- Developer has a collection
+
 **Main Scenario:**
-1. Developer has a collection and needs a derived collection with different elements, types, or ordering.
+1. Developer selects the collection source.
 2. Developer specifies transformations: filtering by criteria, converting elements, changing element types, reordering, expanding, deduplicating, or limiting count.
 3. System applies each transformation in sequence.
 4. System returns the final collection.
@@ -68,7 +71,7 @@
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
 - 2d. Developer needs elements grouped by a derived key: System groups elements into a chainable collection of groups, each containing a key and the elements sharing that key.
 - 2e. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error.
-- 2f. Developer needs transformations applied concurrently: System applies transformations concurrently, preserving element order in the result. For I/O-bound workloads with per-item error handling, system schedules items individually with bounded concurrency, returns per-item success/failure results, recovers panics as errors, and respects context cancellation. For CPU-bound workloads, system partitions work into batches.
+- 2f. Developer needs transformations applied concurrently: System applies transformations concurrently with bounded parallelism, preserving element order in the result. For I/O-bound workloads, system reports success or failure per element, recovers panics as errors, and respects context cancellation.
 - 2g. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
 - 2h. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements.
 - 2i. Developer needs to split a collection into fixed-size batches: System divides the collection into sub-collections of the specified size; the last batch may be smaller.
@@ -81,8 +84,6 @@
 - Deduplication: by identity or by extracted key
 - Batching: by fixed size
 - Concurrent bounding: by item count (uniform cost) or by total cost (weighted)
-- Collection source: from slice, from map values, or from set members
-- Map-level operations: filtering entries by predicate, transforming values while preserving keys
 
 ---
 
@@ -100,8 +101,11 @@
 
 **Minimal Guarantee:** Original collection is never modified.
 
+**Preconditions:**
+- Developer has a collection
+
 **Main Scenario:**
-1. Developer has a collection and needs a single value derived from its elements.
+1. Developer selects the collection to derive from.
 2. Developer specifies the derivation: combining elements progressively, finding a specific element, checking a condition, counting, summing, or extracting multiple fields simultaneously.
 3. System processes the collection and returns the result.
 
@@ -141,23 +145,25 @@
 
 **Minimal Guarantee:** No silent zero-value substitution — absence is always distinct from a present zero value.
 
+**Preconditions:**
+- Developer has a value that might be absent
+
 **Main Scenario:**
-1. Developer encounters a value that might be absent.
-2. Developer wraps the value as optional, specifying what determines presence.
-3. Developer transforms or extracts: providing a default, applying logic only when present, converting type, or filtering by additional criteria.
-4. Developer uses the resolved value.
+1. Developer wraps the value as optional, specifying what determines presence.
+2. Developer transforms or extracts: providing a default, applying logic only when present, converting type, or filtering by additional criteria.
+3. Developer uses the resolved value.
 
 **Extensions:**
-- 2a. Value comes from a pointer (nil means absent): System extracts the pointed-to value when non-nil.
-- 2b. Value is a zero value that should mean absent: System treats zero as absent.
-- 2c. Value is present but needs transformation to a different type: System checks presence and transforms in one step, returning absence if the original was absent.
-- 3a. Developer needs a side effect only when present: System calls the function only when present; does nothing when absent.
-- 3b. Developer needs a side effect only when absent: System calls the function only when absent; does nothing when present.
-- 3c. Developer needs to filter an already-present value: System applies filter, converting to absent if not met.
-- 3d. Fallback is expensive to compute: System evaluates fallback only when absent.
-- 3e. Developer needs to chain operations that each may produce absence: System applies each operation in sequence, short-circuiting to absent if any step produces absence. No manual unwrapping between steps.
-- 4a. Developer stores optional value in a database column: System maps present to the column value and absent to SQL NULL. Type conversion between Go types and SQL driver types is handled automatically.
-- 4b. Developer serializes optional value to JSON: System maps present to the JSON value and absent to null.
+- 1a. Value comes from a pointer (nil means absent): System extracts the pointed-to value when non-nil.
+- 1b. Value is a zero value that should mean absent: System treats zero as absent.
+- 1c. Value is present but needs transformation to a different type: System checks presence and transforms in one step, returning absence if the original was absent.
+- 2a. Developer needs a side effect only when present: System calls the function only when present; does nothing when absent.
+- 2b. Developer needs a side effect only when absent: System calls the function only when absent; does nothing when present.
+- 2c. Developer needs to filter an already-present value: System applies filter, converting to absent if not met.
+- 2d. Fallback is expensive to compute: System evaluates fallback only when absent.
+- 2e. Developer needs to chain operations that each may produce absence: System applies each operation in sequence, short-circuiting to absent if any step produces absence. No manual unwrapping between steps.
+- 3a. Developer stores optional value in a database column: System maps present to the column value and absent to SQL NULL. Type conversion between Go types and SQL driver types is handled automatically.
+- 3b. Developer serializes optional value to JSON: System maps present to the JSON value and absent to null.
 
 **Sub-Variations:**
 - Specialized variants for common value types (string, int, bool, error)
@@ -179,16 +185,18 @@
 
 **Minimal Guarantee:** Accessing the wrong branch returns a zero value and false, never corrupts state.
 
+**Preconditions:**
+- Developer has an operation producing one of two typed outcomes
+
 **Main Scenario:**
-1. Developer has an operation producing one of two typed outcomes.
-2. Developer constructs the value indicating which branch it represents.
-3. Developer processes: extracting with a default, applying branch-specific logic, or handling both branches to produce a unified result.
+1. Developer constructs the value indicating which branch it represents.
+2. Developer processes: extracting with a default, applying branch-specific logic, or handling both branches to produce a unified result.
 
 **Extensions:**
-- 2a. Developer has a fallible function returning (R, error) and needs it to return Result instead: System wraps the function, producing a new function with the same input that returns a Result.
-- 3a. Developer needs both branches handled with different logic, producing unified result: System applies appropriate branch function.
-- 3b. Developer needs to transform only the success branch: System transforms, passing failure through.
-- 3c. Developer needs to chain operations that each may fail: System applies each operation in sequence, short-circuiting to failure if any step fails. No manual error checking between steps.
+- 1a. Developer has a fallible function returning (R, error) and needs it to return Result instead: System wraps the function, producing a new function with the same input that returns a Result.
+- 2a. Developer needs both branches handled with different logic, producing unified result: System applies appropriate branch function.
+- 2b. Developer needs to transform only the success branch: System transforms, passing failure through.
+- 2c. Developer needs to chain operations that each may fail: System applies each operation in sequence, short-circuiting to failure if any step fails. No manual error checking between steps.
 
 **Sub-Variations:**
 - Convention: left = failure, right = success
@@ -210,16 +218,18 @@
 
 **Minimal Guarantee:** A violated precondition always terminates. No silent continuation with invalid state.
 
+**Preconditions:**
+- Developer has initialization steps that each might fail
+
 **Main Scenario:**
-1. Developer has initialization steps that each might fail.
-2. Developer wraps each step to enforce success.
-3. System executes; if any step fails, program terminates immediately with the error.
-4. Developer uses resulting values without further error handling.
+1. Developer wraps each step to enforce success.
+2. System executes; if any step fails, program terminates immediately with the error.
+3. Developer uses resulting values without further error handling.
 
 **Extensions:**
-- 2a. Developer needs to wrap a function for repeated use: System returns a new function enforcing success on every call.
-- 2b. Developer needs to assert an error is nil without extracting a result: System checks, terminates if non-nil.
-- 2c. Developer needs a required environment variable: System reads it, terminates if missing.
+- 1a. Developer needs to wrap a function for repeated use: System returns a new function enforcing success on every call.
+- 1b. Developer needs to assert an error is nil without extracting a result: System checks, terminates if non-nil.
+- 1c. Developer needs a required environment variable: System reads it, terminates if missing.
 
 ---
 
@@ -235,15 +245,17 @@
 
 **Minimal Guarantee:** The unused branch's computation is never evaluated when deferred.
 
+**Preconditions:**
+- Developer has a preferred value, a fallback value, and a selection condition
+
 **Main Scenario:**
-1. Developer needs to choose between a preferred value and a fallback based on a condition.
-2. Developer specifies the preferred value and condition.
-3. Developer specifies the fallback value.
-4. System evaluates: if condition holds, returns preferred value; otherwise returns fallback.
+1. Developer specifies the preferred value and condition.
+2. Developer specifies the fallback value.
+3. System evaluates: if condition holds, returns preferred value; otherwise returns fallback.
 
 **Extensions:**
 - 1a. Developer needs the first non-zero value from a sequence of candidates: System evaluates candidates in order and returns the first non-zero, or zero if all are zero.
-- 2a. Preferred value is expensive to compute: System defers computation until condition confirmed true. If false, expensive computation never runs.
+- 1b. Preferred value is expensive to compute: System defers computation until condition confirmed true. If false, expensive computation never runs.
 
 **Sub-Variations:**
 - Eager: value computed before condition check (cheap values)
@@ -266,20 +278,22 @@
 
 **Minimal Guarantee:** Original functions are never modified. Constructed function is type-safe — mismatched signatures fail at compile time, not runtime.
 
+**Preconditions:**
+- Developer has existing functions to combine
+
 **Main Scenario:**
-1. Developer needs a function built from existing functions for use in a chain or standalone.
-2. Developer combines functions using composition, partial application, or standard building blocks.
-3. System returns a new function with the combined behavior.
+1. Developer combines functions using composition, partial application, or standard building blocks.
+2. System returns a new function with the combined behavior.
 
 **Extensions:**
-- 2a. Developer needs left-to-right composition of two transforms: System composes them so the first feeds into the second.
-- 2b. Developer needs to fix one argument of a two-argument function: System returns a one-argument function with the fixed argument captured. Either the first or second argument can be fixed.
-- 2c. Developer needs to apply separate functions to separate arguments: System applies each function independently and returns the results together.
-- 2d. Developer needs a pass-through or identity key extractor: System provides a function that returns its argument unchanged.
-- 2e. Developer needs a predicate that checks equality to a known value: System returns a function that tests its argument against the captured value.
-- 2f. Developer needs to pass a Go builtin as a higher-order argument: System provides a first-class function wrapping the builtin, usable anywhere a function value is expected.
-- 2g. Developer needs a function that enforces a concurrency budget when called from multiple goroutines: System returns a function with the same signature that blocks callers until budget is available, bounding by call count or per-call cost.
-- 2h. Developer needs a function that triggers a side-effect when a call fails: System returns a function with the same signature that calls the original, then invokes the handler on error.
+- 1a. Developer needs left-to-right composition of two transforms: System composes them so the first feeds into the second.
+- 1b. Developer needs to fix one argument of a two-argument function: System returns a one-argument function with the fixed argument captured. Either the first or second argument can be fixed.
+- 1c. Developer needs to apply separate functions to separate arguments: System applies each function independently and returns the results together.
+- 1d. Developer needs a pass-through or identity key extractor: System provides a function that returns its argument unchanged.
+- 1e. Developer needs a predicate that checks equality to a known value: System returns a function that tests its argument against the captured value.
+- 1f. Developer needs to pass a Go builtin as a higher-order argument: System provides a first-class function wrapping the builtin, usable anywhere a function value is expected.
+- 1g. Developer needs a function that enforces a concurrency budget when called from multiple goroutines: System returns a function with the same signature that blocks callers until budget is available, bounding by call count or per-call cost.
+- 1h. Developer needs a function that triggers a side-effect when a call fails: System returns a function with the same signature that calls the original, then invokes the handler on error.
 
 **Sub-Variations:**
 - Composition: left-to-right (Pipe)
@@ -306,8 +320,11 @@
 
 **Minimal Guarantee:** Partially consumed sequences remain valid for further operations. Evaluation failures do not corrupt the sequence.
 
+**Preconditions:**
+- Developer has a source that is large, infinite, or expensive to compute
+
 **Main Scenario:**
-1. Developer has a sequence that is large, infinite, or expensive to compute, and needs to process a subset of its elements.
+1. Developer selects the sequence source.
 2. Developer constructs a lazy sequence from the source.
 3. Developer specifies transformations: filtering, converting, limiting count, skipping elements, or changing element types.
 4. Developer terminates the pipeline: collecting to a slice, iterating for side effects, searching for a match, or reducing to a single value.

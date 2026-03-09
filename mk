@@ -8,7 +8,7 @@
 # _ suffix: contains IFS characters (e.g., Usage_).
 
 Prog=$(basename "$0")   # match what the user called
-Version=0.1
+Version=0.2
 
 read -rd '' Usage_ <<END
 Usage:
@@ -19,9 +19,13 @@ Usage:
 
     test          -- run all tests
 
+    contract      -- publish a contract event
+    complete      -- publish a completion event
+    interaction   -- publish an interaction event
+    plan          -- publish a plan event (from file)
+
     task          -- publish a task event
     done          -- publish a task-done event
-    complete      -- publish a completion event
     open          -- list open tasks
     audit         -- full task reconciliation
     claim         -- claim a task
@@ -44,6 +48,42 @@ TaskAudit=$ProjectRoot/$BinDir/task-audit
 
 cmd.test() {
   mk.Cue go test ./...
+}
+
+## protocol event commands
+
+cmd.contract() {
+  local payload
+  if [[ $# -ge 1 ]]; then
+    payload=$1
+  else
+    payload=$(cat)
+  fi
+  [[ -n $payload ]] || { echo "usage: $Prog contract <criteria> (or pipe/heredoc)" >&2; return 1; }
+  era publish -s $TaskStream --type contract "$payload"
+}
+
+cmd.complete() {
+  local payload
+  if [[ $# -ge 1 ]]; then
+    payload=$1
+  else
+    payload=$(cat)
+  fi
+  [[ -n $payload ]] || { echo "usage: $Prog complete <attestation> (or pipe/heredoc)" >&2; return 1; }
+  era publish -s $TaskStream --type complete "$payload"
+  echo "$payload" | $ProjectRoot/$BinDir/validate-attestation $TaskStream
+}
+
+cmd.interaction() {
+  [[ $# -ge 1 ]] || { echo "usage: $Prog interaction <description>" >&2; return 1; }
+  era publish -s $TaskStream --type interaction "$1"
+}
+
+cmd.plan() {
+  [[ $# -ge 1 ]] || { echo "usage: $Prog plan <file>" >&2; return 1; }
+  [[ -f $1 ]] || { echo "error: '$1' not found" >&2; return 1; }
+  era publish -s $TaskStream --type plan "$(cat "$1")"
 }
 
 ## task stream commands
@@ -72,11 +112,6 @@ cmd.done() {
   # era splits -m on commas, so use + as separator in refs value
   local refsVal=${ids//,/+}
   era publish -s $TaskStream --type task-done -m "refs=$refsVal" "$payload"
-}
-
-cmd.complete() {
-  [[ $# -ge 1 ]] || { echo "usage: $Prog complete <summary>" >&2; return 1; }
-  era publish -s $TaskStream --type Completion "$1"
 }
 
 cmd.open() {
