@@ -94,3 +94,29 @@ func ExampleThrottleWeighted() {
 	fmt.Println(result)
 	// Output: 42
 }
+
+func ExampleTapErr() {
+	var count int
+
+	// onErr increments the error counter.
+	onErr := func() { count++ }
+	// failOrDouble returns an error for negative inputs.
+	failOrDouble := func(_ context.Context, n int) (int, error) {
+		if n < 0 {
+			return 0, fmt.Errorf("negative")
+		}
+
+		return n * 2, nil
+	}
+
+	wrapped := hof.TapErr(failOrDouble, onErr)
+
+	r1, _ := wrapped(context.Background(), 5)
+	fmt.Println(r1, count)
+
+	r2, _ := wrapped(context.Background(), -1)
+	fmt.Println(r2, count)
+	// Output:
+	// 10 0
+	// 0 1
+}

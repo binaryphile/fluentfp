@@ -277,6 +277,7 @@
 - 2e. Developer needs a predicate that checks equality to a known value: System returns a function that tests its argument against the captured value.
 - 2f. Developer needs to pass a Go builtin as a higher-order argument: System provides a first-class function wrapping the builtin, usable anywhere a function value is expected.
 - 2g. Developer needs a function that enforces a concurrency budget when called from multiple goroutines: System returns a function with the same signature that blocks callers until budget is available, bounding by call count or per-call cost.
+- 2h. Developer needs a function that triggers a side-effect when a call fails: System returns a function with the same signature that calls the original, then invokes the handler on error.
 
 **Sub-Variations:**
 - Composition: left-to-right (Pipe)
@@ -284,6 +285,7 @@
 - Building blocks: identity function, equality predicate
 - Builtin adapters: length, printing, string predicates, successor
 - Concurrency control: by count (Throttle), by cost (ThrottleWeighted)
+- Side-effect on error (TapErr)
 
 ---
 

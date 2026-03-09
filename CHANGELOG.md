@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.58.0
+
+- **hof** — Side-effect wrapper: `TapErr`
+  - `TapErr[T, R](fn, onErr)` — wraps function to call onErr() on error
+  - Composable with Throttle/ThrottleWeighted (same signature family)
+  - Enables fail-fast FanOut: `hof.TapErr(City, cancel)`
+
 ## v0.57.0
 
 - **BREAKING**: Move `Identity` from `hof` → `lof` — `Identity` is a plain function (`func(T) T`), not higher-order; belongs with other lower-order functions like `Len`, `IsNonEmpty`

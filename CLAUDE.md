@@ -454,6 +454,9 @@ hof.Eq[T comparable](target T) func(T) bool   // Equality predicate factory
 // Concurrency control — wrap function with concurrency budget
 hof.Throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
 hof.ThrottleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
+
+// Side-effect wrappers — observe without modifying
+hof.TapErr[T, R any](fn func(context.Context, T) (R, error), onErr func()) func(context.Context, T) (R, error)
 ```
 
 ### hof Patterns
@@ -489,6 +492,11 @@ processMsg := hof.ThrottleWeighted(maxBytes, Message.Size, handleMessage)
 for msg := range subscription {
     go processMsg(ctx, msg)  // blocks inside until budget available
 }
+
+// TapErr — fail-fast FanOut (cancel on first error)
+ctx, cancel := context.WithCancel(ctx)
+defer cancel()
+results := slice.FanOut(ctx, 10, cities, hof.TapErr(City, cancel))
 ```
 
 ### must Package

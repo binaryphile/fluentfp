@@ -3085,3 +3085,13 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] Returned function is safe for concurrent use (TestThrottleConcurrencyBound 10 goroutines, TestThrottleWeightedConcurrencyBound 10 goroutines)
 [x] All tests pass (go test ./... -count=1 all green)
 [x] Documentation updated (CLAUDE.md, design.md D14+D15, use-cases.md UC-7 2g, CHANGELOG.md, doc.go, example_test.go)
+
+2026-03-09T00:00:00Z | Contract: TapErr | [x] hof.TapErr wraps fn with error-triggered side-effect | [x] Composes with Throttle (same signature) | [x] FanOut showcase shows fail-fast pattern
+2026-03-09T01:44:19Z | Interaction: improve -> reviewing TapErr implementation
+2026-03-09T01:44:51Z | Interaction: improve -> updated doc.go package comment to include side-effect wrapping
+2026-03-09T01:45:12Z | Interaction: improve -> final review of all diffs
+2026-03-09T01:45:28Z | Interaction: improve -> final review of all diffs, no issues found
+2026-03-09T01:45:56Z | Completion: Add hof.TapErr
+[x] hof.TapErr wraps fn with error-triggered side-effect (TestTapErrCallsOnError, TestTapErrBasicSuccess)
+[x] Composes with Throttle — same signature (TestTapErrComposesWithThrottle)
+[x] FanOut showcase shows fail-fast pattern (showcase.md fail-fast variant)
