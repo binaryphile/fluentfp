@@ -599,8 +599,10 @@ func Difference(a, b []string, lowercase bool) []string {
 **fluentfp:**
 ```go
 func Difference(a, b slice.Mapper[string], lowercase bool) []string {
-    // toNormalized trims whitespace, adding lowercasing when requested.
-    toNormalized := value.Of(hof.Pipe(strings.TrimSpace, strings.ToLower)).When(lowercase).Or(strings.TrimSpace)
+    // maybeLower lowercases when requested, otherwise passes through.
+    maybeLower := value.Of(strings.ToLower).When(lowercase).Or(hof.Identity[string])
+    // toNormalized trims whitespace, then applies extra processing.
+    toNormalized := hof.Pipe(strings.TrimSpace, maybeLower)
 
     normA := slice.Compact(a.Convert(toNormalized))
     normB := slice.Compact(b.Convert(toNormalized))
