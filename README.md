@@ -29,20 +29,23 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 
 That's a **fluent chain** — each step returns a value you can call the next method on, so the whole pipeline reads as a single expression: filter, then transform.
 
-Every closing brace marks a nesting level, and nesting depth is how tools like [`scc`](https://github.com/boyter/scc) approximate cyclomatic complexity.
-
 ### Interchangeable Types
 
+`Mapper[T]` is defined as `type Mapper[T any] []T` — a [defined type](https://go.dev/ref/spec#Type_definitions), not a wrapper. `[]T` and `Mapper[T]` convert implicitly in either direction, so you choose how much to expose:
+
 ```go
-// The chain returns Mapper[string], but the function returns []string — no conversion
-func activeNames(users []User) []string {
+// Public API — hide the dependency. Callers never see fluentfp types.
+func ActiveNames(users []User) []string {
     return slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
+}
+
+// Internal — embrace it. Accepting Mapper saves From() calls across a chain of helpers.
+func transform(users slice.Mapper[User]) slice.Mapper[User] {
+    return users.KeepIf(User.IsActive).Convert(User.Normalize)
 }
 ```
 
-`Mapper[T]` is defined as `type Mapper[T any] []T`. Everything that works on `[]T` works on `Mapper[T]` — index, `range`, `append`, `len`, pass to functions, return from functions. No conversion needed in either direction. Keep `[]T` in your function signatures and use `From()` at the point of use — fluentfp stays an implementation detail. See [comparison](comparison.md).
-
-Full treatment in [It's Just a Slice](slice/#its-just-a-slice).
+The public pattern keeps fluentfp as an implementation detail — callers don't import it, and its types don't appear in intellisense. Internal code can pass Mappers between helpers to avoid repeated `From()` wrapping.
 
 ### Method Expressions
 
