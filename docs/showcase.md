@@ -422,9 +422,7 @@ func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
 
 **What changed:** The errgroup loop becomes two function calls. `City` already matches FanOut's `func(context.Context, T) (R, error)` signature, so it passes directly — no wrapper, no closure. `slice.FanOut` handles goroutine launching, bounding, and result collection — `results[i]` corresponds to `cities[i]` without manual indexing. `result.CollectAll` returns all values if every item succeeded, or the first error by input position otherwise.
 
-**This is not a drop-in replacement.** The two versions differ in fail-fast behavior. With `errgroup.WithContext`, the first error cancels the derived context — if `City` respects that context, in-flight requests stop promptly. FanOut stops *scheduling* new items when its context is cancelled, but already-started items run to completion unless the callback independently checks the context. FanOut may therefore produce more completed results (and more external side effects) after a failure than the errgroup version.
-
-For workloads where fast cancellation matters — rate-limited APIs, expensive external calls, or cost-sensitive operations — this behavioral difference is significant and should inform the choice.
+**This is not a drop-in replacement.** The two versions differ in fail-fast behavior. With `errgroup.WithContext`, the first error cancels the derived context — in-flight requests that respect context stop promptly, and no new goroutines launch. FanOut stops *scheduling* new items when its context is cancelled, and since it passes ctx to every callback, in-flight calls that respect context will also stop promptly. The difference: errgroup automatically cancels the context on the first error, while FanOut does not — the caller controls when to cancel. For fail-fast-on-first-error semantics, wrap FanOut's context with `context.WithCancel` and cancel in the error-handling path.
 
 **What's eliminated:**
 
