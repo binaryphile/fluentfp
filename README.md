@@ -135,18 +135,13 @@ A network monitor's "top N processes by metric" function: convert a map to a sli
     }
     return items[:n]
 }
-</code></pre></td><td><pre><code class="language-go">var sortKey = map[ViewMode]func(
-    ProcessesResult,
-) int{
+</code></pre></td><td><pre><code class="language-go">var sortKey = map[ViewMode]func(ProcessesResult) int{
     ModeTableBytes:   ProcessesResult.TotalBytes,
     ModeTablePackets: ProcessesResult.TotalPackets,
 }
-func (s *Snapshot) TopNProcesses(
-    n int, mode ViewMode,
-) []ProcessesResult {
+func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
     desc := slice.Desc(sortKey[mode])
-    return kv.Map(s.Processes, NewResult).
-        Sort(desc).Take(n)
+    return kv.Map(s.Processes, NewResult).Sort(desc).Take(n)
 }
 </code></pre></td></tr>
 </table>
