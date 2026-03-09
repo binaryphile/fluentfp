@@ -449,7 +449,6 @@ hof.BindR[A, B, C any](f func(A, B) C, b B) func(A) C
 hof.Cross[A, B, C, D any](f func(A) C, g func(B) D) func(A, B) (C, D)
 
 // Building blocks
-hof.Identity[T any](t T) T                    // Returns argument unchanged; hof.Identity[string] as function value
 hof.Eq[T comparable](target T) func(T) bool   // Equality predicate factory
 
 // Concurrency control — wrap function with concurrency budget
@@ -477,7 +476,7 @@ both := hof.Cross(double, toUpper)
 d, u := both(5, "hello")  // 10, "HELLO"
 
 // Identity as GroupBy key extractor (group by value)
-groups := slice.GroupBy(statuses, hof.Identity[string])
+groups := slice.GroupBy(statuses, lof.Identity[string])
 
 // Equality predicate for Every/Any
 allSkipped := slice.From(statuses).Every(hof.Eq(Skipped))
@@ -626,6 +625,7 @@ valid := kv.MapValues(raw, parseConfig).KeepIf(configIsValid)
 ```go
 import "github.com/binaryphile/fluentfp/lof"
 
+lof.Identity[T any](t T) T               // Returns argument unchanged; lof.Identity[string] as function value
 lof.Println(s string)                   // Wraps fmt.Println for Each
 lof.Len(ts []T) int                     // Wraps len
 lof.StringLen(s string) int             // Wraps len for strings

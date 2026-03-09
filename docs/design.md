@@ -157,7 +157,7 @@ Also provides `lof.IsNonEmpty` as a predicate for `KeepIf` (filtering non-empty 
 
 ### D14: hof as function combinators
 
-Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), standard building blocks (`Identity`, `Eq`), and concurrency control (`Throttle`/`ThrottleWeighted`).
+Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), a standard building block (`Eq`), and concurrency control (`Throttle`/`ThrottleWeighted`).
 
 **Why needed:** Go functions are values but lack composition operators. `hof` provides the glue that lets developers build new functions from existing ones — for use in fluentfp chains or standalone. `Pipe(trim, toLower)` builds a transform; `Bind(add, 5)` fixes an argument; `Eq(target)` builds a predicate.
 

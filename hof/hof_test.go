@@ -177,27 +177,6 @@ func TestPipe_Chaining(t *testing.T) {
 	}
 }
 
-// --- Identity ---
-
-func TestIdentity_ReturnsSameValue(t *testing.T) {
-	if got := hof.Identity(42); got != 42 {
-		t.Errorf("Identity(42) = %d, want 42", got)
-	}
-	if got := hof.Identity("hello"); got != "hello" {
-		t.Errorf("Identity(hello) = %q, want %q", got, "hello")
-	}
-}
-
-func TestIdentity_WithGroupBy(t *testing.T) {
-	statuses := []string{"running", "exited", "running", "running"}
-
-	groups := slice.GroupBy(statuses, hof.Identity[string])
-
-	if got := len(groups); got != 2 {
-		t.Fatalf("GroupBy(Identity) produced %d groups, want 2", got)
-	}
-}
-
 // --- Eq ---
 
 func TestEq_MatchesTarget(t *testing.T) {

@@ -600,7 +600,7 @@ func Difference(a, b []string, lowercase bool) []string {
 ```go
 func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     // maybeLower lowercases when requested, otherwise passes through.
-    maybeLower := value.Of(strings.ToLower).When(lowercase).Or(hof.Identity[string])
+    maybeLower := value.Of(strings.ToLower).When(lowercase).Or(lof.Identity[string])
     // toNormalized trims whitespace, then applies extra processing.
     toNormalized := hof.Pipe(strings.TrimSpace, maybeLower)
 
@@ -608,7 +608,7 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     normB := slice.Compact(b.Convert(toNormalized))
     diff := slice.Difference(normA, normB)
 
-    return slice.SortBy(diff, hof.Identity[string])
+    return slice.SortBy(diff, lof.Identity[string])
 }
 ```
 
@@ -920,13 +920,13 @@ formatGroup := func(g slice.Group[string, string]) string {
 }
 
 func combinedStatus(statuses []string) string {
-	groups := slice.GroupBy(statuses, hof.Identity[string])
+	groups := slice.GroupBy(statuses, lof.Identity[string])
 	formatted := slice.SortBy(groups, groupKey).ToString(formatGroup)
 	return strings.Join(formatted, ", ")
 }
 ```
 
-**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `SortBy` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `hof.Identity[string]`, a standard building block for "group by value" patterns.
+**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `SortBy` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `lof.Identity[string]`, a standard building block for "group by value" patterns.
 
 **What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `hof.Identity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
 

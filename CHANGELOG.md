@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.57.0
+
+- **BREAKING**: Move `Identity` from `hof` → `lof` — `Identity` is a plain function (`func(T) T`), not higher-order; belongs with other lower-order functions like `Len`, `IsNonEmpty`
+
 ## v0.56.0
 
 - **hof** — Concurrency control: `Throttle`, `ThrottleWeighted`
