@@ -297,6 +297,71 @@ internally. However, onErr must be safe for concurrent use when the returned
 function is called from multiple goroutines (e.g., `context.CancelFunc` is
 documented as safe for concurrent calls).
 
+### D17: pair as standalone tuple package
+
+```go
+type Pair[A, B any] struct {
+    First  A
+    Second B
+}
+```
+
+A struct with two generic fields — the simplest possible product type.
+
+**Standalone package, zero dependencies:** pair imports nothing — no `internal/base`,
+no `option`. This keeps it lightweight and avoids coupling tuple operations to
+collection infrastructure.
+
+**Zip/ZipWith return plain slices:** `Zip` returns `[]Pair[A,B]`, not `Mapper`.
+`ZipWith` returns `[]R`, not `Mapper[R]`. This preserves pair's independence from
+`internal/base`. Callers bridge to fluent chains with `slice.From(pair.Zip(...))`.
+
+**Panic on length mismatch:** `Zip` and `ZipWith` panic when inputs differ in
+length. This is a precondition violation — the caller asserts the slices
+correspond element-by-element. Matches Go convention (index out of bounds panics).
+`Zip(nil, nil)` returns an empty slice without panic.
+
+**ZipWith avoids intermediate pairs:** `ZipWith(as, bs, fn)` applies `fn` directly
+to corresponding elements without constructing `Pair` values. More efficient than
+`Zip` + `Map`, and avoids the uniform-commas tension of nesting
+`slice.From(pair.Zip(...)).Map(fn)`.
+
+**Not Triple/Quad/N-tuple:** Pairs cover the dominant use case (two parallel
+slices). Higher arities are rare and better served by structs with named fields —
+Go has no positional destructuring, so `t.V3` is less readable than `t.Latitude`.
+
+### D18: kv as map-oriented fluent operations
+
+```go
+type Entries[K comparable, V any] = base.Entries[K, V]
+```
+
+A type alias for `base.Entries[K,V]` — same re-export pattern as `slice.Mapper[T]`
+(which aliases `base.Mapper[T]`). The defined type with methods lives in
+`internal/base`; the alias re-exports it so `kv` consumers see the methods without
+importing `internal/base`. Entries IS the map (indexing, ranging, `len` all work).
+
+**Separate from slice:** Map operations take `map[K]V` input, not `[]T`. Neither
+`kv` nor `slice` imports the other; both depend only on `internal/base`. This keeps
+the dependency graph clean — map-consuming code imports `kv`, slice-consuming code
+imports `slice`, and shared types flow through `internal/base`.
+
+**From is a type conversion:** `kv.From(m)` is zero-cost — same D1 pattern as
+`slice.From`. The `Entries` and the original map share backing data. No copy.
+
+**Two cross-type transform paths:** `kv.Map(m, fn)` infers all types (preferred).
+`kv.MapTo[T](m).Map(fn)` binds the target type explicitly (when inference doesn't
+suffice). Mirrors the `slice.Map` vs `slice.MapTo[R]` split (D2/D9).
+
+**MapValues preserves map structure:** `MapValues(m, fn)` returns `Entries[K, V2]` —
+keys preserved, values transformed. Enables chains like
+`kv.MapValues(raw, parse).KeepIf(isValid).Values()` without losing the map context
+until the caller is ready to extract.
+
+**KeepIf/RemoveIf on Entries:** Filter map entries by a `func(K, V) bool` predicate,
+returning `Entries` for further chaining. Mirrors `Mapper.KeepIf`/`RemoveIf` but
+with both key and value available to the predicate.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.

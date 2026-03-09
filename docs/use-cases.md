@@ -62,6 +62,7 @@
 - 1a. Collection is nil or empty: System produces a valid empty collection.
 - 1b. Collection source is a map: System extracts the map's values as a collection for further transformation.
 - 1c. Collection source is a set: System extracts the set's members as a collection for further transformation.
+- 1d. Developer needs to filter or transform map entries while preserving map structure: System applies predicates or value transforms to entries, returning a map for further map-level operations or value extraction.
 - 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order.
 - 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
@@ -81,6 +82,7 @@
 - Batching: by fixed size
 - Concurrent bounding: by item count (uniform cost) or by total cost (weighted)
 - Collection source: from slice, from map values, or from set members
+- Map-level operations: filtering entries by predicate, transforming values while preserving keys
 
 ---
 
