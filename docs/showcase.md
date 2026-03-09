@@ -233,115 +233,6 @@ trackedNodes, untrackedNodes := slice.Partition(selectedNodes, isTracked)
 
 ---
 
-### Diff map boilerplate — hashicorp/nomad
-
-**Source:** [diff.go#L389-L397](https://github.com/hashicorp/nomad/blob/ae1204e/nomad/structs/diff.go#L389-L397)
-**Pain point:** Index-by-key loop repeated 29 times in one file
-
-Nomad's diff engine compares old and new versions of every resource type. Each diff function starts the same way: build a `map[string]*T` from each slice so fields can be matched by name. The 3-line pattern — `make(map)`, `for range`, `m[x.Name] = x` — appears 29 times in `diff.go` alone, differing only in the struct type.
-
-**Original** (one of 29 — 3 lines each, 6 for the pair):
-```go
-oldMap := make(map[string]*TaskGroup, len(old))
-newMap := make(map[string]*TaskGroup, len(new))
-for _, o := range old {
-    oldMap[o.Name] = o
-}
-for _, n := range new {
-    newMap[n.Name] = n
-}
-```
-
-**fluentfp:**
-```go
-oldMap := slice.KeyBy(old, TaskGroup.GetName)
-newMap := slice.KeyBy(new, TaskGroup.GetName)
-```
-
-**What changed:** Six lines of loop mechanics become two function calls. The pattern scales: 29 occurrences × 3 lines each = 87 lines of identical structure reduced to 29 one-liners. The key extraction (`TaskGroup.GetName`) is a method expression — no wrapper function needed.
-
-**What's eliminated:** The same write amplification as the Nomad config merge entry (Entry 3): structurally identical code repeated for every type. Each repetition is individually trivial, but in aggregate they obscure the file's actual logic — the diff comparisons that follow. `KeyBy` compresses the ceremony so the meaningful code stands out.
-
----
-
-### Map value transform boilerplate — hashicorp/nomad
-
-**Source:** [csi_hook.go#L140-L151](https://github.com/hashicorp/nomad/blob/000e1028d589/client/allocrunner/csi_hook.go#L140-L151)
-**Pain point:** Make-iterate-transform loop repeated for each map projection; Nomad wrote a generic utility to avoid it
-
-Nomad already solved this — they wrote a generic `ConvertMap` utility ([helper/funcs.go#L431-L440](https://github.com/hashicorp/nomad/blob/000e1028d589/helper/funcs.go#L431-L440)) to avoid repeating the raw loop. The original below shows what the code looks like without that utility: two 4-line make-iterate-assign loops extracting different views from the same `volumeResults` map. `kv.MapValues` provides the same operation without writing or maintaining the utility.
-
-**Original** (without the utility — 10 lines):
-```go
-mounts := make(map[string]*csimanager.MountInfo, len(c.volumeResults))
-for k, result := range c.volumeResults {
-    mounts[k] = result.stub.MountInfo
-}
-c.hookResources.SetCSIMounts(mounts)
-
-stubs := make(map[string]*state.CSIVolumeStub, len(c.volumeResults))
-for k, result := range c.volumeResults {
-    stubs[k] = result.stub
-}
-c.allocRunnerShim.SetCSIVolumes(stubs)
-```
-
-**fluentfp:**
-```go
-// toMountInfo extracts the mount info from a volume publish result.
-toMountInfo := func(r *volumePublishResult) *csimanager.MountInfo { return r.stub.MountInfo }
-
-mounts := kv.MapValues(c.volumeResults, toMountInfo)
-stubs := kv.MapValues(c.volumeResults, (*volumePublishResult).Stub)
-
-c.hookResources.SetCSIMounts(mounts)
-c.allocRunnerShim.SetCSIVolumes(stubs)
-```
-
-**What changed:** Two 4-line loops become two `kv.MapValues` calls. The stub extraction uses a method expression (`(*volumePublishResult).Stub`); the mount info extraction needs a named function because it traverses two levels (`r.stub.MountInfo`). Nomad's `ConvertMap` is already generic; even with generics, the loop body is boilerplate that a library absorbs. `kv.MapValues` additionally returns `Entries[K,V2]` for chaining (e.g., `.KeepIf(pred).Values()`), which a raw-map return doesn't support.
-
-**What's eliminated:** Write amplification — the same make-iterate-transform loop repeated for each map projection. Each instance is individually trivial (4 lines), but the pattern compounds wherever maps carry richer values than callers need. The risk is copy-paste error across structurally identical code: wrong source field, wrong target type, wrong map variable — all compile silently when the types happen to align.
-
----
-
-### Map entry filtering — cilium/cilium
-
-**Source:** [utils.go#L195-L205](https://github.com/cilium/cilium/blob/1f4767436188aa748d1318d0a1e79a2f6f2e1f60/pkg/k8s/utils/utils.go#L195-L205)
-**Pain point:** Entire function exists to filter map entries by key prefix — 8 lines of loop scaffolding around a one-line predicate
-
-Cilium labels Kubernetes resources with prefixed keys (`io.cilium.*`). When passing labels to contexts that shouldn't see Cilium internals, the code strips them. The function's entire purpose is map filtering — make, iterate, skip-if-match, assign, return.
-
-**Extracted (both sides share):**
-```go
-// isCiliumLabel returns true if the key has the Cilium label prefix.
-isCiliumLabel := func(k, _ string) bool { return strings.HasPrefix(k, k8sconst.LabelPrefix) }
-```
-
-**Original** (10 lines):
-```go
-func RemoveCiliumLabels(labels map[string]string) map[string]string {
-    res := map[string]string{}
-    for k, v := range labels {
-        if isCiliumLabel(k, v) {
-            continue
-        }
-        res[k] = v
-    }
-    return res
-}
-```
-
-**fluentfp:**
-```go
-filtered := kv.From(labels).RemoveIf(isCiliumLabel)
-```
-
-**What changed:** The 10-line function disappears — it exists only to wrap the loop. At the call site, `kv.From(labels).RemoveIf(isCiliumLabel)` is a single expression that replaces both the function call and its implementation. `kv.From` is a zero-cost type conversion; `RemoveIf` returns `Entries[K,V]` (a defined type over `map[K]V`), assignable anywhere `map[string]string` is expected.
-
-**What's eliminated:** Loop scaffolding around a predicate. The original is a function that exists solely to filter — it has no other logic. The 5-line loop body (make, for-range, if-continue, assign, return) is the same structure every map filter uses, differing only in the predicate. `RemoveIf` reduces map filtering to its essential part: the condition.
-
----
-
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
@@ -432,7 +323,7 @@ func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
 
 **What changed:** The errgroup loop becomes two function calls. `City` already matches FanOut's `func(context.Context, T) (R, error)` signature, so it passes directly — no wrapper, no closure. `slice.FanOut` handles goroutine launching, bounding, and result collection — `results[i]` corresponds to `cities[i]` without manual indexing. `result.CollectAll` returns all values if every item succeeded, or the first error by input position otherwise.
 
-**Collect-all vs fail-fast:** The default FanOut version processes all items and returns every outcome. The fail-fast version wraps `City` with `hof.OnErr(City, cancel)` — when any call errors, `cancel()` fires, stopping in-flight calls that respect context and preventing new work from scheduling. This matches errgroup's automatic cancellation, with `OnErr` composing cleanly because it shares the same `func(ctx, T) (R, error)` signature as `Throttle`.
+**Collect-all vs fail-fast:** The default FanOut version processes all items and returns every outcome. The fail-fast version wraps `City` with `hof.OnErr(City, cancel)` — when any call errors, `cancel()` fires, stopping in-flight calls that respect context and preventing new work from scheduling. This matches errgroup's automatic cancellation. `OnErr` composes cleanly because it preserves the `func(ctx, T) (R, error)` signature — wrapping `City` doesn't change its type, so `FanOut` accepts it directly.
 
 **What's eliminated:**
 
@@ -520,42 +411,6 @@ The stream version uses zero goroutines and zero channels. Lazy evaluation comes
 
 ---
 
-### Error dispatch as expression — hashicorp/consul
-
-**Source:** [agent/connect/parsing.go](https://github.com/hashicorp/consul/blob/554b4ba24f8680308afa7bbbdcc7494cedff7ea1/agent/connect/parsing.go#L64)
-**Pain point:** `if err != nil` forces error dispatch into statement form — the two-arm branch can't be used as an expression inside struct literals, function arguments, or return statements
-
-`CertSubjects` calls `parseCerts`, then dispatches on error vs success to produce a `string`: error message on failure, formatted subjects on success. The dispatch requires two `return` paths, splitting what is conceptually one value into branching control flow.
-
-Both versions use `formatSubjects` — a small function that joins certificate subjects with newlines. Extracting it is good practice regardless and makes the structural difference visible.
-
-**Original:**
-```go
-func CertSubjects(pem string) string {
-    certs, err := parseCerts(pem)
-    if err != nil {
-        return err.Error()
-    }
-    return formatSubjects(certs)
-}
-```
-
-**fluentfp:**
-```go
-func CertSubjects(pem string) string {
-    parseCertsResult := result.Lift(parseCerts)
-    return result.Fold(parseCertsResult(pem), error.Error, formatSubjects)
-}
-```
-
-**What changed:** Both versions call `formatSubjects` — the shared function creates a locus of equivalence. The difference is in how each version dispatches to it. The original uses `if err != nil` and two `return` paths. `result.Fold` collapses that into a single expression where both handlers are symmetric arguments. Miss one and it doesn't compile.
-
-**What's eliminated:** The branching control flow, the two `return` statements, and the intermediate `certs` variable. `Lift` wraps `parseCerts` into Result form; Fold dispatches on the outcome. The function's intent — "format certificates or return the error message" — reads directly from the Fold call.
-
-*Caveats: The line-count difference is small. The win is structural (expression form, exhaustive dispatch) rather than a line-count reduction. For a standalone function with two `return` paths, the original is already clear. Fold pays off more when the dispatch appears inside a struct literal or when the exhaustive-dispatch guarantee matters across many call sites.*
-
----
-
 ### Manual set difference — hashicorp/go-secure-stdlib
 
 **Source:** [strutil.go#L354-L384](https://github.com/hashicorp/go-secure-stdlib/blob/main/strutil/strutil.go#L354-L384)
@@ -621,45 +476,6 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
 **What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `Compact` for blank removal. Normalization separates into `.Convert(toNormalized)`, making it visible that lowercasing is a *transform*, not part of the set operation.
 
 **What's eliminated:** The build-then-delete pattern (`for range a → map[a] = {}; for range b → delete(map, b)`) is the manual idiom for set difference in Go. It requires reasoning about map mutation — deletions during a scan of a different slice — which is correct but non-obvious at a glance. `slice.Difference` names the intent directly. The early-return inconsistency (main path normalizes; empty-`b` path doesn't) disappears because the pipeline processes all inputs uniformly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
-
----
-
-### Deduplicated template intersection — nginx-proxy/docker-gen
-
-**Source:** [functions.go#L39-L55](https://github.com/nginx-proxy/docker-gen/blob/main/internal/template/functions.go#L39-L55)
-**Pain point:** Intersection with dedup requires three loops and two maps — plus loses ordering
-
-docker-gen (4.6k stars) generates nginx config files from Docker container metadata. It exposes an `intersect` template function for finding containers common to two lists. Because template inputs may contain duplicates, the result must be deduplicated — requiring a second map beyond the membership-check map, plus a third loop to extract keys.
-
-**Original** (16 lines, 3 loops, 2 maps):
-```go
-func intersect(l1, l2 []string) []string {
-	m := make(map[string]bool)
-	m2 := make(map[string]bool)
-	for _, v := range l2 {
-		m2[v] = true
-	}
-	for _, v := range l1 {
-		if m2[v] {
-			m[v] = true
-		}
-	}
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-```
-
-**fluentfp:**
-```go
-result := slice.Intersect(l1, l2)
-```
-
-**What changed:** Three loops and two maps collapse to one function call. `slice.Intersect` handles deduplication automatically — no separate dedup map needed.
-
-**What's eliminated:** The `for k := range m` extraction loop — which silently loses the original ordering. docker-gen's result comes back in map iteration order (nondeterministic), while `slice.Intersect` preserves first-occurrence order from the first argument. The ordering surprise disappears because there's no intermediate map to iterate. The meaningless variable names (`m` for dedup, `m2` for membership) also disappear — the function name `Intersect` communicates what both maps were doing.
 
 ---
 
@@ -757,131 +573,6 @@ slice.From(oldMappings).Every(isNewFormat)
 
 ---
 
-### Image status resolution cascade — portainer/portainer
-
-**Source:** [status.go#L83-L101](https://github.com/portainer/portainer/blob/e8cee12384d54581f24b3802ea381661e49d8a08/api/docker/images/status.go#L83-L101) (FigureOut), [status.go#L278-L298](https://github.com/portainer/portainer/blob/e8cee12384d54581f24b3802ea381661e49d8a08/api/docker/images/status.go#L278-L298) (allMatch, contains)
-**Pain point:** Two hand-rolled quantifier functions exist solely because Go lacks `.Every()` and `.Any()`
-
-Portainer (36.8k stars) manages Docker environments. When determining the overall status of a set of container images, `FigureOut` cascades through priority rules: if all statuses match a single value, return that value; if any status is `Outdated`, `Processing`, or `Error`, return it. The logic itself is clear, but it depends on two utility functions — `allMatch` (8-line universal quantifier) and `contains` (a wrapper around `slices.Contains`) — that every Go project re-implements because the language lacks built-in predicate operations on slices.
-
-**Original:**
-```go
-func FigureOut(statuses []Status) Status {
-	if allMatch(statuses, Skipped) {
-		return Skipped
-	}
-	if allMatch(statuses, Preparing) {
-		return Preparing
-	}
-	if contains(statuses, Outdated) {
-		return Outdated
-	} else if contains(statuses, Processing) {
-		return Processing
-	} else if contains(statuses, Error) {
-		return Error
-	}
-	return Updated
-}
-
-func allMatch(statuses []Status, status Status) bool {
-	if len(statuses) == 0 {
-		return false
-	}
-	for _, s := range statuses {
-		if s != status {
-			return false
-		}
-	}
-	return true
-}
-```
-
-**fluentfp:**
-```go
-func FigureOut(statuses slice.Mapper[Status]) Status {
-	if statuses.Len() == 0 {
-		return Updated
-	}
-
-	switch {
-	case statuses.Every(hof.Eq(Skipped)):
-		return Skipped
-	case statuses.Every(hof.Eq(Preparing)):
-		return Preparing
-	case slice.Contains(statuses, Outdated):
-		return Outdated
-	case slice.Contains(statuses, Processing):
-		return Processing
-	case slice.Contains(statuses, Error):
-		return Error
-	default:
-		return Updated
-	}
-}
-```
-
-**What changed:** The `allMatch` and `contains` utility functions disappear — replaced by `.Every()` and `slice.Contains()`. The custom `isStatus` predicate factory becomes `hof.Eq` — a standard building block that returns an equality predicate for any comparable type. The cascade logic in `FigureOut` is unchanged but reads with named quantifiers instead of forwarding to boilerplate helpers. The `if/else-if` chain becomes a `switch` that expresses the priority rules as a flat list. The explicit empty check at the top replaces the implicit `len == 0 → false` in `allMatch` — `.Every()` uses vacuous truth (empty returns true), so the guard preserves the original behavior.
-
-**What's eliminated:** Boilerplate quantifier functions and a custom predicate factory. Every Go project that needs "do all elements match?" or "does any element match?" re-implements the same 8-line loop. The `isStatus` factory — three lines to capture a target and return a closure — is the same pattern every project writes when it needs equality predicates for `Every`/`Any`. These functions aren't domain logic — they're missing standard library operations. `.Every()`, `slice.Contains()`, and `hof.Eq` replace them with named operations, letting `FigureOut` focus on the status priority rules.
-
----
-
-### Alert state reduction — prometheus/prometheus
-
-**Source:** [alerting.go#L550-L565](https://github.com/prometheus/prometheus/blob/7dea9af4939e52221e5a0e3d02c7838e7d76c799/rules/alerting.go#L550-L565)
-**Pain point:** Running-max loop over map values with manual accumulator initialization and comparison
-
-Prometheus (63.1k stars) evaluates alerting rules against time-series data. `AlertingRule.State()` computes the aggregate state of an alert group by finding the maximum `AlertState` across all active alerts stored in a `map[uint64]*Alert`. The pattern is a textbook fold — initialize an accumulator (`maxState := StateInactive`), iterate, conditionally update — but written as a mutation loop. The reader must identify `maxState` as a running maximum, verify the comparison direction (`>`), and mentally distinguish this from filter or count patterns that use similar loop shapes.
-
-**Original:**
-```go
-func (r *AlertingRule) State() AlertState {
-	r.activeMtx.Lock()
-	defer r.activeMtx.Unlock()
-
-	if r.evaluationTimestamp.Load().IsZero() {
-		return StateUnknown
-	}
-
-	maxState := StateInactive
-	for _, a := range r.active {
-		if a.State > maxState {
-			maxState = a.State
-		}
-	}
-
-	return maxState
-}
-```
-
-**fluentfp:**
-```go
-// maxAlertState returns the higher of the accumulator and the alert's state.
-maxAlertState := func(maxSoFar AlertState, a *Alert) AlertState {
-	if a.State > maxSoFar {
-		return a.State
-	}
-	return maxSoFar
-}
-
-func (r *AlertingRule) State() AlertState {
-	r.activeMtx.Lock()
-	defer r.activeMtx.Unlock()
-
-	if r.evaluationTimestamp.Load().IsZero() {
-		return StateUnknown
-	}
-
-	return slice.Fold(kv.Values(r.active), StateInactive, maxAlertState)
-}
-```
-
-**What changed:** The mutation loop becomes `slice.Fold` with an explicit initial value and combining function. The mutex acquisition and early return stay imperative — fluentfp replaces the mechanical reduction, not the concurrency control. `kv.Values` bridges from map to slice without an intermediate variable.
-
-**What's eliminated:** The accumulator mutation pattern. In the original, the reader must identify `maxState` as a running maximum (not a filter, not a counter, not a last-seen value), verify the comparison direction, and trace initialization through to the return. `Fold` co-locates all three components — initial value, combining function, collection — in a single expression that names the operation.
-
----
-
 ### Status frequency formatting — docker/compose
 
 **Source:** [ls.go#L95-L116](https://github.com/docker/compose/blob/bfb5511d0d6f8250b088d0251bc21c041516ddb8/pkg/compose/ls.go#L95-L116)
@@ -938,6 +629,79 @@ func combinedStatus(statuses []string) string {
 
 ---
 
+### Memory-budgeted concurrency — Datadog Agent symbol uploader
+
+**Source:** [pipeline.go](https://github.com/DataDog/datadog-agent/blob/main/comp/host-profiler/symboluploader/pipeline/pipeline.go)
+
+**What Datadog does:** The Datadog Agent's host profiler uploads ELF debug symbols to the backend for symbolication. Each ELF binary can be tens of megabytes. Without a budget, uploading all binaries concurrently would exhaust container memory — especially in constrained cgroup environments. The solution: bound total in-flight upload bytes to the cgroup memory limit.
+
+**Original** — `NewBudgetedProcessingFunc`:
+```go
+func NewBudgetedProcessingFunc[In any](
+    budget int64,
+    costCalculator func(In) int64,
+    fun func(context.Context, In),
+) func(context.Context, In) {
+    budgetSemaphore := semaphore.NewWeighted(budget)
+    return func(ctx context.Context, i In) {
+        cost := costCalculator(i)
+
+        err := budgetSemaphore.Acquire(ctx, cost)
+        if err != nil {
+            return
+        }
+        defer budgetSemaphore.Release(cost)
+
+        fun(ctx, i)
+    }
+}
+```
+
+**Usage** — ELF uploads bounded by cgroup memory:
+```go
+uploadWorker := pipeline.NewBudgetedProcessingFunc(memoryBudget,
+    func(elfSymbols ElfWithBackendSources) int64 {
+        size := elfSymbols.GetSize()
+        if size > memoryBudget {
+            slog.Warn("Upload size is larger than memory limit, attempting upload anyway",
+                slog.String("elf", elfSymbols.String()))
+            size = memoryBudget
+        }
+        return size
+    },
+    d.uploadWorker)
+```
+
+The function takes a budget (cgroup memory limit), a cost calculator (ELF file size), and a processing function (the uploader). It returns a new function with the same signature — callers don't know about the budget. The weighted semaphore blocks until enough budget is available, then releases after processing. A 200 MB cgroup limit with 100 MB, 80 MB, and 70 MB binaries allows the first two to proceed concurrently (180 MB used), blocks the third (needs 70 MB, only 20 MB remaining) until one finishes.
+
+**fluentfp:**
+```go
+// elfSize returns the size of the ELF binary as an int.
+elfSize := func(elf ElfWithBackendSources) int { return int(elf.GetSize()) }
+
+// ThrottleWeighted — same pattern, same signature preservation
+throttledUpload := hof.ThrottleWeighted(memoryBudget, elfSize, uploadELF)
+```
+
+`hof.ThrottleWeighted` is the same abstraction: wrap a function with a cost-based concurrency budget, return a function with the same signature. The Datadog team built `NewBudgetedProcessingFunc` as a one-off utility; fluentfp provides it as a composable building block. The difference: Datadog's version wraps side-effect functions (`func(ctx, In)`), while `ThrottleWeighted` wraps result-returning functions (`func(ctx, T) (R, error)`) — supporting both `FanOut` traversal and error propagation on cancellation.
+
+For batch processing (upload all binaries, collect results), `FanOutWeighted` combines the throttling with slice traversal:
+
+```go
+results := slice.FanOutWeighted(ctx, memoryBudget, elfs, elfSize, uploadELF)
+```
+
+| Aspect | Datadog `NewBudgetedProcessingFunc` | fluentfp `ThrottleWeighted` |
+|--------|-------------------------------------|----------------------------|
+| Scope | One-off utility in pipeline package | Reusable combinator in `hof` |
+| Return type | `func(context.Context, In)` (side-effect) | `func(context.Context, T) (R, error)` (result + error) |
+| Error handling | Silently returns on context cancellation | Returns `ctx.Err()` on cancellation |
+| Composability | Standalone | Chains with `FanOut`, `FanOutWeighted`, `OnErr` |
+
+**What this brings to Go:** Datadog's `NewBudgetedProcessingFunc` proves the pattern is production-necessary — not every workload has uniform cost, and counting goroutines isn't enough when items vary by 10x in memory footprint. The Datadog team wrote a small generic function to solve it. fluentfp's `ThrottleWeighted` provides the same abstraction as a library primitive, composable with `FanOutWeighted` for batch traversal and `OnErr` for fail-fast cancellation.
+
+---
+
 ### The adapter tax
 
 The examples above all shorten code — but that's the symptom, not the cause. The cause is *adapter tax*: the cost a library charges for entering and leaving its world.
@@ -954,7 +718,7 @@ Think of a woodworking shop built on standard lumber. **Raw loops** are hand too
 
 ## Cross-Language Inspiration
 
-The entries above compare Go patterns. The entries below take a different angle: patterns that are idiomatic in other FP languages — Rust, Haskell, Scala, Elixir — and show how fluentfp brings the same expressiveness to Go. Each describes what a real project does in the original language, then shows Go code solving the same problem. These are not transliterations — they're idiomatic Go for the same domain, written from scratch using fluentfp.
+The entries above compare Go patterns. The entries below take a different angle: patterns that are idiomatic in other FP languages — Rust, Haskell, Elixir — and show how fluentfp brings the same expressiveness to Go. Each describes what a real project does in the original language, then shows Go code solving the same problem. These are not transliterations — they're idiomatic Go for the same domain, written from scratch using fluentfp.
 
 ---
 
@@ -1123,87 +887,6 @@ sample := pages.Take(3).Collect()
 
 ---
 
-### Transform composition for ETL — Apache Spark (Scala)
-
-**Source project:** Apache Spark — the dominant big-data processing framework.
-
-**What Spark does:** Spark's `Dataset.transform` method accepts a function `DataFrame => DataFrame`. Production ETL pipelines compose these transforms with Scala's `andThen`: `extractPayerBeneficiary("details") andThen sumAmounts(dateTrunc, beneficiaryCol)` creates a single `DataFrame => DataFrame` passed to `.transform()`. Each transform is a named, testable unit; `andThen` sequences them left-to-right. The same pattern appears in [http4s](https://github.com/http4s/http4s) (Scala's HTTP library), where middleware like CORS, logging, and timeouts compose via `andThen` on `Client[F] => Client[F]` functions.
-
-**Go equivalent:** Financial transaction processing — parse raw text fields, then aggregate by beneficiary. The same extract-then-aggregate shape as the Spark ETL pipeline.
-
-**Extracted:**
-```go
-// Transaction holds a parsed financial transaction.
-type Transaction struct {
-    Date        time.Time
-    Payer       string
-    Beneficiary string
-    Amount      float64
-}
-
-// parseDetails extracts payer and beneficiary from a raw details string.
-parseDetails := func(raw string) (string, string) {
-    parts := strings.SplitN(raw, "->", 2)
-    return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-}
-```
-
-**Without composition:**
-```go
-for _, line := range lines {
-    trimmed := strings.TrimSpace(line)
-    lower := strings.ToLower(trimmed)
-    fields := strings.Split(lower, "|")
-    payer, beneficiary := parseDetails(fields[1])
-    amount := must.Get(strconv.ParseFloat(fields[2], 64))
-    // ... accumulate by beneficiary
-}
-```
-
-**fluentfp:**
-```go
-normalize := hof.Pipe(strings.TrimSpace, strings.ToLower)
-
-// splitFields splits a normalized line into pipe-delimited fields.
-splitFields := func(line string) []string { return strings.Split(line, "|") }
-
-// toTransaction parses fields into a Transaction.
-toTransaction := func(fields []string) Transaction {
-    payer, beneficiary := parseDetails(fields[1])
-
-    return Transaction{
-        Date:        must.Get(time.Parse("2006-01-02", fields[0])),
-        Payer:       payer,
-        Beneficiary: beneficiary,
-        Amount:      must.Get(strconv.ParseFloat(fields[2], 64)),
-    }
-}
-
-parseFields := hof.Pipe(splitFields, toTransaction)
-parseLine := hof.Pipe(normalize, parseFields)
-
-transactions := slice.Map(lines, parseLine)
-byBeneficiary := slice.GroupBy(transactions, Transaction.GetBeneficiary)
-```
-
-`hof.Pipe` creates a new function from two existing ones — matching `andThen`'s left-to-right flow. `normalize` is reusable anywhere strings need cleaning, just as Spark transforms are reusable across different pipelines. `parseLine` composes three stages — normalize, split, convert — into a single `func(string) Transaction`, testable in isolation. The intermediate `parseFields` follows the uniform commas rule: each `Pipe` call has exactly two arguments at one nesting level.
-
-Partial application with `hof.Bind` creates parameterized transforms — similar to how Spark ETL functions accept column names as parameters:
-
-```go
-// multiply returns the product of two float64 values.
-multiply := func(a, b float64) float64 { return a * b }
-
-// applyRate converts each amount using a fixed exchange rate.
-applyRate := hof.Bind(multiply, exchangeRate)
-
-converted := slice.From(amounts).Convert(applyRate)
-```
-
-**What this brings to Go:** Go functions compose via nesting — `toTransaction(splitFields(normalize(line)))` — which reads inside-out, opposite to the data flow. Sequential assignment reads top-to-bottom but forces naming intermediate values. `hof.Pipe` provides left-to-right composition: the pipeline reads in the direction data flows. The Spark insight — that ETL steps are named, testable, composable transforms — translates directly.
-
----
-
 ### Multipart upload with bounded concurrency — ExAws S3 (Elixir)
 
 **Source projects:** [ExAws S3](https://github.com/ex-aws/ex_aws_s3) — the standard Elixir library for AWS S3 operations; [Hex](https://github.com/hexpm/hex) — the official Elixir/Erlang package manager.
@@ -1297,3 +980,117 @@ for i, err := range errs {
 *See also: Elixir's own [Mix Erlang compiler](https://github.com/elixir-lang/elixir) uses `Task.async_stream` to scan Erlang source files for dependencies in parallel, bounded by CPU core count — matching `ParallelMap`'s CPU-bound use case rather than `FanOut`'s I/O-bound one.*
 
 **Contrast with the errgroup entry above:** The errgroup entry compares FanOut to errgroup for the `Cities` weather-fetching pattern. This entry shows two real-world Elixir projects that need the same operation with different success modes — all-or-nothing (ExAws S3) and partial success (Hex) — both served by `FanOut` with different collectors.
+
+---
+
+## Algorithm Decomposition — Stone's *Algorithms for Functional Programming*
+
+The entries above rewrite everyday code with fluentfp. The entry below compares a production algorithm implementation with its functional decomposition from Stone's *Algorithms for Functional Programming* (Springer, 2018), showing how the functional version makes the algorithm's structure visible by separating the reusable engine from the behavioral arguments.
+
+---
+
+### Topological sort — hashicorp/terraform
+
+**Source:** [dag.go#L278-L320](https://github.com/hashicorp/terraform/blob/main/internal/dag/dag.go#L278-L320)
+**Algorithm:** Stone §12 — DFS departure ordering
+
+Terraform builds a DAG of infrastructure resources — VPCs before subnets, subnets before EC2 instances — and topologically sorts it to determine execution order. Every `terraform apply` runs this algorithm.
+
+**Original** (43 lines):
+```go
+func (g *AcyclicGraph) topoOrder(order walkType) []Vertex {
+    sorted := make([]Vertex, 0, len(g.vertices))
+    tmp := map[Vertex]bool{}
+    perm := map[Vertex]bool{}
+
+    var visit func(v Vertex)
+
+    visit = func(v Vertex) {
+        if perm[v] {
+            return
+        }
+        if tmp[v] {
+            panic("cycle found in dag")
+        }
+        tmp[v] = true
+        var next Set
+        switch {
+        case order&downOrder != 0:
+            next = g.downEdgesNoCopy(v)
+        case order&upOrder != 0:
+            next = g.upEdgesNoCopy(v)
+        default:
+            panic(fmt.Sprintln("invalid order", order))
+        }
+        for _, u := range next {
+            visit(u)
+        }
+        tmp[v] = false
+        perm[v] = true
+        sorted = append(sorted, v)
+    }
+
+    for _, v := range g.Vertices() {
+        visit(v)
+    }
+    return sorted
+}
+```
+
+**Stone's decomposition:** Three arguments to a reusable DFS engine: start with empty list, ignore vertices on arrival, collect on departure. The algorithm's *entire meaning* is in those three arguments — the DFS machinery is factored into a higher-order `depth-first-traversal` function that maintains the visited set, folds over all vertices (handling disconnected components), and calls user-supplied `arrive`/`depart` at each vertex.
+
+**The same engine, four algorithms:**
+
+| Algorithm | `arrive` | `depart` |
+|-----------|----------|----------|
+| Topological sort | do nothing | collect vertex into result |
+| Connected components | add vertex to component set | do nothing |
+| Reachability | add vertex to reachable set | do nothing |
+| Path finder | extend current path | check if target reached |
+
+One function, four algorithms — only the behavioral arguments change. Terraform's 43 lines couple traversal to behavior, so each new algorithm means copy-paste-modify with the same DFS boilerplate.
+
+**Go equivalent — separating engine from behavior:**
+```go
+// dfs traverses all vertices depth-first, calling arrive on entry and depart on exit.
+// The engine is reusable; the algorithm lives in arrive and depart.
+func dfs[V comparable](
+    neighbors func(V) []V,
+    arrive func(V, []V) []V,
+    depart func(V, []V) []V,
+) func(vertices []V) []V {
+    return func(vertices []V) []V {
+        visited := make(map[V]bool)
+        acc := []V(nil)
+
+        var visit func(V)
+        visit = func(v V) {
+            if visited[v] {
+                return
+            }
+            visited[v] = true
+            acc = arrive(v, acc)
+            for _, u := range neighbors(v) {
+                visit(u)
+            }
+            acc = depart(v, acc)
+        }
+
+        for _, v := range vertices {
+            visit(v)
+        }
+        return acc
+    }
+}
+
+// Topological sort: ignore on arrive, collect on depart, reverse.
+noop := func(_ Vertex, acc []Vertex) []Vertex { return acc }
+collect := func(v Vertex, acc []Vertex) []Vertex { return append(acc, v) }
+sorted := dfs(graph.Neighbors, noop, collect)(graph.Vertices())
+slices.Reverse(sorted)
+
+// Reachability from a single source: collect on arrive, ignore on depart.
+reachable := dfs(graph.Neighbors, collect, noop)([]Vertex{source})
+```
+
+**What the decomposition reveals:** The one line that makes this a topological sort — `sorted = append(sorted, v)` — is surrounded by 42 lines of DFS mechanics. The functional decomposition makes the insight visible: topological order *is* DFS departure order. Everything else is engine. Stone further separates cycle detection into a standalone `acyclic?` predicate — a precondition, not part of the sort.
