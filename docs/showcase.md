@@ -425,14 +425,14 @@ func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
 func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
     ctx, cancel := context.WithCancel(ctx)
     defer cancel()
-    results := slice.FanOut(ctx, 10, cities, hof.TapErr(City, cancel))
+    results := slice.FanOut(ctx, 10, cities, hof.OnErr(City, cancel))
     return result.CollectAll(results)
 }
 ```
 
 **What changed:** The errgroup loop becomes two function calls. `City` already matches FanOut's `func(context.Context, T) (R, error)` signature, so it passes directly — no wrapper, no closure. `slice.FanOut` handles goroutine launching, bounding, and result collection — `results[i]` corresponds to `cities[i]` without manual indexing. `result.CollectAll` returns all values if every item succeeded, or the first error by input position otherwise.
 
-**Collect-all vs fail-fast:** The default FanOut version processes all items and returns every outcome. The fail-fast version wraps `City` with `hof.TapErr(City, cancel)` — when any call errors, `cancel()` fires, stopping in-flight calls that respect context and preventing new work from scheduling. This matches errgroup's automatic cancellation, with `TapErr` composing cleanly because it shares the same `func(ctx, T) (R, error)` signature as `Throttle`.
+**Collect-all vs fail-fast:** The default FanOut version processes all items and returns every outcome. The fail-fast version wraps `City` with `hof.OnErr(City, cancel)` — when any call errors, `cancel()` fires, stopping in-flight calls that respect context and preventing new work from scheduling. This matches errgroup's automatic cancellation, with `OnErr` composing cleanly because it shares the same `func(ctx, T) (R, error)` signature as `Throttle`.
 
 **What's eliminated:**
 

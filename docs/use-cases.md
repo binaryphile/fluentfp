@@ -285,7 +285,7 @@
 - Building blocks: identity function, equality predicate
 - Builtin adapters: length, printing, string predicates, successor
 - Concurrency control: by count (Throttle), by cost (ThrottleWeighted)
-- Side-effect on error (TapErr)
+- Side-effect on error (OnErr)
 
 ---
 

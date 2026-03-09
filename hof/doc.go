@@ -24,5 +24,5 @@ func _() {
 	_ = ThrottleWeighted[int, int]
 
 	// Side-effect wrappers
-	_ = TapErr[int, int]
+	_ = OnErr[int, int]
 }

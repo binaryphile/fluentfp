@@ -2,7 +2,7 @@ package hof
 
 import "context"
 
-// TapErr wraps fn so that onErr is called after fn returns a non-nil error.
+// OnErr wraps fn so that onErr is called after fn returns a non-nil error.
 // The returned function calls fn, checks for error, calls onErr() if present,
 // then returns fn's original results unchanged.
 //
@@ -10,12 +10,12 @@ import "context"
 // from multiple goroutines (e.g., context.CancelFunc is safe).
 //
 // Panics if fn is nil or onErr is nil.
-func TapErr[T, R any](fn func(context.Context, T) (R, error), onErr func()) func(context.Context, T) (R, error) {
+func OnErr[T, R any](fn func(context.Context, T) (R, error), onErr func()) func(context.Context, T) (R, error) {
 	if fn == nil {
-		panic("hof.TapErr: fn must not be nil")
+		panic("hof.OnErr: fn must not be nil")
 	}
 	if onErr == nil {
-		panic("hof.TapErr: onErr must not be nil")
+		panic("hof.OnErr: onErr must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {

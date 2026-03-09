@@ -278,20 +278,20 @@ each partially acquiring tokens can fill the channel, deadlocking all of them.
 FanOutWeighted avoids this via its sequential scheduling loop. The mutex is
 released before fn runs, so fn execution is fully concurrent.
 
-### D16: TapErr as error-triggered side-effect wrapper
+### D16: OnErr as error-triggered side-effect wrapper
 
-`TapErr` wraps a function to call a side-effect (`onErr func()`) after the
+`OnErr` wraps a function to call a side-effect (`onErr func()`) after the
 wrapped function returns a non-nil error. The original result is returned
-unchanged — TapErr observes errors, it doesn't handle them.
+unchanged — OnErr observes errors, it doesn't handle them.
 
-**Function wrapper family:** TapErr shares the `func(ctx, T) (R, error)` →
+**Function wrapper family:** OnErr shares the `func(ctx, T) (R, error)` →
 `func(ctx, T) (R, error)` signature with Throttle/ThrottleWeighted (D15).
-All three compose freely in any order: `Throttle(n, TapErr(fn, cancel))`.
+All three compose freely in any order: `Throttle(n, OnErr(fn, cancel))`.
 
 **Lifts result.IfErr:** result.IfErr triggers a side-effect on a Result value.
-TapErr does the same at the function boundary — the caller never sees a Result.
+OnErr does the same at the function boundary — the caller never sees a Result.
 
-**Stateless:** Unlike Throttle (which captures a channel semaphore), TapErr
+**Stateless:** Unlike Throttle (which captures a channel semaphore), OnErr
 captures only fn and onErr. No mutable state, no synchronization needed
 internally. However, onErr must be safe for concurrent use when the returned
 function is called from multiple goroutines (e.g., `context.CancelFunc` is

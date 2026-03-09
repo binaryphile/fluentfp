@@ -95,7 +95,7 @@ func ExampleThrottleWeighted() {
 	// Output: 42
 }
 
-func ExampleTapErr() {
+func ExampleOnErr() {
 	var count int
 
 	// onErr increments the error counter.
@@ -109,7 +109,7 @@ func ExampleTapErr() {
 		return n * 2, nil
 	}
 
-	wrapped := hof.TapErr(failOrDouble, onErr)
+	wrapped := hof.OnErr(failOrDouble, onErr)
 
 	r1, _ := wrapped(context.Background(), 5)
 	fmt.Println(r1, count)

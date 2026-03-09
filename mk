@@ -21,6 +21,7 @@ Usage:
 
     task          -- publish a task event
     done          -- publish a task-done event
+    complete      -- publish a completion event
     open          -- list open tasks
     audit         -- full task reconciliation
     claim         -- claim a task
@@ -71,6 +72,11 @@ cmd.done() {
   # era splits -m on commas, so use + as separator in refs value
   local refsVal=${ids//,/+}
   era publish -s $TaskStream --type task-done -m "refs=$refsVal" "$payload"
+}
+
+cmd.complete() {
+  [[ $# -ge 1 ]] || { echo "usage: $Prog complete <summary>" >&2; return 1; }
+  era publish -s $TaskStream --type Completion "$1"
 }
 
 cmd.open() {

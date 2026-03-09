@@ -456,7 +456,7 @@ hof.Throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(conte
 hof.ThrottleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
 
 // Side-effect wrappers — observe without modifying
-hof.TapErr[T, R any](fn func(context.Context, T) (R, error), onErr func()) func(context.Context, T) (R, error)
+hof.OnErr[T, R any](fn func(context.Context, T) (R, error), onErr func()) func(context.Context, T) (R, error)
 ```
 
 ### hof Patterns
@@ -493,10 +493,10 @@ for msg := range subscription {
     go processMsg(ctx, msg)  // blocks inside until budget available
 }
 
-// TapErr — fail-fast FanOut (cancel on first error)
+// OnErr — fail-fast FanOut (cancel on first error)
 ctx, cancel := context.WithCancel(ctx)
 defer cancel()
-results := slice.FanOut(ctx, 10, cities, hof.TapErr(City, cancel))
+results := slice.FanOut(ctx, 10, cities, hof.OnErr(City, cancel))
 ```
 
 ### must Package

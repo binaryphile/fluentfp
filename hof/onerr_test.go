@@ -9,7 +9,7 @@ import (
 	"github.com/binaryphile/fluentfp/hof"
 )
 
-func TestTapErrBasicSuccess(t *testing.T) {
+func TestOnErrBasicSuccess(t *testing.T) {
 	called := false
 
 	// onErr records whether it was called.
@@ -17,7 +17,7 @@ func TestTapErrBasicSuccess(t *testing.T) {
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
-	wrapped := hof.TapErr(doubleIt, onErr)
+	wrapped := hof.OnErr(doubleIt, onErr)
 	got, err := wrapped(context.Background(), 5)
 
 	if err != nil {
@@ -31,7 +31,7 @@ func TestTapErrBasicSuccess(t *testing.T) {
 	}
 }
 
-func TestTapErrCallsOnError(t *testing.T) {
+func TestOnErrCallsOnError(t *testing.T) {
 	called := false
 
 	// onErr records whether it was called.
@@ -40,7 +40,7 @@ func TestTapErrCallsOnError(t *testing.T) {
 	// failingFn always returns an error.
 	failingFn := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
 
-	wrapped := hof.TapErr(failingFn, onErr)
+	wrapped := hof.OnErr(failingFn, onErr)
 	_, err := wrapped(context.Background(), 5)
 
 	if !errors.Is(err, errBoom) {
@@ -51,7 +51,7 @@ func TestTapErrCallsOnError(t *testing.T) {
 	}
 }
 
-func TestTapErrWithContextCancel(t *testing.T) {
+func TestOnErrWithContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -61,7 +61,7 @@ func TestTapErrWithContextCancel(t *testing.T) {
 	// failingFn always returns an error.
 	failingFn := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
 
-	wrapped := hof.TapErr(failingFn, onErr)
+	wrapped := hof.OnErr(failingFn, onErr)
 	_, err := wrapped(ctx, 5)
 
 	if !errors.Is(err, errBoom) {
@@ -72,7 +72,7 @@ func TestTapErrWithContextCancel(t *testing.T) {
 	}
 }
 
-func TestTapErrComposesWithThrottle(t *testing.T) {
+func TestOnErrComposesWithThrottle(t *testing.T) {
 	var errCount atomic.Int32
 
 	// onErr increments the error counter (concurrency-safe).
@@ -86,8 +86,8 @@ func TestTapErrComposesWithThrottle(t *testing.T) {
 		return n * 2, nil
 	}
 
-	// Compose: Throttle wrapping TapErr.
-	throttled := hof.Throttle(2, hof.TapErr(doubleOrFail, onErr))
+	// Compose: Throttle wrapping OnErr.
+	throttled := hof.Throttle(2, hof.OnErr(doubleOrFail, onErr))
 
 	// Success path.
 	got, err := throttled(context.Background(), 5)
@@ -111,7 +111,7 @@ func TestTapErrComposesWithThrottle(t *testing.T) {
 	}
 }
 
-func TestTapErrValidationPanics(t *testing.T) {
+func TestOnErrValidationPanics(t *testing.T) {
 	// dummyFn is a placeholder function.
 	dummyFn := func(_ context.Context, _ int) (int, error) { return 0, nil }
 	// dummyOnErr is a placeholder side-effect.
@@ -123,11 +123,11 @@ func TestTapErrValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "nil_fn",
-			fn:   func() { hof.TapErr[int, int](nil, dummyOnErr) },
+			fn:   func() { hof.OnErr[int, int](nil, dummyOnErr) },
 		},
 		{
 			name: "nil_onErr",
-			fn:   func() { hof.TapErr(dummyFn, nil) },
+			fn:   func() { hof.OnErr(dummyFn, nil) },
 		},
 	}
 
