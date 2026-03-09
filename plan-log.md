@@ -2074,6 +2074,7 @@ README examples should be self-documenting—naming wrappers after their values 
 [ ] doc.go updated
 [ ] slice/README.md updated
 [ ] CLAUDE.md updated
+<<<<<<< Updated upstream
 2026-02-15T22:00:00Z | Contract: fluentfp new methods
 [ ] String.ToSet()
 [ ] Mapper.Clone() + MapperTo.Clone()
@@ -3096,5 +3097,7 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 [x] hof.TapErr wraps fn with error-triggered side-effect (TestTapErrCallsOnError, TestTapErrBasicSuccess)
 [x] Composes with Throttle — same signature (TestTapErrComposesWithThrottle)
 [x] FanOut showcase shows fail-fast pattern (showcase.md fail-fast variant)
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
