@@ -78,11 +78,7 @@ Go struct literals let you build and return a value in one statement — fluentf
 
 <table>
 <tr><th>Before</th><th>After</th></tr>
-<tr>
-<td>
-
-```go
-var level string
+<tr><td><pre><code class="language-go">var level string
 if overdue {
     level = "critical"
 } else {
@@ -99,21 +95,12 @@ return Alert{
     Level:   level,
     Icon:    icon,
 }
-```
-
-</td>
-<td>
-
-```go
-return Alert{
+</code></pre></td><td><pre><code class="language-go">return Alert{
     Message: msg,
     Level:   value.Of("critical").When(overdue).Or("info"),
     Icon:    value.Of("!").When(overdue).Or("✓"),
 }
-```
-
-</td>
-</tr>
+</code></pre></td></tr>
 </table>
 
 Go has no inline conditional expression. `value.Of` fills that gap — each field resolves in place, so the struct literal stays a single statement. *From [hashicorp/consul](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530).*
@@ -124,11 +111,7 @@ A network monitor's "top N processes by metric" function: convert a map to a sli
 
 <table>
 <tr><th>Before (18 lines)</th><th>After (2-line body)</th></tr>
-<tr>
-<td>
-
-```go
-func (s *Snapshot) TopNProcesses(
+<tr><td><pre><code class="language-go">func (s *Snapshot) TopNProcesses(
     n int, mode ViewMode,
 ) []ProcessesResult {
     var items []ProcessesResult
@@ -138,33 +121,26 @@ func (s *Snapshot) TopNProcesses(
     switch mode {
     case ModeTableBytes:
         sort.Slice(items, func(i, j int) bool {
-            return items[i].TotalBytes() >
+            return items[i].TotalBytes() &gt;
                 items[j].TotalBytes()
         })
     case ModeTablePackets:
         sort.Slice(items, func(i, j int) bool {
-            return items[i].TotalPackets() >
+            return items[i].TotalPackets() &gt;
                 items[j].TotalPackets()
         })
     }
-    if len(items) < n {
+    if len(items) &lt; n {
         n = len(items)
     }
     return items[:n]
 }
-```
-
-</td>
-<td>
-
-```go
-var sortKey = map[ViewMode]func(
+</code></pre></td><td><pre><code class="language-go">var sortKey = map[ViewMode]func(
     ProcessesResult,
 ) int{
     ModeTableBytes:   ProcessesResult.TotalBytes,
     ModeTablePackets: ProcessesResult.TotalPackets,
 }
-
 func (s *Snapshot) TopNProcesses(
     n int, mode ViewMode,
 ) []ProcessesResult {
@@ -172,10 +148,7 @@ func (s *Snapshot) TopNProcesses(
     return kv.Map(s.Processes, NewResult).
         Sort(desc).Take(n)
 }
-```
-
-</td>
-</tr>
+</code></pre></td></tr>
 </table>
 
 `kv.Map` replaces the map-to-slice loop. Two duplicated `sort.Slice` closures with `func(i, j int) bool` become `.Sort(desc)` — method expressions in a map replace the switch. `.Take(n)` replaces the four-line bounds check. No index variables means no `items[i]`-vs-`items[j]` misreference. *From [chenjiandongx/sniffer](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93).*
@@ -186,11 +159,7 @@ Fetch weather for a list of cities with at most 10 simultaneous goroutines.
 
 <table>
 <tr><th>Before — errgroup (21 lines)</th><th>After (2 lines)</th></tr>
-<tr>
-<td>
-
-```go
-func Cities(
+<tr><td><pre><code class="language-go">func Cities(
     ctx context.Context, cities ...string,
 ) ([]*Info, error) {
     g, ctx := errgroup.WithContext(ctx)
@@ -211,13 +180,7 @@ func Cities(
     }
     return res, nil
 }
-```
-
-</td>
-<td>
-
-```go
-func Cities(
+</code></pre></td><td><pre><code class="language-go">func Cities(
     ctx context.Context, cities ...string,
 ) ([]*Info, error) {
     results := slice.FanOut(
@@ -225,10 +188,7 @@ func Cities(
     )
     return result.CollectAll(results)
 }
-```
-
-</td>
-</tr>
+</code></pre></td></tr>
 </table>
 
 `FanOut` replaces the goroutine-launching loop, closure captures, result-slot bookkeeping, and error aggregation. `City` passes directly — no wrapper needed. Unlike errgroup, FanOut recovers panics per item (as `*result.PanicError` with stack trace) and preserves every item's outcome. *From the [errgroup pattern](https://encore.dev/blog/advanced-go-concurrency).*
