@@ -130,7 +130,8 @@ For errgroup-equivalent fail-fast behavior, wrap with `hof.OnErr`:
 ```go
 ctx, cancel := context.WithCancel(ctx)
 defer cancel()
-results := slice.FanOut(ctx, 10, cities, hof.OnErr(City, cancel))
+failFast := hof.OnErr(City, cancel)
+results := slice.FanOut(ctx, 10, cities, failFast)
 ```
 
 *From the [errgroup pattern](https://encore.dev/blog/advanced-go-concurrency).*
