@@ -111,9 +111,7 @@ A network monitor's "top N processes by metric" function: convert a map to a sli
 
 <table>
 <tr><th>Before (18 lines)</th><th>After (2-line body)</th></tr>
-<tr><td><pre><code class="language-go">func (s *Snapshot) TopNProcesses(
-    n int, mode ViewMode,
-) []ProcessesResult {
+<tr><td><pre><code class="language-go">func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
     var items []ProcessesResult
     for k, v := range s.Processes {
         items = append(items, NewResult(k, v))
@@ -121,13 +119,11 @@ A network monitor's "top N processes by metric" function: convert a map to a sli
     switch mode {
     case ModeTableBytes:
         sort.Slice(items, func(i, j int) bool {
-            return items[i].TotalBytes() &gt;
-                items[j].TotalBytes()
+            return items[i].TotalBytes() &gt; items[j].TotalBytes()
         })
     case ModeTablePackets:
         sort.Slice(items, func(i, j int) bool {
-            return items[i].TotalPackets() &gt;
-                items[j].TotalPackets()
+            return items[i].TotalPackets() &gt; items[j].TotalPackets()
         })
     }
     if len(items) &lt; n {
@@ -154,9 +150,7 @@ Fetch weather for a list of cities with at most 10 simultaneous goroutines.
 
 <table>
 <tr><th>Before — errgroup (21 lines)</th><th>After (2 lines)</th></tr>
-<tr><td><pre><code class="language-go">func Cities(
-    ctx context.Context, cities ...string,
-) ([]*Info, error) {
+<tr><td><pre><code class="language-go">func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
     g, ctx := errgroup.WithContext(ctx)
     g.SetLimit(10)
     res := make([]*Info, len(cities))
@@ -175,12 +169,8 @@ Fetch weather for a list of cities with at most 10 simultaneous goroutines.
     }
     return res, nil
 }
-</code></pre></td><td><pre><code class="language-go">func Cities(
-    ctx context.Context, cities ...string,
-) ([]*Info, error) {
-    results := slice.FanOut(
-        ctx, 10, cities, City,
-    )
+</code></pre></td><td><pre><code class="language-go">func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
+    results := slice.FanOut(ctx, 10, cities, City)
     return result.CollectAll(results)
 }
 </code></pre></td></tr>
