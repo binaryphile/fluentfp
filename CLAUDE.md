@@ -290,7 +290,7 @@ result.PanicError{ Value any; Stack []byte }  // detect via errors.As
 result.CollectAll[R any](results []Result[R]) ([]R, error)  // all Ok → values; first Err → error
 result.CollectOk[R any](results []Result[R]) []R             // Ok values only
 result.CollectErr[R any](results []Result[R]) []error        // Err values only
-result.Partition[R any](results []Result[R]) ([]R, []error)  // single-pass split
+result.CollectResults[R any](results []Result[R]) ([]R, []error)  // single-pass split
 ```
 
 ### stream Package

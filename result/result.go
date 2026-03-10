@@ -216,8 +216,8 @@ func CollectErr[R any](results []Result[R]) []error {
 	return errs
 }
 
-// Partition splits results into Ok values and Err errors in a single pass, preserving order.
-func Partition[R any](results []Result[R]) ([]R, []error) {
+// CollectResults splits results into Ok values and Err errors in a single pass, preserving order.
+func CollectResults[R any](results []Result[R]) ([]R, []error) {
 	values := make([]R, 0, len(results))
 	errs := make([]error, 0)
 

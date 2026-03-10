@@ -654,7 +654,7 @@ uploads, err := result.CollectAll(results)    // all-or-nothing
 For Hex's pattern — partial success is acceptable:
 
 ```go
-downloaded, failures := result.Partition(slice.FanOut(ctx, 8, deps, fetchDep))
+downloaded, errs := result.CollectResults(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
 Or when only successes matter:
@@ -663,7 +663,7 @@ Or when only successes matter:
 downloaded := result.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
-**What this brings to Go:** Three consumption modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `Partition` for both halves, `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
+**What this brings to Go:** Three consumption modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `CollectResults` for both halves, `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
 
 ---
 

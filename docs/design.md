@@ -27,7 +27,7 @@ flowchart TD
 | `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapTo, Values, Keys) |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
-| `result` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr` collectors, `Partition` (single-pass split into values and errors) |
+| `result` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`CollectResults` collectors |
 | `stream` | Lazy memoized sequences with per-cell mutex memoization. Head-eager, tail-lazy. Pure sources only. |
 | `must` | Panic-on-error enforcement for initialization invariants |
 | `value` | Conditional value selection with eager/lazy evaluation |

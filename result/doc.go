@@ -22,7 +22,9 @@ func _() {
 	_ = Fold[int, string]
 	_ = Lift[string, int]
 	_ = CollectAll[int]
+	_ = CollectErr[int]
 	_ = CollectOk[int]
+	_ = CollectResults[int]
 
 	// PanicError type and methods
 	type _ = PanicError
