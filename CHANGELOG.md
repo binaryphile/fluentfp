@@ -186,7 +186,7 @@
 ## v0.27.0
 
 - Fix parallel operations to return non-nil empty slices for nil/empty input, matching sequential method behavior
-- Remove redundant panic checks in `ParallelKeepIf` (both `Mapper` and `MapperTo`)
+- Remove redundant panic checks in `PKeepIf` (both `Mapper` and `MapperTo`)
 - Add parallel operations to doc.go export verifications and CLAUDE.md API docs
 
 ## v0.26.0
@@ -209,7 +209,7 @@
 - `Int` converted to concrete defined type (was alias)
 - Generic `ToSet[T comparable]` for slice-to-set conversion
 - `String.ToSet` for `map[string]bool` construction
-- Parallel operations: `ParallelMap`, `ParallelKeepIf`, `ParallelEach`
+- Parallel operations: `PMap`, `PKeepIf`, `PEach`
 
 ## v0.22.0
 

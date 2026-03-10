@@ -131,7 +131,7 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
 - **Transform**: `Convert`, `FlatMap`, `Map` (MapperTo), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `UniqueBy`, `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`
-- **Parallel**: `ParallelMap`, `ParallelKeepIf`, `ParallelEach` — concurrent versions for CPU/IO-bound transforms. Goroutine overhead makes these slower for trivial operations; only beneficial when `fn` does meaningful work per element. Run `go test -bench=BenchmarkParallel ./slice/` for numbers on your hardware.
+- **Parallel**: `PMap`, `PKeepIf`, `PEach` — concurrent versions for CPU/IO-bound transforms. Goroutine overhead makes these slower for trivial operations; only beneficial when `fn` does meaningful work per element. Run `go test -bench=BenchmarkP ./slice/` for numbers on your hardware.
 - **Concurrent I/O**: `FanOut`, `FanOutEach` — bounded concurrent traversal with per-item scheduling, context-aware cancellation, and panic recovery. Returns `Mapper[result.Result[R]]` for chainability. See [result](../result/) for `CollectAll`/`CollectOk`.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
@@ -198,9 +198,9 @@ if errors.As(err, &pe) {
 }
 ```
 
-### FanOut vs ParallelMap
+### FanOut vs PMap
 
-| | FanOut | ParallelMap |
+| | FanOut | PMap |
 |---|---|---|
 | **Scheduling** | Per-item (semaphore) | Batch chunking |
 | **Context** | Passed to `fn` | None |
@@ -209,6 +209,6 @@ if errors.As(err, &pe) {
 
 The scheduling difference matters for I/O. Per-item scheduling means as soon as one HTTP call finishes, the next item starts — the semaphore slot is immediately reused. Batch chunking divides items into equal groups; if one item in a batch is slow, its worker sits occupied while faster workers in other batches finish and go idle. For CPU-bound work with uniform cost per item, batches avoid the per-item goroutine overhead.
 
-Use `FanOut` when items have variable latency and you need error handling. Use `ParallelMap` when items have uniform cost and `fn` can't fail.
+Use `FanOut` when items have variable latency and you need error handling. Use `PMap` when items have uniform cost and `fn` can't fail.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation, the [main README](../README.md) for installation and performance characteristics, and the [showcase](../docs/showcase.md) for real-world rewrites.

@@ -122,9 +122,9 @@ slice.Unzip3[T, A, B, C](...)
 slice.Unzip4[T, A, B, C, D](...)
 
 // Parallel operations (low demand — zero adoption in lo/go-linq survey)
-slice.ParallelMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
-.ParallelKeepIf(workers int, fn func(T) bool) Mapper[T]  // method on Mapper and MapperTo
-.ParallelEach(workers int, fn func(T))                     // method on Mapper and MapperTo
+slice.PMap[T, R](m Mapper[T], workers int, fn func(T) R) Mapper[R]
+.PKeepIf(workers int, fn func(T) bool) Mapper[T]  // method on Mapper and MapperTo
+.PEach(workers int, fn func(T))                     // method on Mapper and MapperTo
 
 // FanOut — bounded concurrent traversal for I/O workloads (per-item scheduling)
 slice.FanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) Mapper[result.Result[R]]
@@ -134,9 +134,9 @@ slice.FanOutEach[T any](ctx context.Context, n int, ts Mapper[T], fn func(contex
 slice.FanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]]
 slice.FanOutEachWeighted[T any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) error) []error
 
-// Map, ParallelMap, Fold, and MapAccum are standalone (not methods) because they return
+// Map, PMap, Fold, and MapAccum are standalone (not methods) because they return
 // a different type R — Go can't infer R from Mapper[T]'s receiver.
-// MapperTo[R, T].ParallelMap IS a method because both type params are on the receiver.
+// MapperTo[R, T].PMap IS a method because both type params are on the receiver.
 ```
 
 ### Parallel Patterns (low demand — zero adoption observed in lo/go-linq survey)
@@ -151,13 +151,13 @@ slice.FanOutEachWeighted[T any](ctx context.Context, capacity int, ts Mapper[T],
 // on small slices — goroutine overhead dominates.
 
 // Typical usage
-results := slice.ParallelMap(slice.From(urls), 8, fetchURL)
+results := slice.PMap(slice.From(urls), 8, fetchURL)
 
 // Method form on Mapper
-actives := slice.From(users).ParallelKeepIf(4, User.IsExpensiveCheck)
+actives := slice.From(users).PKeepIf(4, User.IsExpensiveCheck)
 
 // Side-effects (e.g., sending notifications)
-slice.From(users).ParallelEach(4, notifyUser)
+slice.From(users).PEach(4, notifyUser)
 
 // FanOut — bounded concurrent traversal for I/O workloads (per-item scheduling)
 // Returns Mapper[result.Result[R]] for chainability. Panic recovery per item.
@@ -176,9 +176,9 @@ results := slice.FanOutWeighted(ctx, 100, files, itemCost, processFile)
 // FanOutEachWeighted — side-effect variant
 errs := slice.FanOutEachWeighted(ctx, 50, jobs, jobCost, runJob)
 
-// FanOut vs ParallelMap:
+// FanOut vs PMap:
 // - FanOut: per-item scheduling, context-aware, error/panic per item (I/O-bound)
-// - ParallelMap: batch chunking, no context, no error handling (CPU-bound)
+// - PMap: batch chunking, no context, no error handling (CPU-bound)
 // FanOut vs FanOutWeighted:
 // - FanOut: uniform cost (at most n items)
 // - FanOutWeighted: variable cost (at most capacity units of cost)

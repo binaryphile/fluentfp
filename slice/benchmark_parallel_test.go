@@ -16,9 +16,9 @@ func cpuWork(n int) int {
 	return int(x)
 }
 
-// --- ParallelMap benchmarks ---
+// --- PMap benchmarks ---
 
-func BenchmarkParallelMap_Trivial(b *testing.B) {
+func BenchmarkPMap_Trivial(b *testing.B) {
 	double := func(n int) int { return n * 2 }
 	sizes := []struct {
 		name string
@@ -43,13 +43,13 @@ func BenchmarkParallelMap_Trivial(b *testing.B) {
 		})
 		b.Run("par/"+sz.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = ParallelMap(m, workers, double)
+				_ = PMap(m, workers, double)
 			}
 		})
 	}
 }
 
-func BenchmarkParallelMap_CPUBound(b *testing.B) {
+func BenchmarkPMap_CPUBound(b *testing.B) {
 	sizes := []struct {
 		name string
 		n    int
@@ -73,15 +73,15 @@ func BenchmarkParallelMap_CPUBound(b *testing.B) {
 		})
 		b.Run("par/"+sz.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = ParallelMap(m, workers, cpuWork)
+				_ = PMap(m, workers, cpuWork)
 			}
 		})
 	}
 }
 
-// --- ParallelKeepIf benchmarks ---
+// --- PKeepIf benchmarks ---
 
-func BenchmarkParallelKeepIf_Trivial(b *testing.B) {
+func BenchmarkPKeepIf_Trivial(b *testing.B) {
 	isEven := func(n int) bool { return n%2 == 0 }
 	sizes := []struct {
 		name string
@@ -106,13 +106,13 @@ func BenchmarkParallelKeepIf_Trivial(b *testing.B) {
 		})
 		b.Run("par/"+sz.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = m.ParallelKeepIf(workers, isEven)
+				_ = m.PKeepIf(workers, isEven)
 			}
 		})
 	}
 }
 
-func BenchmarkParallelKeepIf_CPUBound(b *testing.B) {
+func BenchmarkPKeepIf_CPUBound(b *testing.B) {
 	expensive := func(n int) bool { return cpuWork(n) > 0 }
 	sizes := []struct {
 		name string
@@ -137,7 +137,7 @@ func BenchmarkParallelKeepIf_CPUBound(b *testing.B) {
 		})
 		b.Run("par/"+sz.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = m.ParallelKeepIf(workers, expensive)
+				_ = m.PKeepIf(workers, expensive)
 			}
 		})
 	}

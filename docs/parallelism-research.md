@@ -2,7 +2,7 @@
 
 ## 1. Introduction
 
-fluentfp provides `ParallelMap`, `ParallelKeepIf`, and `ParallelEach` — chunk-based batch parallelism using `sync.WaitGroup` with static partitioning. A March 2026 survey of repos that use `lo` or `go-linq` found **zero adoption** of parallel collection operations in those codebases.
+fluentfp provides `PMap`, `PKeepIf`, and `PEach` — chunk-based batch parallelism using `sync.WaitGroup` with static partitioning. A March 2026 survey of repos that use `lo` or `go-linq` found **zero adoption** of parallel collection operations in those codebases.
 
 This is a narrow population — repos that chose an FP collection library for lightweight transforms. They were never going to represent the breadth of parallelism use cases found in infrastructure tools, compilers, or data processing systems. The finding tells us that *this specific audience* doesn't reach for parallel collection ops; it doesn't tell us much about whether the pattern has value in Go generally.
 
@@ -160,7 +160,7 @@ Eight patterns emerged from the survey:
 
 | Pattern                           | Representatives       | Composability | Error Support | Cancellation   | Go Viability                                          |
 | --------------------------------- | --------------------- | ------------- | ------------- | -------------- | ----------------------------------------------------- |
-| 1. Rename (`Map` → `ParallelMap`) | fluentfp, F#          | None          | Possible      | No             | Current state                                         |
+| 1. Rename (`Map` → `PMap`) | fluentfp, F#          | None          | Possible      | No             | Current state                                         |
 | 2. Composable Pipeline            | Rayon, Java, PLINQ    | Full          | Rayon: yes    | Rayon: limited | Requires lazy type or work-stealing runtime           |
 | 3. Per-Operator Concurrency       | Akka, Flow            | Full          | Excellent     | Yes            | Requires streaming runtime; overengineered for slices |
 | 4a. Structured Concurrency        | errgroup              | None          | Yes           | Yes (context)  | The baseline                                          |
@@ -169,7 +169,7 @@ Eight patterns emerged from the survey:
 | 6. Execution Policy               | C++ STL               | None          | Possible      | No             | Marginal benefit over separate function               |
 | 7. Bounded Concurrent Traversal   | Elixir, Erlang, Rust  | Full          | Per-item      | Yes            | Per-item scheduling; proven for I/O                   |
 
-**Key finding:** Two distinct primitives serve two workloads. CPU-bound: static chunking (Rayon, existing ParallelMap) — uniform work per item, batch scheduling amortizes overhead. I/O-bound: bounded dynamic scheduling with per-item results (Elixir, Erlang, Rust) — handles skew, preserves individual outcomes. Multi-stage parallel composition is rare even in Rust (Rayon consumers). The right Go abstractions are "parallel map" for CPU and "bounded concurrent traversal" for I/O, not "parallel pipeline."
+**Key finding:** Two distinct primitives serve two workloads. CPU-bound: static chunking (Rayon, existing PMap) — uniform work per item, batch scheduling amortizes overhead. I/O-bound: bounded dynamic scheduling with per-item results (Elixir, Erlang, Rust) — handles skew, preserves individual outcomes. Multi-stage parallel composition is rare even in Rust (Rayon consumers). The right Go abstractions are "parallel map" for CPU and "bounded concurrent traversal" for I/O, not "parallel pipeline."
 
 ---
 
@@ -288,7 +288,7 @@ How many surveyed call sites are clean fits for `FanOut(ctx, n, items, fn) Mappe
 
 ### Direction: Two Primitives for Two Workloads
 
-**CPU-bound:** Existing `ParallelMap` (static chunking, infallible) — unchanged. Uniform work per item; batch scheduling amortizes overhead.
+**CPU-bound:** Existing `PMap` (static chunking, infallible) — unchanged. Uniform work per item; batch scheduling amortizes overhead.
 
 **I/O-bound:** New bounded concurrent traversal (per-item scheduling, per-item results) — modeled on Elixir `Task.async_stream`, Erlang pmap, Rust `buffered(n)`.
 
@@ -377,7 +377,7 @@ Returns `[]error` with `len(errs) == len(ts)` — nil entries for successes, pre
 
 | Condition | Behavior |
 |-----------|----------|
-| `n <= 0` | Panic (programmer error, consistent with existing `ParallelMap`) |
+| `n <= 0` | Panic (programmer error, consistent with existing `PMap`) |
 | `ctx == nil` | Panic (programmer error) |
 | `fn == nil` | Panic (programmer error) |
 | Validation precedence | Programmer errors (n<=0, nil ctx, nil fn) checked first, then empty input |
@@ -409,13 +409,13 @@ In-flight items continue cooperatively until fn returns and record their actual 
 
 Semaphore (buffered channel) + WaitGroup + indexed writes. An alternative implementation uses a transient worker pool with a shared task queue — same dynamic scheduling, potentially less goroutine churn. Both should be benchmarked (see Appendix B). Semaphore+goroutine-per-item is simpler to implement and reason about; start there.
 
-Package placement: `slice.FanOut` and `slice.FanOutEach` — sit alongside existing `ParallelMap`. Both are collection-level parallel operations; different scheduling models don't warrant separate packages.
+Package placement: `slice.FanOut` and `slice.FanOutEach` — sit alongside existing `PMap`. Both are collection-level parallel operations; different scheduling models don't warrant separate packages.
 
 ### Relationship to Existing Ops
 
 ```go
 // CPU-bound, infallible: fn cannot fail, uniform work
-hashes := slice.ParallelMap(slice.From(files), 8, computeHash)
+hashes := slice.PMap(slice.From(files), 8, computeHash)
 
 // I/O-bound, fallible: fn can fail, needs cancellation, skewed work
 results := slice.FanOut(ctx, 8, urls, fetchURL)
@@ -424,9 +424,9 @@ results := slice.FanOut(ctx, 8, urls, fetchURL)
 errs := slice.FanOutEach(ctx, 8, gateways, pushConfig)
 ```
 
-ParallelMap stays for CPU-bound. FanOut/FanOutEach are the I/O primitives. Different names, different scheduling, different error models — clearly separated.
+PMap stays for CPU-bound. FanOut/FanOutEach are the I/O primitives. Different names, different scheduling, different error models — clearly separated.
 
-Keep `ParallelMap`, `ParallelKeepIf`, and `ParallelEach` as-is. Zero adoption is a signal to not *expand* them, but they are correct and tested — deprecation should follow a failed experiment, not precede it.
+Keep `PMap`, `PKeepIf`, and `PEach` as-is. Zero adoption is a signal to not *expand* them, but they are correct and tested — deprecation should follow a failed experiment, not precede it.
 
 ### Deprecation Criteria
 
@@ -447,7 +447,7 @@ If these gates are not met within 6 months or 2 releases, remove `FanOut`/`FanOu
 1. ~~**Implement `FanOut` as internal helper**~~ — **Done (v0.40.0).** Implemented as public API (`slice.FanOut`, `slice.FanOutEach`) with full test suite including race detection. Key design divergence from this document: `Result[R]` is a standalone defined type (not an `Either[error, R]` alias) — see [design.md §D11](design.md) for rationale.
 2. ~~**Write benchmarks alongside implementation**~~ — **Done.** Scheduling overhead, I/O-bound simulation, CPU-bound comparison, small input, and FanOut vs raw semaphore+WaitGroup benchmarks in `slice/benchmark_fanout_test.go`.
 3. **Evaluate against deprecation criteria** after real usage.
-4. ~~**Panic recovery policy**~~ — **Done.** FanOut catches panics (per-item `PanicError` with `Unwrap()` for error chain preservation); ParallelMap does not. See Appendix C.
+4. ~~**Panic recovery policy**~~ — **Done.** FanOut catches panics (per-item `PanicError` with `Unwrap()` for error chain preservation); PMap does not. See Appendix C.
 
 ---
 
@@ -463,7 +463,7 @@ Leave current parallel ops unchanged. **Rejected** because the current ops miss 
 
 ### (c) Deprecate parallel ops
 
-Remove `ParallelMap`, `ParallelKeepIf`, `ParallelEach`. **Rejected** — deprecation should follow a failed experiment, not precede one.
+Remove `PMap`, `PKeepIf`, `PEach`. **Rejected** — deprecation should follow a failed experiment, not precede one.
 
 ### (d) Multiple error variants at once
 
@@ -494,7 +494,7 @@ Before making `FanOut` public, benchmark the actual overhead.
 **What to measure:**
 1. **Scheduling overhead** — `FanOut` with no-op fn vs sequential loop
 2. **Crossover point** — minimum per-item cost where parallelism outperforms sequential (at N=100, 1000, 10000)
-3. **Per-item scheduling (FanOut) vs errgroup `SetLimit` vs static chunking (ParallelMap)** — under uniform and skewed workloads
+3. **Per-item scheduling (FanOut) vs errgroup `SetLimit` vs static chunking (PMap)** — under uniform and skewed workloads
 4. **Skewed workload** — mix of fast (1ms) and slow (100ms) items; this is where per-item scheduling should outperform static chunking
 5. **Implementation strategy** — semaphore+goroutine-per-item vs transient worker pool+task queue, under uniform and skewed workloads. Both achieve bounded dynamic scheduling; goroutine-per-item is simpler, worker pool may have less goroutine churn
 
@@ -544,7 +544,7 @@ func (e *PanicError) Error() string {
 
 **Alternative: propagate.** Go default. Process crashes. Simpler mental model but loses partial results. Some Go developers consider library panic recovery wrong behavior.
 
-**Policy split:** FanOut always catches (per-item results make it natural). ParallelMap never catches (infallible — panics indicate bugs, not expected failures). Different functions, different policies — no semantic inconsistency.
+**Policy split:** FanOut always catches (per-item results make it natural). PMap never catches (infallible — panics indicate bugs, not expected failures). Different functions, different policies — no semantic inconsistency.
 
 **Debuggability:** `recover()` captures the panic value but loses the original stack trace. Workers should capture `debug.Stack()` and wrap it in the error. This adds complexity but preserves diagnostic value.
 

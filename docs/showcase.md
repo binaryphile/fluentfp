@@ -52,11 +52,11 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
     ModeTablePackets: ProcessesResult.TotalPackets,
 }
 
-desc := slice.Desc(sortFuncs[mode])
-results := kv.Map(s.Processes, NewResult).Sort(desc).Take(n)
+byViewModeDesc := slice.Desc(sortFuncs[mode])
+results := kv.Map(s.Processes, NewResult).Sort(byViewModeDesc).Take(n)
 ```
 
-**What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(desc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
+**What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(byViewModeDesc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
 
 **What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `.Sort` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
 
@@ -216,7 +216,8 @@ duplicates.SelectT(toSummary).ToSlice(&summaries)
 
 **fluentfp:**
 ```go
-duplicates := slice.GroupBy(styleList, valueHash).KeepIf(hasDuplicates).Sort(slice.Desc(groupSize))
+byGroupSizeDesc := slice.Desc(groupSize)
+duplicates := slice.GroupBy(styleList, valueHash).KeepIf(hasDuplicates).Sort(byGroupSizeDesc)
 summaries := slice.Map(duplicates, toSummary)
 ```
 
@@ -384,14 +385,15 @@ func combinedStatus(statuses []string) string {
 ```go
 type G = slice.Group[string, string]
 
+byKey := slice.Asc(G.GetKey)
+
 // formatGroup formats a status group as "status(count)".
 formatGroup := func(g G) string {
 	return fmt.Sprintf("%s(%d)", g.Key, len(g.Items))
 }
 
 func combinedStatus(statuses []string) string {
-	asc := slice.Asc(G.GetKey)
-	formatted := slice.GroupBy(statuses, lof.StringIdentity).Sort(asc).ToString(formatGroup)
+	formatted := slice.GroupBy(statuses, lof.StringIdentity).Sort(byKey).ToString(formatGroup)
 	return strings.Join(formatted, ", ")
 }
 ```
@@ -495,7 +497,7 @@ func listAllObjects(bucket string) []Object {
     for {
         page := listObjects(bucket, token)
         all = append(all, page.Objects...)
-        next, ok := page.NextToken.Get()
+        next, ok := page.NextTokenOption.Get()
         if !ok {
             break
         }
@@ -512,7 +514,7 @@ Every consumer (collect all, find one, sample first N) rewrites this loop with d
 // pageStep fetches one page and returns the optional next cursor.
 pageStep := func(token string) (ObjectPage, option.String) {
     page := listObjects(bucket, token)
-    return page, page.NextToken
+    return page, page.NextTokenOption
 }
 
 pages := stream.Paginate("", pageStep)
@@ -576,7 +578,7 @@ segments := slice.Map(enabledModules, renderModule)
 
 **Parallel:**
 ```go
-segments := slice.ParallelMap(enabledModules, 8, renderModule)
+segments := slice.PMap(enabledModules, 8, renderModule)
 ```
 
 Same function, one call-site change — the Rayon pattern. `renderModule` doesn't gain a worker ID, doesn't need a mutex.
@@ -597,12 +599,12 @@ isEnabled := func(name string) bool {
     }
 }
 
-active := slice.From(allModules).ParallelKeepIf(8, isEnabled)
+active := slice.From(allModules).PKeepIf(8, isEnabled)
 ```
 
-**What this brings to Go:** Starship demonstrates that parallelism is a property of the *traversal*, not the *transform*. The function you wrote for sequential use works unchanged. Without fluentfp, parallelizing this in Go requires a `sync.WaitGroup`, a result slice with index bookkeeping, goroutines with closure capture, and — if you want the filter variant — a mutex-protected accumulator. `ParallelMap` absorbs all of that: same function signature, one call-site change.
+**What this brings to Go:** Starship demonstrates that parallelism is a property of the *traversal*, not the *transform*. The function you wrote for sequential use works unchanged. Without fluentfp, parallelizing this in Go requires a `sync.WaitGroup`, a result slice with index bookkeeping, goroutines with closure capture, and — if you want the filter variant — a mutex-protected accumulator. `PMap` absorbs all of that: same function signature, one call-site change.
 
-*See also: [Polars](https://github.com/pola-rs/polars) (Rust DataFrame library) uses the same Rayon pattern for parallel group-by aggregation and parallel CSV row counting. [Tokei](https://github.com/XAMPPRocky/tokei) (code statistics tool) uses `par_iter_mut().for_each()` to aggregate line counts per language — matching `ParallelEach`.*
+*See also: [Polars](https://github.com/pola-rs/polars) (Rust DataFrame library) uses the same Rayon pattern for parallel group-by aggregation and parallel CSV row counting. [Tokei](https://github.com/XAMPPRocky/tokei) (code statistics tool) uses `par_iter_mut().for_each()` to aggregate line counts per language — matching `PEach`.*
 
 ---
 
@@ -778,3 +780,110 @@ reachable := reachFrom([]Vertex{source})
 ```
 
 **What the decomposition reveals:** The one line that makes this a topological sort — `sorted = append(sorted, v)` — is surrounded by 42 lines of DFS mechanics. The functional decomposition makes the insight visible: topological order *is* DFS departure order. Everything else is engine. Stone further separates cycle detection into a standalone `acyclic?` predicate — a precondition, not part of the sort.
+
+---
+
+## Combinatorics
+
+### Permutations for order-independent testing — canonical/chisel
+
+**Source:** [internal/testutil/permutation.go](https://github.com/canonical/chisel/blob/main/internal/testutil/permutation.go)
+**Pain point:** A dedicated 24-line file implementing Heap's algorithm just to generate permutations for testing
+
+Chisel (Canonical's minimal Ubuntu container tool) tests that `FindSlices` produces consistent results regardless of query term order. To do this, they need all permutations of the query. The project carries a standalone 24-line generic implementation of Heap's algorithm in its test utilities.
+
+**Original** (24 lines — entire file):
+```go
+package testutil
+
+func Permutations[S ~[]E, E any](s S) []S {
+    var output []S
+    var generate func(k int, s S)
+    generate = func(k int, s S) {
+        if k <= 1 {
+            r := make([]E, len(s))
+            copy(r, s)
+            output = append(output, r)
+            return
+        }
+        generate(k-1, s)
+        for i := 0; i < k-1; i += 1 {
+            if k%2 == 0 {
+                s[i], s[k-1] = s[k-1], s[i]
+            } else {
+                s[0], s[k-1] = s[k-1], s[0]
+            }
+            generate(k-1, s)
+        }
+    }
+    sCpy := make([]E, len(s))
+    copy(sCpy, s)
+    generate(len(sCpy), sCpy)
+    return output
+}
+```
+
+**Usage** ([cmd_find_test.go](https://github.com/canonical/chisel/blob/main/cmd/chisel/cmd_find_test.go)):
+```go
+for _, query := range testutil.Permutations(test.query) {
+    slices, err := chisel.FindSlices(test.release, query)
+    c.Assert(slices, DeepEquals, test.result)
+}
+```
+
+**fluentfp:**
+```go
+for _, query := range combo.Permutations(test.query) {
+    slices, err := chisel.FindSlices(test.release, query)
+    c.Assert(slices, DeepEquals, test.result)
+}
+```
+
+**What's eliminated:** An entire file. The recursive closure with Heap's swap logic — parity checks, in-place mutation with defensive copies, manual `make`+`copy` for each permutation — all replaced by a function call. The test usage is unchanged; only the import differs.
+
+### Combinations for snapshot placement — ubuntu/zsys
+
+**Source:** [internal/machines/gc.go#L706-L760](https://github.com/ubuntu/zsys/blob/master/internal/machines/gc.go#L706-L760)
+**Pain point:** 55 lines of index-based combinatorial boilerplate copied from gonum to avoid a full dependency
+
+Ubuntu's ZFS system management daemon needs to find the optimal placement of snapshots across time buckets. For each bucket with free slots, it evaluates every possible combination of candidate snapshots to find the one closest to the bucket's temporal midpoint. Three functions — `combinations`, `binomial`, and `nextCombination` — are copied from gonum and operate on indices rather than elements.
+
+**Original** (55 lines — three functions copied from gonum):
+```go
+func combinations(n, k int) [][]int {
+    combinations := binomial(n, k)
+    data := make([][]int, combinations)
+    if len(data) == 0 {
+        return data
+    }
+    data[0] = make([]int, k)
+    for i := range data[0] {
+        data[0][i] = i
+    }
+    for i := 1; i < combinations; i++ {
+        next := make([]int, k)
+        copy(next, data[i-1])
+        nextCombination(next, n, k)
+        data[i] = next
+    }
+    return data
+}
+// + binomial (15 lines) and nextCombination (10 lines)
+```
+
+**Usage:**
+```go
+cs := combinations(len(toPlace), freeSlots)
+for _, c := range cs {
+    // index into toPlace with c[0], c[1], ... to evaluate this combination
+}
+```
+
+**fluentfp:**
+```go
+for _, c := range combo.Combinations(toPlace, freeSlots) {
+    // c is already []State — no index indirection needed
+}
+```
+
+**What's eliminated:** 55 lines of copy-pasted numerical combinatorics — binomial coefficient calculation, iterative next-combination generation, and the coordinating `combinations` function. The gonum original works on indices (`[][]int`), requiring a separate indirection step to access the actual elements. `combo.Combinations` operates on the elements directly, so `c` is `[]State`, not `[]int` — the index indirection disappears along with the boilerplate.

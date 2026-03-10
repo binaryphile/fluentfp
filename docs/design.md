@@ -252,8 +252,8 @@ capacity units of cost." Each item declares its cost; the scheduler acquires
 that many channel tokens before launching. Same cancellation guarantees as
 FanOut — partial acquire rolls back on ctx cancellation.
 
-**FanOut vs ParallelMap:** FanOut does per-item scheduling (one goroutine per
-item) — optimal for variable-latency I/O. ParallelMap does batch chunking —
+**FanOut vs PMap:** FanOut does per-item scheduling (one goroutine per
+item) — optimal for variable-latency I/O. PMap does batch chunking —
 lower overhead for CPU-bound uniform work on large slices.
 
 ### D15: Throttle as concurrency-controlling function wrapper

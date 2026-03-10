@@ -28,7 +28,7 @@ Features that exist in the codebase but have no evidence of real-world demand.
 
 | Feature | Survey evidence | Status |
 |---------|----------------|--------|
-| ParallelMap, ParallelKeepIf, ParallelEach | 0 adoption across 30+ lo repos, 20 go-linq repos | CPU-bound static chunking. Functional but underpromoted — no demand signal from any surveyed codebase |
+| PMap, PKeepIf, PEach | 0 adoption across 30+ lo repos, 20 go-linq repos | CPU-bound static chunking. Functional but underpromoted — no demand signal from any surveyed codebase |
 | FanOut, FanOutEach | N/A (new in v0.40.0) | I/O-bound per-item scheduling with per-item results, context cancellation, panic recovery. Evaluating against deprecation criteria in [parallelism-research.md](parallelism-research.md) §7 |
 
 ## Decided against

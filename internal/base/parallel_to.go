@@ -1,8 +1,8 @@
 package base
 
-// ParallelMap returns the result of applying fn to each member of ts, using the specified
+// PMap returns the result of applying fn to each member of ts, using the specified
 // number of worker goroutines. Order is preserved. The fn must be safe for concurrent use.
-func (ts MapperTo[R, T]) ParallelMap(workers int, fn func(T) R) Mapper[R] {
+func (ts MapperTo[R, T]) PMap(workers int, fn func(T) R) Mapper[R] {
 	if len(ts) == 0 {
 		return Mapper[R]{}
 	}
@@ -15,9 +15,9 @@ func (ts MapperTo[R, T]) ParallelMap(workers int, fn func(T) R) Mapper[R] {
 	return results
 }
 
-// ParallelKeepIf returns a new slice containing members for which fn returns true,
+// PKeepIf returns a new slice containing members for which fn returns true,
 // using the specified number of worker goroutines. Order is preserved.
-func (ts MapperTo[R, T]) ParallelKeepIf(workers int, fn func(T) bool) MapperTo[R, T] {
+func (ts MapperTo[R, T]) PKeepIf(workers int, fn func(T) bool) MapperTo[R, T] {
 	if len(ts) == 0 {
 		return MapperTo[R, T]{}
 	}
@@ -42,9 +42,9 @@ func (ts MapperTo[R, T]) ParallelKeepIf(workers int, fn func(T) bool) MapperTo[R
 	return results
 }
 
-// ParallelEach applies fn to each member of ts, using the specified number of worker
+// PEach applies fn to each member of ts, using the specified number of worker
 // goroutines. The fn must be safe for concurrent use.
-func (ts MapperTo[R, T]) ParallelEach(workers int, fn func(T)) {
+func (ts MapperTo[R, T]) PEach(workers int, fn func(T)) {
 	forBatches(len(ts), workers, func(_, start, end int) {
 		for j := start; j < end; j++ {
 			fn(ts[j])

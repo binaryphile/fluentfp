@@ -32,9 +32,9 @@ func forBatches(n, workers int, fn func(batchIdx, start, end int)) {
 	wg.Wait()
 }
 
-// ParallelMap returns the result of applying fn to each member of m, using the specified
+// PMap returns the result of applying fn to each member of m, using the specified
 // number of worker goroutines. Order is preserved. The fn must be safe for concurrent use.
-func ParallelMap[T, R any](m Mapper[T], workers int, fn func(T) R) Mapper[R] {
+func PMap[T, R any](m Mapper[T], workers int, fn func(T) R) Mapper[R] {
 	if len(m) == 0 {
 		return Mapper[R]{}
 	}
@@ -47,9 +47,9 @@ func ParallelMap[T, R any](m Mapper[T], workers int, fn func(T) R) Mapper[R] {
 	return results
 }
 
-// ParallelKeepIf returns a new slice containing members for which fn returns true,
+// PKeepIf returns a new slice containing members for which fn returns true,
 // using the specified number of worker goroutines. Order is preserved.
-func (m Mapper[T]) ParallelKeepIf(workers int, fn func(T) bool) Mapper[T] {
+func (m Mapper[T]) PKeepIf(workers int, fn func(T) bool) Mapper[T] {
 	if len(m) == 0 {
 		return Mapper[T]{}
 	}
@@ -74,9 +74,9 @@ func (m Mapper[T]) ParallelKeepIf(workers int, fn func(T) bool) Mapper[T] {
 	return results
 }
 
-// ParallelEach applies fn to each member of m, using the specified number of worker
+// PEach applies fn to each member of m, using the specified number of worker
 // goroutines. The fn must be safe for concurrent use.
-func (m Mapper[T]) ParallelEach(workers int, fn func(T)) {
+func (m Mapper[T]) PEach(workers int, fn func(T)) {
 	forBatches(len(m), workers, func(_, start, end int) {
 		for j := start; j < end; j++ {
 			fn(m[j])

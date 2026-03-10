@@ -28,8 +28,8 @@ func _() {
 	_ = Mapper[int].KeepIf
 	_ = Mapper[int].Last
 	_ = Mapper[int].Len
-	_ = Mapper[int].ParallelEach
-	_ = Mapper[int].ParallelKeepIf
+	_ = Mapper[int].PEach
+	_ = Mapper[int].PKeepIf
 	_ = Mapper[int].Partition
 	_ = Mapper[int].RemoveIf
 	_ = Mapper[int].Reverse
@@ -55,9 +55,9 @@ func _() {
 	_ = MapperTo[int, int].Last
 	_ = MapperTo[int, int].Len
 	_ = MapperTo[int, int].Map
-	_ = MapperTo[int, int].ParallelEach
-	_ = MapperTo[int, int].ParallelKeepIf
-	_ = MapperTo[int, int].ParallelMap
+	_ = MapperTo[int, int].PEach
+	_ = MapperTo[int, int].PKeepIf
+	_ = MapperTo[int, int].PMap
 	_ = MapperTo[int, int].Partition
 	_ = MapperTo[int, int].RemoveIf
 	_ = MapperTo[int, int].Reverse
@@ -123,7 +123,7 @@ func _() {
 	_ = Fold[int, int]
 	_ = Map[int, int]
 	_ = MapAccum[int, int, int]
-	_ = ParallelMap[int, int]
+	_ = PMap[int, int]
 	_ = ToSet[int]
 	_ = ToSetBy[int, int]
 	_ = UniqueBy[int, int]

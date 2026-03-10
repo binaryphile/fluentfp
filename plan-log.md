@@ -2114,8 +2114,8 @@ README examples should be self-documenting—naming wrappers after their values 
 Commits: 10b57a1, 8061073
 2026-02-18T03:00:00Z | Contract: Phase 1 - Parallel Mapper (from stream+parallelism design)
 [ ] forBatches helper (batch-chunking, edge cases)
-[ ] ParallelMap, ParallelKeepIf, ParallelEach on Mapper[T]
-[ ] ParallelMap, ParallelKeepIf, ParallelEach on MapperTo[R,T]
+[ ] PMap, PKeepIf, PEach on Mapper[T]
+[ ] PMap, PKeepIf, PEach on MapperTo[R,T]
 [ ] Tests (Khorikov-rebalanced: 15 tests, race-free)
 [ ] Benchmarks (trivial + CPU-bound, 3 sizes)
 [ ] Godoc examples
@@ -2199,9 +2199,9 @@ Commit: f48f401
 [ ] Tests updated (3 assertions + 1 new test)
 [ ] doc.go + CLAUDE.md + README updated
 2026-03-01T19:36:20Z | Completion: Parallel operations cleanup
-[x] Nil → empty consistency (4 functions: ParallelMap, ParallelKeepIf on both Mapper and MapperTo)
-[x] Redundant panic checks removed (2 functions: Mapper.ParallelKeepIf, MapperTo.ParallelKeepIf)
-[x] Tests updated (3 assertions updated + 1 new MapperTo.ParallelKeepIf empty test)
+[x] Nil → empty consistency (4 functions: PMap, PKeepIf on both Mapper and MapperTo)
+[x] Redundant panic checks removed (2 functions: Mapper.PKeepIf, MapperTo.PKeepIf)
+[x] Tests updated (3 assertions updated + 1 new MapperTo.PKeepIf empty test)
 [x] doc.go + CLAUDE.md + README updated (6 exports, parallel patterns section, edge case fix)
 2026-03-01T22:38:16Z | Contract: API expansion v0.28.0
 [ ] TakeFirst→Take rename (breaking)
@@ -2555,7 +2555,7 @@ Key feedback: (1) MapValues should return Entries[K,V2] not map[K]V2] for chaini
 2025-07-14T00:00:00Z | Interaction: grade -> 73/100, missing benchmarks, cost model too precise, cancellation hole in panic design, need "should fluentfp do this at all" section, consumer overclaims
 2025-07-14T00:01:00Z | Interaction: improve -> addressing 6 items from 73/100 review (cost model hedging, should-we-do-this section, call site quantification, panic design appendix, benchmark appendix, cancellation hole)
 2026-03-07T05:40:00Z | Interaction: grade -> 72/100, advocacy-shaped not decision-shaped, call site table generous, doc too long, need experiment framing not ship framing, need API semantics, need real deprecation criteria, panic appendix incomplete on debuggability
-2026-03-07T05:41:00Z | Interaction: improve -> major revision addressing 72/100: reframe as experiment, tighten fit table, add API semantics, add deprecation criteria, cut 30-40% of doc, demote panic appendix, remove fake-precision cost model numbers, fix ParallelEachCtx gap
+2026-03-07T05:41:00Z | Interaction: improve -> major revision addressing 72/100: reframe as experiment, tighten fit table, add API semantics, add deprecation criteria, cut 30-40% of doc, demote panic appendix, remove fake-precision cost model numbers, fix PEachCtx gap
 2026-03-07T05:55:00Z | Interaction: grade -> 78/100 self-grade, recover() contradiction, (b) misplaced, missing conc comparison, community hypotheses lost, OpenFGA table gap
 2026-03-07T05:55:30Z | Interaction: improve -> fixing 6 issues from self-grade
 2026-03-07T06:00:41Z | Completion: Parallelism research
@@ -2812,7 +2812,7 @@ $(date -u +%Y-%m-%dT%H:%M:%SZ) | Completion: Partition method on Mapper and Mapp
 2026-03-08T02:35:00Z | Interaction: improve -> deeper self-review pass
 2026-03-08T02:40:00Z | Interaction: improve -> add specific source file refs (match existing entry format), trim unverified See-also claims, restore parallel guidance
 2026-03-08T02:41:24Z | Completion: Cross-language inspiration showcase
-[x] 4 entries added to docs/showcase.md (Starship/ParallelMap, Amazonka/Unfold, Spark/Pipe, ExAws/FanOut)
+[x] 4 entries added to docs/showcase.md (Starship/PMap, Amazonka/Unfold, Spark/Pipe, ExAws/FanOut)
 [x] Each entry: prose description, Go code, what-this-brings-to-Go
 [x] No foreign-language code blocks
 2026-03-07T22:30:00Z | Interaction: improve -> self-review of set operations plan
