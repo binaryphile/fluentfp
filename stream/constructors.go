@@ -1,5 +1,7 @@
 package stream
 
+import "github.com/binaryphile/fluentfp/option"
+
 // From creates a lazy stream from a slice. Each tail closure captures a subslice
 // view of the original — the backing array may be retained until those closures
 // are evaluated or become unreachable.
@@ -74,6 +76,36 @@ func Unfold[T, S any](seed S, fn func(S) (T, S, bool)) Stream[T] {
 		head: v,
 		tail: func() *cell[T] {
 			s := Unfold(next, fn)
+			return s.cell
+		},
+	}}
+}
+
+// Paginate creates a stream by repeatedly applying a step function to a seed.
+// Each call to fn returns (element, nextSeed). When nextSeed is not-ok, the
+// stream ends after emitting the element. Unlike Unfold, every call to fn
+// produces an element — the Option[S] controls only whether to continue.
+//
+// Designed for cursor-based pagination where the continuation token is already
+// an option: the step function returns the page and the optional next cursor.
+//
+// The first step is evaluated eagerly — a panic on the first call fails at
+// construction and is not retryable. Subsequent steps are lazy and retryable.
+func Paginate[T, S any](seed S, fn func(S) (T, option.Option[S])) Stream[T] {
+	if fn == nil {
+		panic("stream.Paginate: fn must not be nil")
+	}
+
+	v, next := fn(seed)
+	nextSeed, ok := next.Get()
+	if !ok {
+		return Stream[T]{cell: &cell[T]{head: v}}
+	}
+
+	return Stream[T]{cell: &cell[T]{
+		head: v,
+		tail: func() *cell[T] {
+			s := Paginate(nextSeed, fn)
 			return s.cell
 		},
 	}}

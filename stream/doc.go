@@ -36,6 +36,7 @@ func _() {
 	_ = Generate[int]
 	_ = Repeat[int]
 	_ = Unfold[int, int]
+	_ = Paginate[int, int]
 	_ = Prepend[int]
 	_ = PrependLazy[int]
 

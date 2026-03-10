@@ -309,6 +309,7 @@ stream.Of[T any](vs ...T) Stream[T]                                // Variadic c
 stream.Generate[T any](seed T, fn func(T) T) Stream[T]             // Infinite: seed, fn(seed), ...
 stream.Repeat[T any](v T) Stream[T]                                // Infinite constant
 stream.Unfold[T, S any](seed S, fn func(S) (T, S, bool)) Stream[T] // Dual of Fold (step function)
+stream.Paginate[T, S any](seed S, fn func(S) (T, option.Option[S])) Stream[T] // Always-emit unfold (cursor pagination)
 stream.Prepend[T any](v T, s Stream[T]) Stream[T]                 // Cons: v as head, s as tail (eager link)
 stream.PrependLazy[T any](v T, tail func() Stream[T]) Stream[T]   // Cons: v as head, lazy tail thunk
 
@@ -369,6 +370,13 @@ names := stream.Map(users, User.Name).Collect()
 
 // Bridge to slice.From for further chaining
 actives := slice.From(stream.From(data).KeepIf(isValid).Collect())
+
+// Cursor pagination — continuation token is already an option
+pageStep := func(token string) (Page, option.String) {
+    page := fetchPage(token)
+    return page, page.NextToken
+}
+pages := stream.Paginate("", pageStep)
 
 // Bridge to Go range
 for v := range stream.Of(1, 2, 3).Seq() {

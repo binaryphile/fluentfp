@@ -371,56 +371,6 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
 
 ---
 
-### Storage path union with aliasing hazard — filecoin-project/lotus
-
-**Source:** [db_index.go#L100-L113](https://github.com/filecoin-project/lotus/blob/master/storage/paths/db_index.go#L100-L113)
-**Pain point:** Union appends to input slice `a`, creating hidden aliasing between input and output
-
-Filecoin Lotus (3k stars) is the reference implementation of the Filecoin blockchain. When managing storage paths for sector data, it computes the union of two path lists. The implementation appends non-duplicate elements from `b` directly onto the `a` slice rather than allocating a new result.
-
-**Original** (13 lines, mutates input):
-```go
-func union(a, b []string) []string {
-	m := make(map[string]bool)
-
-	for _, elem := range a {
-		m[elem] = true
-	}
-
-	for _, elem := range b {
-		if _, ok := m[elem]; !ok {
-			a = append(a, elem)
-		}
-	}
-	return a
-}
-```
-
-The aliasing hazard: `a = append(a, elem)` may overwrite elements in the caller's backing array if `a` has spare capacity:
-
-```go
-paths := make([]string, 0, 10)
-paths = append(paths, "/mnt/storage1")
-other := []string{"/mnt/storage2"}
-
-combined := union(paths, other)
-// paths and combined share backing array —
-// future appends to paths could corrupt combined
-```
-
-**fluentfp:**
-```go
-combined := slice.Union(paths, other)
-```
-
-**What changed:** `slice.Union` always returns a new slice. The deduplication and ordering semantics are identical (first-occurrence order, all of `a` first, then extras from `b`), but without the aliasing hazard.
-
-**What's eliminated:** The aliasing hazard where building results by appending to an input slice shares the backing array with the caller. The failure mode — silent corruption when the caller later appends to the original — is difficult to reproduce and diagnose. `slice.Union` eliminates this by construction: it always allocates a new backing array. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
-
-*See also: [ddev/ddev](https://github.com/ddev/ddev) (3.5k stars) implements `SubtractSlices` with the same map-and-iterate pattern for Docker container configurations. [Permify/permify](https://github.com/Permify/permify) (5.8k stars) implements `intersect` for authorization subject filtering in its Google Zanzibar-inspired engine.*
-
----
-
 ### Schema migration predicate loop — grafana/grafana
 
 **Source:** [v30.go#L218-L231](https://github.com/grafana/grafana/blob/a72e02f88a2a9d50f43fe4350926abe970fddd21/apps/dashboard/pkg/migration/schemaversion/v30.go#L218-L231)
@@ -459,7 +409,7 @@ isNewFormat := func(mapping any) bool {
 slice.From(oldMappings).Every(isNewFormat)
 ```
 
-**What changed:** The universal quantifier is named — `.Every(isNewFormat)` reads as "all mappings are new format." The type-assertion logic moves into a predicate with a single `return` expressing the positive case.
+**What changed:** The universal quantifier is named — `.Every(isNewFormat)` reads as "all mappings are new format." The type-assertion logic moves into a predicate that expresses the positive case directly.
 
 **What's eliminated:** Exit polarity ambiguity. In the original, `continue` means "this one passed," `return false` means "this one failed," and `return true` after the loop means "all passed" — the reader must trace three levels of nesting to confirm the polarity. `.Every(pred)` names the quantifier directly; the predicate encapsulates the assertion logic with a single boolean expression.
 
@@ -500,16 +450,15 @@ func combinedStatus(statuses []string) string {
 
 **fluentfp:**
 ```go
-// groupKey extracts the key from a status group.
-groupKey := func(g slice.Group[string, string]) string { return g.Key }
+type G = slice.Group[string, string]
 
 // formatGroup formats a status group as "status(count)".
-formatGroup := func(g slice.Group[string, string]) string {
+formatGroup := func(g G) string {
 	return fmt.Sprintf("%s(%d)", g.Key, len(g.Items))
 }
 
 func combinedStatus(statuses []string) string {
-	formatted := slice.GroupBy(statuses, lof.Identity[string]).Sort(slice.Asc(groupKey)).ToString(formatGroup)
+	formatted := slice.GroupBy(statuses, lof.Identity[string]).Sort(slice.Asc(G.GetKey)).ToString(formatGroup)
 	return strings.Join(formatted, ", ")
 }
 ```
@@ -524,9 +473,9 @@ func combinedStatus(statuses []string) string {
 
 **Source:** [pipeline.go](https://github.com/DataDog/datadog-agent/blob/main/comp/host-profiler/symboluploader/pipeline/pipeline.go)
 
-**What Datadog does:** The Datadog Agent's host profiler uploads ELF debug symbols to the backend for symbolication. Each ELF binary can be tens of megabytes. Without a budget, uploading all binaries concurrently would exhaust container memory — especially in constrained cgroup environments. The solution: bound total in-flight upload bytes to the cgroup memory limit.
+**What Datadog does:** The Datadog Agent's host profiler uploads ELF debug symbols to the backend for symbolication. Each ELF binary can be tens of megabytes. Without a budget, uploading all binaries concurrently would exhaust container memory. The solution: bound total in-flight bytes to the cgroup memory limit.
 
-**Original** — `NewBudgetedProcessingFunc`:
+**Original** (18 lines — generic utility + usage):
 ```go
 func NewBudgetedProcessingFunc[In any](
     budget int64,
@@ -536,74 +485,26 @@ func NewBudgetedProcessingFunc[In any](
     budgetSemaphore := semaphore.NewWeighted(budget)
     return func(ctx context.Context, i In) {
         cost := costCalculator(i)
-
         err := budgetSemaphore.Acquire(ctx, cost)
         if err != nil {
             return
         }
         defer budgetSemaphore.Release(cost)
-
         fun(ctx, i)
     }
 }
-```
 
-**Usage** — ELF uploads bounded by cgroup memory:
-```go
-uploadWorker := pipeline.NewBudgetedProcessingFunc(memoryBudget,
-    func(elfSymbols ElfWithBackendSources) int64 {
-        size := elfSymbols.GetSize()
-        if size > memoryBudget {
-            slog.Warn("Upload size is larger than memory limit, attempting upload anyway",
-                slog.String("elf", elfSymbols.String()))
-            size = memoryBudget
-        }
-        return size
-    },
-    d.uploadWorker)
+uploadWorker := pipeline.NewBudgetedProcessingFunc(memoryBudget, ElfWithBackendSources.GetSize, d.uploadWorker)
 ```
-
-The function takes a budget (cgroup memory limit), a cost calculator (ELF file size), and a processing function (the uploader). It returns a new function with the same signature — callers don't know about the budget. The weighted semaphore blocks until enough budget is available, then releases after processing. A 200 MB cgroup limit with 100 MB, 80 MB, and 70 MB binaries allows the first two to proceed concurrently (180 MB used), blocks the third (needs 70 MB, only 20 MB remaining) until one finishes.
 
 **fluentfp:**
 ```go
-// elfSize returns the size of the ELF binary as an int.
-elfSize := func(elf ElfWithBackendSources) int { return int(elf.GetSize()) }
-
-// ThrottleWeighted — same pattern, same signature preservation
-throttledUpload := hof.ThrottleWeighted(memoryBudget, elfSize, uploadELF)
+uploadWorker := hof.ThrottleWeighted(memoryBudget, ElfWithBackendSources.GetSize, uploadELF)
 ```
 
-`hof.ThrottleWeighted` is the same abstraction: wrap a function with a cost-based concurrency budget, return a function with the same signature. The Datadog team built `NewBudgetedProcessingFunc` as a one-off utility; fluentfp provides it as a composable building block. The difference: Datadog's version wraps side-effect functions (`func(ctx, In)`), while `ThrottleWeighted` wraps result-returning functions (`func(ctx, T) (R, error)`) — supporting both `FanOut` traversal and error propagation on cancellation.
+**What changed:** The 18-line generic utility becomes a one-liner. `ThrottleWeighted` wraps a function with a cost-based concurrency budget and returns a function with the same signature — callers don't know about the budget. The weighted semaphore blocks until enough budget is available, then releases after processing.
 
-For batch processing (upload all binaries, collect results), `FanOutWeighted` combines the throttling with slice traversal:
-
-```go
-results := slice.FanOutWeighted(ctx, memoryBudget, elfs, elfSize, uploadELF)
-```
-
-| Aspect | Datadog `NewBudgetedProcessingFunc` | fluentfp `ThrottleWeighted` |
-|--------|-------------------------------------|----------------------------|
-| Scope | One-off utility in pipeline package | Reusable combinator in `hof` |
-| Return type | `func(context.Context, In)` (side-effect) | `func(context.Context, T) (R, error)` (result + error) |
-| Error handling | Silently returns on context cancellation | Returns `ctx.Err()` on cancellation |
-| Composability | Standalone | Chains with `FanOut`, `FanOutWeighted`, `OnErr` |
-
-**What this brings to Go:** Datadog's `NewBudgetedProcessingFunc` proves the pattern is production-necessary — not every workload has uniform cost, and counting goroutines isn't enough when items vary by 10x in memory footprint. The Datadog team wrote a small generic function to solve it. fluentfp's `ThrottleWeighted` provides the same abstraction as a library primitive, composable with `FanOutWeighted` for batch traversal and `OnErr` for fail-fast cancellation.
-
----
-
-### The adapter tax
-
-The examples above all shorten code — but that's the symptom, not the cause. The cause is *adapter tax*: the cost a library charges for entering and leaving its world.
-
-Think of a woodworking shop built on standard lumber. **Raw loops** are hand tools — total control, but repetitive strain at scale. **go-linq** is a power tool that accepts any stock (`interface{}`) without checking — powerful, and the best option before generics, but you find out you loaded the wrong piece at runtime. **lo** is a power tool with a cut counter you must click every pass (`func(T, int)`) — a deliberate design for position-dependent work, but friction when position doesn't matter. **fluentfp** is a power tool that accepts standard lumber as-is (`Mapper[T]` is `[]T`) and your existing jigs fit without adapters (method expressions like `User.IsActive` plug directly into `KeepIf`). Type mismatches are caught at setup, not mid-cut.
-
-*The best tool for a single cut is still a hand saw. But when you're making 48 identical cabinet doors, the power tool makes the job easier and less error-prone.*
-
-**Good fit:** Repetitive config merges (Nomad's 48 cabinet doors), conditional struct construction (Consul), slice pipelines tangled with type assertions (go-linq). Bounded concurrent I/O where errgroup orchestration dominates the business logic — `FanOut` replaces the goroutine-launching loop with typed per-item results and panic capture (with different fail-fast semantics — see the FanOut entry above). Lazy sequences where channels are used primarily as an iteration mechanism — `stream` provides lazy evaluation without goroutine accumulation. Teams already comfortable with method chaining (LINQ, Streams, Rx) will find the API natural.
-
-**Poor fit:** Performance-critical hot paths where intermediate slice allocations matter — profile first. Pipelines are harder to step through in a debugger than loops. Teams where contributors are unfamiliar with FP idioms — fluentfp introduces a vocabulary (`KeepIf`, `NonZero`, `NonEmpty`) that reads clearly once learned but has an onboarding cost.
+**What's eliminated:** A one-off generic utility that every team must write from scratch. Datadog's `NewBudgetedProcessingFunc` proves the pattern is production-necessary — not every workload has uniform cost, and counting goroutines isn't enough when items vary by 10x in memory footprint.
 
 ---
 
@@ -633,18 +534,13 @@ type Segment struct {
 }
 
 // renderModule evaluates a single status module by name.
-// Each module reads local state independently.
+// Each module reads local state independently (exec, file I/O, etc.).
 func renderModule(name string) Segment {
     switch name {
     case "git":
-        branch := must.Get(exec.Command("git", "branch", "--show-current").Output())
-        return Segment{Name: name, Text: strings.TrimSpace(string(branch)), Color: "green"}
-    case "go":
-        ver := must.Get(exec.Command("go", "version").Output())
-        return Segment{Name: name, Text: strings.Fields(string(ver))[2], Color: "cyan"}
-    case "load":
-        data := must.Get(os.ReadFile("/proc/loadavg"))
-        return Segment{Name: name, Text: strings.Fields(string(data))[0], Color: "yellow"}
+        out, _ := exec.Command("git", "branch", "--show-current").Output()
+        return Segment{Name: name, Text: strings.TrimSpace(string(out)), Color: "green"}
+    // ... other modules
     default:
         return Segment{Name: name, Text: "?"}
     }
@@ -728,18 +624,13 @@ func listObjects(bucket, token string) ObjectPage {
 
 **fluentfp:**
 ```go
-// pageStep lists one page and advances the continuation token.
-pageStep := func(token string) (ObjectPage, string, bool) {
+// pageStep lists one page and returns the optional next cursor.
+pageStep := func(token string) (ObjectPage, option.String) {
     page := listObjects(bucket, token)
-    next, hasMore := page.ContinuationTokenOption.Get()
-    if !hasMore {
-        return page, "", len(page.Objects) > 0
-    }
-
-    return page, next, true
+    return page, page.ContinuationTokenOption
 }
 
-pages := stream.Unfold("", pageStep)
+pages := stream.Paginate("", pageStep)
 ```
 
 The stream is lazy — `listObjects` is called only when the consumer forces the next element, matching Amazonka's demand-driven pagination. Collect all objects across pages:
@@ -770,11 +661,11 @@ Take the first N pages for sampling:
 sample := pages.Take(3).Collect()
 ```
 
-**What this brings to Go:** Amazonka's `paginate` separates *how to get the next page* (the `AWSPager` step function) from *how many pages to consume* (the downstream pipeline). `stream.Unfold` provides the same separation. In Go, paginated API traversal typically uses a `for` loop that mixes the API call, token management, accumulation, and termination check in one block. The lazy evaluation means you never call S3 for a page you don't need — crucial when listing buckets with millions of objects.
+**What this brings to Go:** Amazonka's `paginate` separates *how to get the next page* (the `AWSPager` step function) from *how many pages to consume* (the downstream pipeline). `stream.Paginate` provides the same separation. In Go, paginated API traversal typically uses a `for` loop that mixes the API call, token management, accumulation, and termination check in one block. The lazy evaluation means you never call S3 for a page you don't need — crucial when listing buckets with millions of objects.
 
 *See also: [Conduit](https://github.com/snoyberg/conduit) (Haskell's standard streaming library) provides `unfoldMC` as a general-purpose stream source generator. Scala 2.13's standard library added `Iterator.unfold` for the same pattern — used internally by [Cats](https://github.com/typelevel/cats) to implement stack-safe monadic recursion on lazy lists.*
 
-*Caveat: `stream.Unfold`'s step function is synchronous. For I/O-heavy pagination where you want to prefetch the next page while processing the current one, a channel-based approach would be more appropriate. The stream version is simpler and sufficient when per-page processing time dominates fetch latency.*
+*Caveat: `stream.Paginate`'s step function is synchronous. For I/O-heavy pagination where you want to prefetch the next page while processing the current one, a channel-based approach would be more appropriate. The stream version is simpler and sufficient when per-page processing time dominates fetch latency.*
 
 ---
 

@@ -335,13 +335,14 @@
 - 2b. Source is an infinite mathematical series: System generates elements from a seed and step function; the sequence never terminates.
 - 2c. Source is a constant value repeated indefinitely: System produces the same value on each access.
 - 2d. Source is a step function with termination: System unfolds from a seed, producing elements until the step function signals stop.
-- 2e. Source is a recursive definition: System accepts a head value and a deferred tail computation, building the sequence lazily.
+- 2e. Source is a step function that always produces an element: System produces an element from each step; an optional next-state controls whether to continue. Every step emits, including the last.
+- 2f. Source is a recursive definition: System accepts a head value and a deferred tail computation, building the sequence lazily.
 - 3a. Developer needs cross-type transformation: System transforms elements to a different type.
 - 4a. Developer needs to bridge to a Go range loop: System provides an iterator compatible with Go's range protocol.
 - 4b. Developer needs to bridge to slice operations: System materializes to a plain slice for use with eager collection operations.
 
 **Sub-Variations:**
-- Construction: from slice, variadic, generate (infinite), repeat (constant), unfold (step function), prepend (eager cons), prepend lazy (deferred cons)
+- Construction: from slice, variadic, generate (infinite), repeat (constant), unfold (step function), paginate (always-emit step function), prepend (eager cons), prepend lazy (deferred cons)
 - Filtering: by predicate
 - Limiting: by count (take), by predicate (take-while)
 - Skipping: by count (drop), by predicate (drop-while)

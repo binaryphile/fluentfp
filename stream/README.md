@@ -79,7 +79,7 @@ Cells are memoized via state machine transitions — once a tail thunk evaluates
 
 ## Operations
 
-**Create**: `From`, `Of`, `Generate`, `Repeat`, `Unfold`, `Prepend`, `PrependLazy`
+**Create**: `From`, `Of`, `Generate`, `Repeat`, `Unfold`, `Paginate`, `Prepend`, `PrependLazy`
 
 **Lazy** (return Stream): `KeepIf`, `Convert`, `Take`, `TakeWhile`, `Drop`, `DropWhile`, `Map` (standalone)
 

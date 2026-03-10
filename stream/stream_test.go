@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/binaryphile/fluentfp/option"
 	"github.com/binaryphile/fluentfp/stream"
 )
 
@@ -143,6 +144,59 @@ func TestUnfold(t *testing.T) {
 func TestUnfoldNilFnPanics(t *testing.T) {
 	assertPanics(t, func() {
 		stream.Unfold[int](0, nil)
+	})
+}
+
+// --- Paginate (domain) ---
+
+func TestPaginate(t *testing.T) {
+	tests := []struct {
+		name string
+		seed int
+		fn   func(int) (int, option.Option[int])
+		want []int
+	}{
+		{
+			name: "finite sequence",
+			seed: 0,
+			fn: func(s int) (int, option.Option[int]) {
+				if s >= 3 {
+					return s * 10, option.Option[int]{}
+				}
+				return s * 10, option.Of(s + 1)
+			},
+			want: []int{0, 10, 20, 30},
+		},
+		{
+			name: "single element (first call returns not-ok)",
+			seed: 0,
+			fn: func(s int) (int, option.Option[int]) {
+				return s * 10, option.Option[int]{}
+			},
+			want: []int{0},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stream.Paginate(tt.seed, tt.fn).Collect()
+			assertSliceEqual(t, tt.want, got)
+		})
+	}
+
+	t.Run("infinite + Take", func(t *testing.T) {
+		// Always continues — infinite stream
+		naturals := stream.Paginate(0, func(n int) (int, option.Option[int]) {
+			return n, option.Of(n + 1)
+		})
+		got := naturals.Take(5).Collect()
+		assertSliceEqual(t, []int{0, 1, 2, 3, 4}, got)
+	})
+}
+
+func TestPaginateNilFnPanics(t *testing.T) {
+	assertPanics(t, func() {
+		stream.Paginate[int](0, nil)
 	})
 }
 
