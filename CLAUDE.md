@@ -7,15 +7,15 @@
 - **Language**: Go
 - **Package Management**: Go modules
 
-### mk — project task management
+### evtctl — project task management
 
 ```
-./mk task <description>            # publish a task event
-./mk done <id>[,<id>...] [evidence] # publish a task-done event
-./mk open                          # list open tasks
-./mk audit                         # full task reconciliation
-./mk claim <id> <name>             # claim a task
-./mk claims                        # list active claims
+evtctl task <description>            # publish a task event
+evtctl done <id>[,<id>...] [evidence] # publish a task-done event
+evtctl open                          # list open tasks
+evtctl audit                         # full task reconciliation
+evtctl claim <id> <name>             # claim a task
+evtctl claims                        # list active claims
 ```
 
 Stream name derived from project directory: `tasks.fluentfp`.
