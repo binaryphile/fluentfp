@@ -355,7 +355,7 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     // trimAndLower trims whitespace and lowercases.
     trimAndLower := hof.Pipe(strings.TrimSpace, strings.ToLower)
     // toNormalized trims whitespace, adding lowercasing when requested.
-    toNormalized := value.Of(strings.TrimSpace).When(!lowercase).Or(trimAndLower)
+    toNormalized := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
 
     normA := slice.Compact(a.Convert(toNormalized))
     normB := slice.Compact(b.Convert(toNormalized))
