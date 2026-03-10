@@ -286,11 +286,10 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     // toNormalized trims whitespace, adding lowercasing when requested.
     toNormalized := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
 
-    asc := slice.Asc(lof.Identity[string])
     normA := slice.NonEmpty(a.Convert(toNormalized))
     normB := slice.NonEmpty(b.Convert(toNormalized))
 
-    return slice.Difference(normA, normB).Sort(asc)
+    return slice.Difference(normA, normB).Sort(lof.StringAsc)
 }
 ```
 
@@ -655,14 +654,13 @@ uploads, err := result.CollectAll(results)    // all-or-nothing
 For Hex's pattern — partial success is acceptable:
 
 ```go
-results := slice.FanOut(ctx, 8, deps, fetchDep)
-downloaded, failures := result.Partition(results)
+downloaded, failures := result.Partition(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
 Or when only successes matter:
 
 ```go
-downloaded := result.CollectOk(results)
+downloaded := result.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
 **What this brings to Go:** Three consumption modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `Partition` for both halves, `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.

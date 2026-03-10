@@ -2,6 +2,7 @@
 package lof
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 )
@@ -35,6 +36,24 @@ func IsNonBlank(s string) bool {
 func Inc(n int) int {
 	return n + 1
 }
+
+// Asc is an ascending comparator for ordered types.
+func Asc[T cmp.Ordered](a, b T) int { return cmp.Compare(a, b) }
+
+// Desc is a descending comparator for ordered types.
+func Desc[T cmp.Ordered](a, b T) int { return cmp.Compare(b, a) }
+
+// StringAsc is an ascending comparator for strings.
+func StringAsc(a, b string) int { return cmp.Compare(a, b) }
+
+// StringDesc is a descending comparator for strings.
+func StringDesc(a, b string) int { return cmp.Compare(b, a) }
+
+// IntAsc is an ascending comparator for ints.
+func IntAsc(a, b int) int { return cmp.Compare(a, b) }
+
+// IntDesc is a descending comparator for ints.
+func IntDesc(a, b int) int { return cmp.Compare(b, a) }
 
 // Identity returns its argument unchanged.
 // Use as a function value via type instantiation: lof.Identity[string]
