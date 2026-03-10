@@ -127,7 +127,7 @@ See [comparison](../comparison.md) for the full library comparison.
 
 `From` creates `Mapper[T]`. For cross-type mapping, prefer the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `MapTo[R]` creates `MapperTo[R,T]` for the narrow case where you filter before cross-type mapping: `MapTo[R](ts).KeepIf(pred).Map(fn)`. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
-- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `Compact`
+- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `NonZero`
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
 - **Transform**: `Convert`, `FlatMap`, `Map` (MapperTo), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `UniqueBy`, `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`

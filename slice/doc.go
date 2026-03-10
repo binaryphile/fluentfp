@@ -96,7 +96,7 @@ func _() {
 	_ = Int.Sum
 
 	_ = Chunk[int]
-	_ = Compact[int]
+	_ = NonZero[int]
 	_ = Contains[int]
 	_ = Difference[int]
 	_ = Flatten[int]

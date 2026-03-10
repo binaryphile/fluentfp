@@ -99,7 +99,7 @@ slice.GroupBy[T any, K comparable](ts Mapper[T], fn func(T) K) Mapper[Group[K, T
 slice.KeyBy[T any, K comparable](ts Mapper[T], fn func(T) K) map[K]T              // Index elements by extracted key (last wins)
 slice.Chunk[T any](ts Mapper[T], size int) [][]T                              // Split into fixed-size batches
 slice.Flatten[T any](tss [][]T) Mapper[T]                                     // Concatenate nested slices (inverse of Chunk)
-slice.Compact[T comparable](ts Mapper[T]) Mapper[T]                           // Remove zero-value elements
+slice.NonZero[T comparable](ts Mapper[T]) Mapper[T]                           // Remove zero-value elements
 slice.Partition[T any](ts Mapper[T], fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate; also .Partition method
 slice.Map[T, R any](ts Mapper[T], fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
 slice.FindAs[R, T any](ts Mapper[T]) option.Option[R]                         // First element that type-asserts to R
@@ -740,7 +740,7 @@ results := kv.Map(m, toResult)
 slice.SortByDesc(results, sortKey)
 
 // OK: commas only at inner level — outer has 1 arg
-slice.From(slice.Compact(items))
+slice.From(slice.NonZero(items))
 
 // OK: commas only at outer level — each inner call has 1 arg
 pair.ZipWith(slice.From(as), slice.From(bs), combine)

@@ -69,7 +69,7 @@ result.Region = value.FirstNonZero(override.Region, defaults.Region)
 host := value.FirstNonZero(envHost, configHost, "localhost")
 ```
 
-`FirstNonZero` returns the first non-zero value from its arguments, or zero if all are zero. It requires `comparable` (same constraint as `slice.Compact`). Use it when the condition is "non-zero" and you don't need the option intermediary.
+`FirstNonZero` returns the first non-zero value from its arguments, or zero if all are zero. It requires `comparable` (same constraint as `slice.NonZero`). Use it when the condition is "non-zero" and you don't need the option intermediary.
 
 `FirstNonEmpty` is the string-specific variant — reads naturally for string config merges:
 
