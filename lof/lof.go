@@ -61,6 +61,12 @@ func Identity[T any](t T) T {
 	return t
 }
 
+// StringIdentity returns its string argument unchanged.
+func StringIdentity(s string) string { return s }
+
+// IntIdentity returns its int argument unchanged.
+func IntIdentity(n int) int { return n }
+
 // IfNonEmpty returns s and whether s is non-empty.
 // Converts "empty string = absent" returns to Go's comma-ok idiom.
 //

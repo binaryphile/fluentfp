@@ -391,14 +391,14 @@ formatGroup := func(g G) string {
 
 func combinedStatus(statuses []string) string {
 	asc := slice.Asc(G.GetKey)
-	formatted := slice.GroupBy(statuses, lof.Identity[string]).Sort(asc).ToString(formatGroup)
+	formatted := slice.GroupBy(statuses, lof.StringIdentity).Sort(asc).ToString(formatGroup)
 	return strings.Join(formatted, ", ")
 }
 ```
 
-**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `lof.Identity[string]`, a standard building block for "group by value" patterns.
+**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `lof.StringIdentity`, a standard building block for "group by value" patterns.
 
-**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `hof.Identity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
+**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `lof.StringIdentity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
 
 ---
 

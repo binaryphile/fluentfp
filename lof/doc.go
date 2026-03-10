@@ -8,11 +8,13 @@ func _() {
 	_ = Inc
 	_ = IntAsc
 	_ = IntDesc
+	_ = IntIdentity
 	_ = IsNonEmpty
 	_ = IsNonBlank
 	_ = Len[int]
 	_ = Println
 	_ = StringAsc
 	_ = StringDesc
+	_ = StringIdentity
 	_ = StringLen
 }
