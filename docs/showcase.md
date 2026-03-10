@@ -654,11 +654,16 @@ For Hex's pattern — partial success is acceptable:
 
 ```go
 results := slice.FanOut(ctx, 8, deps, fetchDep)
-downloaded := result.CollectOk(results)       // successes only
-failures := result.CollectErr(results)        // errors only
+downloaded, failures := result.Partition(results)
 ```
 
-**What this brings to Go:** Two success modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `CollectOk` for partial success. Both include panic recovery that `errgroup` lacks entirely.
+Or when only successes matter:
+
+```go
+downloaded := result.CollectOk(results)
+```
+
+**What this brings to Go:** Three consumption modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `Partition` for both halves, `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
 
 ---
 
@@ -763,11 +768,13 @@ func dfs[V comparable](
 // Topological sort: ignore on arrive, collect on depart, reverse.
 noop := func(_ Vertex, acc []Vertex) []Vertex { return acc }
 collect := func(v Vertex, acc []Vertex) []Vertex { return append(acc, v) }
-sorted := dfs(graph.Neighbors, noop, collect)(graph.Vertices())
+topoSort := dfs(graph.Neighbors, noop, collect)
+sorted := topoSort(graph.Vertices())
 slices.Reverse(sorted)
 
 // Reachability from a single source: collect on arrive, ignore on depart.
-reachable := dfs(graph.Neighbors, collect, noop)([]Vertex{source})
+reachFrom := dfs(graph.Neighbors, collect, noop)
+reachable := reachFrom([]Vertex{source})
 ```
 
 **What the decomposition reveals:** The one line that makes this a topological sort — `sorted = append(sorted, v)` — is surrounded by 42 lines of DFS mechanics. The functional decomposition makes the insight visible: topological order *is* DFS departure order. Everything else is engine. Stone further separates cycle detection into a standalone `acyclic?` predicate — a precondition, not part of the sort.
