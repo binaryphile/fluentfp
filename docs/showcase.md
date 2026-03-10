@@ -52,7 +52,8 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
     ModeTablePackets: ProcessesResult.TotalPackets,
 }
 
-results := kv.Map(s.Processes, NewResult).Sort(slice.Desc(sortFuncs[mode])).Take(n)
+desc := slice.Desc(sortFuncs[mode])
+results := kv.Map(s.Processes, NewResult).Sort(desc).Take(n)
 ```
 
 **What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(desc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
