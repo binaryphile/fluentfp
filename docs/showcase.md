@@ -237,7 +237,7 @@ summaries := slice.Map(duplicates, toSummary)
 
 This utility is a dependency of HashiCorp Vault (80k+ stars), Consul, Nomad, and Boundary. The original function tangles four concerns — normalization, deduplication, set difference, and sorting — into one 30-line body because the set operation has no standalone primitive. With `slice.Difference` as a building block, each concern separates into its own expression. The original also calls `RemoveDuplicates` which trims whitespace and skips blank entries; we include that preprocessing in the fluentfp version for a fair comparison.
 
-Note: the original's early returns (lines 3–11) skip the `RemoveDuplicates` preprocessing — when `b` is empty, the function returns `a` without trimming, deduplication, or sorting. The fluentfp version handles all inputs consistently.
+Note: the original's early returns (lines 3–11) skip the `RemoveDuplicates` preprocessing — when `b` is empty, the function returns `a` without trimming, deduplication, or sorting. This may be a deliberate performance optimization (avoid allocating when the result is just `a`), but it relies on the caller knowing that early-return outputs are unnormalized while main-path outputs are normalized — a subtlety unlikely to be understood by most callers. The fluentfp version handles all inputs consistently.
 
 **Original** (30 lines, plus `RemoveDuplicates` helper not shown):
 ```go
