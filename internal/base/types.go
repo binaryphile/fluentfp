@@ -140,3 +140,14 @@ func (ss String) Len() int {
 func (ss String) ToSet() map[string]bool {
 	return ToSet([]string(ss))
 }
+
+// NonEmpty removes empty strings.
+func (ss String) NonEmpty() String {
+	result := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
+}
