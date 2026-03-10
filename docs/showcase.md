@@ -645,97 +645,57 @@ found := pages.Find(pageContainsKey)           // stop at first match
 
 ### Multipart upload with bounded concurrency — ExAws S3 (Elixir)
 
-**Source projects:** [ExAws S3](https://github.com/ex-aws/ex_aws_s3) — the standard Elixir library for AWS S3 operations; [Hex](https://github.com/hexpm/hex) — the official Elixir/Erlang package manager.
+**Source projects:** [ExAws S3](https://github.com/ex-aws/ex_aws_s3) — Elixir's standard S3 library; [Hex](https://github.com/hexpm/hex) — the official Elixir package manager.
 
-**What ExAws S3 does:** When uploading a large file to S3, the library splits it into chunks (default 5 MB each) and uploads them concurrently using `Task.async_stream` with `max_concurrency: 4` and a 30-second per-chunk timeout. Each concurrent task uploads one chunk and extracts the ETag from the response headers. After all chunks complete, the code checks for errors — if all succeeded, it calls S3's "complete multipart upload" with the sorted ETags. If any chunk failed, the entire upload fails. Without the concurrency bound, a 10 GB file split into 2,000 chunks would spawn 2,000 simultaneous HTTP connections.
+**The pattern:** Both projects need bounded concurrent I/O with per-item results. ExAws S3 uploads file chunks concurrently (`Task.async_stream` with `max_concurrency: 4`) — all must succeed or the upload aborts. Hex downloads dependency tarballs concurrently — partial success is fine, failures are reported. Same operation, different success modes.
 
-**What Hex does:** When you run `mix deps.get`, Hex downloads tarballs for all project dependencies using a bounded worker pool with a configurable concurrency limit (`HEX_HTTP_CONCURRENCY`). A project with 50+ dependencies downloads perhaps 8 at a time — faster than sequential, without saturating the connection or triggering rate limits.
-
-**Go equivalent:** S3 multipart upload — the same problem ExAws S3 solves. Split a file into chunks and upload them concurrently with bounded parallelism.
-
-**Extracted:**
+**Typical Go** — semaphore, WaitGroup, recover, mutex-protected results:
 ```go
-// ChunkUpload holds the part number and ETag of a successfully uploaded chunk.
-type ChunkUpload struct {
-    PartNumber int
-    ETag       string
-}
-
-// uploadChunk uploads one chunk of a multipart upload and returns its ETag.
-func uploadChunk(ctx context.Context, chunk Chunk) (ChunkUpload, error) {
-    partNum := aws.Int32(int32(chunk.PartNumber))
-
-    out, err := client.UploadPart(ctx, &s3.UploadPartInput{
-        Bucket:     &chunk.Bucket,
-        Key:        &chunk.Key,
-        UploadId:   &chunk.UploadID,
-        PartNumber: partNum,
-        Body:       bytes.NewReader(chunk.Data),
-    })
-    if err != nil {
-        return ChunkUpload{}, fmt.Errorf("part %d: %w", chunk.PartNumber, err)
+func uploadChunks(ctx context.Context, chunks []Chunk) ([]ChunkUpload, error) {
+    sem := make(chan struct{}, 4)
+    var mu sync.Mutex
+    var results []ChunkUpload
+    var firstErr error
+    var wg sync.WaitGroup
+    for _, chunk := range chunks {
+        wg.Add(1)
+        go func(c Chunk) {
+            defer wg.Done()
+            sem <- struct{}{}
+            defer func() { <-sem }()
+            upload, err := uploadChunk(ctx, c)
+            mu.Lock()
+            defer mu.Unlock()
+            if err != nil && firstErr == nil {
+                firstErr = err
+            } else {
+                results = append(results, upload)
+            }
+        }(chunk)
     }
-
-    return ChunkUpload{
-        PartNumber: chunk.PartNumber,
-        ETag:       aws.ToString(out.ETag),
-    }, nil
+    wg.Wait()
+    return results, firstErr
 }
 ```
+
+No panic recovery. No context cancellation. No per-item error tracking. Adding those doubles the code.
 
 **fluentfp:**
 ```go
 results := slice.FanOut(ctx, 4, chunks, uploadChunk)
-uploads, err := result.CollectAll(results)
+uploads, err := result.CollectAll(results)    // all-or-nothing
 ```
 
-`FanOut` runs up to 4 chunk uploads concurrently — matching ExAws S3's `max_concurrency: 4`. Each chunk gets its own goroutine with independent error handling and panic recovery. `result.CollectAll` implements ExAws S3's "all must succeed" semantics: returns all `ChunkUpload` values if every chunk succeeded, or the first error otherwise. The sorted ETags feed into S3's `CompleteMultipartUpload`:
+`FanOut` runs up to 4 uploads concurrently with per-item error handling and panic recovery. `CollectAll` returns all values if every chunk succeeded, or the first error otherwise.
+
+For Hex's pattern — partial success is acceptable:
 
 ```go
-if err != nil {
-    must.BeNil(abortMultipartUpload(ctx, bucket, key, uploadID))
-
-    return err
-}
-
-parts := slice.From(uploads).Sort(slice.Asc(ChunkUpload.GetPartNumber))
-completeMultipartUpload(ctx, bucket, key, uploadID, parts)
-```
-
-For Hex's dependency-download pattern — where partial success is acceptable (download what you can, report failures) — `result.CollectOk` provides the lenient mode:
-
-```go
-// fetchDep downloads a single dependency tarball.
-fetchDep := func(ctx context.Context, dep Dependency) (Tarball, error) {
-    return downloadTarball(ctx, dep.URL)
-}
-
 results := slice.FanOut(ctx, 8, deps, fetchDep)
-downloaded := result.CollectOk(results)
+downloaded := result.CollectOk(results)       // successes only
 ```
 
-For fire-and-forget side effects, `FanOutEach` provides the side-effect variant:
-
-```go
-errs := slice.FanOutEach(ctx, 5, channels, sendNotification)
-```
-
-Each slot in `errs` corresponds to its input — `nil` means success, non-nil means failure. Panics are recovered and wrapped as `*result.PanicError` with a stack trace:
-
-```go
-for i, err := range errs {
-    var pe *result.PanicError
-    if errors.As(err, &pe) {
-        log.Printf("channel %s panicked: %v\n%s", channels[i], pe.Value, pe.Stack)
-    }
-}
-```
-
-**What this brings to Go:** ExAws S3 and Hex demonstrate that bounded concurrency with per-item error isolation is a production requirement. Go's `errgroup` implements first-error-aborts-all — when one goroutine fails, `Wait()` returns that single error. But multipart uploads need all-or-nothing with per-part results; dependency downloads need partial success. In Go, either mode requires a semaphore channel, a WaitGroup, per-goroutine `recover`, and a mutex-protected results or error slice — 20+ lines of orchestration. `FanOut` covers both: `CollectAll` for all-or-nothing, `CollectOk` for partial success, with panic recovery that `errgroup` lacks entirely.
-
-*See also: Elixir's own [Mix Erlang compiler](https://github.com/elixir-lang/elixir) uses `Task.async_stream` to scan Erlang source files for dependencies in parallel, bounded by CPU core count — matching `ParallelMap`'s CPU-bound use case rather than `FanOut`'s I/O-bound one.*
-
-**Contrast with the errgroup entry above:** The errgroup entry compares FanOut to errgroup for the `Cities` weather-fetching pattern. This entry shows two real-world Elixir projects that need the same operation with different success modes — all-or-nothing (ExAws S3) and partial success (Hex) — both served by `FanOut` with different collectors.
+**What this brings to Go:** Two success modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `CollectOk` for partial success. Both include panic recovery that `errgroup` lacks entirely.
 
 ---
 
