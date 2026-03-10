@@ -592,80 +592,54 @@ active := slice.From(allModules).ParallelKeepIf(8, isEnabled)
 
 **Source project:** [Amazonka](https://github.com/brendanhay/amazonka) — the comprehensive Haskell SDK for Amazon Web Services.
 
-**What Amazonka does:** AWS APIs — S3 `ListObjects`, DynamoDB `Scan`, EC2 `DescribeInstances` — return paginated results with continuation tokens. Amazonka's `paginate` function abstracts this across hundreds of service APIs using Haskell's unfold pattern. The `AWSPager` typeclass provides a `page` method that extracts the next request from a response (using the continuation token), or signals no more pages. `paginate` unfolds successive API responses into a streaming Conduit pipeline — conceptually an unfold over the (request, response-token) state. Users consume pages lazily: the next API call happens only when the consumer demands the next page.
+**The pattern:** AWS APIs return paginated results with continuation tokens. Each response includes a token for the next page, or nothing when done. Amazonka abstracts this into a lazy stream — the next API call happens only when the consumer asks for the next page. `stream.Paginate` brings the same pattern to Go.
 
-**Go equivalent:** S3 object listing with cursor pagination — the exact problem Amazonka's `paginate` solves.
+**Go equivalent:** S3 object listing with cursor pagination.
 
-**Extracted:**
+**Typical Go** — a for loop mixing fetching, accumulation, and termination:
 ```go
-// ObjectPage holds one page of S3 object listings.
-type ObjectPage struct {
-    Objects                 []Object
-    ContinuationTokenOption option.String
-}
-
-// listObjects calls S3 for one page of object listings.
-func listObjects(bucket, token string) ObjectPage {
-    input := &s3.ListObjectsV2Input{
-        Bucket:            &bucket,
-        ContinuationToken: nilIfEmpty(token),
+func listAllObjects(bucket string) []Object {
+    var all []Object
+    token := ""
+    for {
+        page := listObjects(bucket, token)
+        all = append(all, page.Objects...)
+        next, ok := page.NextToken.Get()
+        if !ok {
+            break
+        }
+        token = next
     }
-
-    out := must.Get(client.ListObjectsV2(ctx, input))
-
-    objects := slice.Map(out.Contents, toObject)
-
-    return ObjectPage{
-        Objects:                 objects,
-        ContinuationTokenOption: option.NonEmpty(aws.ToString(out.NextContinuationToken)),
-    }
+    return all
 }
 ```
 
-**fluentfp:**
+Every consumer (collect all, find one, sample first N) rewrites this loop with different bodies.
+
+**fluentfp** — separate *fetching* from *consuming*:
 ```go
-// pageStep lists one page and returns the optional next cursor.
+// pageStep fetches one page and returns the optional next cursor.
 pageStep := func(token string) (ObjectPage, option.String) {
     page := listObjects(bucket, token)
-    return page, page.ContinuationTokenOption
+    return page, page.NextToken
 }
 
 pages := stream.Paginate("", pageStep)
 ```
 
-The stream is lazy — `listObjects` is called only when the consumer forces the next element, matching Amazonka's demand-driven pagination. Collect all objects across pages:
+`Paginate` calls `pageStep` with the seed (`""`), emits the page, then lazily calls again with the next token. When `NextToken` is not-ok, it emits the last page and stops.
+
+Now different consumers reuse the same stream — no loop rewriting:
 
 ```go
-// collectObjects accumulates objects from each page into a single slice.
-collectObjects := func(acc []Object, p ObjectPage) []Object {
-    return append(acc, p.Objects...)
-}
-
-allObjects := stream.Fold(pages, []Object(nil), collectObjects)
+allPages := pages.Collect()                    // fetch everything
+sample := pages.Take(3).Collect()              // first 3 pages only
+found := pages.Find(pageContainsKey)           // stop at first match
 ```
 
-Find a specific object without fetching the entire bucket:
+**What this brings to Go:** The for loop tangles *how to get pages* with *what to do with them*. `stream.Paginate` separates the two — define page-fetching once, consume however you need. Pages you don't ask for are never fetched, crucial when listing buckets with millions of objects.
 
-```go
-// containsKey returns true if the page contains an object with the target key.
-containsKey := func(p ObjectPage) bool {
-    return slice.From(p.Objects).Any(hof.BindR(Object.HasKey, targetKey))
-}
-
-found := pages.Find(containsKey)
-```
-
-Take the first N pages for sampling:
-
-```go
-sample := pages.Take(3).Collect()
-```
-
-**What this brings to Go:** Amazonka's `paginate` separates *how to get the next page* (the `AWSPager` step function) from *how many pages to consume* (the downstream pipeline). `stream.Paginate` provides the same separation. In Go, paginated API traversal typically uses a `for` loop that mixes the API call, token management, accumulation, and termination check in one block. The lazy evaluation means you never call S3 for a page you don't need — crucial when listing buckets with millions of objects.
-
-*See also: [Conduit](https://github.com/snoyberg/conduit) (Haskell's standard streaming library) provides `unfoldMC` as a general-purpose stream source generator. Scala 2.13's standard library added `Iterator.unfold` for the same pattern — used internally by [Cats](https://github.com/typelevel/cats) to implement stack-safe monadic recursion on lazy lists.*
-
-*Caveat: `stream.Paginate`'s step function is synchronous. For I/O-heavy pagination where you want to prefetch the next page while processing the current one, a channel-based approach would be more appropriate. The stream version is simpler and sufficient when per-page processing time dominates fetch latency.*
+*Caveat: `stream.Paginate`'s step function is synchronous. For prefetching the next page while processing the current one, a channel-based approach would be more appropriate.*
 
 ---
 
