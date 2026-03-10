@@ -510,7 +510,7 @@ formatGroup := func(g slice.Group[string, string]) string {
 
 func combinedStatus(statuses []string) string {
 	groups := slice.GroupBy(statuses, lof.Identity[string])
-	formatted := slice.SortBy(groups, groupKey).ToString(formatGroup)
+	formatted := groups.Sort(slice.Asc(groupKey)).ToString(formatGroup)
 	return strings.Join(formatted, ", ")
 }
 ```
