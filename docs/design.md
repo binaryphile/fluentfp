@@ -27,7 +27,7 @@ flowchart TD
 | `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapTo, Values, Keys) |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
-| `result` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk` collectors |
+| `result` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr` collectors, `Partition` (single-pass split into values and errors) |
 | `stream` | Lazy memoized sequences with per-cell mutex memoization. Head-eager, tail-lazy. Pure sources only. |
 | `must` | Panic-on-error enforcement for initialization invariants |
 | `value` | Conditional value selection with eager/lazy evaluation |
@@ -71,7 +71,7 @@ Extends D1's defined-type approach to terminal slices that need domain-specific 
 ```go
 type Float64 []float64   // Sum, Max, Min
 type Int    []int         // Sum, Max, Min
-type String []string      // Unique, Contains, ContainsAny, Matches, ToSet
+type String []string      // Unique, Contains, ContainsAny, Matches, ToSet, NonEmpty
 ```
 
 Other types remain aliases with no additional methods:
@@ -173,7 +173,7 @@ Standalone functions for operations needing extra type parameters or custom trav
 
 **Why:** Go methods cannot introduce new type parameters (the D2 constraint). Standalone functions can.
 
-**Consequence:** `Mapper[T]` constrains `T` to `any`, keeping it maximally general. Operations needing `comparable` or `cmp.Ordered` (`SortBy`, `ToSet`, `UniqueBy`) live as standalone functions where the constraint applies to the key, not the element.
+**Consequence:** `Mapper[T]` constrains `T` to `any`, keeping it maximally general. Operations needing `comparable` or `cmp.Ordered` (`SortBy`, `ToSet`, `UniqueBy`, `NonZero`) live as standalone functions where the constraint applies to the key or element, not the receiver.
 
 ### D10: Defined type vs struct wrapper rule
 
