@@ -157,11 +157,19 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 
 The original partitions file nodes into tracked and untracked — each half feeds a different git operation (`UnstageTrackedFiles` vs `UnstageUntrackedFiles`), so both outputs are needed. lazygit wrote their own `utils.Partition` utility; without it, the code would be an 8-line manual loop.
 
+**Extracted** (both sides share):
+```go
+// isTracked returns true for directories and tracked files.
+isTracked := func(node *filetree.FileNode) bool {
+    return !node.IsFile() || node.GetIsTracked()
+}
+```
+
 **Original** (without utility — 8 lines):
 ```go
 var trackedNodes, untrackedNodes []*filetree.FileNode
 for _, node := range selectedNodes {
-    if !node.IsFile() || node.GetIsTracked() {
+    if isTracked(node) {
         trackedNodes = append(trackedNodes, node)
     } else {
         untrackedNodes = append(untrackedNodes, node)
@@ -171,15 +179,10 @@ for _, node := range selectedNodes {
 
 **fluentfp:**
 ```go
-// isTracked returns true for directories and tracked files.
-isTracked := func(node *filetree.FileNode) bool {
-    return !node.IsFile() || node.GetIsTracked()
-}
-
 trackedNodes, untrackedNodes := slice.Partition(selectedNodes, isTracked)
 ```
 
-**What changed:** The 8-line if/else accumulation loop becomes a single function call. The predicate (`isTracked`) captures the same condition that was inline in the if — the extraction is orthogonal to the library choice. `Partition` returns two `Mapper[T]` values, so either half can chain further (`.KeepIf`, `.Convert`, etc.) if needed.
+**What changed:** The 8-line if/else accumulation loop becomes a single function call. Both sides use the same `isTracked` predicate — the difference is purely the loop scaffolding. `Partition` returns two `Mapper[T]` values, so either half can chain further (`.KeepIf`, `.Convert`, etc.) if needed.
 
 **What's eliminated:** Accumulator boilerplate — declaring two empty slices, the for/if/else branch, and two `append` calls. The manual loop isn't especially bug-prone (if/else is exhaustive), but the pattern is pure ceremony: every partition loop has identical structure, differing only in the predicate. lazygit's team recognized this — they wrote `utils.Partition` themselves. The alternative without a utility — two `KeepIf`/`RemoveIf` passes — traverses the slice twice and forces the reader to verify the predicates are complementary. `Partition` is single-pass and complementary by construction.
 
