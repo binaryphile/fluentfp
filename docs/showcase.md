@@ -287,8 +287,8 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     toNormalized := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
 
     asc := slice.Asc(lof.Identity[string])
-    normA := slice.NonZero(a.Convert(toNormalized))
-    normB := slice.NonZero(b.Convert(toNormalized))
+    normA := slice.NonEmpty(a.Convert(toNormalized))
+    normB := slice.NonEmpty(b.Convert(toNormalized))
 
     return slice.Difference(normA, normB).Sort(asc)
 }

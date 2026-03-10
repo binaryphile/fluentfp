@@ -100,6 +100,7 @@ slice.KeyBy[T any, K comparable](ts Mapper[T], fn func(T) K) map[K]T            
 slice.Chunk[T any](ts Mapper[T], size int) [][]T                              // Split into fixed-size batches
 slice.Flatten[T any](tss [][]T) Mapper[T]                                     // Concatenate nested slices (inverse of Chunk)
 slice.NonZero[T comparable](ts Mapper[T]) Mapper[T]                           // Remove zero-value elements
+slice.NonEmpty(ts Mapper[string]) Mapper[string]                              // Remove empty strings (alias for NonZero)
 slice.Partition[T any](ts Mapper[T], fn func(T) bool) (Mapper[T], Mapper[T])  // Split by predicate; also .Partition method
 slice.Map[T, R any](ts Mapper[T], fn func(T) R) Mapper[R]                      // Map to arbitrary type (infers R)
 slice.FindAs[R, T any](ts Mapper[T]) option.Option[R]                         // First element that type-asserts to R

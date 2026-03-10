@@ -96,6 +96,7 @@ func _() {
 	_ = Int.Sum
 
 	_ = Chunk[int]
+	_ = NonEmpty
 	_ = NonZero[int]
 	_ = Contains[int]
 	_ = Difference[int]
