@@ -10,6 +10,8 @@ Where the original code uses inline anonymous functions, we extract them into na
 
 ---
 
+## Slice Transforms
+
 ### Sort-and-trim boilerplate — chenjiandongx/sniffer
 
 **Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
@@ -50,10 +52,7 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
     ModeTablePackets: ProcessesResult.TotalPackets,
 }
 
-func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
-    desc := slice.Desc(sortFuncs[mode])
-    return kv.Map(s.Processes, NewResult).Sort(desc).Take(n)
-}
+results := kv.Map(s.Processes, NewResult).Sort(slice.Desc(sortFuncs[mode])).Take(n)
 ```
 
 **What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(desc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
@@ -150,6 +149,8 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 
 ---
 
+## Filter & Split
+
 ### Tracked/untracked split — jesseduffield/lazygit
 
 **Source:** [files_controller.go#L422-L439](https://github.com/jesseduffield/lazygit/blob/9046d5e/pkg/gui/controllers/files_controller.go#L422-L439)
@@ -226,6 +227,182 @@ summaries := slice.Map(duplicates, toSummary)
 
 ---
 
+## Set Operations
+
+### Manual set difference — hashicorp/go-secure-stdlib
+
+**Source:** [strutil.go#L354-L384](https://github.com/hashicorp/go-secure-stdlib/blob/main/strutil/strutil.go#L354-L384)
+**Pain point:** Set difference implemented with three loops: build map, delete matches, collect survivors — interleaved with unrelated concerns (lowercase, dedup, sort)
+
+This utility is a dependency of HashiCorp Vault (80k+ stars), Consul, Nomad, and Boundary. The original function tangles four concerns — normalization, deduplication, set difference, and sorting — into one 30-line body because the set operation has no standalone primitive. With `slice.Difference` as a building block, each concern separates into its own expression. The original also calls `RemoveDuplicates` which trims whitespace and skips blank entries; we include that preprocessing in the fluentfp version for a fair comparison.
+
+Note: the original's early returns (lines 3–11) skip the `RemoveDuplicates` preprocessing — when `b` is empty, the function returns `a` without trimming, deduplication, or sorting. The fluentfp version handles all inputs consistently.
+
+**Original** (30 lines, plus `RemoveDuplicates` helper not shown):
+```go
+func Difference(a, b []string, lowercase bool) []string {
+    if len(a) == 0 {
+        return a
+    }
+    if len(b) == 0 {
+        if !lowercase {
+            return a
+        }
+        newA := make([]string, len(a))
+        for i, v := range a {
+            newA[i] = strings.ToLower(v)
+        }
+        return newA
+    }
+
+    a = RemoveDuplicates(a, lowercase)
+    b = RemoveDuplicates(b, lowercase)
+
+    itemsMap := map[string]struct{}{}
+    for _, aVal := range a {
+        itemsMap[aVal] = struct{}{}
+    }
+    for _, bVal := range b {
+        if _, ok := itemsMap[bVal]; ok {
+            delete(itemsMap, bVal)
+        }
+    }
+
+    items := []string{}
+    for item := range itemsMap {
+        items = append(items, item)
+    }
+    sort.Strings(items)
+    return items
+}
+```
+
+**fluentfp:**
+```go
+func Difference(a, b slice.Mapper[string], lowercase bool) []string {
+    // trimAndLower trims whitespace and lowercases.
+    trimAndLower := hof.Pipe(strings.TrimSpace, strings.ToLower)
+    // toNormalized trims whitespace, adding lowercasing when requested.
+    toNormalized := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
+
+    asc := slice.Asc(lof.Identity[string])
+    normA := slice.Compact(a.Convert(toNormalized))
+    normB := slice.Compact(b.Convert(toNormalized))
+
+    return slice.Difference(normA, normB).Sort(asc)
+}
+```
+
+**What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `Compact` for blank removal. Normalization separates into `.Convert(toNormalized)`, making it visible that lowercasing is a *transform*, not part of the set operation.
+
+**What's eliminated:** The build-then-delete pattern (`for range a → map[a] = {}; for range b → delete(map, b)`) is the manual idiom for set difference in Go. It requires reasoning about map mutation — deletions during a scan of a different slice — which is correct but non-obvious at a glance. `slice.Difference` names the intent directly. The early-return inconsistency (main path normalizes; empty-`b` path doesn't) disappears because the pipeline processes all inputs uniformly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
+
+---
+
+## Predicate
+
+### Schema migration predicate loop — grafana/grafana
+
+**Source:** [v30.go#L218-L231](https://github.com/grafana/grafana/blob/a72e02f88a2a9d50f43fe4350926abe970fddd21/apps/dashboard/pkg/migration/schemaversion/v30.go#L218-L231)
+**Pain point:** Nested type assertions with continue/return-false bury the "all mappings valid?" intent
+
+Grafana (72.5k stars) migrates dashboard JSON schemas across versions. `upgradeValueMappings` skips panels whose value mappings are already in the new format, delegating to `areAllMappingsNewFormat`. The function iterates through `[]interface{}` elements, performing a type assertion to `map[string]interface{}`, then a second type assertion to extract the `"type"` key as a string, then checks non-emptiness. Three nesting levels of `if`/`ok` with `continue` on success and `return false` on failure — the reader must trace exit polarity through each branch to confirm "this returns true when all mappings pass."
+
+**Original:**
+```go
+func areAllMappingsNewFormat(oldMappings []interface{}) bool {
+	for _, mapping := range oldMappings {
+		if mappingMap, ok := mapping.(map[string]interface{}); ok {
+			if mappingType, ok := mappingMap["type"].(string); ok && mappingType != "" {
+				continue
+			} else {
+				return false
+			}
+		}
+	}
+	return true
+}
+```
+
+**fluentfp:**
+```go
+// isNewFormat returns true if the mapping has a non-empty "type" key.
+isNewFormat := func(mapping any) bool {
+	m, ok := mapping.(map[string]any)
+	if !ok {
+		return true // non-map entries don't invalidate
+	}
+	t, ok := m["type"].(string)
+	return ok && t != ""
+}
+
+slice.From(oldMappings).Every(isNewFormat)
+```
+
+**What changed:** The universal quantifier is named — `.Every(isNewFormat)` reads as "all mappings are new format." The type-assertion logic moves into a predicate that expresses the positive case directly.
+
+**What's eliminated:** Exit polarity ambiguity. In the original, `continue` means "this one passed," `return false` means "this one failed," and `return true` after the loop means "all passed" — the reader must trace three levels of nesting to confirm the polarity. `.Every(pred)` names the quantifier directly; the predicate encapsulates the assertion logic with a single boolean expression.
+
+---
+
+## GroupBy
+
+### Status frequency formatting — docker/compose
+
+**Source:** [ls.go#L95-L116](https://github.com/docker/compose/blob/bfb5511d0d6f8250b088d0251bc21c041516ddb8/pkg/compose/ls.go#L95-L116)
+**Pain point:** Two interleaved concerns — counting occurrences and tracking insertion order — with coordinated map + slice + conditional append
+
+Docker Compose (37.1k stars) lists project stacks with `docker compose ls`. For each stack, `combinedStatus` formats container statuses as `"running(3), exited(1)"`. The implementation interleaves two concerns: a frequency map (`nbByStatus`) tracks counts while a separate `keys` slice preserves first-seen order (appending only when the key is new). A second loop builds the output string with manual comma separation. The reader must mentally separate the counting logic from the ordering logic to understand either one.
+
+**Original:**
+```go
+func combinedStatus(statuses []string) string {
+	nbByStatus := map[string]int{}
+	keys := []string{}
+	for _, status := range statuses {
+		nb, ok := nbByStatus[status]
+		if !ok {
+			nb = 0
+			keys = append(keys, status)
+		}
+		nbByStatus[status] = nb + 1
+	}
+	sort.Strings(keys)
+	result := ""
+	for _, status := range keys {
+		nb := nbByStatus[status]
+		if result != "" {
+			result += ", "
+		}
+		result += fmt.Sprintf("%s(%d)", status, nb)
+	}
+	return result
+}
+```
+
+**fluentfp:**
+```go
+type G = slice.Group[string, string]
+
+// formatGroup formats a status group as "status(count)".
+formatGroup := func(g G) string {
+	return fmt.Sprintf("%s(%d)", g.Key, len(g.Items))
+}
+
+func combinedStatus(statuses []string) string {
+	formatted := slice.GroupBy(statuses, lof.Identity[string]).Sort(slice.Asc(G.GetKey)).ToString(formatGroup)
+	return strings.Join(formatted, ", ")
+}
+```
+
+**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `lof.Identity[string]`, a standard building block for "group by value" patterns.
+
+**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `hof.Identity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
+
+---
+
+## Lazy Streams
+
 ### Lazy sequences without goroutines — golang/go (stdlib test suite)
 
 **Source:** [test/chan/sieve1.go](https://github.com/golang/go/blob/6885bad7dd86880be6929c02085e5c7a67ff2887/test/chan/sieve1.go)
@@ -301,218 +478,62 @@ The stream version uses zero goroutines and zero channels. Lazy evaluation comes
 
 ---
 
-### Manual set difference — hashicorp/go-secure-stdlib
+### Paginated AWS API traversal — Amazonka (Haskell)
 
-**Source:** [strutil.go#L354-L384](https://github.com/hashicorp/go-secure-stdlib/blob/main/strutil/strutil.go#L354-L384)
-**Pain point:** Set difference implemented with three loops: build map, delete matches, collect survivors — interleaved with unrelated concerns (lowercase, dedup, sort)
+**Source project:** [Amazonka](https://github.com/brendanhay/amazonka) — the comprehensive Haskell SDK for Amazon Web Services.
 
-This utility is a dependency of HashiCorp Vault (80k+ stars), Consul, Nomad, and Boundary. The original function tangles four concerns — normalization, deduplication, set difference, and sorting — into one 30-line body because the set operation has no standalone primitive. With `slice.Difference` as a building block, each concern separates into its own expression. The original also calls `RemoveDuplicates` which trims whitespace and skips blank entries; we include that preprocessing in the fluentfp version for a fair comparison.
+**The pattern:** AWS APIs return paginated results with continuation tokens. Each response includes a token for the next page, or nothing when done. Amazonka abstracts this into a lazy stream — the next API call happens only when the consumer asks for the next page. `stream.Paginate` brings the same pattern to Go.
 
-Note: the original's early returns (lines 3–11) skip the `RemoveDuplicates` preprocessing — when `b` is empty, the function returns `a` without trimming, deduplication, or sorting. The fluentfp version handles all inputs consistently.
+**Go equivalent:** S3 object listing with cursor pagination.
 
-**Original** (30 lines, plus `RemoveDuplicates` helper not shown):
+**Typical Go** — a for loop mixing fetching, accumulation, and termination:
 ```go
-func Difference(a, b []string, lowercase bool) []string {
-    if len(a) == 0 {
-        return a
-    }
-    if len(b) == 0 {
-        if !lowercase {
-            return a
+func listAllObjects(bucket string) []Object {
+    var all []Object
+    token := ""
+    for {
+        page := listObjects(bucket, token)
+        all = append(all, page.Objects...)
+        next, ok := page.NextToken.Get()
+        if !ok {
+            break
         }
-        newA := make([]string, len(a))
-        for i, v := range a {
-            newA[i] = strings.ToLower(v)
-        }
-        return newA
+        token = next
     }
-
-    a = RemoveDuplicates(a, lowercase)
-    b = RemoveDuplicates(b, lowercase)
-
-    itemsMap := map[string]struct{}{}
-    for _, aVal := range a {
-        itemsMap[aVal] = struct{}{}
-    }
-    for _, bVal := range b {
-        if _, ok := itemsMap[bVal]; ok {
-            delete(itemsMap, bVal)
-        }
-    }
-
-    items := []string{}
-    for item := range itemsMap {
-        items = append(items, item)
-    }
-    sort.Strings(items)
-    return items
+    return all
 }
 ```
 
-**fluentfp:**
+Every consumer (collect all, find one, sample first N) rewrites this loop with different bodies.
+
+**fluentfp** — separate *fetching* from *consuming*:
 ```go
-func Difference(a, b slice.Mapper[string], lowercase bool) []string {
-    // trimAndLower trims whitespace and lowercases.
-    trimAndLower := hof.Pipe(strings.TrimSpace, strings.ToLower)
-    // toNormalized trims whitespace, adding lowercasing when requested.
-    toNormalized := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
-
-    normA := slice.Compact(a.Convert(toNormalized))
-    normB := slice.Compact(b.Convert(toNormalized))
-    diff := slice.Difference(normA, normB)
-
-    return slice.SortBy(diff, lof.Identity[string])
+// pageStep fetches one page and returns the optional next cursor.
+pageStep := func(token string) (ObjectPage, option.String) {
+    page := listObjects(bucket, token)
+    return page, page.NextToken
 }
+
+pages := stream.Paginate("", pageStep)
 ```
 
-**What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `Compact` for blank removal. Normalization separates into `.Convert(toNormalized)`, making it visible that lowercasing is a *transform*, not part of the set operation.
+`Paginate` calls `pageStep` with the seed (`""`), emits the page, then lazily calls again with the next token. When `NextToken` is not-ok, it emits the last page and stops.
 
-**What's eliminated:** The build-then-delete pattern (`for range a → map[a] = {}; for range b → delete(map, b)`) is the manual idiom for set difference in Go. It requires reasoning about map mutation — deletions during a scan of a different slice — which is correct but non-obvious at a glance. `slice.Difference` names the intent directly. The early-return inconsistency (main path normalizes; empty-`b` path doesn't) disappears because the pipeline processes all inputs uniformly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
+Define fetching once, then pick any consumer — no loop rewriting:
+
+```go
+pages.Collect()                                // fetch everything
+pages.Take(3).Collect()                        // first 3 pages only
+pages.Find(pageContainsKey)                    // stop at first match
+```
+
+**What this brings to Go:** The for loop tangles *how to get pages* with *what to do with them*. `stream.Paginate` separates the two — define page-fetching once, consume however you need. Pages you don't ask for are never fetched, crucial when listing buckets with millions of objects.
+
+*Caveat: `stream.Paginate`'s step function is synchronous. For prefetching the next page while processing the current one, a channel-based approach would be more appropriate.*
 
 ---
 
-### Schema migration predicate loop — grafana/grafana
-
-**Source:** [v30.go#L218-L231](https://github.com/grafana/grafana/blob/a72e02f88a2a9d50f43fe4350926abe970fddd21/apps/dashboard/pkg/migration/schemaversion/v30.go#L218-L231)
-**Pain point:** Nested type assertions with continue/return-false bury the "all mappings valid?" intent
-
-Grafana (72.5k stars) migrates dashboard JSON schemas across versions. `upgradeValueMappings` skips panels whose value mappings are already in the new format, delegating to `areAllMappingsNewFormat`. The function iterates through `[]interface{}` elements, performing a type assertion to `map[string]interface{}`, then a second type assertion to extract the `"type"` key as a string, then checks non-emptiness. Three nesting levels of `if`/`ok` with `continue` on success and `return false` on failure — the reader must trace exit polarity through each branch to confirm "this returns true when all mappings pass."
-
-**Original:**
-```go
-func areAllMappingsNewFormat(oldMappings []interface{}) bool {
-	for _, mapping := range oldMappings {
-		if mappingMap, ok := mapping.(map[string]interface{}); ok {
-			if mappingType, ok := mappingMap["type"].(string); ok && mappingType != "" {
-				continue
-			} else {
-				return false
-			}
-		}
-	}
-	return true
-}
-```
-
-**fluentfp:**
-```go
-// isNewFormat returns true if the mapping has a non-empty "type" key.
-isNewFormat := func(mapping any) bool {
-	m, ok := mapping.(map[string]any)
-	if !ok {
-		return true // non-map entries don't invalidate
-	}
-	t, ok := m["type"].(string)
-	return ok && t != ""
-}
-
-slice.From(oldMappings).Every(isNewFormat)
-```
-
-**What changed:** The universal quantifier is named — `.Every(isNewFormat)` reads as "all mappings are new format." The type-assertion logic moves into a predicate that expresses the positive case directly.
-
-**What's eliminated:** Exit polarity ambiguity. In the original, `continue` means "this one passed," `return false` means "this one failed," and `return true` after the loop means "all passed" — the reader must trace three levels of nesting to confirm the polarity. `.Every(pred)` names the quantifier directly; the predicate encapsulates the assertion logic with a single boolean expression.
-
----
-
-### Status frequency formatting — docker/compose
-
-**Source:** [ls.go#L95-L116](https://github.com/docker/compose/blob/bfb5511d0d6f8250b088d0251bc21c041516ddb8/pkg/compose/ls.go#L95-L116)
-**Pain point:** Two interleaved concerns — counting occurrences and tracking insertion order — with coordinated map + slice + conditional append
-
-Docker Compose (37.1k stars) lists project stacks with `docker compose ls`. For each stack, `combinedStatus` formats container statuses as `"running(3), exited(1)"`. The implementation interleaves two concerns: a frequency map (`nbByStatus`) tracks counts while a separate `keys` slice preserves first-seen order (appending only when the key is new). A second loop builds the output string with manual comma separation. The reader must mentally separate the counting logic from the ordering logic to understand either one.
-
-**Original:**
-```go
-func combinedStatus(statuses []string) string {
-	nbByStatus := map[string]int{}
-	keys := []string{}
-	for _, status := range statuses {
-		nb, ok := nbByStatus[status]
-		if !ok {
-			nb = 0
-			keys = append(keys, status)
-		}
-		nbByStatus[status] = nb + 1
-	}
-	sort.Strings(keys)
-	result := ""
-	for _, status := range keys {
-		nb := nbByStatus[status]
-		if result != "" {
-			result += ", "
-		}
-		result += fmt.Sprintf("%s(%d)", status, nb)
-	}
-	return result
-}
-```
-
-**fluentfp:**
-```go
-type G = slice.Group[string, string]
-
-// formatGroup formats a status group as "status(count)".
-formatGroup := func(g G) string {
-	return fmt.Sprintf("%s(%d)", g.Key, len(g.Items))
-}
-
-func combinedStatus(statuses []string) string {
-	formatted := slice.GroupBy(statuses, lof.Identity[string]).Sort(slice.Asc(G.GetKey)).ToString(formatGroup)
-	return strings.Join(formatted, ", ")
-}
-```
-
-**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `lof.Identity[string]`, a standard building block for "group by value" patterns.
-
-**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `hof.Identity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
-
----
-
-### Memory-budgeted concurrency — Datadog Agent symbol uploader
-
-**Source:** [pipeline.go](https://github.com/DataDog/datadog-agent/blob/main/comp/host-profiler/symboluploader/pipeline/pipeline.go)
-
-**What Datadog does:** The Datadog Agent's host profiler uploads ELF debug symbols to the backend for symbolication. Each ELF binary can be tens of megabytes. Without a budget, uploading all binaries concurrently would exhaust container memory. The solution: bound total in-flight bytes to the cgroup memory limit.
-
-**Original** (18 lines — generic utility + usage):
-```go
-func NewBudgetedProcessingFunc[In any](
-    budget int64,
-    costCalculator func(In) int64,
-    fun func(context.Context, In),
-) func(context.Context, In) {
-    budgetSemaphore := semaphore.NewWeighted(budget)
-    return func(ctx context.Context, i In) {
-        cost := costCalculator(i)
-        err := budgetSemaphore.Acquire(ctx, cost)
-        if err != nil {
-            return
-        }
-        defer budgetSemaphore.Release(cost)
-        fun(ctx, i)
-    }
-}
-
-uploadWorker := pipeline.NewBudgetedProcessingFunc(memoryBudget, ElfWithBackendSources.GetSize, d.uploadWorker)
-```
-
-**fluentfp:**
-```go
-uploadWorker := hof.ThrottleWeighted(memoryBudget, ElfWithBackendSources.GetSize, uploadELF)
-```
-
-**What changed:** The 18-line generic utility becomes a one-liner. `ThrottleWeighted` wraps a function with a cost-based concurrency budget and returns a function with the same signature — callers don't know about the budget. The weighted semaphore blocks until enough budget is available, then releases after processing.
-
-**What's eliminated:** A one-off generic utility that every team must write from scratch. Datadog's `NewBudgetedProcessingFunc` proves the pattern is production-necessary — not every workload has uniform cost, and counting goroutines isn't enough when items vary by 10x in memory footprint.
-
----
-
-## Cross-Language Inspiration
-
-The entries above compare Go patterns. The entries below take a different angle: patterns that are idiomatic in other FP languages — Rust, Haskell, Elixir — and show how fluentfp brings the same expressiveness to Go. Each describes what a real project does in the original language, then shows Go code solving the same problem. These are not transliterations — they're idiomatic Go for the same domain, written from scratch using fluentfp.
-
----
+## Concurrency
 
 ### Parallel prompt module rendering — Starship (Rust/Rayon)
 
@@ -557,11 +578,7 @@ segments := slice.Map(enabledModules, renderModule)
 segments := slice.ParallelMap(enabledModules, 8, renderModule)
 ```
 
-Same function, one call-site change — the Rayon pattern. `renderModule` doesn't gain a worker ID, doesn't need a mutex. `workers=1` runs sequentially with zero goroutine overhead, useful for deterministic testing:
-
-```go
-segments := slice.ParallelMap(enabledModules, 1, renderModule)
-```
+Same function, one call-site change — the Rayon pattern. `renderModule` doesn't gain a worker ID, doesn't need a mutex.
 
 The method form matches Starship's `par_iter().filter_map()` — parallel filter for modules that should display:
 
@@ -585,61 +602,6 @@ active := slice.From(allModules).ParallelKeepIf(8, isEnabled)
 **What this brings to Go:** Starship demonstrates that parallelism is a property of the *traversal*, not the *transform*. The function you wrote for sequential use works unchanged. Without fluentfp, parallelizing this in Go requires a `sync.WaitGroup`, a result slice with index bookkeeping, goroutines with closure capture, and — if you want the filter variant — a mutex-protected accumulator. `ParallelMap` absorbs all of that: same function signature, one call-site change.
 
 *See also: [Polars](https://github.com/pola-rs/polars) (Rust DataFrame library) uses the same Rayon pattern for parallel group-by aggregation and parallel CSV row counting. [Tokei](https://github.com/XAMPPRocky/tokei) (code statistics tool) uses `par_iter_mut().for_each()` to aggregate line counts per language — matching `ParallelEach`.*
-
----
-
-### Paginated AWS API traversal — Amazonka (Haskell)
-
-**Source project:** [Amazonka](https://github.com/brendanhay/amazonka) — the comprehensive Haskell SDK for Amazon Web Services.
-
-**The pattern:** AWS APIs return paginated results with continuation tokens. Each response includes a token for the next page, or nothing when done. Amazonka abstracts this into a lazy stream — the next API call happens only when the consumer asks for the next page. `stream.Paginate` brings the same pattern to Go.
-
-**Go equivalent:** S3 object listing with cursor pagination.
-
-**Typical Go** — a for loop mixing fetching, accumulation, and termination:
-```go
-func listAllObjects(bucket string) []Object {
-    var all []Object
-    token := ""
-    for {
-        page := listObjects(bucket, token)
-        all = append(all, page.Objects...)
-        next, ok := page.NextToken.Get()
-        if !ok {
-            break
-        }
-        token = next
-    }
-    return all
-}
-```
-
-Every consumer (collect all, find one, sample first N) rewrites this loop with different bodies.
-
-**fluentfp** — separate *fetching* from *consuming*:
-```go
-// pageStep fetches one page and returns the optional next cursor.
-pageStep := func(token string) (ObjectPage, option.String) {
-    page := listObjects(bucket, token)
-    return page, page.NextToken
-}
-
-pages := stream.Paginate("", pageStep)
-```
-
-`Paginate` calls `pageStep` with the seed (`""`), emits the page, then lazily calls again with the next token. When `NextToken` is not-ok, it emits the last page and stops.
-
-Now different consumers reuse the same stream — no loop rewriting:
-
-```go
-allPages := pages.Collect()                    // fetch everything
-sample := pages.Take(3).Collect()              // first 3 pages only
-found := pages.Find(pageContainsKey)           // stop at first match
-```
-
-**What this brings to Go:** The for loop tangles *how to get pages* with *what to do with them*. `stream.Paginate` separates the two — define page-fetching once, consume however you need. Pages you don't ask for are never fetched, crucial when listing buckets with millions of objects.
-
-*Caveat: `stream.Paginate`'s step function is synchronous. For prefetching the next page while processing the current one, a channel-based approach would be more appropriate.*
 
 ---
 
@@ -693,17 +655,16 @@ For Hex's pattern — partial success is acceptable:
 ```go
 results := slice.FanOut(ctx, 8, deps, fetchDep)
 downloaded := result.CollectOk(results)       // successes only
+failures := result.CollectErr(results)        // errors only
 ```
 
 **What this brings to Go:** Two success modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `CollectOk` for partial success. Both include panic recovery that `errgroup` lacks entirely.
 
 ---
 
-## Algorithm Decomposition — Stone's *Algorithms for Functional Programming*
+## Algorithm
 
-The entries above rewrite everyday code with fluentfp. The entry below compares a production algorithm implementation with its functional decomposition from Stone's *Algorithms for Functional Programming* (Springer, 2018), showing how the functional version makes the algorithm's structure visible by separating the reusable engine from the behavioral arguments.
-
----
+The entry below compares a production algorithm implementation with its functional decomposition from Stone's *Algorithms for Functional Programming* (Springer, 2018), showing how the functional version makes the algorithm's structure visible by separating the reusable engine from the behavioral arguments.
 
 ### Topological sort — hashicorp/terraform
 

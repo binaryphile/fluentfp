@@ -288,6 +288,7 @@ result.PanicError{ Value any; Stack []byte }  // detect via errors.As
 // Collectors
 result.CollectAll[R any](results []Result[R]) ([]R, error)  // all Ok → values; first Err → error
 result.CollectOk[R any](results []Result[R]) []R             // Ok values only
+result.CollectErr[R any](results []Result[R]) []error        // Err values only
 ```
 
 ### stream Package

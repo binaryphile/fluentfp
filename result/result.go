@@ -203,3 +203,15 @@ func CollectOk[R any](results []Result[R]) []R {
 
 	return values
 }
+
+// CollectErr returns the errors from all Err results, preserving order.
+func CollectErr[R any](results []Result[R]) []error {
+	errs := make([]error, 0, len(results))
+	for _, r := range results {
+		if r.err != nil {
+			errs = append(errs, r.err)
+		}
+	}
+
+	return errs
+}
