@@ -2,7 +2,7 @@
 
 Lazy, memoized, persistent sequences. Zero goroutines, zero channels.
 
-Use `stream` when you need lazy evaluation — infinite sequences, early termination, or deferred computation over expensive elements. For finite in-memory collections, use `slice` instead.
+Use `stream` when you need lazy evaluation — infinite sequences, early termination, or deferred computation over expensive elements. For finite in-memory collections, use `slice`. For lightweight `iter.Seq` chaining without caching, use `seq`.
 
 ```go
 // Before: channel-based Fibonacci leaks a goroutine when you stop reading
@@ -66,16 +66,36 @@ When a stream cell exists, its head value is already computed. Only the tail is 
 - `Take(n)` builds a chain of n cells, each with a lazy tail
 - `Collect()` forces all remaining thunks and materializes to a slice
 
-Cells are memoized via state machine transitions — once a tail thunk evaluates, the result is cached for all future accesses. Thread-safe without holding locks during thunk execution.
+## Memoization and Persistence
 
-## When to Use Stream vs Slice
+Each tail thunk runs at most once. After evaluation, the result is cached — calling `.Collect()` twice on the same stream returns the same elements without re-computing them:
 
-| Use stream when... | Use slice when... |
-|-------------------|------------------|
-| Sequence is infinite | Collection is finite and in memory |
-| Only first N elements needed | All elements will be consumed |
-| Elements are expensive to compute | Elements are cheap or pre-computed |
-| Lazy composition matters | Eager execution is fine |
+```go
+s := stream.Generate(0, expensiveStep).Take(1000)
+a := s.Collect()  // computes all 1000 steps
+b := s.Collect()  // returns cached results — no recomputation
+```
+
+Multiple references to the same stream share the cache. This is what makes streams **persistent** — operations return new streams, but shared prefixes are computed once:
+
+```go
+s := stream.Generate(0, expensiveStep).Take(1000)
+evens := s.KeepIf(isEven)   // s is the shared source
+odds  := s.KeepIf(isOdd)    // same s — steps are computed once
+```
+
+**Retention cost:** Holding a reference to an early cell pins all forced suffix cells in memory. Release references when you're done to allow GC.
+
+Thread-safe: concurrent `.Collect()` calls on the same stream coordinate via state machine transitions — thunks execute outside internal locks.
+
+## When to Use Stream vs Seq vs Slice
+
+| Use stream when... | Use seq when... | Use slice when... |
+|-------------------|----------------|------------------|
+| Sequence is infinite | You have an `iter.Seq` | Collection is finite and in memory |
+| Multiple consumers share evaluation | Pipeline re-evaluates each call | All elements will be consumed |
+| Elements are expensive to compute | Lightweight, no caching needed | Elements are cheap or pre-computed |
+| Lazy composition matters | Stdlib interop matters | Eager execution is fine |
 
 ## Operations
 

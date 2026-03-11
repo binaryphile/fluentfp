@@ -20,7 +20,7 @@ active := seq.FromIter(maps.Keys(configs)).KeepIf(isActive).Collect()
 ## What It Looks Like
 
 ```go
-// Filter and limit from a slice
+// Lazy filter + limit — stops after finding 5 matches (doesn't filter the whole slice)
 top5 := seq.From(items).KeepIf(Item.IsActive).Take(5).Collect()
 ```
 
