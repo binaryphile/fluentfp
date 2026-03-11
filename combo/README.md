@@ -5,7 +5,16 @@ Combinatorial constructions: Cartesian products, permutations, combinations, and
 Standalone package returning plain slices. Bridge with `slice.From()` for fluent chains.
 
 ```go
-pairs := combo.CartesianProduct(colors, sizes)  // []pair.Pair[string, string]
+// Before: nested loop to generate all size/color combinations
+var pairs []Option
+for _, size := range sizes {
+    for _, color := range colors {
+        pairs = append(pairs, Option{size, color})
+    }
+}
+
+// After: one call
+pairs := combo.CartesianProductWith(sizes, colors, NewOption)
 ```
 
 ## What It Looks Like
@@ -14,11 +23,6 @@ pairs := combo.CartesianProduct(colors, sizes)  // []pair.Pair[string, string]
 // All pairs from two slices
 pairs := combo.CartesianProduct([]int{1, 2}, []string{"a", "b"})
 // [{1 a} {1 b} {2 a} {2 b}]
-```
-
-```go
-// Transform pairs without intermediate allocation
-labels := combo.CartesianProductWith(sizes, colors, makeLabel)
 ```
 
 ```go
@@ -38,6 +42,24 @@ combo.Combinations([]string{"a", "b", "c", "d"}, 2)
 combo.PowerSet([]int{1, 2})
 // [[] [2] [1] [1 2]]
 ```
+
+```go
+// Chain with slice.From for filtering/sorting
+valid := slice.From(combo.CartesianProduct(keys, ids)).KeepIf(isCompatible)
+```
+
+## Growth Rates
+
+Results grow fast. Know the size before calling:
+
+| Function | Results | n=5 | n=10 | n=15 |
+|----------|---------|-----|------|------|
+| Permutations | n! | 120 | 3.6M | 1.3T |
+| PowerSet | 2^n | 32 | 1,024 | 32,768 |
+| Combinations(n, k) | C(n, k) | C(5,2)=10 | C(10,5)=252 | C(15,7)=6,435 |
+| CartesianProduct | a * b | depends on inputs | | |
+
+Permutations above ~12 elements will exhaust memory. PowerSet and Combinations are practical for larger inputs.
 
 ## Operations
 

@@ -243,6 +243,12 @@ r := result.Of(strconv.Atoi(input))  // wrap (int, error) → Result[int]
 port := r.GetOr(8080)                // value or default
 ```
 
+**[seq](seq/)** — fluent chains on Go's `iter.Seq`:
+
+```go
+active := seq.FromIter(maps.Keys(configs)).KeepIf(isActive).Collect()
+```
+
 **[stream](stream/)** — lazy memoized sequences:
 
 ```go
