@@ -488,6 +488,32 @@ func TestResultFlatMap(t *testing.T) {
 	})
 }
 
+func TestOrCall(t *testing.T) {
+	t.Run("Ok returns value without calling", func(t *testing.T) {
+		called := false
+		r := result.Ok(42)
+		got := r.OrCall(func() int { called = true; return 99 })
+		if got != 42 {
+			t.Errorf("OrCall() = %v, want 42", got)
+		}
+		if called {
+			t.Error("OrCall() should not call function for Ok")
+		}
+	})
+
+	t.Run("Err calls function", func(t *testing.T) {
+		called := false
+		r := result.Err[int](errors.New("fail"))
+		got := r.OrCall(func() int { called = true; return 99 })
+		if got != 99 {
+			t.Errorf("OrCall() = %v, want 99", got)
+		}
+		if !called {
+			t.Error("OrCall() should call function for Err")
+		}
+	})
+}
+
 func TestStandaloneFlatMap(t *testing.T) {
 	// stringify returns Ok string if positive, Err otherwise.
 	stringify := func(n int) result.Result[string] {

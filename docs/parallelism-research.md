@@ -322,7 +322,7 @@ results := slice.FanOut(ctx, 8, urls, fetchURL)
 // Consume: extract successes (Go doesn't support method expressions
 // on generic type instantiations, so use named functions)
 isOk := func(r Result[Response]) bool { return r.IsRight() }
-getBody := func(r Result[Response]) string { return r.GetOr(Response{}).Body }
+getBody := func(r Result[Response]) string { return r.Or(Response{}).Body }
 bodies := results.KeepIf(isOk).ToString(getBody)
 
 // Consume: collect results (first error by index order)

@@ -142,7 +142,7 @@ results := slice.FanOut(ctx, 10, cities, failFast)
 
 **Bugs you can't write.** You can't get an off-by-one in a predicate because there's no index. You can't shadow a loop variable because there's no loop. You can't forget to initialize an accumulator because there's no accumulator. These aren't hypothetical — they're the bug classes code review catches every week. fluentfp makes them structurally impossible.
 
-**Works with Go, not against it.** Mappers are slices — callers never import fluentfp. Options use comma-ok (`.Get() (T, bool)`), the same pattern as map lookups and type assertions. `either.Fold` gives you exhaustive dispatch the compiler enforces — miss a branch and it doesn't compile. `must.BeNil` makes invariant enforcement explicit. Mutation, channels, and hot paths stay as loops.
+**Works with Go, not against it.** Mappers are slices — callers of your functions don't need to import fluentfp. Options use comma-ok (`.Get() (T, bool)`), the same pattern as map lookups and type assertions. `either.Fold` gives you exhaustive dispatch the compiler enforces — miss a branch and it doesn't compile. `must.BeNil` makes invariant enforcement explicit. Mutation, channels, and hot paths stay as loops.
 
 ## Interchangeable Types
 
@@ -241,7 +241,7 @@ Packages are independent — import one or all.
 
 ```go
 r := result.Of(strconv.Atoi(input))  // wrap (int, error) → Result[int]
-port := r.GetOr(8080)                // value or default
+port := r.Or(8080)                   // value or default
 ```
 
 **[seq](seq/)** — fluent chains on Go's `iter.Seq`:

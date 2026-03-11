@@ -241,8 +241,10 @@ either.Right[L, R any](r R) Either[L, R]
 .IsRight() bool
 .Get() (R, bool)              // comma-ok for Right
 .GetLeft() (L, bool)          // comma-ok for Left
-.GetOr(defaultVal R) R
+.Or(defaultVal R) R
 .LeftOr(defaultVal L) L
+.OrCall(fn func() R) R
+.LeftOrCall(fn func() L) L
 .Map(fn func(R) R) Either[L, R]  // right-biased
 
 // Standalone functions
@@ -268,7 +270,8 @@ result.Of[R any](r R, err error) Result[R] // Ok if err == nil; Err otherwise
 .IsOk() bool                              // err == nil
 .IsErr() bool                             // err != nil
 .Get() (R, bool)                          // comma-ok for value
-.GetOr(defaultVal R) R                    // value or default
+.Or(defaultVal R) R                       // value or default
+.OrCall(fn func() R) R                    // value or lazy default
 .GetErr() (error, bool)                   // comma-ok for error
 .Convert(fn func(R) R) Result[R]          // transform value if ok
 .FlatMap(fn func(R) Result[R]) Result[R]  // monadic bind (same-type)

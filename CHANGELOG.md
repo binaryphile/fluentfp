@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.59.0
+
+- **BREAKING**: Rename `GetOr`/`GetOrCall` to `Or`/`OrCall` on `either` and `result` — aligns with `option.Or()`
+- **result** — Add `OrCall(fn func() R) R` for parity with option and either
+
 ## v0.58.0
 
 - **hof** — Side-effect wrapper: `OnErr`

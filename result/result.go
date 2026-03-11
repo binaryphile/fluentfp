@@ -58,10 +58,19 @@ func (r Result[R]) Get() (_ R, _ bool) {
 	return r.value, true
 }
 
-// GetOr returns the value if r is Ok, or defaultVal if r is Err.
-func (r Result[R]) GetOr(defaultVal R) R {
+// Or returns the value if r is Ok, or defaultVal if r is Err.
+func (r Result[R]) Or(defaultVal R) R {
 	if r.err != nil {
 		return defaultVal
+	}
+
+	return r.value
+}
+
+// OrCall returns the value if r is Ok, or the result of calling fn if r is Err.
+func (r Result[R]) OrCall(fn func() R) R {
+	if r.err != nil {
+		return fn()
 	}
 
 	return r.value

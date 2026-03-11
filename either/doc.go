@@ -3,7 +3,7 @@
 // Convention: Left represents failure/error, Right represents success.
 // Mnemonic: "Right is right" (correct).
 //
-// Either is right-biased: Map, MustGet, IfRight, GetOr operate on the Right value.
+// Either is right-biased: Map, MustGet, IfRight, Or operate on the Right value.
 // Use MapLeft, MustGetLeft, IfLeft, LeftOr for Left-side operations.
 package either
 
@@ -22,9 +22,9 @@ func _() {
 	_ = Either[int, string].MustGetLeft
 
 	// Defaults
-	_ = Either[int, string].GetOr
+	_ = Either[int, string].Or
 	_ = Either[int, string].LeftOr
-	_ = Either[int, string].GetOrCall
+	_ = Either[int, string].OrCall
 	_ = Either[int, string].LeftOrCall
 
 	// Transforms

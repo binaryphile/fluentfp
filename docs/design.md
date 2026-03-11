@@ -468,7 +468,7 @@ All exported types are zero-value safe:
 
 - Zero `Mapper` is a nil slice — valid for `range` and `len`
 - Zero `Option[T]` is not-ok — safe to call `Or`, `OrZero`, `Get`
-- Zero `Either` is Left with zero `L` — safe to call `Get`, `GetOr`, `IsRight`
+- Zero `Either` is Left with zero `L` — safe to call `Get`, `Or`, `IsRight`
 - Zero `Cond`/`LazyCond` produce not-ok from `.When()`
 
 ## Cross-Package Connections

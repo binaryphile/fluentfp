@@ -33,7 +33,7 @@ if v, ok := res.Get(); ok {
 
 ```go
 // Default value
-port := res.GetOr(8080)
+port := res.Or(8080)
 ```
 
 ```go
@@ -76,7 +76,7 @@ If the panic value was an `error`, `PanicError.Unwrap()` returns it — enabling
 
 **Create**: `Ok`, `Err`, `Of` (from `(T, error)` pair)
 
-**Extract**: `Get`, `GetOr`, `GetErr`, `IsOk`, `IsErr`, `MustGet`
+**Extract**: `Get`, `Or`, `OrCall`, `GetErr`, `IsOk`, `IsErr`, `MustGet`
 
 **Transform**: `Convert` (same type), `Map` (cross-type, standalone), `Fold` (standalone)
 

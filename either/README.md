@@ -39,7 +39,7 @@ if cfg, ok := result.Get(); ok {
 
 ```go
 // Default value
-cfg := result.GetOr(fallbackConfig)
+cfg := result.Or(fallbackConfig)
 ```
 
 ```go
@@ -79,7 +79,7 @@ Every site that touches `AppState` must handle both cases. The compiler enforces
 `Either[L, R]` holds exactly one of two types. `Fold`, `Map`, and `MapLeft` are package-level functions — Go methods can't introduce new type parameters.
 
 - **Create**: `Left`, `Right`
-- **Extract**: `Get`, `GetLeft`, `IsLeft`, `IsRight`, `MustGet`, `MustGetLeft`, `GetOr`, `LeftOr`, `GetOrCall`, `LeftOrCall`
+- **Extract**: `Get`, `GetLeft`, `IsLeft`, `IsRight`, `MustGet`, `MustGetLeft`, `Or`, `LeftOr`, `OrCall`, `LeftOrCall`
 - **Transform**: `.Map`, `Map`, `MapLeft`, `Fold`
 - **Side effects**: `IfRight`, `IfLeft`
 

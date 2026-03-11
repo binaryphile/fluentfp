@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestGetOr(t *testing.T) {
+func TestOr(t *testing.T) {
 	tests := []struct {
 		name       string
 		either     Either[string, int]
@@ -17,8 +17,8 @@ func TestGetOr(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.either.GetOr(tt.defaultVal); got != tt.want {
-				t.Errorf("GetOr(%v) = %v, want %v", tt.defaultVal, got, tt.want)
+			if got := tt.either.Or(tt.defaultVal); got != tt.want {
+				t.Errorf("Or(%v) = %v, want %v", tt.defaultVal, got, tt.want)
 			}
 		})
 	}
@@ -217,29 +217,29 @@ func TestIfLeft(t *testing.T) {
 	})
 }
 
-// TestGetOrCall tests lazy default for Right values.
-func TestGetOrCall(t *testing.T) {
+// TestOrCall tests lazy default for Right values.
+func TestOrCall(t *testing.T) {
 	t.Run("Right returns value without calling", func(t *testing.T) {
 		called := false
 		e := Right[string, int](42)
-		got := e.GetOrCall(func() int { called = true; return 99 })
+		got := e.OrCall(func() int { called = true; return 99 })
 		if got != 42 {
-			t.Errorf("GetOrCall() = %v, want 42", got)
+			t.Errorf("OrCall() = %v, want 42", got)
 		}
 		if called {
-			t.Error("GetOrCall() should not call function for Right")
+			t.Error("OrCall() should not call function for Right")
 		}
 	})
 
 	t.Run("Left calls function", func(t *testing.T) {
 		called := false
 		e := Left[string, int]("error")
-		got := e.GetOrCall(func() int { called = true; return 99 })
+		got := e.OrCall(func() int { called = true; return 99 })
 		if got != 99 {
-			t.Errorf("GetOrCall() = %v, want 99", got)
+			t.Errorf("OrCall() = %v, want 99", got)
 		}
 		if !called {
-			t.Error("GetOrCall() should call function for Left")
+			t.Error("OrCall() should call function for Left")
 		}
 	})
 }

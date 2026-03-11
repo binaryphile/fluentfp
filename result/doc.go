@@ -6,7 +6,8 @@ func _() {
 	_ = Result[int].IsOk
 	_ = Result[int].IsErr
 	_ = Result[int].Get
-	_ = Result[int].GetOr
+	_ = Result[int].Or
+	_ = Result[int].OrCall
 	_ = Result[int].GetErr
 	_ = Result[int].Convert
 	_ = Result[int].FlatMap

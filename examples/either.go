@@ -34,8 +34,8 @@ func main() {
 		fmt.Println("Got error:", err) // Got error: fail
 	}
 
-	// GetOr returns the Right value or a default
-	zero := fail.GetOr(0)
+	// Or returns the Right value or a default
+	zero := fail.Or(0)
 	fmt.Println("zero:", zero) // 0
 
 	// LeftOr returns the Left value or a default
@@ -69,13 +69,13 @@ func main() {
 	// doubleInt doubles an integer.
 	doubleInt := func(n int) int { return n * 2 }
 	doubled := ok42.Map(doubleInt)
-	fmt.Println("Doubled:", doubled.GetOr(0)) // Doubled: 84
+	fmt.Println("Doubled:", doubled.Or(0)) // Doubled: 84
 
 	// either.Map transforms to a different type
 	// intToString converts an int to its string representation.
 	intToString := func(n int) string { return strconv.Itoa(n) }
 	asString := either.Map(ok42, intToString)
-	fmt.Println("As string:", asString.GetOr("")) // As string: 42
+	fmt.Println("As string:", asString.Or("")) // As string: 42
 
 	// === Side Effects with IfRight/IfLeft ===
 
