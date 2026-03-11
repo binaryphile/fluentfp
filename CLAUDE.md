@@ -136,6 +136,10 @@ slice.FanOutEach[T any](ctx context.Context, n int, ts Mapper[T], fn func(contex
 slice.FanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]]
 slice.FanOutEachWeighted[T any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) error) []error
 
+// FanOutAll — all-or-nothing FanOut with early cancellation on first error
+slice.FanOutAll[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) ([]R, error)
+slice.FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) ([]R, error)
+
 // Map, PMap, Fold, and MapAccum are standalone (not methods) because they return
 // a different type R — Go can't infer R from Mapper[T]'s receiver.
 // MapperTo[R, T].PMap IS a method because both type params are on the receiver.
@@ -177,6 +181,18 @@ results := slice.FanOutWeighted(ctx, 100, files, itemCost, processFile)
 
 // FanOutEachWeighted — side-effect variant
 errs := slice.FanOutEachWeighted(ctx, 50, jobs, jobCost, runJob)
+
+// FanOutAll — all-or-nothing with early cancellation
+// Derives child context, wraps fn with hof.OnErr, calls FanOut, CollectAll.
+// Equivalent to:
+//   ctx, cancel := context.WithCancel(ctx)
+//   defer cancel()
+//   results := slice.FanOut(ctx, 8, urls, hof.OnErr(fetchURL, cancel))
+//   pages, err := result.CollectAll(results)
+pages, err := slice.FanOutAll(ctx, 8, urls, fetchURL)
+
+// FanOutWeightedAll — weighted variant with early cancellation
+uploads, err := slice.FanOutWeightedAll(ctx, 100, files, itemCost, processFile)
 
 // FanOut vs PMap:
 // - FanOut: per-item scheduling, context-aware, error/panic per item (I/O-bound)

@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/binaryphile/fluentfp/hof"
 	"github.com/binaryphile/fluentfp/result"
 )
 
@@ -329,6 +330,49 @@ loop:
 	wg.Wait()
 
 	return results
+}
+
+// FanOutAll applies fn to each element concurrently (at most n goroutines),
+// returning all values if every call succeeds, or the first error by index otherwise.
+// On first error, remaining unscheduled items are cancelled promptly.
+//
+// Derives a child context internally — the caller's context is never cancelled.
+// Panics in fn are captured as *[result.PanicError] and returned as errors,
+// but do not trigger early cancellation (only returned errors do).
+//
+// Panics if n <= 0, ctx is nil, or fn is nil.
+func FanOutAll[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) ([]R, error) {
+	if fn == nil {
+		panic("slice.FanOutAll: fn must not be nil")
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	wrapped := hof.OnErr(fn, cancel)
+
+	return result.CollectAll([]result.Result[R](fanOut(ctx, n, ts, wrapped)))
+}
+
+// FanOutWeightedAll applies fn to each element concurrently, bounded by a total
+// cost budget, returning all values if every call succeeds, or the first error
+// by index otherwise. On first error, remaining unscheduled items are cancelled.
+//
+// Derives a child context internally — the caller's context is never cancelled.
+//
+// Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
+// Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
+func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) ([]R, error) {
+	if fn == nil {
+		panic("slice.FanOutWeightedAll: fn must not be nil")
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	wrapped := hof.OnErr(fn, cancel)
+
+	return result.CollectAll([]result.Result[R](fanOutWeighted(ctx, capacity, ts, cost, wrapped)))
 }
 
 // runItem calls fn with panic recovery. Named return enables defer/recover to set the result.

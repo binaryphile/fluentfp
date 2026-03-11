@@ -1591,3 +1591,255 @@ func TestFanOutEachCancellationMidFlight(t *testing.T) {
 		}
 	}
 }
+
+// --- FanOutAll tests ---
+
+func TestFanOutAllSuccess(t *testing.T) {
+	// double doubles an int.
+	double := func(_ context.Context, n int) (int, error) { return n * 2, nil }
+
+	got, err := slice.FanOutAll(context.Background(), 4, []int{1, 2, 3, 4, 5}, double)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []int{2, 4, 6, 8, 10}
+	for i, v := range got {
+		if v != want[i] {
+			t.Errorf("[%d]: got %d, want %d", i, v, want[i])
+		}
+	}
+}
+
+func TestFanOutAllFirstErrorByIndex(t *testing.T) {
+	// sentinel is a specific error for identity checking.
+	sentinel := errors.New("fail at 2")
+
+	// failAtTwo returns sentinel for index 2.
+	failAtTwo := func(_ context.Context, n int) (int, error) {
+		if n == 2 {
+			return 0, sentinel
+		}
+
+		return n, nil
+	}
+
+	got, err := slice.FanOutAll(context.Background(), 1, []int{0, 1, 2, 3}, failAtTwo)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("got error %v, want %v", err, sentinel)
+	}
+
+	if got != nil {
+		t.Fatalf("got values %v, want nil", got)
+	}
+}
+
+func TestFanOutAllCancelsOnError(t *testing.T) {
+	var started atomic.Int32
+
+	// sentinel is the error that triggers cancellation.
+	sentinel := errors.New("boom")
+
+	// failFirst fails on the first item, others block until cancelled.
+	failFirst := func(ctx context.Context, n int) (int, error) {
+		started.Add(1)
+
+		if n == 0 {
+			return 0, sentinel
+		}
+
+		<-ctx.Done()
+
+		return 0, ctx.Err()
+	}
+
+	items := make([]int, 20)
+	for i := range items {
+		items[i] = i
+	}
+
+	_, err := slice.FanOutAll(context.Background(), 2, items, failFirst)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("got error %v, want %v", err, sentinel)
+	}
+
+	// With n=2 and early cancellation, far fewer than 20 should start.
+	if got := started.Load(); got > 4 {
+		t.Errorf("started %d items, expected at most 4 with early cancellation", got)
+	}
+}
+
+func TestFanOutAllPanicTreatedAsError(t *testing.T) {
+	// panicOnTwo panics when n == 2.
+	panicOnTwo := func(_ context.Context, n int) (int, error) {
+		if n == 2 {
+			panic("kaboom")
+		}
+
+		return n, nil
+	}
+
+	_, err := slice.FanOutAll(context.Background(), 1, []int{0, 1, 2, 3}, panicOnTwo)
+	if err == nil {
+		t.Fatal("expected error from panic")
+	}
+
+	var pe *result.PanicError
+	if !errors.As(err, &pe) {
+		t.Fatalf("expected PanicError, got %T: %v", err, err)
+	}
+}
+
+func TestFanOutAllEmptyInput(t *testing.T) {
+	// identity returns the input unchanged.
+	identity := func(_ context.Context, n int) (int, error) { return n, nil }
+
+	got, err := slice.FanOutAll(context.Background(), 4, []int{}, identity)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Fatalf("got len %d, want 0", len(got))
+	}
+}
+
+func TestFanOutAllPreservesOrder(t *testing.T) {
+	// delayByValue sleeps proportional to value to force out-of-order completion.
+	delayByValue := func(_ context.Context, n int) (int, error) {
+		runtime.Gosched()
+
+		return n * 10, nil
+	}
+
+	got, err := slice.FanOutAll(context.Background(), 4, []int{3, 1, 4, 1, 5}, delayByValue)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []int{30, 10, 40, 10, 50}
+	for i, v := range got {
+		if v != want[i] {
+			t.Errorf("[%d]: got %d, want %d", i, v, want[i])
+		}
+	}
+}
+
+func TestFanOutAllCallerContextNotCancelled(t *testing.T) {
+	// parentCtx must remain valid after FanOutAll returns with an error.
+	parentCtx := context.Background()
+
+	// alwaysFail returns an error.
+	alwaysFail := func(_ context.Context, _ int) (int, error) {
+		return 0, errors.New("fail")
+	}
+
+	_, err := slice.FanOutAll(parentCtx, 2, []int{1, 2, 3}, alwaysFail)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	if parentCtx.Err() != nil {
+		t.Fatalf("parent context cancelled: %v", parentCtx.Err())
+	}
+}
+
+func TestFanOutAllValidationPanics(t *testing.T) {
+	// identity is a valid function for non-panic paths.
+	identity := func(_ context.Context, n int) (int, error) { return n, nil }
+
+	t.Run("n<=0", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+
+		slice.FanOutAll(context.Background(), 0, []int{1}, identity)
+	})
+
+	t.Run("nil ctx", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+
+		slice.FanOutAll[int, int](nil, 2, []int{1}, identity) //nolint:staticcheck
+	})
+
+	t.Run("nil fn", func(t *testing.T) {
+		defer func() {
+			got, ok := recover().(string)
+			if !ok {
+				t.Fatal("expected string panic")
+			}
+
+			want := "slice.FanOutAll: fn must not be nil"
+			if got != want {
+				t.Errorf("got %q, want %q", got, want)
+			}
+		}()
+
+		slice.FanOutAll[int, int](context.Background(), 2, []int{1}, nil)
+	})
+}
+
+// --- FanOutWeightedAll tests ---
+
+func TestFanOutWeightedAllSuccess(t *testing.T) {
+	// double doubles an int.
+	double := func(_ context.Context, n int) (int, error) { return n * 2, nil }
+
+	// unitCost returns 1 for every item.
+	unitCost := func(_ int) int { return 1 }
+
+	got, err := slice.FanOutWeightedAll(context.Background(), 4, []int{1, 2, 3, 4, 5}, unitCost, double)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []int{2, 4, 6, 8, 10}
+	for i, v := range got {
+		if v != want[i] {
+			t.Errorf("[%d]: got %d, want %d", i, v, want[i])
+		}
+	}
+}
+
+func TestFanOutWeightedAllCancelsOnError(t *testing.T) {
+	var started atomic.Int32
+
+	// sentinel is the error that triggers cancellation.
+	sentinel := errors.New("boom")
+
+	// failFirst fails on the first item, others block until cancelled.
+	failFirst := func(ctx context.Context, n int) (int, error) {
+		started.Add(1)
+
+		if n == 0 {
+			return 0, sentinel
+		}
+
+		<-ctx.Done()
+
+		return 0, ctx.Err()
+	}
+
+	items := make([]int, 20)
+	for i := range items {
+		items[i] = i
+	}
+
+	// unitCost returns 1 for every item.
+	unitCost := func(_ int) int { return 1 }
+
+	_, err := slice.FanOutWeightedAll(context.Background(), 2, items, unitCost, failFirst)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("got error %v, want %v", err, sentinel)
+	}
+
+	if got := started.Load(); got > 4 {
+		t.Errorf("started %d items, expected at most 4 with early cancellation", got)
+	}
+}

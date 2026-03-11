@@ -673,11 +673,10 @@ No panic recovery. No context cancellation. No per-item error tracking. Adding t
 
 **fluentfp:**
 ```go
-results := slice.FanOut(ctx, 4, chunks, uploadChunk)
-uploads, err := result.CollectAll(results)    // all-or-nothing
+uploads, err := slice.FanOutAll(ctx, 4, chunks, uploadChunk)
 ```
 
-`FanOut` runs up to 4 uploads concurrently with per-item error handling and panic recovery. `CollectAll` returns all values if every chunk succeeded, or the first error otherwise.
+`FanOutAll` runs up to 4 uploads concurrently with per-item error handling, panic recovery, and early cancellation — when the first chunk fails, remaining unscheduled uploads are cancelled promptly. All-or-nothing semantics in a single call.
 
 For Hex's pattern — partial success is acceptable:
 
@@ -691,7 +690,7 @@ Or when only successes matter:
 downloaded := result.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
-**What this brings to Go:** Three consumption modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `CollectOkAndErr` for both halves, `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
+**What this brings to Go:** `FanOutAll` for all-or-nothing with early cancellation, `FanOut` + `CollectOkAndErr` for both halves, `FanOut` + `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
 
 ---
 

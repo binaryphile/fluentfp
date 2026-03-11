@@ -132,7 +132,7 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Transform**: `Convert`, `FlatMap`, `Map` (MapperTo), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `UniqueBy`, `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
 - **Parallel**: `PMap`, `PKeepIf`, `PEach` — concurrent versions for CPU/IO-bound transforms. Goroutine overhead makes these slower for trivial operations; only beneficial when `fn` does meaningful work per element. Run `go test -bench=BenchmarkP ./slice/` for numbers on your hardware.
-- **Concurrent I/O**: `FanOut`, `FanOutEach` — bounded concurrent traversal with per-item scheduling, context-aware cancellation, and panic recovery. Returns `Mapper[result.Result[R]]` for chainability. See [result](../result/) for `CollectAll`/`CollectOk`.
+- **Concurrent I/O**: `FanOut`, `FanOutEach`, `FanOutAll` — bounded concurrent traversal with per-item scheduling, context-aware cancellation, and panic recovery. `FanOut` returns `Mapper[result.Result[R]]` for flexible consumption; `FanOutAll` returns `([]R, error)` with early cancellation. See [result](../result/) for `CollectAll`/`CollectOk`.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
 
@@ -164,28 +164,38 @@ FanOut passes `ctx` to every callback. When `ctx` is cancelled:
 
 FanOut returns only after every started goroutine has finished — no goroutine leaks.
 
-### Fail-fast
+### All-or-nothing: FanOutAll
 
-By default, one item's error does not cancel siblings. If you want fail-fast — stop everything on the first error — cancel the context from within `fn`:
+When every item must succeed or the whole operation fails, use `FanOutAll`. It cancels remaining work on the first error and returns `([]R, error)` directly:
+
+```go
+infos, err := slice.FanOutAll(ctx, 10, cities, City)
+```
+
+This is equivalent to manually wiring early cancellation with `FanOut`:
+
+```go
+ctx, cancel := context.WithCancel(ctx)
+defer cancel()
+
+results := slice.FanOut(ctx, 10, cities, hof.OnErr(City, cancel))
+infos, err := result.CollectAll(results)
+```
+
+`FanOutAll` derives a child context internally — the caller's context is never cancelled. `FanOutWeightedAll` provides the same semantics with a cost budget instead of a fixed concurrency limit.
+
+### Fail-fast with FanOut
+
+When using `FanOut` directly (for partial-result workflows), one item's error does not cancel siblings by default. If you want fail-fast, wrap with `hof.OnErr`:
 
 ```go
 ctx, cancel := context.WithCancel(parentCtx)
 defer cancel()
 
-// failFast wraps City to cancel siblings on first error.
-failFast := func(callCtx context.Context, name string) (*Info, error) {
-    info, err := City(callCtx, name)
-    if err != nil {
-        cancel()
-        return nil, err
-    }
-    return info, nil
-}
-
-results := slice.FanOut(ctx, 10, cities, failFast)
+results := slice.FanOut(ctx, 10, cities, hof.OnErr(City, cancel))
 ```
 
-This is opt-in because many I/O workloads want partial results — fetch what you can, report what failed. Use `result.CollectOk(results)` to gather successes and discard failures.
+Many I/O workloads want partial results — fetch what you can, report what failed. Use `result.CollectOk(results)` to gather successes and discard failures.
 
 ### Panic recovery
 
