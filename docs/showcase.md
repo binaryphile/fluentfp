@@ -337,7 +337,7 @@ isNewFormat := func(mapping any) bool {
 	return ok && t != ""
 }
 
-slice.From(oldMappings).Every(isNewFormat)
+allNew := slice.From(oldMappings).Every(isNewFormat)
 ```
 
 **What changed:** The universal quantifier is named — `.Every(isNewFormat)` reads as "all mappings are new format." The type-assertion logic moves into a predicate that expresses the positive case directly.

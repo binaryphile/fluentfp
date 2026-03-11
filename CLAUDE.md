@@ -567,6 +567,58 @@ defer cancel()
 results := slice.FanOut(ctx, 10, cities, hof.OnErr(City, cancel))
 ```
 
+### memo Package (Memoization)
+
+```go
+import "github.com/binaryphile/fluentfp/memo"
+
+// Zero-arg memoization — retry-on-panic (not sync.Once poison semantics)
+memo.Of[T any](fn func() T) func() T
+
+// Keyed memoization — unbounded map cache
+memo.Fn[K comparable, V any](fn func(K) V) func(K) V
+
+// Keyed with error — caches successes only, retries on error
+memo.FnErr[K comparable, V any](fn func(K) (V, error)) func(K) (V, error)
+
+// Pluggable cache variants
+memo.FnWith[K comparable, V any](fn func(K) V, cache Cache[K, V]) func(K) V
+memo.FnErrWith[K comparable, V any](fn func(K) (V, error), cache Cache[K, V]) func(K) (V, error)
+
+// Cache interface
+type Cache[K comparable, V any] interface {
+    Load(K) (V, bool)
+    Store(K, V)
+}
+
+// Built-in caches (both concurrent-safe)
+memo.NewMap[K comparable, V any]() Cache[K, V]       // unbounded, sync.RWMutex
+memo.NewLRU[K comparable, V any](cap int) Cache[K, V] // LRU eviction, sync.Mutex
+```
+
+### memo Patterns
+
+```go
+// Lazy initialization
+getConfig := memo.Of(loadConfig)
+cfg := getConfig()  // computed once, cached forever
+
+// Keyed memoization
+lookup := memo.Fn(expensiveLookup)
+v := lookup("key")  // computed
+v = lookup("key")   // cached
+
+// Fallible function — errors retry
+fetch := memo.FnErr(callAPI)
+v, err := fetch("endpoint")
+
+// LRU-bounded cache
+lookup := memo.FnWith(expensiveLookup, memo.NewLRU[string, Result](1000))
+
+// Cached transform in a fluent chain
+names := slice.From(ids).Convert(memo.Fn(lookupName))
+```
+
 ### must Package
 
 ```go

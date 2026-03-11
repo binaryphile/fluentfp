@@ -232,6 +232,7 @@ Packages are independent — import one or all.
 | [hof](hof/) | Function combinators | `Pipe`, `Bind`, `Throttle`, `OnErr` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 | [combo](combo/) | Combinatorial constructions | `CartesianProduct`, `Combinations`, `PowerSet` |
+| [memo](memo/) | Memoization | `Of`, `Fn`, `FnErr`, `NewLRU` |
 | [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `Identity` |
 
 ## Package Highlights
