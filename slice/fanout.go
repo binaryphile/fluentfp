@@ -5,7 +5,6 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/binaryphile/fluentfp/hof"
 	"github.com/binaryphile/fluentfp/result"
 )
 
@@ -334,11 +333,10 @@ loop:
 
 // FanOutAll applies fn to each element concurrently (at most n goroutines),
 // returning all values if every call succeeds, or the first error by index otherwise.
-// On first error, remaining unscheduled items are cancelled promptly.
+// On first failure (error or panic), remaining unscheduled items are cancelled promptly.
 //
 // Derives a child context internally — the caller's context is never cancelled.
-// Panics in fn are captured as *[result.PanicError] and returned as errors,
-// but do not trigger early cancellation (only returned errors do).
+// Panics in fn trigger cancellation and are captured as *[result.PanicError].
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
 func FanOutAll[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) ([]R, error) {
@@ -349,16 +347,33 @@ func FanOutAll[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(conte
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	wrapped := hof.OnErr(fn, cancel)
+	// cancelOnFail wraps fn to cancel remaining work on error or panic.
+	cancelOnFail := func(ctx context.Context, t T) (r R, err error) {
+		defer func() {
+			if v := recover(); v != nil {
+				cancel()
+				panic(v)
+			}
+		}()
 
-	return result.CollectAll([]result.Result[R](fanOut(ctx, n, ts, wrapped)))
+		r, err = fn(ctx, t)
+		if err != nil {
+			cancel()
+		}
+
+		return
+	}
+
+	return result.CollectAll([]result.Result[R](fanOut(ctx, n, ts, cancelOnFail)))
 }
 
 // FanOutWeightedAll applies fn to each element concurrently, bounded by a total
 // cost budget, returning all values if every call succeeds, or the first error
-// by index otherwise. On first error, remaining unscheduled items are cancelled.
+// by index otherwise. On first failure (error or panic), remaining unscheduled
+// items are cancelled.
 //
 // Derives a child context internally — the caller's context is never cancelled.
+// Panics in fn trigger cancellation and are captured as *[result.PanicError].
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
@@ -370,9 +385,24 @@ func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts Mapper[T]
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	wrapped := hof.OnErr(fn, cancel)
+	// cancelOnFail wraps fn to cancel remaining work on error or panic.
+	cancelOnFail := func(ctx context.Context, t T) (r R, err error) {
+		defer func() {
+			if v := recover(); v != nil {
+				cancel()
+				panic(v)
+			}
+		}()
 
-	return result.CollectAll([]result.Result[R](fanOutWeighted(ctx, capacity, ts, cost, wrapped)))
+		r, err = fn(ctx, t)
+		if err != nil {
+			cancel()
+		}
+
+		return
+	}
+
+	return result.CollectAll([]result.Result[R](fanOutWeighted(ctx, capacity, ts, cost, cancelOnFail)))
 }
 
 // runItem calls fn with panic recovery. Named return enables defer/recover to set the result.

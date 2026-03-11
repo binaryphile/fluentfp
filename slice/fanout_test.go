@@ -1690,6 +1690,43 @@ func TestFanOutAllPanicTreatedAsError(t *testing.T) {
 	}
 }
 
+func TestFanOutAllPanicCancelsRemaining(t *testing.T) {
+	var started atomic.Int32
+
+	// panicFirst panics on the first item, others block until cancelled.
+	panicFirst := func(ctx context.Context, n int) (int, error) {
+		started.Add(1)
+
+		if n == 0 {
+			panic("kaboom")
+		}
+
+		<-ctx.Done()
+
+		return 0, ctx.Err()
+	}
+
+	items := make([]int, 20)
+	for i := range items {
+		items[i] = i
+	}
+
+	_, err := slice.FanOutAll(context.Background(), 2, items, panicFirst)
+	if err == nil {
+		t.Fatal("expected error from panic")
+	}
+
+	var pe *result.PanicError
+	if !errors.As(err, &pe) {
+		t.Fatalf("expected PanicError, got %T: %v", err, err)
+	}
+
+	// With n=2 and early cancellation on panic, far fewer than 20 should start.
+	if got := started.Load(); got > 4 {
+		t.Errorf("started %d items, expected at most 4 with early cancellation on panic", got)
+	}
+}
+
 func TestFanOutAllEmptyInput(t *testing.T) {
 	// identity returns the input unchanged.
 	identity := func(_ context.Context, n int) (int, error) { return n, nil }

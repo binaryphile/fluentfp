@@ -90,12 +90,12 @@ Thread-safe: concurrent `.Collect()` calls on the same stream coordinate via sta
 
 ## When to Use Stream vs Seq vs Slice
 
-| Use stream when... | Use seq when... | Use slice when... |
-|-------------------|----------------|------------------|
-| Sequence is infinite | You have an `iter.Seq` | Collection is finite and in memory |
-| Multiple consumers share evaluation | Pipeline re-evaluates each call | All elements will be consumed |
-| Elements are expensive to compute | Lightweight, no caching needed | Elements are cheap or pre-computed |
-| Lazy composition matters | Stdlib interop matters | Eager execution is fine |
+| Use stream when...                  | Use seq when...                 | Use slice when...                  |
+| ----------------------------------- | ------------------------------- | ---------------------------------- |
+| Sequence is infinite                | You have an `iter.Seq`          | Collection is finite and in memory |
+| Multiple consumers share evaluation | Pipeline re-evaluates each call | All elements will be consumed      |
+| Elements are expensive to compute   | Lightweight, no caching needed  | Elements are cheap or pre-computed |
+| Lazy composition matters            | Stdlib interop matters          | Eager execution is fine            |
 
 ## Operations
 
