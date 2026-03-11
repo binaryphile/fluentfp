@@ -3,7 +3,7 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, lazy sequence processing, optional value handling, typed alternatives, invariant enforcement, conditional value selection, tuple operations, builtin function adapters for higher-order use
+**In scope:** Collection transformation, lazy sequence processing, optional value handling, typed alternatives, invariant enforcement, conditional value selection, tuple operations, builtin function adapters for higher-order use, function composition, concurrency control, memoization, persistent data structures, combinatorics, iterator-native processing
 **Out of scope:** General concurrency, I/O, serialization, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive.
 
 ## System Invariants
@@ -34,6 +34,7 @@
 | Select a value conditionally with a fallback | Blue | low |
 | Construct reusable functions from existing ones | Blue | low |
 | Process elements from a sequence on demand | Blue | med |
+| Cache expensive function results | Blue | low |
 | Replace manual loop patterns with composable operations across the codebase | White | — |
 
 ## Use Cases
@@ -66,6 +67,7 @@
 - 1b. Collection source is a map: System extracts the map's values as a collection for further transformation.
 - 1c. Collection source is a set: System extracts the set's members as a collection for further transformation.
 - 1d. Developer needs to filter or transform map entries while preserving map structure: System applies predicates or value transforms to entries, returning a map for further map-level operations or value extraction.
+- 1e. Collection source is a combinatorial construction: System generates all permutations, combinations, subsets, or pairwise products from input elements.
 - 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order.
 - 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
@@ -84,6 +86,7 @@
 - Deduplication: by identity or by extracted key
 - Batching: by fixed size
 - Concurrent bounding: by item count (uniform cost) or by total cost (weighted)
+- Combinatorial: permutations, combinations, power sets, Cartesian products
 
 ---
 
@@ -121,6 +124,7 @@
 - 2h. Developer checks whether a specific value exists in the collection: System tests membership and returns true if found.
 - 2i. Developer checks that no elements satisfy a criterion: System tests every element and returns true only if none match.
 - 2j. Developer needs elements indexed by a derived key for O(1) lookup: System produces a map from extracted keys to elements.
+- 2k. Developer needs to efficiently track the minimum or maximum across a growing dataset: System maintains a persistent sorted structure where the extremum is always available in constant time and insertions produce a new structure without modifying the original.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
@@ -340,6 +344,7 @@
 - 3a. Developer needs cross-type transformation: System transforms elements to a different type.
 - 4a. Developer needs to bridge to a Go range loop: System provides an iterator compatible with Go's range protocol.
 - 4b. Developer needs to bridge to slice operations: System materializes to a plain slice for use with eager collection operations.
+- 4c. Developer needs iterator-native processing without memoization: System provides lazy pipelines that re-evaluate on each iteration, compatible with Go's range protocol. Unlike memoized sequences, these pipelines do not cache intermediate results.
 
 **Sub-Variations:**
 - Construction: from slice, variadic, generate (infinite), repeat (constant), unfold (step function), paginate (always-emit step function), prepend (eager cons), prepend lazy (deferred cons)
@@ -348,3 +353,39 @@
 - Skipping: by count (drop), by predicate (drop-while)
 - Transformation: same-type (method), cross-type (standalone)
 - Termination: collect, each, find, any, fold, seq
+
+---
+
+### UC-9: Memoize Function Results
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: repeated calls return cached results without redundant computation
+- Code reviewer: caching boundary explicit at point of wrapping
+
+**Postconditions:**
+- Repeated calls with the same input return the same result without re-executing the original function
+- Original function is unmodified
+
+**Minimal Guarantee:** If the wrapped function panics, no corrupted result is cached. Future calls retry.
+
+**Preconditions:**
+- Developer has a function whose results are safe to cache (pure or idempotent)
+
+**Main Scenario:**
+1. Developer wraps the function with memoization.
+2. First call executes the function and caches the result.
+3. Subsequent calls with the same input return the cached result.
+
+**Extensions:**
+- 1a. Function takes no arguments (deferred initialization): System wraps a zero-arg function; first call evaluates and caches; subsequent calls return cached value.
+- 1b. Function is fallible (returns value and error): System caches only successes — errors trigger retry on subsequent calls.
+- 1c. Developer needs bounded cache size: System provides an LRU cache that evicts least recently used entries when capacity is exceeded.
+- 1d. Developer needs a custom caching strategy: System accepts a caller-provided cache implementing Load/Store.
+- 2a. Wrapped function panics: System resets to un-cached state; panic propagates; future calls retry the function.
+
+**Sub-Variations:**
+- Zero-arg memoization (Of): deferred initialization, sync.Once replacement with retry
+- Keyed memoization (Fn, FnErr): function caching by input
+- Cache strategies: unbounded map (NewMap), bounded LRU (NewLRU), custom (Cache interface)

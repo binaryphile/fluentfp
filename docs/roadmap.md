@@ -10,25 +10,17 @@ Features every serious competitor provides and fluentfp lacks.
 
 ### ~~Option.FlatMap / Result.FlatMap — monadic bind~~ (done v0.47.0)
 
-### Set Operations — Intersect, Difference, Union
+### ~~Set Operations — Intersect, Difference, Union~~ (done v0.48.0)
 
-lo's most popular operations after Filter/Map. Commonly needed for reconciliation, diffing, and membership logic.
-
-### Flatten — [][]T to []T
-
-See [feature-gaps.md](feature-gaps.md) for details. Basic operation, lo and repeale have it.
+### ~~Flatten — [][]T to []T~~ (done v0.49.0)
 
 ## Medium Priority
 
 Useful features with clear demand but existing workarounds.
 
-### Iterator-Native Operations (Go 1.23+)
+### ~~Iterator-Native Operations (Go 1.23+)~~ (done — seq package)
 
-lo/it mirrors the entire lo API on `iter.Seq[T]`. fluentfp has `stream.Seq()` as a bridge but no iterator-native filter/map/take/etc. Go 1.23 iterators are mainstream. This is lo's biggest recent investment.
-
-### JSON/SQL Serialization for Option
-
-samber/mo's Option implements `json.Marshaler`/`json.Unmarshaler` and `sql.Scanner`/`sql.Valuer`. Practical for API and database work where nullable fields map to Option.
+### ~~JSON/SQL Serialization for Option~~ (done — JSON v0.14.0, SQL v0.51.0)
 
 ### Slice Operations
 
@@ -41,7 +33,7 @@ samber/mo's Option implements `json.Marshaler`/`json.Unmarshaler` and `sql.Scann
 | Intersperse | Insert separator between elements | IBM |
 | Shuffle | Randomize order | lo |
 | Sample/Samples | Random element(s) | lo |
-| CountBy | Count per group | lo |
+| ~~CountBy~~ | ~~Count per group~~ | Superseded by `Tally` (v0.35.0) |
 | Repeat/RepeatBy | Generate slice by repeating | lo |
 
 ### Map Operations
@@ -58,7 +50,7 @@ samber/mo's Option implements `json.Marshaler`/`json.Unmarshaler` and `sql.Scann
 | Operation | Description | Who has it |
 |-----------|-------------|------------|
 | MapNone | Transform the absent case | mo |
-| Match/Fold | Pattern-match dispatch | mo, repeale |
+| ~~Match/Fold~~ | ~~Pattern-match dispatch~~ | done — `result.Fold`, `either.Fold` |
 
 ### Function Composition
 
@@ -71,7 +63,8 @@ samber/mo's Option implements `json.Marshaler`/`json.Unmarshaler` and `sql.Scann
 | Operation | Description | Who has it |
 |-----------|-------------|------------|
 | Retry/Attempt | Retry with backoff | lo |
-| Debounce/Throttle | Rate limiting | lo |
+| ~~Throttle~~ | ~~Rate limiting~~ | done v0.56.0 as `hof.Throttle`/`ThrottleWeighted` |
+| Debounce | Rate limiting | lo |
 | Channel ops | SliceToChannel, ChannelToSlice, FanIn | lo |
 
 ## Skip — Academic/Niche

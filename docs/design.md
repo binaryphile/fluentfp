@@ -14,10 +14,14 @@ flowchart TD
     value --> option
     result
     stream --> option
+    seq --> option
+    heap --> option
+    combo --> pair
     pair["pair (tuple/pair)"]
     must
     lof
     hof
+    memo
 ```
 
 | Package | Role |
@@ -33,6 +37,11 @@ flowchart TD
 | `value` | Conditional value selection with eager/lazy evaluation |
 | `pair` | Tuple construction and pairwise slice operations |
 | `lof` | Adapters that make Go builtins usable as higher-order function arguments |
+| `hof` | Function combinators — composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), predicates (`Eq`), concurrency control (`Throttle`/`ThrottleWeighted`), side-effect wrappers (`OnErr`) |
+| `memo` | Memoization — zero-arg lazy evaluation (`Of`), keyed function caching (`Fn`/`FnErr`), pluggable `Cache` interface with unbounded (`NewMap`) and LRU (`NewLRU`) strategies |
+| `heap` | Persistent (immutable) pairing heap parameterized by comparator. Based on Stone Ch 4. O(1) insert/merge, O(log n) amortized delete-min. |
+| `combo` | Combinatorial generators — `CartesianProduct`, `Permutations`, `Combinations`, `PowerSet` |
+| `seq` | Iterator-native lazy chains wrapping `iter.Seq[T]`. Method chaining via defined type. Re-evaluates (vs stream's memoization). |
 
 Every package uses a `doc.go` containing a `func _()` that references all named exports. This is a compile-time proof that the exports exist — if any are renamed or removed, the build breaks.
 
@@ -362,6 +371,81 @@ until the caller is ready to extract.
 returning `Entries` for further chaining. Mirrors `Mapper.KeepIf`/`RemoveIf` but
 with both key and value available to the predicate.
 
+### D19: memo — Memoization as state machine
+
+```go
+type ofCell[T any] struct {
+    mu     sync.Mutex
+    fn     func() T
+    result T
+    state  uint8       // pending → evaluating → forced
+    wait   chan struct{}
+}
+```
+
+Mirrors stream's D12 cell pattern: same three-state machine (pending → evaluating → forced), same channel-based waiter notification, same panic semantics (reset to pending for retry). The `fn` field is nil'd after success to release the closure for GC.
+
+**Retry-on-panic vs sync.Once:** `sync.Once` permanently poisons on panic — the function never runs again and callers silently get a zero value. `memo.Of` resets to pending, re-raises the panic, and lets future callers retry. This matches stream's behavior and is correct for transient failures.
+
+**Pluggable Cache interface:** `Cache[K, V]` is `Load(K) (V, bool)` + `Store(K, V)`. Two built-in strategies: `NewMap` (unbounded, `sync.RWMutex` + map) and `NewLRU` (bounded, eviction by least recently used). Custom strategies implement the same interface.
+
+**FnErr caches successes only:** Errors are transient — caching them would prevent retry when the underlying condition resolves. Only successful `(V, nil)` results are stored; `(V, error)` results pass through uncached.
+
+**No fluentfp deps:** `memo` depends only on `sync` and `container/list`. No coupling to option, slice, or any other fluentfp package.
+
+### D20: heap — Persistent pairing heap
+
+```go
+type Heap[T any] struct {
+    root *node[T]
+    cmp  func(T, T) int
+    size int
+}
+```
+
+A persistent (immutable) priority queue based on Stone's Algorithms for Functional Programming Ch 4. The pairing merge strategy (Stone's heap-list-merger) gives O(1) insert and merge with O(log n) amortized delete-min.
+
+**Immutable:** `Insert`, `DeleteMin`, and `Merge` return new heaps; the original is unchanged. This follows fluentfp's immutability-by-default invariant and enables safe sharing across goroutines without synchronization.
+
+**Comparator-parameterized:** `heap.New(cmp)` takes a `func(T, T) int` comparator, compatible with `slice.Asc` and `slice.Desc` builders. Min-heap or max-heap is a constructor choice, not a type distinction.
+
+**No `container/heap` interface:** The stdlib interface requires push/pop mutation, which contradicts persistent semantics. `Heap[T]` provides its own API: `Insert`, `DeleteMin`, `Merge`, `Min`, `Pop`, `Collect`.
+
+**Min returns `option.Option[T]`:** Same absence-is-normal pattern as `Mapper.Find` — an empty heap is not an error. `Pop` uses comma-ok instead (returns both the min and the remaining heap — richer than a single Option).
+
+### D21: combo — Combinatorial generators
+
+```go
+func CartesianProduct[A, B any](a []A, b []B) []pair.Pair[A, B]
+func Permutations[T any](items []T) [][]T
+func Combinations[T any](items []T, k int) [][]T
+func PowerSet[T any](items []T) [][]T
+```
+
+Standalone functions that generate combinatorial constructions as plain slices.
+
+**Plain slices, not Mapper:** These are mathematical constructions, not fluent chains. The caller wraps with `slice.From()` if they need chaining — keeping combo independent of `internal/base`.
+
+**CartesianProductWith avoids intermediate allocation:** `CartesianProductWith(a, b, fn)` applies `fn` directly to each (a, b) pair without constructing `pair.Pair` values. More efficient when the caller transforms immediately.
+
+**Depends only on `pair`:** For `CartesianProduct`'s return type. No other fluentfp dependencies.
+
+### D22: seq — Iterator-native fluent chains
+
+```go
+type Seq[T any] iter.Seq[T]
+```
+
+A defined type over `iter.Seq[T]` that enables method chaining — the same trick D1 uses for `Mapper[T]` over `[]T`. Wrapping `iter.Seq[T]` as a named type adds methods without changing the representation.
+
+**Re-evaluates on each iteration:** Unlike stream's memoized cells, seq pipelines re-evaluate every time they are ranged or collected. This is standard `iter.Seq` semantics — no hidden caching, no memoization overhead, no retention of intermediate results.
+
+**Bridges Go 1.23+ range protocol:** `for v := range seq.From(data).KeepIf(pred) { ... }` works directly. `.Iter()` unwraps back to `iter.Seq[T]` for interop with stdlib and other libraries.
+
+**Convert vs Map:** Same D9 constraint as Mapper and Stream. `Convert(func(T) T)` is a method (same type). `Map[T, R]` is standalone (cross-type needs an extra type parameter that Go can't infer from the receiver).
+
+**Find returns `option.Option[T]`:** Same absence-is-normal pattern as `Mapper.Find` and `Stream.Find`.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.
@@ -488,7 +572,10 @@ Where packages depend on each other, and why:
 | `FanOut` → `result.PanicError` | Recovered panics wrapped as errors. `errors.As(err, &pe)` detects panic-originated failures. Preserves error chains via `Unwrap()`. |
 | `Stream.First` → `option.Option[T]` | Same pattern as `Mapper.First` — absence is normal, not exceptional. |
 | `Stream.Find` → `option.Option[T]` | Same pattern as `Mapper.Find` — no match is normal. |
+| `Heap.Min` → `option.Option[T]` | Same pattern as `Mapper.Find` — empty heap is normal, not exceptional. |
+| `Seq.Find` → `option.Option[T]` | Same pattern — no match is normal. |
+| `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 
-`hof`, `lof`, `must`, `pair`, and `stream` have no `internal/base` dependency. `stream` depends only on `option` (for First/Find). Both `slice` and `kv` depend only on `internal/base` — neither imports the other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends only on `pair`. `stream`, `seq`, `heap`, and `value` depend only on `option`. `slice` depends on `internal/base` and `result`; `kv` depends only on `internal/base` — neither imports the other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.

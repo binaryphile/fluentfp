@@ -6,21 +6,7 @@ For fluentfp's design constraints, see [design.md](design.md).
 
 ## Priority 2: Moderate evidence, worth considering
 
-### Flatten — shorthand for [][]T → []T
-
-`slice.Flatten[T any](tss [][]T) Mapper[T]`
-
-**Evidence:** 23 lo search lines. Current workaround is `.FlatMap(func(t []T) []T { return t })` which works but is verbose and requires explaining the identity pattern.
-
-**Design fit:** Standalone function (can't be a method — `Mapper[T any]` can't constrain `T` to `[]U`). Returns `Mapper[T]` for chaining.
-
-### CountBy — count elements per group
-
-`slice.CountBy[T any, K comparable](ts []T, fn func(T) K) map[K]int`
-
-**Evidence:** 16 lo search lines. Current workaround `.KeepIf(pred).Len()` works for single-predicate counting but requires N passes for N categories.
-
-**Design fit:** Standalone function, returns `map[K]int`. Low priority — `GroupBy` + `.Len()` on each group covers multi-category counting.
+### ~~Flatten — shorthand for [][]T → []T~~ (done v0.49.0)
 
 ## Deprioritized
 
@@ -28,8 +14,8 @@ Features that exist in the codebase but have no evidence of real-world demand.
 
 | Feature | Survey evidence | Status |
 |---------|----------------|--------|
-| PMap, PKeepIf, PEach | 0 adoption across 30+ lo repos, 20 go-linq repos | CPU-bound static chunking. Functional but underpromoted — no demand signal from any surveyed codebase |
-| FanOut, FanOutEach | N/A (new in v0.40.0) | I/O-bound per-item scheduling with per-item results, context cancellation, panic recovery. Evaluating against deprecation criteria in [parallelism-research.md](parallelism-research.md) §7 |
+| PMap, PKeepIf, PEach | 0 adoption across 30+ lo repos, 20 go-linq repos | **Shipped**. Still no demand signal. |
+| FanOut, FanOutEach | N/A (new in v0.40.0) | **Shipped** (v0.40.0) + Weighted variants (v0.52.0). |
 
 ## Decided against
 
@@ -38,3 +24,4 @@ Features that exist in the codebase but have no evidence of real-world demand.
 | FilterMap (filter+map in one pass) | 34 | `.KeepIf().Convert()` chain is idiomatic in fluentfp |
 | Times (generate N items) | 23 | Trivial loop, not a collection operation |
 | FromPtr / ToPtr | 26/25 | `option.NonNil` covers the useful case; `&v` is fine |
+| CountBy (count per group) | 16 | `Tally` returns richer `Mapper[Group]`; `GroupBy` + `.Len()` covers counting |
