@@ -226,7 +226,9 @@ Packages are independent — import one or all.
 | [result](result/) | Typed error handling | `Ok`, `Err`, `CollectAll`, `CollectOk` |
 | [must](must/) | Invariant enforcement | `Get`, `BeNil`, `Of` |
 | [value](value/) | Conditional value selection | `Of().When().Or()` |
-| [stream](stream/) | Lazy sequences | `Generate`, `Unfold`, `Take`, `Collect` |
+| [stream](stream/) | Lazy memoized sequences | `Generate`, `Unfold`, `Take`, `Collect` |
+| [seq](seq/) | Fluent iter.Seq chains | `From`, `KeepIf`, `Take`, `Collect` |
+| [heap](heap/) | Persistent priority queue | `New`, `Insert`, `Pop`, `Collect` |
 | [hof](hof/) | Function combinators | `Pipe`, `Bind`, `Throttle`, `OnErr` |
 | [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
 | [combo](combo/) | Combinatorial constructions | `CartesianProduct`, `Combinations`, `PowerSet` |
