@@ -1,5 +1,7 @@
 package base
 
+import "strings"
+
 type Float64 []float64
 
 // Sum returns the sum of all elements.
@@ -139,6 +141,11 @@ func (ss String) Len() int {
 // ToSet returns a map with each string as a key set to true.
 func (ss String) ToSet() map[string]bool {
 	return ToSet([]string(ss))
+}
+
+// Join concatenates the elements with sep between each.
+func (ss String) Join(sep string) string {
+	return strings.Join(ss, sep)
 }
 
 // NonEmpty removes empty strings.

@@ -88,6 +88,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 
 // String terminal methods (String is a defined type, not an alias)
 .Unique() String                        // Remove duplicates, preserving order
+.Join(sep string) string                // Concatenate with separator
 .Contains(target string) bool           // Check membership
 .Len() int                              // Count elements
 .ToSet() map[string]bool                // Convert to set for membership checks

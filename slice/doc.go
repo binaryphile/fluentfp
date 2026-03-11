@@ -87,6 +87,7 @@ func _() {
 	_ = Entries[int, int].ToRune
 	_ = Entries[int, int].ToString
 
+	_ = String.Join
 	_ = String.NonEmpty
 	_ = String.ToSet
 	_ = Float64.Max

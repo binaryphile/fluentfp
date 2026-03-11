@@ -53,7 +53,7 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
 }
 
 byViewModeDesc := slice.Desc(sortFuncs[mode])
-results := kv.Map(s.Processes, NewResult).Sort(byViewModeDesc).Take(n)
+results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 ```
 
 **What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(byViewModeDesc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
@@ -387,15 +387,15 @@ type G = slice.Group[string, string]
 
 var byKey = slice.Asc(G.GetKey)
 
-// statusGroup formats a status group as "status(count)".
-statusGroup := func(g G) string {
+// countByStatus formats a status group as "status(count)".
+countByStatus := func(g G) string {
 	return fmt.Sprintf("%s(%d)", g.Key, g.Len())
 }
 
-func combinedStatus(statuses []string) string {
-	formatted := slice.Tally(statuses).Sort(byKey).ToString(statusGroup)
-	return strings.Join(formatted, ", ")
-}
+combined := slice.Tally(statuses).
+	Sort(byKey).
+	ToString(countByStatus).
+	Join(", ")
 ```
 
 **What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline: `Tally` (group by value) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. `Tally` names the operation directly — "count occurrences of each distinct value" — instead of requiring the reader to recognize `GroupBy` with an identity function.
