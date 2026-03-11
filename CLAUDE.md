@@ -96,6 +96,7 @@ slice.MapTo[R](ts []T) MapperTo[R,T]   // For filter→map chains needing left-t
 slice.FromSet[T comparable](m map[T]bool) Mapper[T]                    // Set members as collection (inverse of ToSet)
 slice.Group[K comparable, T any]                                         // Type: struct with Key K, Items []T
 slice.GroupBy[T any, K comparable](ts Mapper[T], fn func(T) K) Mapper[Group[K, T]] // Group by key → chainable slice of groups
+slice.Tally[T comparable](ts Mapper[T]) Mapper[Group[T, T]]                       // Group by value (frequency count)
 slice.KeyBy[T any, K comparable](ts Mapper[T], fn func(T) K) map[K]T              // Index elements by extracted key (last wins)
 slice.Chunk[T any](ts Mapper[T], size int) [][]T                              // Split into fixed-size batches
 slice.Flatten[T any](tss [][]T) Mapper[T]                                     // Concatenate nested slices (inverse of Chunk)
@@ -290,7 +291,7 @@ result.PanicError{ Value any; Stack []byte }  // detect via errors.As
 result.CollectAll[R any](results []Result[R]) ([]R, error)  // all Ok → values; first Err → error
 result.CollectOk[R any](results []Result[R]) []R             // Ok values only
 result.CollectErr[R any](results []Result[R]) []error        // Err values only
-result.CollectResults[R any](results []Result[R]) ([]R, []error)  // single-pass split
+result.CollectOkAndErr[R any](results []Result[R]) ([]R, []error)  // single-pass split
 ```
 
 ### stream Package
@@ -489,8 +490,8 @@ hof.Pipe(fg, h)
 both := hof.Cross(double, toUpper)
 d, u := both(5, "hello")  // 10, "HELLO"
 
-// Identity as GroupBy key extractor (group by value)
-groups := slice.GroupBy(statuses, lof.Identity[string])
+// Tally — frequency count by value
+groups := slice.Tally(statuses)
 
 // Equality predicate for Every/Any
 allSkipped := slice.From(statuses).Every(hof.Eq(Skipped))

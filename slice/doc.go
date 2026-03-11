@@ -110,6 +110,7 @@ func _() {
 	_ = Partition[int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
+	_ = Tally[int]
 	_ = Union[int]
 
 	_ = Asc[int, int]

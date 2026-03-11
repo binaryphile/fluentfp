@@ -216,8 +216,8 @@ func CollectErr[R any](results []Result[R]) []error {
 	return errs
 }
 
-// CollectResults splits results into Ok values and Err errors in a single pass, preserving order.
-func CollectResults[R any](results []Result[R]) ([]R, []error) {
+// CollectOkAndErr splits results into Ok values and Err errors in a single pass, preserving order.
+func CollectOkAndErr[R any](results []Result[R]) ([]R, []error) {
 	values := make([]R, 0, len(results))
 	errs := make([]error, 0)
 

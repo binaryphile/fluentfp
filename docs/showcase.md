@@ -346,7 +346,7 @@ slice.From(oldMappings).Every(isNewFormat)
 
 ---
 
-## GroupBy
+## Tally
 
 ### Status frequency formatting — docker/compose
 
@@ -385,22 +385,48 @@ func combinedStatus(statuses []string) string {
 ```go
 type G = slice.Group[string, string]
 
-byKey := slice.Asc(G.GetKey)
+var byKey = slice.Asc(G.GetKey)
 
-// formatGroup formats a status group as "status(count)".
-formatGroup := func(g G) string {
-	return fmt.Sprintf("%s(%d)", g.Key, len(g.Items))
+// statusGroup formats a status group as "status(count)".
+statusGroup := func(g G) string {
+	return fmt.Sprintf("%s(%d)", g.Key, g.Len())
 }
 
 func combinedStatus(statuses []string) string {
-	formatted := slice.GroupBy(statuses, lof.StringIdentity).Sort(byKey).ToString(formatGroup)
+	formatted := slice.Tally(statuses).Sort(byKey).ToString(statusGroup)
 	return strings.Join(formatted, ", ")
 }
 ```
 
-**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline of named stages: `GroupBy` (count by key) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. The custom `statusValue` identity function — `func(s string) string { return s }` — becomes `lof.StringIdentity`, a standard building block for "group by value" patterns.
+**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline: `Tally` (group by value) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. `Tally` names the operation directly — "count occurrences of each distinct value" — instead of requiring the reader to recognize `GroupBy` with an identity function.
 
-**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping, plus a hand-written identity function. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupBy` separates grouping from ordering, `lof.StringIdentity` names the key-extraction intent, and the pipeline makes each transformation step visible as a named operation.
+**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `Tally` separates grouping from ordering, and the pipeline makes each transformation step visible as a named operation.
+
+---
+
+## GroupBy
+
+### Alert rule grouping by organization key — grafana/grafana
+
+**Source:** [alert_rule.go](https://github.com/grafana/grafana/blob/main/pkg/services/ngalert/models/alert_rule.go)
+**Pain point:** Manual map construction with duplicated key expression per iteration
+
+Grafana (72k stars) groups alert rules by a composite key — `AlertRuleGroupKey{OrgID, NamespaceUID, RuleGroup}` — for evaluation scheduling. Each rule has a `GetGroupKey()` method that extracts this key. The grouping loop allocates a map, iterates, and calls `GetGroupKey()` twice per iteration: once as the map key, once inside `append`.
+
+**Original:**
+```go
+result := make(map[AlertRuleGroupKey]RulesGroup)
+for _, rule := range rules {
+	result[rule.GetGroupKey()] = append(result[rule.GetGroupKey()], rule)
+}
+```
+
+**fluentfp:**
+```go
+groups := slice.GroupBy(rules, (*AlertRule).GetGroupKey)
+```
+
+**What changed:** The map-init + loop + append boilerplate becomes a single call. The method expression `(*AlertRule).GetGroupKey` names the key extraction directly. `GroupBy` preserves first-seen order (the map does not), and returns `Mapper[Group[K, T]]` for further chaining — sort, filter, or transform the groups without converting back to a map.
 
 ---
 
@@ -656,7 +682,7 @@ uploads, err := result.CollectAll(results)    // all-or-nothing
 For Hex's pattern — partial success is acceptable:
 
 ```go
-downloaded, errs := result.CollectResults(slice.FanOut(ctx, 8, deps, fetchDep))
+downloaded, errs := result.CollectOkAndErr(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
 Or when only successes matter:
@@ -665,7 +691,7 @@ Or when only successes matter:
 downloaded := result.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
-**What this brings to Go:** Three consumption modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `CollectResults` for both halves, `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
+**What this brings to Go:** Three consumption modes from the same `FanOut` call — `CollectAll` for all-or-nothing, `CollectOkAndErr` for both halves, `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
 
 ---
 
@@ -783,107 +809,54 @@ reachable := reachFrom([]Vertex{source})
 
 ---
 
-## Combinatorics
+## CartesianProduct
 
-### Permutations for order-independent testing — canonical/chisel
+### Credential pair testing — trufflesecurity/trufflehog
 
-**Source:** [internal/testutil/permutation.go](https://github.com/canonical/chisel/blob/main/internal/testutil/permutation.go)
-**Pain point:** A dedicated 24-line file implementing Heap's algorithm just to generate permutations for testing
+**Source:** [pkg/detectors/easyinsight/easyinsight.go](https://github.com/trufflesecurity/trufflehog/blob/main/pkg/detectors/easyinsight/easyinsight.go)
+**Pain point:** Nested loops for key×id cross-join, manual same-pair skip, append boilerplate
 
-Chisel (Canonical's minimal Ubuntu container tool) tests that `FindSlices` produces consistent results regardless of query term order. To do this, they need all permutations of the query. The project carries a standalone 24-line generic implementation of Heap's algorithm in its test utilities.
+TruffleHog (25k stars) scans repositories for leaked credentials. Each detector extracts API keys and account IDs from text via regex, deduplicates them into maps, then tests every key–id combination. Hundreds of detectors repeat this nested-loop pattern.
 
-**Original** (24 lines — entire file):
+**Original** (verification omitted for clarity):
 ```go
-package testutil
+for keyMatch := range keyMatches {
+    for idMatch := range idMatches {
+        if keyMatch == idMatch {
+            continue
+        }
 
-func Permutations[S ~[]E, E any](s S) []S {
-    var output []S
-    var generate func(k int, s S)
-    generate = func(k int, s S) {
-        if k <= 1 {
-            r := make([]E, len(s))
-            copy(r, s)
-            output = append(output, r)
-            return
+        s1 := detectors.Result{
+            DetectorType: detectorspb.DetectorType_EasyInsight,
+            Raw:          []byte(keyMatch),
+            RawV2:        []byte(keyMatch + idMatch),
         }
-        generate(k-1, s)
-        for i := 0; i < k-1; i += 1 {
-            if k%2 == 0 {
-                s[i], s[k-1] = s[k-1], s[i]
-            } else {
-                s[0], s[k-1] = s[k-1], s[0]
-            }
-            generate(k-1, s)
-        }
+
+        results = append(results, s1)
     }
-    sCpy := make([]E, len(s))
-    copy(sCpy, s)
-    generate(len(sCpy), sCpy)
-    return output
-}
-```
-
-**Usage** ([cmd_find_test.go](https://github.com/canonical/chisel/blob/main/cmd/chisel/cmd_find_test.go)):
-```go
-for _, query := range testutil.Permutations(test.query) {
-    slices, err := chisel.FindSlices(test.release, query)
-    c.Assert(slices, DeepEquals, test.result)
 }
 ```
 
 **fluentfp:**
 ```go
-for _, query := range combo.Permutations(test.query) {
-    slices, err := chisel.FindSlices(test.release, query)
-    c.Assert(slices, DeepEquals, test.result)
+// isDifferentPair returns true if the key and id are different strings.
+isDifferentPair := func(p pair.Pair[string, string]) bool {
+    return p.First != p.Second
 }
-```
 
-**What's eliminated:** An entire file. The recursive closure with Heap's swap logic — parity checks, in-place mutation with defensive copies, manual `make`+`copy` for each permutation — all replaced by a function call. The test usage is unchanged; only the import differs.
-
-### Combinations for snapshot placement — ubuntu/zsys
-
-**Source:** [internal/machines/gc.go#L706-L760](https://github.com/ubuntu/zsys/blob/master/internal/machines/gc.go#L706-L760)
-**Pain point:** 55 lines of index-based combinatorial boilerplate copied from gonum to avoid a full dependency
-
-Ubuntu's ZFS system management daemon needs to find the optimal placement of snapshots across time buckets. For each bucket with free slots, it evaluates every possible combination of candidate snapshots to find the one closest to the bucket's temporal midpoint. Three functions — `combinations`, `binomial`, and `nextCombination` — are copied from gonum and operate on indices rather than elements.
-
-**Original** (55 lines — three functions copied from gonum):
-```go
-func combinations(n, k int) [][]int {
-    combinations := binomial(n, k)
-    data := make([][]int, combinations)
-    if len(data) == 0 {
-        return data
+// toCandidate builds a detector result from a key-id pair.
+toCandidate := func(p pair.Pair[string, string]) detectors.Result {
+    return detectors.Result{
+        DetectorType: detectorspb.DetectorType_EasyInsight,
+        Raw:          []byte(p.First),
+        RawV2:        []byte(p.First + p.Second),
     }
-    data[0] = make([]int, k)
-    for i := range data[0] {
-        data[0][i] = i
-    }
-    for i := 1; i < combinations; i++ {
-        next := make([]int, k)
-        copy(next, data[i-1])
-        nextCombination(next, n, k)
-        data[i] = next
-    }
-    return data
 }
-// + binomial (15 lines) and nextCombination (10 lines)
+
+keys := kv.Keys(keyMatches)
+ids := kv.Keys(idMatches)
+candidates := slice.From(combo.CartesianProduct(keys, ids)).KeepIf(isDifferentPair)
+results := slice.Map(candidates, toCandidate)
 ```
 
-**Usage:**
-```go
-cs := combinations(len(toPlace), freeSlots)
-for _, c := range cs {
-    // index into toPlace with c[0], c[1], ... to evaluate this combination
-}
-```
-
-**fluentfp:**
-```go
-for _, c := range combo.Combinations(toPlace, freeSlots) {
-    // c is already []State — no index indirection needed
-}
-```
-
-**What's eliminated:** 55 lines of copy-pasted numerical combinatorics — binomial coefficient calculation, iterative next-combination generation, and the coordinating `combinations` function. The gonum original works on indices (`[][]int`), requiring a separate indirection step to access the actual elements. `combo.Combinations` operates on the elements directly, so `c` is `[]State`, not `[]int` — the index indirection disappears along with the boilerplate.
+**What this shows:** `kv.Keys` extracts map keys into slices, `combo.CartesianProduct` replaces the nested loop, then the result flows through `slice.From` → `.KeepIf` → `slice.Map` — a pipeline where each stage expresses one concern. The original interleaves iteration, filtering, construction, and accumulation in a single nested block.
