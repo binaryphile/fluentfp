@@ -294,6 +294,62 @@ result.CollectErr[R any](results []Result[R]) []error        // Err values only
 result.CollectOkAndErr[R any](results []Result[R]) ([]R, []error)  // single-pass split
 ```
 
+### heap Package
+
+```go
+import "github.com/binaryphile/fluentfp/heap"
+
+// Heap — persistent (immutable) pairing heap. Based on Stone Ch 4.
+// Parameterized by comparator: use slice.Asc/slice.Desc.
+// Zero value is valid empty heap for queries; panics on Insert/Merge/DeleteMin
+// without comparator — always create with New or From.
+
+// Constructors
+heap.New[T any](cmp func(T, T) int) Heap[T]           // empty heap; panics if cmp nil
+heap.From[T any](ts []T, cmp func(T, T) int) Heap[T]  // bulk insert O(n)
+
+// Core (return new heap — old heap unchanged)
+.Insert(t T) Heap[T]                // O(1) — merge singleton with root
+.DeleteMin() Heap[T]                // O(log n) amortized — pairing merge of children
+.Merge(other Heap[T]) Heap[T]       // O(1) — compare roots, loser becomes child
+
+// Queries
+.Min() option.Option[T]             // O(1) peek at root
+.Pop() (T, Heap[T], bool)           // Min + DeleteMin combined
+.IsEmpty() bool
+.Len() int
+
+// Consumption
+.Collect() []T                      // sorted drain O(n log n)
+```
+
+### heap Patterns
+
+```go
+// Min-heap by field
+h := heap.New(slice.Asc(Task.Priority))
+h = h.Insert(task1).Insert(task2)
+
+// Max-heap
+h := heap.New(slice.Desc(Score.Value))
+
+// Build from slice
+h := heap.From(items, slice.Asc(Item.Cost))
+
+// Pop loop (sorted iteration)
+for !h.IsEmpty() {
+    item, rest, _ := h.Pop()
+    process(item)
+    h = rest
+}
+
+// Merge two heaps O(1)
+combined := left.Merge(right)
+
+// Persistence — old heap unchanged
+h2 := h1.Insert(x)   // h1 still valid with original elements
+```
+
 ### stream Package
 
 ```go
