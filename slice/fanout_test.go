@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -1611,26 +1613,89 @@ func TestFanOutAllSuccess(t *testing.T) {
 	}
 }
 
-func TestFanOutAllFirstErrorByIndex(t *testing.T) {
-	// sentinel is a specific error for identity checking.
-	sentinel := errors.New("fail at 2")
+func TestFanOutAllReturnsRootCauseNotSiblingCancellation(t *testing.T) {
+	// sentinel is the real failure, occurring at the LAST index (3).
+	// Items 0-2 are at earlier indices and return context.Canceled after cancellation.
+	// Without root-cause tracking, CollectAll would return index 0's context.Canceled.
+	sentinel := errors.New("boom")
 
-	// failAtTwo returns sentinel for index 2.
-	failAtTwo := func(_ context.Context, n int) (int, error) {
-		if n == 2 {
+	// barrier ensures all 4 goroutines are running before the failure fires.
+	var barrier sync.WaitGroup
+	barrier.Add(4)
+
+	// failAtThree fails at index 3 after all items are running.
+	failAtThree := func(ctx context.Context, n int) (int, error) {
+		barrier.Done()
+		barrier.Wait()
+
+		if n == 3 {
 			return 0, sentinel
 		}
 
-		return n, nil
+		<-ctx.Done()
+
+		return 0, ctx.Err()
 	}
 
-	got, err := slice.FanOutAll(context.Background(), 1, []int{0, 1, 2, 3}, failAtTwo)
+	_, err := slice.FanOutAll(context.Background(), 4, []int{0, 1, 2, 3}, failAtThree)
 	if !errors.Is(err, sentinel) {
-		t.Fatalf("got error %v, want %v", err, sentinel)
+		t.Fatalf("got %v, want root cause %v (not sibling context.Canceled)", err, sentinel)
+	}
+}
+
+func TestFanOutAllPanicReturnsRootCauseNotSiblingCancellation(t *testing.T) {
+	// Panic at index 3 (last); items 0-2 return context.Canceled.
+	// Without root-cause tracking, CollectAll would return context.Canceled.
+	var barrier sync.WaitGroup
+	barrier.Add(4)
+
+	// panicAtThree panics at index 3 after all items are running.
+	panicAtThree := func(ctx context.Context, n int) (int, error) {
+		barrier.Done()
+		barrier.Wait()
+
+		if n == 3 {
+			panic("kaboom")
+		}
+
+		<-ctx.Done()
+
+		return 0, ctx.Err()
 	}
 
-	if got != nil {
-		t.Fatalf("got values %v, want nil", got)
+	_, err := slice.FanOutAll(context.Background(), 4, []int{0, 1, 2, 3}, panicAtThree)
+
+	var pe *result.PanicError
+	if !errors.As(err, &pe) {
+		t.Fatalf("got %T (%v), want *result.PanicError (not sibling context.Canceled)", err, err)
+	}
+}
+
+func TestFanOutAllPanicStackContainsOriginalSite(t *testing.T) {
+	// The panic originates from within fn. The stack trace captured by FanOutAll
+	// (via debug.Stack in the deferred recover) must include the call site where
+	// fn panicked, not just the wrapper's recovery frame.
+	//
+	// Go renders local func literals as TestName.funcN, so we search for the
+	// test function name and the panic message rather than a local variable name.
+
+	// triggerPanic panics with a distinctive message.
+	triggerPanic := func(_ context.Context, _ int) (int, error) {
+		panic("distinctive_panic_marker")
+	}
+
+	_, err := slice.FanOutAll(context.Background(), 1, []int{1}, triggerPanic)
+
+	var pe *result.PanicError
+	if !errors.As(err, &pe) {
+		t.Fatalf("expected PanicError, got %T: %v", err, err)
+	}
+
+	stack := string(pe.Stack)
+
+	// The stack must include this test's name (proving the panic site is captured).
+	if !strings.Contains(stack, "TestFanOutAllPanicStackContainsOriginalSite") {
+		t.Errorf("stack trace missing original panic site:\n%s", stack)
 	}
 }
 
@@ -1666,27 +1731,6 @@ func TestFanOutAllCancelsOnError(t *testing.T) {
 	// With n=2 and early cancellation, far fewer than 20 should start.
 	if got := started.Load(); got > 4 {
 		t.Errorf("started %d items, expected at most 4 with early cancellation", got)
-	}
-}
-
-func TestFanOutAllPanicTreatedAsError(t *testing.T) {
-	// panicOnTwo panics when n == 2.
-	panicOnTwo := func(_ context.Context, n int) (int, error) {
-		if n == 2 {
-			panic("kaboom")
-		}
-
-		return n, nil
-	}
-
-	_, err := slice.FanOutAll(context.Background(), 1, []int{0, 1, 2, 3}, panicOnTwo)
-	if err == nil {
-		t.Fatal("expected error from panic")
-	}
-
-	var pe *result.PanicError
-	if !errors.As(err, &pe) {
-		t.Fatalf("expected PanicError, got %T: %v", err, err)
 	}
 }
 
@@ -1742,7 +1786,7 @@ func TestFanOutAllEmptyInput(t *testing.T) {
 }
 
 func TestFanOutAllPreservesOrder(t *testing.T) {
-	// delayByValue sleeps proportional to value to force out-of-order completion.
+	// delayByValue yields to force out-of-order completion.
 	delayByValue := func(_ context.Context, n int) (int, error) {
 		runtime.Gosched()
 
@@ -1781,6 +1825,40 @@ func TestFanOutAllCallerContextNotCancelled(t *testing.T) {
 	}
 }
 
+func TestFanOutAllAlreadyCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// identity would succeed if called.
+	identity := func(_ context.Context, n int) (int, error) { return n, nil }
+
+	_, err := slice.FanOutAll(ctx, 2, []int{1, 2, 3}, identity)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v, want context.Canceled", err)
+	}
+}
+
+func TestFanOutAllMultipleConcurrentFailures(t *testing.T) {
+	// sentinel is the error we want to see.
+	sentinel := errors.New("first")
+
+	// allFail has every item fail, but item 0 fails with sentinel.
+	allFail := func(_ context.Context, n int) (int, error) {
+		if n == 0 {
+			return 0, sentinel
+		}
+
+		return 0, errors.New("other")
+	}
+
+	_, err := slice.FanOutAll(context.Background(), 1, []int{0, 1, 2}, allFail)
+
+	// With sequential execution (n=1), item 0 fails first.
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("got %v, want %v", err, sentinel)
+	}
+}
+
 func TestFanOutAllValidationPanics(t *testing.T) {
 	// identity is a valid function for non-panic paths.
 	identity := func(_ context.Context, n int) (int, error) { return n, nil }
@@ -1797,8 +1875,14 @@ func TestFanOutAllValidationPanics(t *testing.T) {
 
 	t.Run("nil ctx", func(t *testing.T) {
 		defer func() {
-			if recover() == nil {
-				t.Fatal("expected panic")
+			got, ok := recover().(string)
+			if !ok {
+				t.Fatal("expected string panic")
+			}
+
+			want := "slice.FanOutAll: ctx must not be nil"
+			if got != want {
+				t.Errorf("got %q, want %q", got, want)
 			}
 		}()
 
@@ -1879,4 +1963,74 @@ func TestFanOutWeightedAllCancelsOnError(t *testing.T) {
 	if got := started.Load(); got > 4 {
 		t.Errorf("started %d items, expected at most 4 with early cancellation", got)
 	}
+}
+
+func TestFanOutWeightedAllReturnsRootCause(t *testing.T) {
+	// sentinel is the real failure at the last index.
+	sentinel := errors.New("real cause")
+
+	var barrier sync.WaitGroup
+	barrier.Add(4)
+
+	// failAtThree fails at index 3 after all items are running.
+	failAtThree := func(ctx context.Context, n int) (int, error) {
+		barrier.Done()
+		barrier.Wait()
+
+		if n == 3 {
+			return 0, sentinel
+		}
+
+		<-ctx.Done()
+
+		return 0, ctx.Err()
+	}
+
+	// unitCost returns 1 for every item.
+	unitCost := func(_ int) int { return 1 }
+
+	_, err := slice.FanOutWeightedAll(context.Background(), 4, []int{0, 1, 2, 3}, unitCost, failAtThree)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("got %v, want root cause %v", err, sentinel)
+	}
+}
+
+func TestFanOutWeightedAllValidationPanics(t *testing.T) {
+	// identity is a valid function.
+	identity := func(_ context.Context, n int) (int, error) { return n, nil }
+
+	// unitCost returns 1 for every item.
+	unitCost := func(_ int) int { return 1 }
+
+	t.Run("nil ctx", func(t *testing.T) {
+		defer func() {
+			got, ok := recover().(string)
+			if !ok {
+				t.Fatal("expected string panic")
+			}
+
+			want := "slice.FanOutWeightedAll: ctx must not be nil"
+			if got != want {
+				t.Errorf("got %q, want %q", got, want)
+			}
+		}()
+
+		slice.FanOutWeightedAll[int, int](nil, 2, []int{1}, unitCost, identity) //nolint:staticcheck
+	})
+
+	t.Run("nil fn", func(t *testing.T) {
+		defer func() {
+			got, ok := recover().(string)
+			if !ok {
+				t.Fatal("expected string panic")
+			}
+
+			want := "slice.FanOutWeightedAll: fn must not be nil"
+			if got != want {
+				t.Errorf("got %q, want %q", got, want)
+			}
+		}()
+
+		slice.FanOutWeightedAll[int, int](context.Background(), 2, []int{1}, unitCost, nil)
+	})
 }

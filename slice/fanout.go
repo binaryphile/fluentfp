@@ -332,14 +332,22 @@ loop:
 }
 
 // FanOutAll applies fn to each element concurrently (at most n goroutines),
-// returning all values if every call succeeds, or the first error by index otherwise.
-// On first failure (error or panic), remaining unscheduled items are cancelled promptly.
+// returning all values if every call succeeds, or the first observed failure otherwise.
+// On first failure (error or panic), the derived context is cancelled so cooperative
+// work can stop early. Already-running callbacks continue until fn returns.
+//
+// The returned error is the first failure observed (by time, not index).
+// Sibling context.Canceled errors from cancellation do not mask the root cause.
+// Panics in fn are captured as *[result.PanicError] with the original stack trace.
 //
 // Derives a child context internally — the caller's context is never cancelled.
-// Panics in fn trigger cancellation and are captured as *[result.PanicError].
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
 func FanOutAll[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) ([]R, error) {
+	if ctx == nil {
+		panic("slice.FanOutAll: ctx must not be nil")
+	}
+
 	if fn == nil {
 		panic("slice.FanOutAll: fn must not be nil")
 	}
@@ -347,37 +355,60 @@ func FanOutAll[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(conte
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// cancelOnFail wraps fn to cancel remaining work on error or panic.
+	var causeOnce sync.Once
+	var cause error
+
+	// recordCause captures the first observed failure. Only the first call wins.
+	recordCause := func(err error) {
+		causeOnce.Do(func() { cause = err })
+	}
+
+	// cancelOnFail wraps fn to record the first failure, cancel remaining work,
+	// and convert panics to errors with the original stack trace.
 	cancelOnFail := func(ctx context.Context, t T) (r R, err error) {
 		defer func() {
 			if v := recover(); v != nil {
+				err = &result.PanicError{Value: v, Stack: debug.Stack()}
+				recordCause(err)
 				cancel()
-				panic(v)
 			}
 		}()
 
 		r, err = fn(ctx, t)
 		if err != nil {
+			recordCause(err)
 			cancel()
 		}
 
 		return
 	}
 
-	return result.CollectAll([]result.Result[R](fanOut(ctx, n, ts, cancelOnFail)))
+	results := fanOut(ctx, n, ts, cancelOnFail)
+
+	if cause != nil {
+		return nil, cause
+	}
+
+	return result.CollectAll([]result.Result[R](results))
 }
 
 // FanOutWeightedAll applies fn to each element concurrently, bounded by a total
-// cost budget, returning all values if every call succeeds, or the first error
-// by index otherwise. On first failure (error or panic), remaining unscheduled
-// items are cancelled.
+// cost budget, returning all values if every call succeeds, or the first observed
+// failure otherwise. On first failure (error or panic), the derived context is
+// cancelled so cooperative work can stop early.
+//
+// Same semantics as [FanOutAll] — see its documentation for error selection,
+// panic handling, and cancellation guarantees.
 //
 // Derives a child context internally — the caller's context is never cancelled.
-// Panics in fn trigger cancellation and are captured as *[result.PanicError].
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
 func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) ([]R, error) {
+	if ctx == nil {
+		panic("slice.FanOutWeightedAll: ctx must not be nil")
+	}
+
 	if fn == nil {
 		panic("slice.FanOutWeightedAll: fn must not be nil")
 	}
@@ -385,24 +416,41 @@ func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts Mapper[T]
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// cancelOnFail wraps fn to cancel remaining work on error or panic.
+	var causeOnce sync.Once
+	var cause error
+
+	// recordCause captures the first observed failure. Only the first call wins.
+	recordCause := func(err error) {
+		causeOnce.Do(func() { cause = err })
+	}
+
+	// cancelOnFail wraps fn to record the first failure, cancel remaining work,
+	// and convert panics to errors with the original stack trace.
 	cancelOnFail := func(ctx context.Context, t T) (r R, err error) {
 		defer func() {
 			if v := recover(); v != nil {
+				err = &result.PanicError{Value: v, Stack: debug.Stack()}
+				recordCause(err)
 				cancel()
-				panic(v)
 			}
 		}()
 
 		r, err = fn(ctx, t)
 		if err != nil {
+			recordCause(err)
 			cancel()
 		}
 
 		return
 	}
 
-	return result.CollectAll([]result.Result[R](fanOutWeighted(ctx, capacity, ts, cost, cancelOnFail)))
+	results := fanOutWeighted(ctx, capacity, ts, cost, cancelOnFail)
+
+	if cause != nil {
+		return nil, cause
+	}
+
+	return result.CollectAll([]result.Result[R](results))
 }
 
 // runItem calls fn with panic recovery. Named return enables defer/recover to set the result.

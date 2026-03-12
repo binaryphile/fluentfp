@@ -112,7 +112,7 @@ for _, u := range result {     // range
 }
 ```
 
-- Keep `[]T` in your function signatures, not `Mapper[T]` — use `From()` at the point of use. This keeps fluentfp as an implementation detail; callers don't need to import it.
+- Keep `[]T` for your slice arguments in function signatures, not `Mapper[T]` — use `From()` at the point of use. This keeps fluentfp as an implementation detail; callers don't need to import it.  It can be useful to return `Mapper[T]` from many functions, however, knowing that it's still usable by the consumer as a regular slice.
 - `From()` is a zero-cost type conversion — no array copy. The Go spec [guarantees](https://go.dev/ref/spec#Conversions) that converting between types with identical underlying types only changes the type, not the representation. The 24-byte slice header (pointer, length, capacity) is shared; the backing array is the same. (`append` to either may mutate the other if capacity remains.)
 - **Mutation boundaries:** Most operations (`KeepIf`, `Convert`, `ToString`, etc.) allocate fresh slices — the result is independent of the input. View operations (`From` alone, `Take`, `TakeLast`, `Chunk`) share the backing array. Use `.Clone()` at boundaries where shared state could be mutated. See [design.md § Boundaries and Defensive Copying](../docs/design.md#boundaries-and-defensive-copying) for practical guidance.
 - Nil-safe: `From(nil).KeepIf(...).ToString(...)` returns an empty slice — Go's range over nil is zero iterations
@@ -128,11 +128,11 @@ See [comparison](../comparison.md) for the full library comparison.
 `From` creates `Mapper[T]`. For cross-type mapping, prefer the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `MapTo[R]` creates `MapperTo[R,T]` for the narrow case where you filter before cross-type mapping: `MapTo[R](ts).KeepIf(pred).Map(fn)`. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
 - **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `NonZero`
-- **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (String)
-- **Transform**: `Convert`, `FlatMap`, `Map` (MapperTo), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (String), `UniqueBy`, `SortBy`, `SortByDesc`
-- **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (Int, Float64), `Min` (Int, Float64), `Sum` (Int, Float64), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
-- **Parallel**: `PMap`, `PKeepIf`, `PEach` — concurrent versions for CPU/IO-bound transforms. Goroutine overhead makes these slower for trivial operations; only beneficial when `fn` does meaningful work per element. Run `go test -bench=BenchmarkP ./slice/` for numbers on your hardware.
-- **Concurrent I/O**: `FanOut`, `FanOutEach`, `FanOutAll` — bounded concurrent traversal with per-item scheduling, context-aware cancellation, and panic recovery. `FanOut` returns `Mapper[result.Result[R]]` for flexible consumption; `FanOutAll` returns `([]R, error)` with early cancellation. See [result](../result/) for `CollectAll`/`CollectOk`.
+- **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (`String`)
+- **Transform**: `Convert`, `FlatMap`, `Map` (`MapperTo`), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String`), `UniqueBy`, `SortBy`, `SortByDesc`
+- **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (`int`, `float64`), `Min` (`int`, `float64`), `Sum` (`int`, `float64`), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
+- **Parallel (no error return)**: `PMap`, `PKeepIf`, `PEach` — bounded concurrent operations for callbacks that do not return errors. Panics are not recovered; a panic in a worker goroutine will crash the program. Usually only worth using when per-item workload is large enough to amortize the overhead cause by creation and scheduling of goroutines.
+- **Parallel (error-aware)**: `FanOut`, `FanOutAll`, `FanOutEach` — bounded concurrency for callbacks that take `context.Context` and return errors. Use `FanOut` for value-producing operations where partial success is acceptable, `FanOutAll` for all-or-nothing operations with early cancellation, and `FanOutEach` for side-effecting callbacks that return only `error`. If item costs vary widely, use the corresponding weighted variant (`FanOutWeighted`, `FanOutWeightedAll`, `FanOutEachWeighted`). See [result](../result/) for `CollectAll`, `CollectOk`, and `CollectOkAndErr`.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
 
@@ -166,36 +166,19 @@ FanOut returns only after every started goroutine has finished — no goroutine 
 
 ### All-or-nothing: FanOutAll
 
-When every item must succeed or the whole operation fails, use `FanOutAll`. It cancels remaining work on the first error and returns `([]R, error)` directly:
+When every item must succeed or the whole operation fails, use `FanOutAll`. On the first error or panic, it cancels a derived context — this skips unstarted work and lets in-flight callbacks stop early if they honor `ctx`, but it still waits for started callbacks to return. Returns `([]R, error)` directly:
 
 ```go
 infos, err := slice.FanOutAll(ctx, 10, cities, City)
 ```
 
-This is equivalent to manually wiring early cancellation with `FanOut`:
-
-```go
-ctx, cancel := context.WithCancel(ctx)
-defer cancel()
-
-results := slice.FanOut(ctx, 10, cities, hof.OnErr(City, cancel))
-infos, err := result.CollectAll(results)
-```
-
 `FanOutAll` derives a child context internally — the caller's context is never cancelled. `FanOutWeightedAll` provides the same semantics with a cost budget instead of a fixed concurrency limit.
 
-### Fail-fast with FanOut
+### Fail-fast vs partial results
 
-When using `FanOut` directly (for partial-result workflows), one item's error does not cancel siblings by default. If you want fail-fast, wrap with `hof.OnErr`:
+`FanOut` does not cancel siblings on failure — every item runs to completion. This is intentional: many workloads want partial results. Use `result.CollectOk(results)` to gather successes and discard failures, or `result.CollectOkAndErr(results)` to get both halves.
 
-```go
-ctx, cancel := context.WithCancel(parentCtx)
-defer cancel()
-
-results := slice.FanOut(ctx, 10, cities, hof.OnErr(City, cancel))
-```
-
-Many I/O workloads want partial results — fetch what you can, report what failed. Use `result.CollectOk(results)` to gather successes and discard failures.
+If any failure should fail the whole batch, use `FanOutAll` instead — on the first error or panic it cancels a derived context, skips unstarted work, lets in-flight callbacks stop early if they honor `ctx`, and still waits for started callbacks to return.
 
 ### Panic recovery
 
@@ -208,17 +191,75 @@ if errors.As(err, &pe) {
 }
 ```
 
-### FanOut vs PMap
+### Choosing a parallel operation
 
-| | FanOut | PMap |
+Choose in two steps:
+
+1. **What callback signature do you have?**
+   - `func(T) R`, `func(T) bool`, or `func(T)`: `PMap` / `PKeepIf` / `PEach`
+   - `func(context.Context, T) (R, error)` or `func(context.Context, T) error`: the `FanOut*` family
+
+2. **If you're using `FanOut*`, what result/error contract do you want?**
+   - Return values and keep per-item failures: `FanOut` / `FanOutWeighted` + collector
+   - Return values and fail the whole batch on first error: `FanOutAll` / `FanOutWeightedAll`
+   - Side effects only: `FanOutEach` / `FanOutEachWeighted`
+
+| Callback signature | Result/error contract | Operation |
 |---|---|---|
-| **Scheduling** | Per-item (semaphore) | Batch chunking |
-| **Context** | Passed to `fn` | None |
-| **Errors** | Per-item `Result[R]` | None (panic crashes) |
-| **Use case** | I/O-bound (HTTP, DB) | CPU-bound (parsing, hashing) |
+| `func(T) R` / `func(T) bool` / `func(T)` | — | `PMap` / `PKeepIf` / `PEach` |
+| `func(context.Context, T) (R, error)` | All must succeed | `FanOutAll` / `FanOutWeightedAll` |
+| `func(context.Context, T) (R, error)` | Partial success OK | `FanOut` / `FanOutWeighted` + collector |
+| `func(context.Context, T) error` | Side effects only | `FanOutEach` / `FanOutEachWeighted` |
 
-The scheduling difference matters for I/O. Per-item scheduling means as soon as one HTTP call finishes, the next item starts — the semaphore slot is immediately reused. Batch chunking divides items into equal groups; if one item in a batch is slow, its worker sits occupied while faster workers in other batches finish and go idle. For CPU-bound work with uniform cost per item, batches avoid the per-item goroutine overhead.
+**No error return** — use `PMap`, `PKeepIf`, or `PEach` when your callback does not return an error. Panics are not recovered; a panic in a worker goroutine will crash the program. This is a good fit for transforms and filters where failure is not part of the callback's contract:
 
-Use `FanOut` when items have variable latency and you need error handling. Use `PMap` when items have uniform cost and `fn` can't fail.
+```go
+// Normalize 10K strings
+normalized := slice.PMap(inputs, 8, strings.ToLower)
+
+// Compute SHA-256 digests concurrently
+digests := slice.PMap(blobs, 4, sha256.Sum256)
+```
+
+**All-or-nothing** — every item must succeed or the whole batch fails. On the first error or panic, `FanOutAll` cancels a derived context — this skips unstarted work and lets in-flight callbacks stop early if they honor `ctx`, but it still waits for started callbacks to return:
+
+```go
+// Fetch all prices before computing portfolio (partial is useless)
+prices, err := slice.FanOutAll(ctx, 5, tickers, fetchPrice)
+
+// Parse and validate all manifests before deployment
+manifests, err := slice.FanOutAll(ctx, 4, files, parseAndValidateManifest)
+```
+
+**Partial success** — gather what you can, log failures separately. Use `FanOut` with a collector:
+
+```go
+// Download avatars (missing ones OK)
+avatarResults := slice.FanOut(ctx, 10, users, downloadAvatar)
+avatars, errs := result.CollectOkAndErr(avatarResults)
+```
+
+```go
+// Decode untrusted images (some may be corrupt)
+imageResults := slice.FanOut(ctx, 8, blobs, decodeImage)
+images := result.CollectOk(imageResults)
+```
+
+**Side effects only** — `FanOutEach` returns `[]error` instead of values:
+
+```go
+// Send notifications (log failures, keep going)
+errs := slice.FanOutEach(ctx, 20, users, sendNotification)
+```
+
+**Scheduling model** is the next question after callback signature and error contract. `PMap` uses a fixed set of workers processing chunks of the input, which has lower scheduling overhead for many small, uniform tasks. `FanOut` schedules work per item under a concurrency limit, which handles variable-latency work better and enables cancellation and per-item error handling. If you've chosen the `FanOut` family and item costs vary widely, use the corresponding weighted variant to bound total in-flight cost instead of item count:
+
+```go
+// Upload files bounded by total in-flight MB
+sizeMB := func(f File) int { return f.SizeMB }
+uploads, err := slice.FanOutWeightedAll(ctx, 100, files, sizeMB, uploadFile)
+```
+
+For heavily skewed no-error workloads, benchmark `PMap`; if chunking becomes a bottleneck, you may need a custom worker pool.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/slice) for complete API documentation, the [main README](../README.md) for installation and performance characteristics, and the [showcase](../docs/showcase.md) for real-world rewrites.

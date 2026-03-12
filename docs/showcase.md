@@ -17,7 +17,7 @@ Where the original code uses inline anonymous functions, we extract them into na
 **Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
 **Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
 
-The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Data.DownloadBytes+items[i].Data.UploadBytes` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. We assume `TotalBytes` and `TotalPackets` methods on `ProcessesResult` (the original inlines this arithmetic) and a `NewResult` constructor for `kv.Map`. Both sides benefit from the methods; the difference is what remains — 18 lines to a two-line function body (plus a sort-key map defined once).
+The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Total[Bytes|Packets]()` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. We assume `TotalBytes` and `TotalPackets` methods on `ProcessesResult` and a `NewResult` constructor for `kv.Map`. Both examples benefit from the methods; the difference is what remains — 18 lines to a two-line function body (plus a sort-key map defined once).
 
 **Original** (with methods — 22 → 18 lines):
 ```go
@@ -52,7 +52,7 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
     ModeTablePackets: ProcessesResult.TotalPackets,
 }
 
-byViewModeDesc := slice.Desc(sortFuncs[mode])
+byViewModeDesc := slice.Desc(sortFuncs[mode])  // slice.Desc 
 results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 ```
 
