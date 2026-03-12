@@ -3,13 +3,9 @@
 Build complex functions from simple ones — compose, partially apply, or wrap with concurrency control.
 
 ```go
-// Before: a named function just to combine two transforms
-func normalize(s string) string {
-    return strings.ToLower(strings.TrimSpace(s))
-}
-
-// After: compose directly
+// Compose at the call site when the combination is obvious
 normalize := hof.Pipe(strings.TrimSpace, strings.ToLower)
+slice.From(inputs).Convert(normalize)
 ```
 
 ## What It Looks Like
@@ -35,11 +31,24 @@ allSkipped := slice.From(statuses).Every(hof.Eq(Skipped))
 ```go
 // Bound concurrency — at most 5 in-flight API calls
 callAPI := hof.Throttle(5, fetchFromAPI)
+resp, err := callAPI(ctx, url)  // blocks until a slot opens
+```
+
+```go
+// Bound by total cost — large items consume more budget
+fetchData := hof.ThrottleWeighted(100, estimateSize, fetchFromAPI)
+```
+
+```go
+// Cancel remaining work on first error
+ctx, cancel := context.WithCancel(parentCtx)
+defer cancel()
+failFast := hof.OnErr(fetchURL, cancel)
 ```
 
 ## hof vs lof
 
-`hof` *builds* functions — it takes functions and returns new functions. `lof` *is* functions — it wraps Go builtins (`len`, `fmt.Println`) as first-class values for use in chains.
+`hof` *builds* functions — it takes functions and returns new functions. `lof` *is* functions — it wraps Go builtins and standard library functions (`len`, `fmt.Println`) as first-class values for use in chains.
 
 `hof.Pipe` builds a transform; `lof.Len` is a transform.
 
@@ -64,5 +73,9 @@ callAPI := hof.Throttle(5, fetchFromAPI)
 
 **Side-Effect Wrappers**
 - `OnErr[T, R](fn func(context.Context, T) (R, error), onErr func()) func(context.Context, T) (R, error)` — call handler on error
+
+All functions panic on nil inputs. `Throttle` and `ThrottleWeighted` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity.
+
+`Throttle` and `ThrottleWeighted` return functions that are safe for concurrent use from multiple goroutines. Both are context-aware — they return `ctx.Err()` on cancellation rather than blocking indefinitely.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/hof) for complete API documentation, the [main README](../README.md) for installation, and [lof](../lof/) for builtin adapters.

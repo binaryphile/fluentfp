@@ -2,7 +2,7 @@
 
 Combinatorial constructions: Cartesian products, permutations, combinations, and power sets.
 
-Standalone package returning plain slices. Bridge with `slice.From()` for fluent chains.
+All functions eagerly allocate the full result in memory. `CartesianProduct` returns `pair.Pair` values; use `CartesianProductWith` to produce your own result type directly and avoid intermediate pairs. Bridge with `slice.From()` for fluent chains.
 
 ```go
 // Before: nested loop to generate all size/color combinations
@@ -13,7 +13,7 @@ for _, size := range sizes {
     }
 }
 
-// After: one call
+// After: one call — produces domain objects directly
 pairs := combo.CartesianProductWith(sizes, colors, NewOption)
 ```
 
@@ -43,14 +43,9 @@ combo.PowerSet([]int{1, 2})
 // [[] [2] [1] [1 2]]
 ```
 
-```go
-// Chain with slice.From for filtering/sorting
-valid := slice.From(combo.CartesianProduct(keys, ids)).KeepIf(isCompatible)
-```
-
 ## Growth Rates
 
-Results grow fast. Know the size before calling:
+All results are fully materialized in memory. Compute the result size before calling:
 
 | Function | Results | n=5 | n=10 | n=15 |
 |----------|---------|-----|------|------|
@@ -59,16 +54,24 @@ Results grow fast. Know the size before calling:
 | Combinations(n, k) | C(n, k) | C(5,2)=10 | C(10,5)=252 | C(15,7)=6,435 |
 | CartesianProduct | a * b | depends on inputs | | |
 
-Permutations above ~12 elements will exhaust memory. PowerSet and Combinations are practical for larger inputs.
+Use only for small inputs unless you've computed the result size and memory cost. `Permutations` becomes impractical above ~10-12 elements. `PowerSet` grows quickly. `Combinations` can also be large near midpoint `k`.
+
+## Empty and Invalid Input
+
+| Function | Empty/nil input | Invalid args |
+|----------|----------------|--------------|
+| `CartesianProduct` | `nil` if either input is empty/nil | — |
+| `CartesianProductWith` | `nil` if either input is empty/nil | `fn` must not be nil |
+| `Permutations` | `[[]]` (one empty permutation) | — |
+| `Combinations` | `[[]]` for `k=0` | `nil` if `k < 0` or `k > len(items)` |
+| `PowerSet` | `[[]]` (one empty subset) | — |
 
 ## Operations
 
-- `CartesianProduct[A, B]([]A, []B) []pair.Pair[A, B]` — all pairs
-- `CartesianProductWith[A, B, R]([]A, []B, func(A, B) R) []R` — all pairs, transformed
-- `Permutations[T]([]T) [][]T` — all orderings
-- `Combinations[T]([]T, int) [][]T` — k-element subsets
-- `PowerSet[T]([]T) [][]T` — all subsets
-
-Nil or empty inputs return nil for Cartesian products and `[[]]` for Permutations, Combinations(k=0), and PowerSet (the empty set is the one result).
+- `CartesianProduct[A, B any]([]A, []B) []pair.Pair[A, B]` — all pairs
+- `CartesianProductWith[A, B, R any]([]A, []B, func(A, B) R) []R` — all pairs, transformed (avoids intermediate `pair.Pair` allocation)
+- `Permutations[T any]([]T) [][]T` — all orderings
+- `Combinations[T any]([]T, int) [][]T` — k-element subsets, preserving order
+- `PowerSet[T any]([]T) [][]T` — all subsets
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/combo) for complete API documentation and the [main README](../README.md) for installation.

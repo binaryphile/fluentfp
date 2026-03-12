@@ -50,7 +50,7 @@ labels := kv.From(m).ToString(formatEntry)
 
 ## It's Just a Map
 
-`Entries[K,V]` is `map[K]V` — a defined type, not a wrapper. Indexing, `range`, and `len` all work as with a plain map. `From` does not copy; the `Entries` and the original map share the same backing data.
+`Entries[K,V]` is `map[K]V` — a defined type, not a wrapper. The zero value is a nil map — safe for reads (`len`, `range`) but panics on write. Indexing, `range`, and `len` all work as with a plain map. `From` does not copy; the `Entries` and the original map share the same backing data.
 
 ```go
 entries := kv.From(m)
@@ -61,7 +61,7 @@ n := len(entries)            // len works
 
 ## Operations
 
-`Entries[K,V]` wraps a map for fluent operations. Filter and mapping methods take `func(K, V) T` predicates/transforms — filtering considers both key and value.
+`Entries[K,V]` is a map with fluent methods. Filter and mapping methods take `func(K, V) T` predicates/transforms — filtering considers both key and value. Iteration order is not guaranteed (standard Go map behavior).
 
 - **Wrap**: `From`
 - **Filter**: `KeepIf`, `RemoveIf` — return `Entries[K,V]` for chaining

@@ -1,9 +1,9 @@
 # value
 
-Conditional value selection without branching.
+Conditional value selection.
 
 ```go
-// Before: five lines to assign one value
+// Before: six lines to assign one value
 var color string
 if critical {
     color = warn
@@ -15,7 +15,7 @@ if critical {
 color := value.Of(warn).When(critical).Or(calm)
 ```
 
-Five lines become one.
+Six lines become one.
 
 ## What It Looks Like
 
@@ -54,22 +54,22 @@ timeout := value.Of(requested).When(requested > 0).Or(defaultTimeout)
 
 ### Lazy Evaluation
 ```go
-// expensiveDefault is only called when the cache misses
-result := value.LazyOf(expensiveDefault).When(!cache.Hit()).Or(cache.Value())
+// expensiveComputation is only called when the condition is true
+val := value.LazyOf(expensiveComputation).When(needsRecompute).Or(cached)
 ```
 
-`LazyOf` wraps a `func() T` and only evaluates it if the condition is true. Use it when the conditional value is expensive to compute.
+`LazyOf` wraps a `func() T` and only evaluates it if the condition is true. Use it when the preferred value is expensive to compute. Note that the fallback passed to `.Or()` is still evaluated eagerly by Go — only the wrapped function is deferred.
 
 ### First Non-Zero
 ```go
 // Config merge: use override if set, otherwise keep default
-result.Region = value.FirstNonZero(override.Region, defaults.Region)
+merged.Region = value.FirstNonZero(override.Region, defaults.Region)
 
 // Multi-level fallback
 host := value.FirstNonZero(envHost, configHost, "localhost")
 ```
 
-`FirstNonZero` returns the first non-zero value from its arguments, or zero if all are zero. It requires `comparable` (same constraint as `slice.NonZero`). Use it when the condition is "non-zero" and you don't need the option intermediary.
+`FirstNonZero` returns the first non-zero value from its arguments, or zero if all are zero. It requires `comparable`, so it works with strings, numbers, and bools but not slices or maps. Use it when the condition is "non-zero" and you don't need the option intermediary.
 
 `FirstNonEmpty` is the string-specific variant — reads naturally for string config merges:
 

@@ -1,9 +1,11 @@
 # option
 
-Optional values that move absence checks from runtime to the type system.
+Optional values that make absence explicit in the type.
+
+`Option[T]` stores a value plus an `ok` flag. The zero value is not-ok, so it works without initialization.
 
 ```go
-// Before: four lines to safely extract a map value with a default
+// Before: four lines to extract a map value with a default
 token, ok := headers["Authorization"]
 if !ok {
     token = "none"
@@ -30,7 +32,7 @@ name := userOption.KeepIf(User.IsActive).ToString(User.Name).Or("unknown")
 ```go
 // Comma-ok extraction
 if user, ok := userOption.Get(); ok {
-    fmt.Println(user.Name)
+    fmt.Println(user.Name())
 }
 ```
 
@@ -82,16 +84,16 @@ addr := record.Host().Or("localhost")
 
 ## One Type for All of Go's "Maybe" Patterns
 
-Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`), and comma-ok returns (`map` lookup, type assertion). All three let you skip the check and use the value directly — the failure shows up at runtime, not compile time.
+Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`), and comma-ok returns (`map` lookup, type assertion). Each has a different failure mode — nil derefs panic, zero values are silently ambiguous, and ignored `ok` values lose the distinction between missing and present.
 
 `Option[T]` unifies them. Factory functions bridge each Go pattern into a single chainable type:
 
 - `NonNil(ptr)` — pointer-based absence
-- `NonZero(count)`, `NonEmpty(name)` — zero-value absence
+- `NonZero(count)`, `NonEmpty(name)` — zero-value absence (use only when zero/empty truly means absent in your domain)
 - `Lookup(m, key)`, `New(val, ok)` — comma-ok absence
 - `Getenv("PORT")` — environment variable absence
 
-Once you have a `Option[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepIf(valid)`, `.ToString(format)`, `.Get()`.
+Once you have an `Option[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepIf(valid)`, `.ToString(format)`, `.Get()`.
 
 ## Operations
 
@@ -100,7 +102,7 @@ Once you have a `Option[T]`, the same API works regardless of where the value ca
 - **Create**: `Of`, `New`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `Getenv`, `Lookup`
 - **Create + Transform**: `NonZeroCall`, `NonEmptyCall`, `NonNilCall` — check presence and apply fn in one step
 - **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse`
-- **Transform**: `Convert`, `Map`, `ToString`, `ToInt`, other `To*`, `ToOpt`
+- **Transform**: `Convert` (same type), `Map` (cross-type, standalone), `ToString`, `ToInt`, other `To*`, `ToOpt`
 - **Filter**: `KeepIf`, `RemoveIf`
 - **Side effects**: `IfOk`, `IfNotOk`, `Lift`
 

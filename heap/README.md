@@ -2,56 +2,72 @@
 
 Persistent pairing heap (priority queue) parameterized by a comparator. Based on Stone's *Algorithms for Functional Programming* (Ch 4).
 
-All operations return new heaps — the original is never modified. Use `slice.Asc` and `slice.Desc` to build comparators.
+All mutating operations return new heaps — the original is never modified. Heaps share structure internally, so copies are cheap.
 
 ## What It Looks Like
 
 ```go
-// Min-heap by priority
-h := heap.New(slice.Asc(Task.Priority))
-h = h.Insert(task1).Insert(task2).Insert(task3)
+// Min-heap of ints
+h := heap.New(lof.IntAsc)
+h = h.Insert(3).Insert(1).Insert(2)
 
 // Peek at minimum
-next := h.Min()  // option.Option[Task]
+if v, ok := h.Min().Get(); ok {
+    fmt.Println(v)  // 1
+}
 
 // Pop minimum and continue
-task, rest, ok := h.Pop()
+v, rest, ok := h.Pop()  // v=1, rest has {2, 3}
 
 // Drain in sorted order
-sorted := h.Collect()
+sorted := h.Collect()  // [1 2 3]
 
-// Merge two heaps in O(1)
-combined := h1.Merge(h2)
+// Merge two heaps
+combined := h.Merge(h2)
 ```
+
+## Comparator Contract
+
+The comparator determines priority: `cmp(a, b) < 0` means `a` has higher priority than `b`. Use `slice.Asc` / `slice.Desc` or `lof.IntAsc` / `lof.IntDesc` to build comparators, or provide a custom `func(T, T) int`.
+
+**Merge requires the same comparator.** `Merge` uses the receiver's comparator. If `other` was built with a different ordering, the merged heap's ordering is silently incorrect — no error or panic occurs.
 
 ## Persistence
 
-Every operation returns a new heap. The old heap remains valid and unchanged:
+Every mutating operation returns a new heap. The old heap remains valid and unchanged:
 
 ```go
-h1 := heap.From(items, cmp)
+h1 := heap.From(items, lof.IntAsc)
 h2 := h1.Insert(x)      // h1 still has original elements
 h3 := h1.DeleteMin()     // h1 still has original elements
 ```
 
+## Zero Value and Panics
+
+The zero value of `Heap[T]` is an empty heap without a comparator. Queries are safe: `IsEmpty`, `Len`, `Min`, and `Pop` return sensible defaults. Mutating operations (`Insert`, `DeleteMin`, `Merge`) panic because no comparator is available. Always construct with `New` or `From`.
+
+`New` and `From` panic if `cmp` is nil.
+
 ## Operations
 
 **Create**
-- `New(cmp)` — empty heap with comparator
-- `From(items, cmp)` — heap from slice
+- `New[T any](cmp func(T, T) int) Heap[T]` — empty heap with comparator
+- `From[T any](items []T, cmp func(T, T) int) Heap[T]` — heap from slice (repeated Insert)
 
 **Core** (return new heap)
-- `.Insert(t)` — add element, O(1)
-- `.DeleteMin()` — remove minimum, O(log n) amortized
-- `.Merge(other)` — combine two heaps, O(1)
+- `.Insert(t)` — add element
+- `.DeleteMin()` — remove minimum (returns empty heap with comparator if already empty)
+- `.Merge(other)` — combine two heaps (both must use the same ordering)
 
 **Query**
-- `.Min()` — peek at minimum (`option.Option[T]`), O(1)
-- `.Pop()` — minimum + remaining heap + ok, O(log n) amortized
+- `.Min()` — peek at minimum (`option.Option[T]`), not-ok if empty
+- `.Pop()` — `(elem, rest, true)` or `(zero, empty, false)` if empty
 - `.IsEmpty()` — true if no elements
 - `.Len()` — element count
 
 **Consume**
-- `.Collect()` — all elements in sorted order, O(n log n)
+- `.Collect()` — all elements in sorted order (returns nil for empty heap)
+
+Textbook pairing heap complexities: Insert and Merge are O(1), DeleteMin is O(log n) amortized. The persistent representation copies child-pointer slices during merge to preserve immutability, so constant factors are higher than an ephemeral implementation.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/heap) for complete API documentation and the [main README](../README.md) for installation.

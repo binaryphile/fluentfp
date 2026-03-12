@@ -2,7 +2,7 @@
 
 Fluent chains on Go's `iter.Seq` — lazy, re-evaluating, stdlib-compatible.
 
-Use `seq` when you have an `iter.Seq` and want to filter, transform, or collect it without a manual loop. For finite in-memory slices, use `slice` instead. For memoized lazy sequences, use `stream`.
+Use `seq` when you want laziness, early termination, or `iter.Seq` interop. Prefer `slice` for eager in-memory collection work. For memoized lazy sequences, use `stream`.
 
 ```go
 // Before: manual loop to filter an iterator
@@ -20,12 +20,12 @@ active := seq.FromIter(maps.Keys(configs)).KeepIf(isActive).Collect()
 ## What It Looks Like
 
 ```go
-// Lazy filter + limit — stops after finding 5 matches (doesn't filter the whole slice)
+// Lazy filter + limit — stops after finding 5 matches
 top5 := seq.From(items).KeepIf(Item.IsActive).Take(5).Collect()
 ```
 
 ```go
-// Infinite sequence
+// Infinite sequence — always use Take or TakeWhile before a terminal op
 naturals := seq.Generate(0, func(n int) int { return n + 1 })
 first10 := naturals.Take(10).Collect()
 ```
@@ -57,29 +57,39 @@ a := evens.Collect()  // runs the filter
 b := evens.Collect()  // runs the filter again
 ```
 
-This means seq pipelines are lightweight descriptions — no hidden state, no memoization overhead. But if the source is expensive or has side effects, each terminal call pays the full cost.
+This means seq pipelines are lightweight descriptions — no hidden state, no memoization overhead. But if the source is expensive or has side effects, each terminal call pays the full cost. Replayability depends on the source — `FromIter` wraps the given `iter.Seq` as-is, and stateful or single-use sources may not produce the same results on re-invocation.
 
 For cached evaluation, use `stream` instead.
+
+## Behavior Notes
+
+The zero value of `Seq[T]` is nil and yields no elements. All lazy operations are nil-safe and return nil on nil receiver, enabling safe chaining. `From(nil)` and `From([]T{})` both return nil. `Collect()` on a nil Seq returns nil.
+
+`Every` and `None` return true on empty or nil input (vacuous truth). `Find` returns `option.Option[T]` — not-ok if no match is found.
+
+`Convert` is a same-type transform (method). `Map` is a cross-type transform (standalone, because Go methods can't introduce additional type parameters).
+
+**Non-termination:** `Collect`, `Each`, and `Fold` on infinite sequences will not terminate. Always use `Take` or `TakeWhile` to bound infinite sequences before calling a terminal operation.
+
+All callback-taking functions panic on nil callbacks.
 
 ## When to Use Seq vs Stream vs Slice
 
 | | seq | stream | slice |
 |---|---|---|---|
 | **Evaluation** | Lazy, re-evaluates each terminal call | Lazy, memoized (cached) | Eager (immediate) |
-| **Persistence** | Reusable — re-evaluates each time | Persistent — forced cells are shared | Persistent — slices are values |
-| **Memory** | No intermediate allocations | Retains forced cells | Full slice per step |
-| **Best for** | Stdlib interop, simple lazy chains | Infinite sequences, shared evaluation | Finite in-memory collections |
+| **Persistence** | Re-invokes source on each terminal call | Persistent — forced cells are shared | Persistent — slices are values |
+| **Memory** | No intermediate collections during lazy chaining | Retains forced cells | Full slice per step |
+| **Best for** | Stdlib interop, laziness, early termination | Shared evaluation, infinite sequences | Finite in-memory collections |
 | **Interop** | `iter.Seq[T]` (Go stdlib) | `.Seq()` bridge to iter.Seq | `[]T` (Go native) |
-
-**Rule of thumb:** Use `slice` for finite in-memory data (most cases). Use `seq` when you have an `iter.Seq` and want fluent chaining. Use `stream` when you need memoization or persistence.
 
 ## Operations
 
 **Create**: `From`, `FromIter`, `Of`, `Generate`, `Repeat`
 
-**Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Convert`, `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (standalone)
+**Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Convert` (same-type), `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (cross-type, standalone)
 
-**Terminal** (force evaluation): `Collect`, `Find`, `Any`, `Every`, `None`, `Each`, `Fold` (standalone)
+**Terminal** (force evaluation): `Collect`, `Find` (returns `option.Option[T]`), `Any`, `Every`, `None`, `Each`, `Fold` (standalone)
 
 **Unwrap**: `Iter` — return to `iter.Seq[T]` for stdlib interop
 

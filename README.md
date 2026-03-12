@@ -2,7 +2,7 @@
 
 **Fluent functional programming for Go.**
 
-The thinnest abstraction that eliminates mechanical bugs from Go. Chain type-safe operations on slices, options, and sum types — no loop scaffolding, no intermediate variables.
+A thin abstraction that removes common loop-scaffolding bugs from Go. Chain type-safe operations on slices, options, and sum types — no loop scaffolding, no intermediate variables.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for API docs and the **[showcase](docs/showcase.md)** for 16 before/after rewrites from real GitHub projects.
 
@@ -10,7 +10,7 @@ Zero reflection. Zero global state. Zero build tags.
 
 ## Quick Start
 
-Requires Go 1.21+.
+Requires Go 1.26+.
 
 ```bash
 go get github.com/binaryphile/fluentfp
@@ -19,11 +19,11 @@ go get github.com/binaryphile/fluentfp
 ```go
 import "github.com/binaryphile/fluentfp/slice"
 
-// Before: 3 lines of scaffolding, 2 closing braces, 1 line of intent
+// Before: scaffolding around one line of intent
 var names []string                         // state
 for _, u := range users {                  // iteration
     if u.IsActive() {                      // predicate
-        names = append(names, u.Name)      // accumulation
+        names = append(names, u.Name())    // accumulation
     }
 }
 
@@ -96,7 +96,7 @@ Go has no inline conditional expression. `value.Of` fills that gap — each fiel
 Fetch weather for a list of cities with at most 10 simultaneous goroutines.
 
 <table>
-<tr><th>Before — errgroup (21 lines)</th><th>After (2 lines)</th></tr>
+<tr><th>Before — errgroup (21 lines)</th><th>After (1 line)</th></tr>
 <tr><td><pre><code class="language-go">func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
     g, ctx := errgroup.WithContext(ctx)
     g.SetLimit(10)
@@ -117,30 +117,27 @@ Fetch weather for a list of cities with at most 10 simultaneous goroutines.
     return res, nil
 }
 </code></pre></td><td><pre><code class="language-go">func Cities(ctx context.Context, cities ...string) ([]*Info, error) {
-    results := slice.FanOut(ctx, 10, cities, City)
-    return result.CollectAll(results)
+    return slice.FanOutAll(ctx, 10, cities, City)
 }
 </code></pre></td></tr>
 </table>
 
-`FanOut` replaces the goroutine-launching loop, closure captures, result-slot bookkeeping, and error aggregation. `City` passes directly — no wrapper needed. Unlike errgroup, FanOut recovers panics per item (as `*result.PanicError` with stack trace) and preserves every item's outcome.
+`FanOutAll` is all-or-nothing: on first error it cancels remaining work and returns that error. `City` passes directly — no wrapper needed. Panics in callbacks are recovered as `*result.PanicError` with stack trace.
 
-For errgroup-equivalent fail-fast behavior, wrap with `hof.OnErr`:
+When you need per-item outcomes instead of all-or-nothing, use `FanOut`:
 
 ```go
-ctx, cancel := context.WithCancel(ctx)
-defer cancel()
-failFast := hof.OnErr(City, cancel)
-results := slice.FanOut(ctx, 10, cities, failFast)
+results := slice.FanOut(ctx, 10, cities, City)
+infos, errs := result.CollectOkAndErr(results)  // gather successes and failures separately
 ```
 
 *From the [errgroup pattern](https://encore.dev/blog/advanced-go-concurrency).*
 
 ## Why fluentfp
 
-**Type-safe end-to-end.** [go-linq](https://github.com/ahmetb/go-linq) gives you `[]any` back — cast it and hope you got the type right. [lo](https://github.com/samber/lo) requires `func(T, int)` callbacks, so every stdlib function needs a wrapper to discard the unused index. fluentfp uses generics throughout: `Mapper[T]` is `[]T` with methods. If it compiles, the types are right.
+**Type-safe end-to-end.** [go-linq](https://github.com/ahmetb/go-linq) gives you `[]any` back — cast it and hope you got the type right. [lo](https://github.com/samber/lo) requires `func(T, int)` callbacks, so every stdlib function needs a wrapper to discard the unused index. fluentfp uses generics throughout: `Mapper[T]` is `[]T` with methods. If it compiles, you avoid a class of cast, index, and callback-shape mistakes.
 
-**Bugs you can't write.** You can't get an off-by-one in a predicate because there's no index. You can't shadow a loop variable because there's no loop. You can't forget to initialize an accumulator because there's no accumulator. These aren't hypothetical — they're the bug classes code review catches every week. fluentfp makes them structurally impossible.
+**Fewer places for bugs to hide.** No index means no off-by-one in a predicate. No loop variable means no shadowing. No accumulator means no forgetting to initialize one. These are the loop-scaffolding bug classes that code review catches regularly — fluentfp removes the scaffolding where they live.
 
 **Works with Go, not against it.** Mappers are slices — callers of your functions don't need to import fluentfp. Options use comma-ok (`.Get() (T, bool)`), the same pattern as map lookups and type assertions. `either.Fold` gives you exhaustive dispatch the compiler enforces — miss a branch and it doesn't compile. `must.BeNil` makes invariant enforcement explicit. Mutation, channels, and hot paths stay as loops.
 
@@ -168,14 +165,14 @@ A single chain step (filter OR map) matches a hand-written loop — `slice.From`
 
 Multi-step chains pay one allocation per stage. A chain that filters then maps makes two passes and two allocations where a hand-written loop can fuse them into one. In [benchmarks](methodology.md#benchmark-results) (1000 elements), a two-step chain runs ~2.5× slower than the fused equivalent.
 
-If you're counting nanoseconds in a hot path, fuse it in a loop. The other 95% of your loops aren't hot paths — they're scaffolding that fluentfp eliminates.
+If you're counting nanoseconds in a hot path, fuse it in a loop. Most loops aren't hot paths — they're scaffolding that fluentfp eliminates.
 
 ## Measurable Impact
 
-| Codebase Type | Code Reduction | Complexity Reduction |
-|---------------|----------------|---------------------|
-| Mixed (typical) | 12% | 26% |
-| Pure pipeline | 47% | 95% |
+| Codebase Type   | Code Reduction | Complexity Reduction |
+| --------------- | -------------- | -------------------- |
+| Mixed (typical) | 12%            | 26%                  |
+| Pure pipeline   | 47%            | 95%                  |
 
 *Individual loops see up to 6x line reduction. Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#code-metrics-tool-scc).*
 
@@ -184,7 +181,7 @@ If you're counting nanoseconds in a hot path, fuse it in a loop. The other 95% o
 fluentfp replaces mechanical loops — iteration scaffolding around a predicate and a transform. It doesn't try to replace loops that do structural work:
 
 ```go
-// Mutation in place — fluentfp operates on copies, not originals
+// Mutation in place — fluentfp returns new slices, but elements are shared (shallow copy)
 for i := range items {
     if items[i].ID == target {
         items[i].Status = "done"
@@ -192,7 +189,7 @@ for i := range items {
     }
 }
 
-// Channel consumption — no FP equivalent
+// Channel consumption — not abstracted by this library
 for msg := range ch {
     handle(msg)
 }
@@ -217,23 +214,23 @@ for _, v := range input {
 
 Packages are independent — import one or all.
 
-| Package | Purpose | Key Functions |
-|---------|---------|---------------|
-| [slice](slice/) | Collection transforms | `KeepIf`, `RemoveIf`, `Fold`, `FanOut` |
-| [kv](kv/) | Map transforms | `KeepIf`, `MapValues`, `Map`, `Values` |
-| [option](option/) | Nil safety | `Of`, `Get`, `Or`, `NonZero`, `NonNil` |
-| [either](either/) | Sum types | `Left`, `Right`, `Fold`, `Map` |
-| [result](result/) | Typed error handling | `Ok`, `Err`, `CollectAll`, `CollectOk` |
-| [must](must/) | Invariant enforcement | `Get`, `BeNil`, `Of` |
-| [value](value/) | Conditional value selection | `Of().When().Or()` |
-| [stream](stream/) | Lazy memoized sequences | `Generate`, `Unfold`, `Take`, `Collect` |
-| [seq](seq/) | Fluent iter.Seq chains | `From`, `KeepIf`, `Take`, `Collect` |
-| [heap](heap/) | Persistent priority queue | `New`, `Insert`, `Pop`, `Collect` |
-| [hof](hof/) | Function combinators | `Pipe`, `Bind`, `Throttle`, `OnErr` |
-| [pair](tuple/pair/) | Zip slices | `Zip`, `ZipWith` |
-| [combo](combo/) | Combinatorial constructions | `CartesianProduct`, `Combinations`, `PowerSet` |
-| [memo](memo/) | Memoization | `Of`, `Fn`, `FnErr`, `NewLRU` |
-| [lof](lof/) | Lower-order function wrappers | `Len`, `Println`, `Identity` |
+| Package             | Purpose                       | Key Functions                                  |
+| ------------------- | ----------------------------- | ---------------------------------------------- |
+| [slice](slice/)     | Collection transforms         | `KeepIf`, `RemoveIf`, `Fold`, `FanOutAll`      |
+| [kv](kv/)           | Map transforms                | `KeepIf`, `MapValues`, `Map`, `Values`         |
+| [option](option/)   | Nil safety                    | `Of`, `Get`, `Or`, `NonZero`, `NonNil`         |
+| [either](either/)   | Sum types                     | `Left`, `Right`, `Fold`, `Map`                 |
+| [result](result/)   | Typed error handling          | `Ok`, `Err`, `CollectAll`, `CollectOk`         |
+| [must](must/)       | Invariant enforcement         | `Get`, `BeNil`, `Of`                           |
+| [value](value/)     | Conditional value selection   | `Of().When().Or()`                             |
+| [stream](stream/)   | Lazy memoized sequences       | `Generate`, `Unfold`, `Take`, `Collect`        |
+| [seq](seq/)         | Fluent iter.Seq chains        | `From`, `KeepIf`, `Take`, `Collect`            |
+| [heap](heap/)       | Persistent priority queue     | `New`, `Insert`, `Pop`, `Collect`              |
+| [hof](hof/)         | Function combinators          | `Pipe`, `Bind`, `Throttle`, `OnErr`            |
+| [pair](tuple/pair/) | Zip slices                    | `Zip`, `ZipWith`                               |
+| [combo](combo/)     | Combinatorial constructions   | `CartesianProduct`, `Combinations`, `PowerSet` |
+| [memo](memo/)       | Memoization                   | `Of`, `Fn`, `FnErr`, `NewLRU`                  |
+| [lof](lof/)         | Lower-order function wrappers | `Len`, `Println`, `Identity`, `Inc`            |
 
 ## Package Highlights
 

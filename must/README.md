@@ -13,15 +13,14 @@ err := os.Setenv("PATH", newPath)
 must.BeNil(err)
 ```
 
-When you do handle the error, `must.BeNil` replaces the three-line `if err != nil` block with one. `must.Get` goes further — four lines (declare, call, check, panic) become one.
+`must.BeNil` replaces the three-line `if err != nil { panic(err) }` block with one line. `must.Get` goes further — four lines (declare, call, check, panic) become one.
 
 ## What It Looks Like
 
 ```go
-// Initialization — errors here mean a bug, not a runtime condition
-db := must.Get(sql.Open("postgres", cfg.DSN))
-err := db.Ping()
-must.BeNil(err)
+// Initialization — errors here mean a bug or misconfiguration, not a runtime condition
+re := must.Get(regexp.Compile(pattern))
+port := must.Get(strconv.Atoi(os.Getenv("PORT")))
 ```
 
 ```go
@@ -32,12 +31,12 @@ home := must.Getenv("HOME")
 ```go
 // Pipeline adapter — wraps func(T)(R, error) into func(T) R
 mustAtoi := must.Of(strconv.Atoi)
-ints := slice.From(strings).ToInt(mustAtoi)
+n := mustAtoi("42")  // 42, or panics if not a valid integer
 ```
 
 ## Making Assumptions Visible
 
-Every `_ = fn()` is a hidden invariant — you're assuming the error won't happen. If it does, the program continues in a corrupt state with no indication of what went wrong.
+Every `_ = fn()` is a hidden assumption — you're expecting the error won't happen. If it does, the program continues with no indication of what went wrong.
 
 `must` makes the assumption explicit. If it's wrong, you find out immediately.
 
@@ -46,18 +45,18 @@ Don't recover from `must` panics. An invariant violation means the program is in
 **Convention:** For error-only returns, keep the `err` assignment — it reads like Go:
 
 ```go
-err := db.Ping()
+err := os.MkdirAll(dataDir, 0o755)
 must.BeNil(err)
 ```
 
-Use `must.Get` when you need the value: `db := must.Get(sql.Open(...))`. Prefix `must.Of`-wrapped variables with `must` to signal panic behavior: `mustAtoi := must.Of(strconv.Atoi)`.
+Use `must.Get` when you need the value: `re := must.Get(regexp.Compile(pattern))`. Prefix `must.Of`-wrapped variables with `must` to signal panic behavior: `mustAtoi := must.Of(strconv.Atoi)`.
 
 ## Operations
 
-- `Get(T, error) T` — extract value or panic
+- `Get(T, error) T` — extract value or panic with the error
 - `Get2(T, T2, error) (T, T2)` — two-value variant
-- `BeNil(error)` — panic if non-nil
-- `Getenv(key) string` — env var or panic
+- `BeNil(error)` — panic with the error if non-nil
+- `Getenv(key) string` — env var or panic (missing or empty both panic)
 - `Of(func(T)(R, error)) func(T) R` — wrap for higher-order use
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/must) for complete API documentation, the [main README](../README.md) for installation, and [either](../either/) for typed alternatives without panics.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/must) for complete API documentation, the [main README](../README.md) for installation, and [result](../result/) for typed error handling without panics.

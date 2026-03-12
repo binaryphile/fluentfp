@@ -1,16 +1,26 @@
 # result
 
-Typed results for operations that may fail. Pairs with `FanOut` for per-item error and panic handling in concurrent workloads.
+Typed results for operations that may fail.
+
+`Result[R]` stores a value or an error. The zero value is `Ok` with the zero value of `R`.
 
 ```go
-// Concurrent fetch with per-item error handling
+// Wrap a (T, error) return pair
+res := result.Of(strconv.Atoi(input))
+port := res.Or(8080)
+```
+
+Pairs with `FanOut` for per-item error and panic handling in concurrent workloads, and with `FanOutAll` for all-or-nothing behavior:
+
+```go
+// Per-item outcomes — collect what you need
 results := slice.FanOut(ctx, 8, urls, fetchURL)
+pages, errs := result.CollectOkAndErr(results)
+```
 
-// Fail-fast: all values if every item succeeded, or first error
-values, err := result.CollectAll(results)
-
-// Lenient: gather successes, skip failures
-values := result.CollectOk(results)
+```go
+// All-or-nothing — first error cancels remaining work
+pages, err := slice.FanOutAll(ctx, 8, urls, fetchURL)
 ```
 
 ## What It Looks Like
@@ -20,7 +30,7 @@ values := result.CollectOk(results)
 ok := result.Ok(42)
 fail := result.Err[int](errors.New("not found"))
 
-// From (T, error) — wraps any Go function's return
+// From (T, error) pair
 res := result.Of(strconv.Atoi("42"))
 ```
 
@@ -50,11 +60,14 @@ msg := result.Fold(res,
 ```
 
 ```go
-// Detect panics from FanOut
-if err, ok := res.GetErr(); ok {
-    var pe *result.PanicError
-    if errors.As(err, &pe) {
-        log.Printf("panic: %v\nstack:\n%s", pe.Value, pe.Stack)
+// Detect panics from FanOut — panics are recovered per item
+results := slice.FanOut(ctx, 8, urls, fetchURL)
+for _, res := range results {
+    if err, ok := res.GetErr(); ok {
+        var pe *result.PanicError
+        if errors.As(err, &pe) {
+            log.Printf("panic: %v\nstack:\n%s", pe.Value, pe.Stack)
+        }
     }
 }
 ```
@@ -82,6 +95,6 @@ If the panic value was an `error`, `PanicError.Unwrap()` returns it — enabling
 
 **Side effects**: `IfOk`, `IfErr`
 
-**Collect**: `CollectAll` (fail-fast), `CollectOk` (successes only)
+**Collect**: `CollectAll` (all values or first error by index), `CollectOk` (successes only), `CollectErr` (errors only), `CollectOkAndErr` (both in one pass)
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/result) for complete API documentation, the [main README](../README.md) for installation, and the [showcase](../docs/showcase.md) for real-world comparisons.
