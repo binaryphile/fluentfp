@@ -131,7 +131,7 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (`String`)
 - **Transform**: `Convert`, `FlatMap`, `Map` (`MapperTo`), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String`), `UniqueBy`, `SortBy`, `SortByDesc`
 - **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (`int`, `float64`), `Min` (`int`, `float64`), `Sum` (`int`, `float64`), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
-- **Parallel (no error return)**: `PMap`, `PKeepIf`, `PEach` — bounded concurrent operations for callbacks that do not return errors. Panics are not recovered; a panic in a worker goroutine will crash the program. Usually only worth using when per-item workload is large enough to amortize the overhead cause by creation and scheduling of goroutines.
+- **Parallel (no error return)**: `PMap`, `PKeepIf`, `PEach` — bounded concurrent operations for callbacks that do not return errors. Panics in fn are recovered, converted to `*result.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Usually only worth using when per-item workload is large enough to amortize the overhead caused by creation and scheduling of goroutines.
 - **Parallel (error-aware)**: `FanOut`, `FanOutAll`, `FanOutEach` — bounded concurrency for callbacks that take `context.Context` and return errors. Use `FanOut` for value-producing operations where partial success is acceptable, `FanOutAll` for all-or-nothing operations with early cancellation, and `FanOutEach` for side-effecting callbacks that return only `error`. If item costs vary widely, use the corresponding weighted variant (`FanOutWeighted`, `FanOutWeightedAll`, `FanOutEachWeighted`). See [result](../result/) for `CollectAll`, `CollectOk`, and `CollectOkAndErr`.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
@@ -211,7 +211,7 @@ Choose in two steps:
 | `func(context.Context, T) (R, error)` | Partial success OK | `FanOut` / `FanOutWeighted` + collector |
 | `func(context.Context, T) error` | Side effects only | `FanOutEach` / `FanOutEachWeighted` |
 
-**No error return** — use `PMap`, `PKeepIf`, or `PEach` when your callback does not return an error. Panics are not recovered; a panic in a worker goroutine will crash the program. This is a good fit for transforms and filters where failure is not part of the callback's contract:
+**No error return** — use `PMap`, `PKeepIf`, or `PEach` when your callback does not return an error. Panics in fn are recovered, converted to `*result.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Remaining workers continue until fn returns. If fn may block indefinitely, use `FanOut` or `FanOutAll` instead — they accept `context.Context` for timeout and cancellation. This is a good fit for transforms and filters where failure is not part of the callback's contract:
 
 ```go
 // Normalize 10K strings

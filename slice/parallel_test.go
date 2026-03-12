@@ -4,8 +4,11 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
+
+	"github.com/binaryphile/fluentfp/result"
 )
 
 // --- PMap ---
@@ -127,6 +130,224 @@ func TestPEach(t *testing.T) {
 			t.Error("PEach should not call fn on empty slice")
 		}
 	})
+}
+
+// --- Panic recovery ---
+
+func TestPMapPanicRecovery(t *testing.T) {
+	t.Run("multi-worker", func(t *testing.T) {
+		defer func() {
+			v := recover()
+			if v == nil {
+				t.Fatal("expected panic")
+			}
+
+			pe, ok := v.(*result.PanicError)
+			if !ok {
+				t.Fatalf("expected *result.PanicError, got %T", v)
+			}
+
+			if pe.Value != "boom" {
+				t.Errorf("panic value = %v, want boom", pe.Value)
+			}
+
+			if len(pe.Stack) == 0 {
+				t.Error("stack trace is empty")
+			}
+		}()
+
+		// panicOnThree panics when it sees 3.
+		panicOnThree := func(n int) int {
+			if n == 3 {
+				panic("boom")
+			}
+			return n
+		}
+
+		PMap([]int{1, 2, 3, 4, 5}, 4, panicOnThree)
+	})
+}
+
+func TestPMapPanicRecoverySingleWorker(t *testing.T) {
+	defer func() {
+		v := recover()
+		if v == nil {
+			t.Fatal("expected panic")
+		}
+
+		pe, ok := v.(*result.PanicError)
+		if !ok {
+			t.Fatalf("expected *result.PanicError, got %T", v)
+		}
+
+		if pe.Value != "single boom" {
+			t.Errorf("panic value = %v, want single boom", pe.Value)
+		}
+
+		if len(pe.Stack) == 0 {
+			t.Error("stack trace is empty")
+		}
+	}()
+
+	// panicAlways panics on every call.
+	panicAlways := func(n int) int { panic("single boom") }
+
+	PMap([]int{1}, 1, panicAlways)
+}
+
+func TestPKeepIfPanicRecovery(t *testing.T) {
+	defer func() {
+		v := recover()
+		if v == nil {
+			t.Fatal("expected panic")
+		}
+
+		pe, ok := v.(*result.PanicError)
+		if !ok {
+			t.Fatalf("expected *result.PanicError, got %T", v)
+		}
+
+		if pe.Value != "filter boom" {
+			t.Errorf("panic value = %v, want filter boom", pe.Value)
+		}
+
+		if len(pe.Stack) == 0 {
+			t.Error("stack trace is empty")
+		}
+	}()
+
+	// panicOnTwo panics when it sees 2.
+	panicOnTwo := func(n int) bool {
+		if n == 2 {
+			panic("filter boom")
+		}
+		return true
+	}
+
+	From([]int{1, 2, 3}).PKeepIf(2, panicOnTwo)
+}
+
+func TestPEachPanicRecovery(t *testing.T) {
+	defer func() {
+		v := recover()
+		if v == nil {
+			t.Fatal("expected panic")
+		}
+
+		pe, ok := v.(*result.PanicError)
+		if !ok {
+			t.Fatalf("expected *result.PanicError, got %T", v)
+		}
+
+		if pe.Value != "each boom" {
+			t.Errorf("panic value = %v, want each boom", pe.Value)
+		}
+
+		if len(pe.Stack) == 0 {
+			t.Error("stack trace is empty")
+		}
+	}()
+
+	// panicOnFive panics when it sees 5.
+	panicOnFive := func(n int) {
+		if n == 5 {
+			panic("each boom")
+		}
+	}
+
+	From([]int{1, 2, 3, 4, 5}).PEach(3, panicOnFive)
+}
+
+func TestPMapPanicIdempotentWrapping(t *testing.T) {
+	defer func() {
+		v := recover()
+		if v == nil {
+			t.Fatal("expected panic")
+		}
+
+		pe, ok := v.(*result.PanicError)
+		if !ok {
+			t.Fatalf("expected *result.PanicError, got %T", v)
+		}
+
+		// The inner PanicError should NOT be double-wrapped.
+		// pe.Value should be "already wrapped", not another *result.PanicError.
+		if _, nested := pe.Value.(*result.PanicError); nested {
+			t.Error("PanicError was double-wrapped")
+		}
+
+		if pe.Value != "already wrapped" {
+			t.Errorf("panic value = %v, want already wrapped", pe.Value)
+		}
+	}()
+
+	// panicWithPanicError panics with an existing *result.PanicError.
+	panicWithPanicError := func(n int) int {
+		panic(&result.PanicError{Value: "already wrapped", Stack: []byte("original stack")})
+	}
+
+	PMap([]int{1}, 1, panicWithPanicError)
+}
+
+func TestPMapPanicMultipleWorkers(t *testing.T) {
+	defer func() {
+		v := recover()
+		if v == nil {
+			t.Fatal("expected panic")
+		}
+
+		pe, ok := v.(*result.PanicError)
+		if !ok {
+			t.Fatalf("expected *result.PanicError, got %T", v)
+		}
+
+		// One arbitrary panic wins — value must be one of the expected strings.
+		val, ok := pe.Value.(string)
+		if !ok {
+			t.Fatalf("panic value type = %T, want string", pe.Value)
+		}
+
+		if val != "panic-a" && val != "panic-b" {
+			t.Errorf("panic value = %q, want panic-a or panic-b", val)
+		}
+	}()
+
+	// alwaysPanic panics with a value derived from the input.
+	alwaysPanic := func(n int) int {
+		if n%2 == 0 {
+			panic("panic-a")
+		}
+		panic("panic-b")
+	}
+
+	// Use enough elements and workers to make multiple goroutines panic.
+	PMap([]int{1, 2, 3, 4}, 4, alwaysPanic)
+}
+
+//go:noinline
+func panicSiteForStackTest(n int) int {
+	panic("stack test")
+}
+
+func TestPMapPanicStackContainsPanicSite(t *testing.T) {
+	defer func() {
+		v := recover()
+		if v == nil {
+			t.Fatal("expected panic")
+		}
+
+		pe, ok := v.(*result.PanicError)
+		if !ok {
+			t.Fatalf("expected *result.PanicError, got %T", v)
+		}
+
+		stack := string(pe.Stack)
+		if !strings.Contains(stack, "panicSiteForStackTest") {
+			t.Errorf("stack does not contain panic site function name:\n%s", stack)
+		}
+	}()
+
+	PMap([]int{1}, 1, panicSiteForStackTest)
 }
 
 // --- MapperTo parallel ---
