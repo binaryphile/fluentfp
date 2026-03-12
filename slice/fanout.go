@@ -26,7 +26,7 @@ import (
 //  7. fn errors do NOT cancel siblings. The caller controls fail-fast by cancelling ctx in fn.
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
-func FanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+func FanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
 	return fanOut(ctx, n, ts, fn)
 }
 
@@ -38,7 +38,7 @@ func FanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.
 // detectable via errors.As.
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
-func FanOutEach[T any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) error) []error {
+func FanOutEach[T any](ctx context.Context, n int, ts []T, fn func(context.Context, T) error) []error {
 	if n <= 0 {
 		panic("slice.FanOutEach: n must be > 0")
 	}
@@ -175,7 +175,7 @@ loop:
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
-func FanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+func FanOutWeighted[T, R any](ctx context.Context, capacity int, ts []T, cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
 	return fanOutWeighted(ctx, capacity, ts, cost, fn)
 }
 
@@ -186,7 +186,7 @@ func FanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], c
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
-func FanOutEachWeighted[T any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) error) []error {
+func FanOutEachWeighted[T any](ctx context.Context, capacity int, ts []T, cost func(T) int, fn func(context.Context, T) error) []error {
 	if capacity <= 0 {
 		panic("slice.FanOutEachWeighted: capacity must be > 0")
 	}
@@ -343,7 +343,7 @@ loop:
 // Derives a child context internally — the caller's context is never cancelled.
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
-func FanOutAll[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) ([]R, error) {
+func FanOutAll[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) ([]R, error) {
 	if ctx == nil {
 		panic("slice.FanOutAll: ctx must not be nil")
 	}
@@ -404,7 +404,7 @@ func FanOutAll[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(conte
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
-func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) ([]R, error) {
+func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts []T, cost func(T) int, fn func(context.Context, T) (R, error)) ([]R, error) {
 	if ctx == nil {
 		panic("slice.FanOutWeightedAll: ctx must not be nil")
 	}

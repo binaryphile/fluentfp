@@ -12,6 +12,6 @@ func From[T any](ts []T) Mapper[T] {
 
 // FindAs returns the first element that type-asserts to R, or not-ok if none match.
 // Useful for finding a specific concrete type in a slice of interfaces.
-func FindAs[R, T any](ts Mapper[T]) option.Option[R] {
+func FindAs[R, T any](ts []T) option.Option[R] {
 	return base.FindAs[R, T](ts)
 }

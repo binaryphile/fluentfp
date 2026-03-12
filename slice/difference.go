@@ -2,7 +2,7 @@ package slice
 
 // Difference returns elements in a that are not in b, deduplicated,
 // preserving first-occurrence order from a.
-func Difference[T comparable](a, b Mapper[T]) Mapper[T] {
+func Difference[T comparable](a, b []T) Mapper[T] {
 	if len(a) == 0 {
 		return Mapper[T]{}
 	}

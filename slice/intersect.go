@@ -2,7 +2,7 @@ package slice
 
 // Intersect returns elements present in both a and b, deduplicated,
 // preserving first-occurrence order from a.
-func Intersect[T comparable](a, b Mapper[T]) Mapper[T] {
+func Intersect[T comparable](a, b []T) Mapper[T] {
 	if len(a) == 0 || len(b) == 0 {
 		return Mapper[T]{}
 	}
