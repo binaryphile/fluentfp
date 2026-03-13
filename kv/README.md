@@ -68,5 +68,6 @@ n := len(entries)            // len works
 - **Extract**: `Values`, `Keys` — return `Mapper[V]`/`Mapper[K]` for slice chaining
 - **Transform (standalone)**: `Map`, `MapValues`, `MapTo` — standalone because Go methods can't introduce new type parameters
 - **Mapping**: `ToString`, `ToInt`, `ToFloat64`, `ToBool`, `ToAny`, `ToByte`, `ToError`, `ToFloat32`, `ToInt32`, `ToInt64`, `ToRune`
+- **Utilities**: `Invert` (swap keys/values), `Merge` (combine maps, last-wins), `PickByKeys`/`OmitByKeys` (filter by key set)
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/kv) for complete API documentation, the [main README](../README.md) for installation, and the [showcase](../docs/showcase.md) for real-world rewrites.

@@ -25,4 +25,9 @@ func _() {
 
 	_ = Values[int, int]
 	_ = Keys[int, int]
+
+	_ = Invert[int, int]
+	_ = Merge[int, int]
+	_ = PickByKeys[int, int]
+	_ = OmitByKeys[int, int]
 }

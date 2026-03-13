@@ -58,3 +58,56 @@ func MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) base.Entries[K
 func MapTo[T any, K comparable, V any](m map[K]V) MapperTo[T, K, V] {
 	return base.NewEntryMapper[T](m)
 }
+
+// Invert swaps keys and values. If multiple keys map to the same value,
+// an arbitrary one wins (map iteration order). Both K and V must be comparable.
+func Invert[K, V comparable](m map[K]V) map[V]K {
+	result := make(map[V]K, len(m))
+	for k, v := range m {
+		result[v] = k
+	}
+	return result
+}
+
+// Merge combines multiple maps. Later maps override earlier keys.
+// Returns a new map; inputs are not modified.
+func Merge[K comparable, V any](maps ...map[K]V) map[K]V {
+	size := 0
+	for _, m := range maps {
+		size += len(m)
+	}
+	result := make(map[K]V, size)
+	for _, m := range maps {
+		for k, v := range m {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+// PickByKeys returns a new map containing only entries whose keys appear in keys.
+// Keys not present in m are silently ignored.
+func PickByKeys[K comparable, V any](m map[K]V, keys []K) map[K]V {
+	result := make(map[K]V, len(keys))
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+// OmitByKeys returns a new map containing entries whose keys do NOT appear in keys.
+func OmitByKeys[K comparable, V any](m map[K]V, keys []K) map[K]V {
+	exclude := make(map[K]bool, len(keys))
+	for _, k := range keys {
+		exclude[k] = true
+	}
+	result := make(map[K]V, len(m))
+	for k, v := range m {
+		if !exclude[k] {
+			result[k] = v
+		}
+	}
+	return result
+}

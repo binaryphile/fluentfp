@@ -28,7 +28,7 @@ Useful features with clear demand but existing workarounds.
 |-----------|-------------|------------|
 | ~~DropRight/DropRightWhile~~ | ~~Drop from end~~ | done — `DropLast`, `DropLastWhile` |
 | ~~FindLast~~ | ~~Find from end~~ | done |
-| IndexOf/LastIndexOf | By value, not predicate | lo |
+| ~~IndexOf/LastIndexOf~~ | ~~By value, not predicate~~ | done |
 | ~~IsSorted/IsSortedBy~~ | ~~Check sort order~~ | done |
 | ~~Intersperse~~ | ~~Insert separator between elements~~ | done |
 | Shuffle | Randomize order | lo |
@@ -40,9 +40,9 @@ Useful features with clear demand but existing workarounds.
 
 | Operation | Description | Who has it |
 |-----------|-------------|------------|
-| Invert | Swap keys and values | lo |
-| Merge/Assign | Combine maps | lo |
-| PickByKeys/OmitByKeys | Filter by key set | lo |
+| ~~Invert~~ | ~~Swap keys and values~~ | done |
+| ~~Merge/Assign~~ | ~~Combine maps~~ | done — `Merge` |
+| ~~PickByKeys/OmitByKeys~~ | ~~Filter by key set~~ | done |
 | Entries/FromEntries | Map to/from slice of pairs | lo |
 
 ### Option/Result Extras

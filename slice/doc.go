@@ -1,11 +1,10 @@
 // Package slice provides fluent slice types that can chain functional collection operations.
 //
-// Types are defined in internal/base and aliased here. All methods are available through the aliases.
-//
 // Mapper[T] is a fluent slice that can chain operations like ToString (map), KeepIf (filter), etc.
 //
-// MapperTo[T, R] is a fluent slice with one additional method, MapTo, for mapping to a specified type R.
-// If you don't need to map to an arbitrary type, use Mapper instead.
+// MapperTo[R, T] is a fluent slice with one additional method, Map, for cross-type mapping to R.
+// R comes first so callers can write slice.MapTo[Dst](src) and let T be inferred.
+// If you don't need cross-type mapping, use Mapper instead.
 //
 // Entries[K, V] is a fluent map type for chaining map operations.
 package slice
@@ -134,12 +133,14 @@ func _() {
 	_ = NonZero[int]
 	_ = Contains[int]
 	_ = Difference[int]
+	_ = IndexOf[int]
 	_ = Flatten[int]
 	_ = FromSet[int]
 	_ = Group[int, int]{}
 	_ = GroupBy[int, int]
 	_ = Intersect[int]
 	_ = KeyBy[int, int]
+	_ = LastIndexOf[int]
 	_ = Partition[int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
