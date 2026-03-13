@@ -759,6 +759,34 @@ func TestTakeWhile(t *testing.T) {
 	}
 }
 
+func TestDropWhile_StopsEvaluating(t *testing.T) {
+	calls := 0
+	pred := func(n int) bool {
+		calls++
+		return n < 3
+	}
+
+	From([]int{1, 2, 3, 4, 5}).DropWhile(pred)
+
+	if calls != 3 {
+		t.Errorf("predicate called %d times, want 3 (should stop at first false)", calls)
+	}
+}
+
+func TestTakeWhile_StopsEvaluating(t *testing.T) {
+	calls := 0
+	pred := func(n int) bool {
+		calls++
+		return n < 3
+	}
+
+	From([]int{1, 2, 3, 4, 5}).TakeWhile(pred)
+
+	if calls != 3 {
+		t.Errorf("predicate called %d times, want 3 (should stop at first false)", calls)
+	}
+}
+
 func TestIntersperse(t *testing.T) {
 	tests := []struct {
 		name  string

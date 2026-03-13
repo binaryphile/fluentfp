@@ -159,6 +159,7 @@ func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Option[int] {
 
 // Intersperse inserts sep between every adjacent pair of elements.
 // Returns ts directly for len <= 1 (zero-alloc, preserves nil).
+// Not available on MapperTo — interspersing before a cross-type map is uncommon.
 func (ts Mapper[T]) Intersperse(sep T) Mapper[T] {
 	if len(ts) <= 1 {
 		return ts

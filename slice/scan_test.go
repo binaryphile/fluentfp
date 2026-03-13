@@ -41,3 +41,36 @@ func TestScan_LastEqualsFold(t *testing.T) {
 		t.Errorf("last(Scan) = %d, Fold = %d — scanl law violated", last, folded)
 	}
 }
+
+func TestScan_LengthInvariant(t *testing.T) {
+	add := func(acc, x int) int { return acc + x }
+	tests := []struct {
+		name  string
+		input []int
+	}{
+		{name: "empty", input: []int{}},
+		{name: "one", input: []int{1}},
+		{name: "five", input: []int{1, 2, 3, 4, 5}},
+		{name: "nil", input: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Scan(tt.input, 0, add)
+			want := len(tt.input) + 1
+			if len(got) != want {
+				t.Errorf("len(Scan) = %d, want %d (len(input)+1)", len(got), want)
+			}
+		})
+	}
+}
+
+func TestScan_LeftToRightOrder(t *testing.T) {
+	// subtraction is non-commutative: proves left-to-right accumulation
+	sub := func(acc, x int) int { return acc - x }
+	got := Scan([]int{1, 2, 3}, 10, sub)
+	// 10, 10-1=9, 9-2=7, 7-3=4
+	want := []int{10, 9, 7, 4}
+	if !reflect.DeepEqual([]int(got), want) {
+		t.Errorf("Scan(sub) = %v, want %v — left-to-right order violated", got, want)
+	}
+}

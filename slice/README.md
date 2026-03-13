@@ -139,6 +139,8 @@ See [comparison](../comparison.md) for the full library comparison.
 
 `Scan` is `Fold` that collects all intermediate accumulator values. It includes the initial value as the first element (Haskell `scanl` semantics), so `Scan(ts, z, f)` returns `len(ts)+1` elements. Law: `last(Scan(ts, z, f)) == Fold(ts, z, f)`.
 
+`Zip` and `ZipWith` truncate to the shorter input — safe for pipelines where lengths are data-dependent. This differs from `pair.Zip`, which panics on length mismatch. Use `pair.Zip` when equal lengths are a structural invariant you want enforced.
+
 ## FanOut
 
 `FanOut` runs a function on every element of a slice concurrently, limited to `n` at a time. Each element gets its own goroutine. Results come back in input order — `output[i]` corresponds to `input[i]`.
