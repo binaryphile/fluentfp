@@ -1,10 +1,13 @@
-package result
+package rslt
 
 import "fmt"
 
 // Result represents the outcome of an operation that may fail.
 // It holds either a value (Ok) or an error (Err).
-// The zero value is a valid Ok result containing the zero value of R.
+//
+// The zero value is Ok containing R's zero value. This means an uninitialized
+// Result (e.g. a struct field never assigned) silently reports success.
+// Always construct results explicitly via [Ok], [Err], or [Of].
 type Result[R any] struct {
 	value R
 	err   error
@@ -21,7 +24,7 @@ func Ok[R any](r R) Result[R] {
 // Panics if e is nil.
 func Err[R any](e error) Result[R] {
 	if e == nil {
-		panic("result.Err: error must not be nil")
+		panic("rslt.Err: error must not be nil")
 	}
 
 	return Result[R]{err: e}
@@ -76,6 +79,12 @@ func (r Result[R]) OrCall(fn func() R) R {
 	return r.value
 }
 
+// Unpack returns the value and error as a standard Go (R, error) pair.
+// Inverse of [Of]: Of(r.Unpack()) == r for all well-constructed results.
+func (r Result[R]) Unpack() (R, error) {
+	return r.value, r.err
+}
+
 // GetErr returns the error and true if r is Err, or nil and false if r is Ok.
 func (r Result[R]) GetErr() (_ error, _ bool) {
 	if r.err == nil {
@@ -86,6 +95,9 @@ func (r Result[R]) GetErr() (_ error, _ bool) {
 }
 
 // Convert returns the result of applying fn to the value if r is Ok, or r unchanged if r is Err.
+// For cross-type mapping (R -> S), use the standalone [Map] function.
+// Convert is the same-type method form; Go does not allow generic methods with
+// extra type parameters, so cross-type mapping requires a standalone function.
 func (r Result[R]) Convert(fn func(R) R) Result[R] {
 	if r.err != nil {
 		return r
@@ -103,10 +115,12 @@ func (r Result[R]) FlatMap(fn func(R) Result[R]) Result[R] {
 	return fn(r.value)
 }
 
-// MustGet returns the value if r is Ok, or panics if r is Err.
+// MustGet returns the value if r is Ok, or panics with the error if r is Err.
+// The panic value wraps the original error, preserving error chains for
+// errors.Is and errors.As after recovery.
 func (r Result[R]) MustGet() R {
 	if r.err != nil {
-		panic("result: MustGet called on Err")
+		panic(fmt.Errorf("rslt.MustGet: %w", r.err))
 	}
 
 	return r.value
@@ -124,6 +138,17 @@ func (r Result[R]) IfErr(fn func(error)) {
 	if r.err != nil {
 		fn(r.err)
 	}
+}
+
+// MapErr returns a Result with the error transformed by fn if r is Err, or r unchanged if r is Ok.
+// Useful for wrapping or annotating errors without losing the Result context.
+// Panics if fn returns nil (same as [Err]).
+func (r Result[R]) MapErr(fn func(error) error) Result[R] {
+	if r.err == nil {
+		return r
+	}
+
+	return Err[R](fn(r.err))
 }
 
 // standalone functions
@@ -188,7 +213,8 @@ func (e *PanicError) Unwrap() error {
 
 // collectors
 
-// CollectAll returns all values if every result is Ok, or the first error by index otherwise.
+// CollectAll returns all values if every result is Ok, or the first error by index order otherwise.
+// Note: for concurrent results from [FanOut], index order may differ from completion order.
 func CollectAll[R any](results []Result[R]) ([]R, error) {
 	values := make([]R, len(results))
 	for i, r := range results {
@@ -228,7 +254,7 @@ func CollectErr[R any](results []Result[R]) []error {
 // CollectOkAndErr splits results into Ok values and Err errors in a single pass, preserving order.
 func CollectOkAndErr[R any](results []Result[R]) ([]R, []error) {
 	values := make([]R, 0, len(results))
-	errs := make([]error, 0)
+	errs := make([]error, 0, len(results))
 
 	for _, r := range results {
 		if r.err != nil {

@@ -2,11 +2,11 @@
 
 Typed results for operations that may fail.
 
-`Result[R]` stores a value or an error. The zero value is `Ok` with the zero value of `R`.
+`Result[R]` stores a value or an error. The zero value is `Ok` with the zero value of `R` — an uninitialized `Result` (e.g. a struct field never assigned) silently reports success. Always construct explicitly via `Ok`, `Err`, or `Of`.
 
 ```go
 // Wrap a (T, error) return pair
-res := result.Of(strconv.Atoi(input))
+res := rslt.Of(strconv.Atoi(input))
 port := res.Or(8080)
 ```
 
@@ -15,7 +15,7 @@ Pairs with `FanOut` for per-item error and panic handling in concurrent workload
 ```go
 // Per-item outcomes — collect what you need
 results := slice.FanOut(ctx, 8, urls, fetchURL)
-pages, errs := result.CollectOkAndErr(results)
+pages, errs := rslt.CollectOkAndErr(results)
 ```
 
 ```go
@@ -27,11 +27,11 @@ pages, err := slice.FanOutAll(ctx, 8, urls, fetchURL)
 
 ```go
 // Construct
-ok := result.Ok(42)
-fail := result.Err[int](errors.New("not found"))
+ok := rslt.Ok(42)
+fail := rslt.Err[int](errors.New("not found"))
 
 // From (T, error) pair
-res := result.Of(strconv.Atoi("42"))
+res := rslt.Of(strconv.Atoi("42"))
 ```
 
 ```go
@@ -48,12 +48,12 @@ port := res.Or(8080)
 
 ```go
 // Cross-type transform (standalone — Go methods can't introduce type params)
-name := result.Map(userResult, User.Name)
+name := rslt.Map(userResult, User.Name)
 ```
 
 ```go
 // Dispatch by state
-msg := result.Fold(res,
+msg := rslt.Fold(res,
     func(err error) string { return "failed: " + err.Error() },
     func(v int) string { return fmt.Sprintf("got %d", v) },
 )
@@ -64,7 +64,7 @@ msg := result.Fold(res,
 results := slice.FanOut(ctx, 8, urls, fetchURL)
 for _, res := range results {
     if err, ok := res.GetErr(); ok {
-        var pe *result.PanicError
+        var pe *rslt.PanicError
         if errors.As(err, &pe) {
             log.Printf("panic: %v\nstack:\n%s", pe.Value, pe.Stack)
         }
@@ -77,7 +77,7 @@ for _, res := range results {
 `FanOut` recovers panics per item and wraps them as `*PanicError`. This type carries the original panic value and a stack trace. Detect it with `errors.As`:
 
 ```go
-var pe *result.PanicError
+var pe *rslt.PanicError
 if errors.As(err, &pe) {
     log.Printf("panic: %v\nstack:\n%s", pe.Value, pe.Stack)
 }
@@ -89,12 +89,12 @@ If the panic value was an `error`, `PanicError.Unwrap()` returns it — enabling
 
 **Create**: `Ok`, `Err`, `Of` (from `(T, error)` pair)
 
-**Extract**: `Get`, `Or`, `OrCall`, `GetErr`, `IsOk`, `IsErr`, `MustGet`
+**Extract**: `Get`, `Unpack` (to `(R, error)` pair), `Or`, `OrCall`, `GetErr`, `IsOk`, `IsErr`, `MustGet`
 
-**Transform**: `Convert` (same type), `Map` (cross-type, standalone), `Fold` (standalone)
+**Transform**: `Convert` (same type), `MapErr` (transform error), `Map` (cross-type, standalone), `Fold` (standalone)
 
 **Side effects**: `IfOk`, `IfErr`
 
 **Collect**: `CollectAll` (all values or first error by index), `CollectOk` (successes only), `CollectErr` (errors only), `CollectOkAndErr` (both in one pass)
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/result) for complete API documentation, the [main README](../README.md) for installation, and the [showcase](../docs/showcase.md) for real-world comparisons.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/rslt) for complete API documentation, the [main README](../README.md) for installation, and the [showcase](../docs/showcase.md) for real-world comparisons.

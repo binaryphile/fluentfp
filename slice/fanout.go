@@ -5,14 +5,14 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/binaryphile/fluentfp/result"
+	"github.com/binaryphile/fluentfp/rslt"
 )
 
 // FanOut applies fn to each element of ts concurrently with at most n goroutines.
 // Each element gets its own goroutine (semaphore-bounded), enabling per-item scheduling
 // suited for I/O-bound workloads with variable latency.
 //
-// Returns Mapper[result.Result[R]] with len == len(ts), where output[i] corresponds to ts[i].
+// Returns Mapper[rslt.Result[R]] with len == len(ts), where output[i] corresponds to ts[i].
 //
 // Cancellation guarantees:
 //  1. FanOut returns only after all started callbacks have returned. No goroutine leaks.
@@ -26,7 +26,7 @@ import (
 //  7. fn errors do NOT cancel siblings. The caller controls fail-fast by cancelling ctx in fn.
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
-func FanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+func FanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) Mapper[rslt.Result[R]] {
 	return fanOut(ctx, n, ts, fn)
 }
 
@@ -34,7 +34,7 @@ func FanOut[T, R any](ctx context.Context, n int, ts []T, fn func(context.Contex
 // It is the side-effect variant of FanOut for operations that don't produce values.
 //
 // Returns []error with len == len(ts). Nil entries indicate success.
-// Panics from fn are wrapped as *result.PanicError in the error slice,
+// Panics from fn are wrapped as *rslt.PanicError in the error slice,
 // detectable via errors.As.
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
@@ -67,7 +67,7 @@ func FanOutEach[T any](ctx context.Context, n int, ts []T, fn func(context.Conte
 }
 
 // fanOut is the internal engine shared by FanOut and FanOutEach.
-func fanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+func fanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.Context, T) (R, error)) Mapper[rslt.Result[R]] {
 	if n <= 0 {
 		panic("slice.FanOut: n must be > 0")
 	}
@@ -79,15 +79,15 @@ func fanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.
 	}
 
 	if len(ts) == 0 {
-		return Mapper[result.Result[R]]{}
+		return Mapper[rslt.Result[R]]{}
 	}
 
-	results := make([]result.Result[R], len(ts))
+	results := make([]rslt.Result[R], len(ts))
 
 	// Already-cancelled ctx: fill all slots, no callbacks run.
 	if err := ctx.Err(); err != nil {
 		for i := range results {
-			results[i] = result.Err[R](err)
+			results[i] = rslt.Err[R](err)
 		}
 
 		return results
@@ -101,7 +101,7 @@ func fanOut[T, R any](ctx context.Context, n int, ts Mapper[T], fn func(context.
 		for i, t := range ts {
 			if err := ctx.Err(); err != nil {
 				for j := i; j < len(results); j++ {
-					results[j] = result.Err[R](err)
+					results[j] = rslt.Err[R](err)
 				}
 
 				break
@@ -121,7 +121,7 @@ loop:
 		// Pre-select cancellation check.
 		if err := ctx.Err(); err != nil {
 			for j := i; j < len(results); j++ {
-				results[j] = result.Err[R](err)
+				results[j] = rslt.Err[R](err)
 			}
 
 			break
@@ -130,7 +130,7 @@ loop:
 		select {
 		case <-ctx.Done():
 			for j := i; j < len(results); j++ {
-				results[j] = result.Err[R](ctx.Err())
+				results[j] = rslt.Err[R](ctx.Err())
 			}
 
 			break loop
@@ -142,7 +142,7 @@ loop:
 			<-sem
 
 			for j := i; j < len(results); j++ {
-				results[j] = result.Err[R](err)
+				results[j] = rslt.Err[R](err)
 			}
 
 			break
@@ -167,7 +167,7 @@ loop:
 // cost budget rather than a fixed item count. Each item's cost is determined by the
 // cost function, and at most capacity units of cost run concurrently.
 //
-// Returns Mapper[result.Result[R]] with len == len(ts), where output[i] corresponds to ts[i].
+// Returns Mapper[rslt.Result[R]] with len == len(ts), where output[i] corresponds to ts[i].
 //
 // Same cancellation guarantees as FanOut. Partial acquire rollback: if ctx cancels
 // after acquiring some tokens for an item, the scheduler releases them and fills
@@ -175,7 +175,7 @@ loop:
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
-func FanOutWeighted[T, R any](ctx context.Context, capacity int, ts []T, cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+func FanOutWeighted[T, R any](ctx context.Context, capacity int, ts []T, cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[rslt.Result[R]] {
 	return fanOutWeighted(ctx, capacity, ts, cost, fn)
 }
 
@@ -218,7 +218,7 @@ func FanOutEachWeighted[T any](ctx context.Context, capacity int, ts []T, cost f
 }
 
 // fanOutWeighted is the internal engine for FanOutWeighted and FanOutEachWeighted.
-func fanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[result.Result[R]] {
+func fanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], cost func(T) int, fn func(context.Context, T) (R, error)) Mapper[rslt.Result[R]] {
 	if capacity <= 0 {
 		panic("slice.FanOutWeighted: capacity must be > 0")
 	}
@@ -233,15 +233,15 @@ func fanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], c
 	}
 
 	if len(ts) == 0 {
-		return Mapper[result.Result[R]]{}
+		return Mapper[rslt.Result[R]]{}
 	}
 
-	results := make([]result.Result[R], len(ts))
+	results := make([]rslt.Result[R], len(ts))
 
 	// Already-cancelled ctx: fill all slots, no callbacks run.
 	if err := ctx.Err(); err != nil {
 		for i := range results {
-			results[i] = result.Err[R](err)
+			results[i] = rslt.Err[R](err)
 		}
 
 		return results
@@ -263,7 +263,7 @@ loop:
 		// Pre-select cancellation check.
 		if err := ctx.Err(); err != nil {
 			for j := i; j < len(results); j++ {
-				results[j] = result.Err[R](err)
+				results[j] = rslt.Err[R](err)
 			}
 
 			break
@@ -293,7 +293,7 @@ loop:
 			}
 
 			for j := i; j < len(results); j++ {
-				results[j] = result.Err[R](ctx.Err())
+				results[j] = rslt.Err[R](ctx.Err())
 			}
 
 			break loop
@@ -306,7 +306,7 @@ loop:
 			}
 
 			for j := i; j < len(results); j++ {
-				results[j] = result.Err[R](err)
+				results[j] = rslt.Err[R](err)
 			}
 
 			break
@@ -338,7 +338,7 @@ loop:
 //
 // The returned error is the first failure observed (by time, not index).
 // Sibling context.Canceled errors from cancellation do not mask the root cause.
-// Panics in fn are captured as *[result.PanicError] with the original stack trace.
+// Panics in fn are captured as *[rslt.PanicError] with the original stack trace.
 //
 // Derives a child context internally — the caller's context is never cancelled.
 //
@@ -368,7 +368,7 @@ func FanOutAll[T, R any](ctx context.Context, n int, ts []T, fn func(context.Con
 	cancelOnFail := func(ctx context.Context, t T) (r R, err error) {
 		defer func() {
 			if v := recover(); v != nil {
-				err = &result.PanicError{Value: v, Stack: debug.Stack()}
+				err = &rslt.PanicError{Value: v, Stack: debug.Stack()}
 				recordCause(err)
 				cancel()
 			}
@@ -389,7 +389,7 @@ func FanOutAll[T, R any](ctx context.Context, n int, ts []T, fn func(context.Con
 		return nil, cause
 	}
 
-	return result.CollectAll([]result.Result[R](results))
+	return rslt.CollectAll([]rslt.Result[R](results))
 }
 
 // FanOutWeightedAll applies fn to each element concurrently, bounded by a total
@@ -429,7 +429,7 @@ func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts []T, cost
 	cancelOnFail := func(ctx context.Context, t T) (r R, err error) {
 		defer func() {
 			if v := recover(); v != nil {
-				err = &result.PanicError{Value: v, Stack: debug.Stack()}
+				err = &rslt.PanicError{Value: v, Stack: debug.Stack()}
 				recordCause(err)
 				cancel()
 			}
@@ -450,21 +450,21 @@ func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts []T, cost
 		return nil, cause
 	}
 
-	return result.CollectAll([]result.Result[R](results))
+	return rslt.CollectAll([]rslt.Result[R](results))
 }
 
-// runItem calls fn with panic recovery. Named return enables defer/recover to set the result.
-func runItem[T, R any](ctx context.Context, t T, fn func(context.Context, T) (R, error)) (res result.Result[R]) {
+// runItem calls fn with panic recovery. Named return enables defer/recover to set the rslt.
+func runItem[T, R any](ctx context.Context, t T, fn func(context.Context, T) (R, error)) (res rslt.Result[R]) {
 	defer func() {
 		if v := recover(); v != nil {
-			res = result.Err[R](&result.PanicError{Value: v, Stack: debug.Stack()})
+			res = rslt.Err[R](&rslt.PanicError{Value: v, Stack: debug.Stack()})
 		}
 	}()
 
 	r, err := fn(ctx, t)
 	if err != nil {
-		return result.Err[R](err)
+		return rslt.Err[R](err)
 	}
 
-	return result.Ok(r)
+	return rslt.Ok(r)
 }

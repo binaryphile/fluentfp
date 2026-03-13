@@ -31,7 +31,7 @@ flowchart TD
 | `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapTo, Values, Keys) |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
-| `result` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`CollectOkAndErr` collectors |
+| `rslt` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`CollectOkAndErr` collectors |
 | `stream` | Lazy memoized sequences with per-cell mutex memoization. Head-eager, tail-lazy. Pure sources only. |
 | `must` | Panic-on-error enforcement for initialization invariants |
 | `value` | Conditional value selection with eager/lazy evaluation |
@@ -115,7 +115,11 @@ Not a pointer, not an interface.
 
 **Serialization:** Option implements `json.Marshaler`/`Unmarshaler` and `sql.Scanner`/`driver.Valuer`. Both use the same semantics: Ok ↔ value, NotOk ↔ null/NULL. SQL implementation delegates to `sql.Null[T]`, which handles all driver type conversions (int64→int, []byte→string, etc.) and custom Scanner/Valuer delegation internally.
 
-Pre-defined aliases (`String`, `Int`, `Bool`, `Error`) improve readability at usage sites. For the user-facing case for options over pointers, see [nil-safety.md](../nil-safety.md).
+Pre-defined aliases (`String`, `Int`, `Bool`, `Error`) improve readability at usage sites. Pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.) provide readable sentinel returns — `return option.NotOkString` reads as intent, while `return option.String{}` or `return option.NotOk[string]()` reads as mechanism.
+
+**`Env` naming:** `option.Env` and `must.NonEmptyEnv` — not `Getenv` or `LookupEnv`. Short names that read as intent: `option.Env("PORT").Or("8080")`, `must.NonEmptyEnv("HOME")`. `option.Env` treats unset and empty as absent — the common case. `must.NonEmptyEnv` distinguishes unset from empty in its panic message for diagnostics. For the rare case where empty is a valid explicit value, `option.New(os.LookupEnv(key))` is a one-liner.
+
+For the user-facing case for options over pointers, see [nil-safety.md](../nil-safety.md).
 
 ### D5: Either[L,R] with right-bias
 
@@ -209,9 +213,9 @@ A standalone package with zero internal imports — not an alias for `Either[err
 
 **Zero value:** `Result[R]{}` has `err: nil`, making it a valid `Ok(zeroR)`. Matches D4 (Option zero is not-ok) and D5 (Either zero is Left) in providing useful zero values.
 
-**Lift wraps fallible functions:** `Lift[A, R](fn func(A) (R, error)) func(A) Result[R]` converts a Go-idiomatic `(R, error)` function into one returning `Result[R]`. Mirrors `must.Of` (which wraps to panic-on-error). Single-arg arity covers the common case; multi-arg functions use `result.Of(fn(a, b))` directly.
+**Lift wraps fallible functions:** `Lift[A, R](fn func(A) (R, error)) func(A) Result[R]` converts a Go-idiomatic `(R, error)` function into one returning `Result[R]`. Mirrors `must.Of` (which wraps to panic-on-error). Single-arg arity covers the common case; multi-arg functions use `rslt.Of(fn(a, b))` directly.
 
-**Collectors return `[]R`:** Plain slices, not `Mapper[R]`. Callers wrap with `slice.From()` for chaining. This keeps `result` as a standalone package with zero internal imports — cleaner layering than leaking `internal/base` through a public API.
+**Collectors return `[]R`:** Plain slices, not `Mapper[R]`. Callers wrap with `slice.From()` for chaining. This keeps `rslt` as a standalone package with zero internal imports — cleaner layering than leaking `internal/base` through a public API.
 
 ### D12: Stream as lazy memoized linked list
 
@@ -297,7 +301,7 @@ unchanged — OnErr observes errors, it doesn't handle them.
 `func(ctx, T) (R, error)` signature with Throttle/ThrottleWeighted (D15).
 All three compose freely in any order: `Throttle(n, OnErr(fn, cancel))`.
 
-**Lifts result.IfErr:** result.IfErr triggers a side-effect on a Result value.
+**Lifts rslt.IfErr:** rslt.IfErr triggers a side-effect on a Result value.
 OnErr does the same at the function boundary — the caller never sees a Result.
 
 **Stateless:** Unlike Throttle (which captures a channel semaphore), OnErr
@@ -568,14 +572,14 @@ Where packages depend on each other, and why:
 | `Mapper.Single` → `either.Either[int, T]` | Failure carries information (the actual count). A plain error would discard it. |
 | `value.When` → `option.Option[T]` | Reuses option's `Or`/`OrZero` extraction rather than duplicating. |
 | `Entries.Values` → `Mapper[V]` | Bridges map values into slice pipelines. Used by `kv.From(m).Values()` for map-to-slice conversion. |
-| `FanOut` → `result.Result[R]` | Per-item results for concurrent traversal. `Mapper[Result[R]]` preserves chainability — callers filter, partition, or collect results using existing Mapper methods. |
-| `FanOut` → `result.PanicError` | Recovered panics wrapped as errors. `errors.As(err, &pe)` detects panic-originated failures. Preserves error chains via `Unwrap()`. |
+| `FanOut` → `rslt.Result[R]` | Per-item results for concurrent traversal. `Mapper[Result[R]]` preserves chainability — callers filter, partition, or collect results using existing Mapper methods. |
+| `FanOut` → `rslt.PanicError` | Recovered panics wrapped as errors. `errors.As(err, &pe)` detects panic-originated failures. Preserves error chains via `Unwrap()`. |
 | `Stream.First` → `option.Option[T]` | Same pattern as `Mapper.First` — absence is normal, not exceptional. |
 | `Stream.Find` → `option.Option[T]` | Same pattern as `Mapper.Find` — no match is normal. |
 | `Heap.Min` → `option.Option[T]` | Same pattern as `Mapper.Find` — empty heap is normal, not exceptional. |
 | `Seq.Find` → `option.Option[T]` | Same pattern — no match is normal. |
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 
-`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends only on `pair`. `stream`, `seq`, `heap`, and `value` depend only on `option`. `slice` depends on `internal/base` and `result`; `kv` depends only on `internal/base` — neither imports the other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends only on `pair`. `stream`, `seq`, `heap`, and `value` depend only on `option`. `slice` depends on `internal/base` and `rslt`; `kv` depends only on `internal/base` — neither imports the other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.

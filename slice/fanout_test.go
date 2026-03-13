@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/binaryphile/fluentfp/result"
+	"github.com/binaryphile/fluentfp/rslt"
 	"github.com/binaryphile/fluentfp/slice"
 )
 
@@ -86,12 +86,12 @@ func TestFanOutPanicInFn(t *testing.T) {
 	tests := []struct {
 		name       string
 		panicValue any
-		checkValue func(t *testing.T, pe *result.PanicError)
+		checkValue func(t *testing.T, pe *rslt.PanicError)
 	}{
 		{
 			name:       "string panic",
 			panicValue: "boom",
-			checkValue: func(t *testing.T, pe *result.PanicError) {
+			checkValue: func(t *testing.T, pe *rslt.PanicError) {
 				if pe.Value != "boom" {
 					t.Errorf("PanicError.Value: got %v, want \"boom\"", pe.Value)
 				}
@@ -100,7 +100,7 @@ func TestFanOutPanicInFn(t *testing.T) {
 		{
 			name:       "error panic",
 			panicValue: errors.New("wrapped error"),
-			checkValue: func(t *testing.T, pe *result.PanicError) {
+			checkValue: func(t *testing.T, pe *rslt.PanicError) {
 				if _, ok := pe.Value.(error); !ok {
 					t.Error("PanicError.Value: expected error type")
 				}
@@ -109,7 +109,7 @@ func TestFanOutPanicInFn(t *testing.T) {
 		{
 			name:       "nil panic produces PanicNilError",
 			panicValue: nil, // Go 1.21+: recover() returns *runtime.PanicNilError
-			checkValue: func(t *testing.T, pe *result.PanicError) {
+			checkValue: func(t *testing.T, pe *rslt.PanicError) {
 				if pe.Value == nil {
 					t.Error("PanicError.Value: got nil, expected *runtime.PanicNilError")
 				}
@@ -151,7 +151,7 @@ func TestFanOutPanicInFn(t *testing.T) {
 
 			err, _ := got[1].GetErr()
 
-			var pe *result.PanicError
+			var pe *rslt.PanicError
 			if !errors.As(err, &pe) {
 				t.Fatalf("[1]: expected *PanicError, got %T: %v", err, err)
 			}
@@ -322,11 +322,11 @@ func TestFanOutCancellationMidFlight(t *testing.T) {
 		return n, nil
 	}
 
-	done := make(chan []result.Result[int])
+	done := make(chan []rslt.Result[int])
 
 	go func() {
 		got := slice.FanOut(ctx, workers, input, blockUntilGate)
-		done <- []result.Result[int](got)
+		done <- []rslt.Result[int](got)
 	}()
 
 	// Spin until at least workers callbacks have started.
@@ -532,7 +532,7 @@ func TestFanOutPanicConcurrent(t *testing.T) {
 
 	err, _ := got[3].GetErr()
 
-	var pe *result.PanicError
+	var pe *rslt.PanicError
 	if !errors.As(err, &pe) {
 		t.Fatalf("[3]: expected *PanicError, got %T: %v", err, err)
 	}
@@ -641,7 +641,7 @@ func TestFanOutMixedStates(t *testing.T) {
 	} else {
 		err, _ := got[2].GetErr()
 
-		var pe *result.PanicError
+		var pe *rslt.PanicError
 		if !errors.As(err, &pe) {
 			t.Errorf("[2]: expected *PanicError, got %T: %v", err, err)
 		}
@@ -709,7 +709,7 @@ func TestFanOutEachPanicWrapped(t *testing.T) {
 		t.Errorf("[2]: expected nil, got %v", errs[2])
 	}
 
-	var pe *result.PanicError
+	var pe *rslt.PanicError
 	if !errors.As(errs[1], &pe) {
 		t.Fatalf("[1]: expected *PanicError, got %T: %v", errs[1], errs[1])
 	}
@@ -1230,11 +1230,11 @@ func TestFanOutWeightedCancellationMidFlight(t *testing.T) {
 	// costTwo returns 2 for every item. Capacity 4 means at most 2 items concurrent.
 	costTwo := func(_ int) int { return 2 }
 
-	done := make(chan []result.Result[int])
+	done := make(chan []rslt.Result[int])
 
 	go func() {
 		got := slice.FanOutWeighted(ctx, capacity, input, costTwo, blockUntilGate)
-		done <- []result.Result[int](got)
+		done <- []rslt.Result[int](got)
 	}()
 
 	// Spin until at least 2 callbacks have started (capacity/costPerItem = 4/2 = 2).
@@ -1316,7 +1316,7 @@ func TestFanOutWeightedPanicRecovery(t *testing.T) {
 
 	err, _ := got[2].GetErr()
 
-	var pe *result.PanicError
+	var pe *rslt.PanicError
 	if !errors.As(err, &pe) {
 		t.Fatalf("[2]: expected *PanicError, got %T: %v", err, err)
 	}
@@ -1382,7 +1382,7 @@ func TestFanOutWeightedMixedOutcomes(t *testing.T) {
 	} else {
 		err, _ := got[2].GetErr()
 
-		var pe *result.PanicError
+		var pe *rslt.PanicError
 		if !errors.As(err, &pe) {
 			t.Errorf("[2]: expected *PanicError, got %T: %v", err, err)
 		}
@@ -1456,7 +1456,7 @@ func TestFanOutEachWeightedPanicWrapped(t *testing.T) {
 		t.Errorf("[2]: expected nil, got %v", errs[2])
 	}
 
-	var pe *result.PanicError
+	var pe *rslt.PanicError
 	if !errors.As(errs[1], &pe) {
 		t.Fatalf("[1]: expected *PanicError, got %T: %v", errs[1], errs[1])
 	}
@@ -1665,9 +1665,9 @@ func TestFanOutAllPanicReturnsRootCauseNotSiblingCancellation(t *testing.T) {
 
 	_, err := slice.FanOutAll(context.Background(), 4, []int{0, 1, 2, 3}, panicAtThree)
 
-	var pe *result.PanicError
+	var pe *rslt.PanicError
 	if !errors.As(err, &pe) {
-		t.Fatalf("got %T (%v), want *result.PanicError (not sibling context.Canceled)", err, err)
+		t.Fatalf("got %T (%v), want *rslt.PanicError (not sibling context.Canceled)", err, err)
 	}
 }
 
@@ -1686,7 +1686,7 @@ func TestFanOutAllPanicStackContainsOriginalSite(t *testing.T) {
 
 	_, err := slice.FanOutAll(context.Background(), 1, []int{1}, triggerPanic)
 
-	var pe *result.PanicError
+	var pe *rslt.PanicError
 	if !errors.As(err, &pe) {
 		t.Fatalf("expected PanicError, got %T: %v", err, err)
 	}
@@ -1760,7 +1760,7 @@ func TestFanOutAllPanicCancelsRemaining(t *testing.T) {
 		t.Fatal("expected error from panic")
 	}
 
-	var pe *result.PanicError
+	var pe *rslt.PanicError
 	if !errors.As(err, &pe) {
 		t.Fatalf("expected PanicError, got %T: %v", err, err)
 	}

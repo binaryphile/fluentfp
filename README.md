@@ -122,13 +122,13 @@ Fetch weather for a list of cities with at most 10 simultaneous goroutines.
 </code></pre></td></tr>
 </table>
 
-`FanOutAll` is all-or-nothing: on first error it cancels remaining work and returns that error. `City` passes directly — no wrapper needed. Panics in callbacks are recovered as `*result.PanicError` with stack trace.
+`FanOutAll` is all-or-nothing: on first error it cancels remaining work and returns that error. `City` passes directly — no wrapper needed. Panics in callbacks are recovered as `*rslt.PanicError` with stack trace.
 
 When you need per-item outcomes instead of all-or-nothing, use `FanOut`:
 
 ```go
 results := slice.FanOut(ctx, 10, cities, City)
-infos, errs := result.CollectOkAndErr(results)  // gather successes and failures separately
+infos, errs := rslt.CollectOkAndErr(results)  // gather successes and failures separately
 ```
 
 *From the [errgroup pattern](https://encore.dev/blog/advanced-go-concurrency).*
@@ -219,8 +219,8 @@ Packages are independent — import one or all.
 | [slice](slice/)     | Collection transforms         | `KeepIf`, `RemoveIf`, `Fold`, `FanOutAll`      |
 | [kv](kv/)           | Map transforms                | `KeepIf`, `MapValues`, `Map`, `Values`         |
 | [option](option/)   | Nil safety                    | `Of`, `Get`, `Or`, `NonZero`, `NonNil`         |
-| [either](either/)   | Sum types                     | `Left`, `Right`, `Fold`, `Map`                 |
-| [result](result/)   | Typed error handling          | `Ok`, `Err`, `CollectAll`, `CollectOk`         |
+| [either](either/)   | Sum types                     | `Left`, `Right`, `Fold`, `Convert`, `FlatMap`  |
+| [rslt](rslt/)   | Typed error handling          | `Ok`, `Err`, `CollectAll`, `CollectOk`         |
 | [must](must/)       | Invariant enforcement         | `Get`, `BeNil`, `Of`                           |
 | [value](value/)     | Conditional value selection   | `Of().When().Or()`                             |
 | [stream](stream/)   | Lazy memoized sequences       | `Generate`, `Unfold`, `Take`, `Collect`        |
@@ -234,10 +234,10 @@ Packages are independent — import one or all.
 
 ## Package Highlights
 
-**[result](result/)** — typed error handling as values:
+**[rslt](rslt/)** — typed error handling as values:
 
 ```go
-r := result.Of(strconv.Atoi(input))  // wrap (int, error) → Result[int]
+r := rslt.Of(strconv.Atoi(input))  // wrap (int, error) → Result[int]
 port := r.Or(8080)                   // value or default
 ```
 

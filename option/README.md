@@ -21,7 +21,7 @@ Four lines become one.
 
 ```go
 // Environment with default
-port := option.Getenv("PORT").Or("8080")
+port := option.Env("PORT").Or("8080")
 ```
 
 ```go
@@ -60,7 +60,7 @@ return Config{Host: host, Port: port, Name: name}
 // After: every field resolves inline
 return Config{
     Host: record.Host().Or("localhost"),
-    Port: option.Getenv("PORT").Or("8080"),
+    Port: option.Env("PORT").Or("8080"),
     Name: option.Lookup(labels, "name").Or("default"),
 }
 ```
@@ -70,7 +70,7 @@ return Config{
 type ScanResult struct {
     IsConnected option.Bool  // true, false, or unknown
 }
-connected := result.IsConnected.OrFalse()  // unknown → false
+connected := option.OrFalse(rslt.IsConnected)  // unknown → false
 ```
 
 ```go
@@ -82,6 +82,18 @@ func (r Record) Host() option.String {
 addr := record.Host().Or("localhost")
 ```
 
+```go
+// Pre-declared not-ok values read as intent in returns
+func (db *DB) FindUser(id int) option.Int {
+    row := db.QueryRow("SELECT id FROM users WHERE id = ?", id)
+    var uid int
+    if err := row.Scan(&uid); err != nil {
+        return option.NotOkInt
+    }
+    return option.Of(uid)
+}
+```
+
 ## One Type for All of Go's "Maybe" Patterns
 
 Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`), and comma-ok returns (`map` lookup, type assertion). Each has a different failure mode — nil derefs panic, zero values are silently ambiguous, and ignored `ok` values lose the distinction between missing and present.
@@ -91,17 +103,17 @@ Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`),
 - `NonNil(ptr)` — pointer-based absence
 - `NonZero(count)`, `NonEmpty(name)` — zero-value absence (use only when zero/empty truly means absent in your domain)
 - `Lookup(m, key)`, `New(val, ok)` — comma-ok absence
-- `Getenv("PORT")` — environment variable absence
+- `Env("PORT")` — environment variable absence (unset or empty)
 
 Once you have an `Option[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepIf(valid)`, `.ToString(format)`, `.Get()`.
 
 ## Operations
 
-`Option[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null).
+`Option[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null). SQL via `Value`/`Scan` (ok → value, not-ok → NULL). Note: both JSON and SQL collapse Ok(nil) and NotOk into the same representation (null/NULL) — a round-trip through serialization may lose the distinction.
 
-- **Create**: `Of`, `New`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `Getenv`, `Lookup`
+- **Create**: `Of`, `New`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `Env`, `Lookup`
 - **Create + Transform**: `NonZeroCall`, `NonEmptyCall`, `NonNilCall` — check presence and apply fn in one step
-- **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse`
+- **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse` (standalone for `Option[bool]`)
 - **Transform**: `Convert` (same type), `Map` (cross-type, standalone), `ToString`, `ToInt`, other `To*`, `ToOpt`
 - **Filter**: `KeepIf`, `RemoveIf`
 - **Side effects**: `IfOk`, `IfNotOk`, `Lift`

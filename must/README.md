@@ -25,7 +25,7 @@ port := must.Get(strconv.Atoi(os.Getenv("PORT")))
 
 ```go
 // Required environment
-home := must.Getenv("HOME")
+home := must.NonEmptyEnv("HOME")
 ```
 
 ```go
@@ -40,7 +40,7 @@ Every `_ = fn()` is a hidden assumption — you're expecting the error won't hap
 
 `must` makes the assumption explicit. If it's wrong, you find out immediately.
 
-Don't recover from `must` panics. An invariant violation means the program is in a state you didn't anticipate — recovering and continuing from that state is how silent corruption happens. If you're tempted to recover, the operation isn't an invariant — use `(T, error)` returns and handle the error explicitly.
+Don't recover from `must` panics and continue normal execution. An invariant violation means the program is in a state you didn't anticipate — recovering and continuing from that state is how silent corruption happens. Top-level recovery for logging, crash reporting, or test assertions is fine. If you're tempted to recover and continue, the operation isn't an invariant — use `(T, error)` returns and handle the error explicitly.
 
 **Convention:** For error-only returns, keep the `err` assignment — it reads like Go:
 
@@ -56,7 +56,7 @@ Use `must.Get` when you need the value: `re := must.Get(regexp.Compile(pattern))
 - `Get(T, error) T` — extract value or panic with the error
 - `Get2(T, T2, error) (T, T2)` — two-value variant
 - `BeNil(error)` — panic with the error if non-nil
-- `Getenv(key) string` — env var or panic (missing or empty both panic)
-- `Of(func(T)(R, error)) func(T) R` — wrap for higher-order use
+- `NonEmptyEnv(key) string` — env var or panic if unset or empty (wraps `ErrEnvUnset` / `ErrEnvEmpty`)
+- `Of(func(T)(R, error)) func(T) R` — wrap for higher-order use (panics immediately if fn is nil, wraps `ErrNilFunction`)
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/must) for complete API documentation, the [main README](../README.md) for installation, and [result](../result/) for typed error handling without panics.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/must) for complete API documentation, the [main README](../README.md) for installation, and [rslt](../rslt/) for typed error handling without panics.

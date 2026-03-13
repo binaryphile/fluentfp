@@ -1,5 +1,5 @@
-// Package result provides a Result type for operations that may fail.
-package result
+// Package rslt provides a Result type for operations that may fail.
+package rslt
 
 func _() {
 	// Result methods

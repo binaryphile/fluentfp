@@ -187,7 +187,7 @@ Go methods cannot introduce new type parameters, preventing fluent cross-type ch
 
 Go's `(T, error)` returns conflict with method chaining. The Go-idiomatic approach is a standalone function returning `([]R, error)` — conc's `iter.MapErr` pattern. An alternative is per-item results (`Mapper[Result[R]]`), which preserves chainability at the cost of Go-idiom familiarity. See Section 7 for the tradeoff.
 
-**Fail-fast is an execution policy, not a result-collapsing operation.** In an eager API that materializes all results before returning, best-effort fail-fast requires the caller to cancel the context — `result.CollectAll` is post-hoc extraction of the first error, not an execution control mechanism. See Section 7 usage examples for the pattern.
+**Fail-fast is an execution policy, not a result-collapsing operation.** In an eager API that materializes all results before returning, best-effort fail-fast requires the caller to cancel the context — `rslt.CollectAll` is post-hoc extraction of the first error, not an execution control mechanism. See Section 7 usage examples for the pattern.
 
 ### Runtime
 
@@ -305,7 +305,7 @@ func FanOut[T, R any](
 ) Mapper[Result[R]]
 ```
 
-Where `Result[R]` is a type alias `Either[error, R]` in a `result` package. fluentfp's existing `Either[L, R]` provides Left, Right, Get, GetLeft, Map, Fold, IsRight, IsLeft — the alias reuses all of these with zero duplication. If Result-specific methods are needed later (`MapErr`, `Must`), they can be added as standalone functions without breaking the alias.
+Where `Result[R]` is a type alias `Either[error, R]` in the `rslt` package. fluentfp's existing `Either[L, R]` provides Left, Right, Get, GetLeft, Map, Fold, IsRight, IsLeft — the alias reuses all of these with zero duplication. If Result-specific methods are needed later (`MapErr`, `Must`), they can be added as standalone functions without breaking the alias.
 
 **Constructors:**
 
@@ -326,10 +326,10 @@ getBody := func(r Result[Response]) string { return r.Or(Response{}).Body }
 bodies := results.KeepIf(isOk).ToString(getBody)
 
 // Consume: collect results (first error by index order)
-responses, err := result.CollectAll(results)
+responses, err := rslt.CollectAll(results)
 
 // Consume: split successes and failures
-oks, errs := result.CollectOkAndErr(results)
+oks, errs := rslt.CollectOkAndErr(results)
 ```
 
 **Best-effort fail-fast** requires the caller to cancel the context — FanOut does not cancel automatically on error:
@@ -367,9 +367,9 @@ Returns `[]error` with `len(errs) == len(ts)` — nil entries for successes, pre
 `FanOutEach` shares all scheduling, cancellation, validation, and panic semantics with `FanOut` — only the result projection differs.
 
 **Per-item results preserve chainability.** `Mapper[Result[R]]` composes with KeepIf, Partition, Map. A `(Mapper[R], error)` return breaks the chain and discards partial results. The caller controls error policy at consumption time:
-- `result.CollectAll(results)` — returns `(Mapper[R], error)` where error is the first `Err` by index order (post-hoc extraction, not execution control)
-- `result.CollectOk(results)` — returns `Mapper[R]` containing only successes (keep-successes)
-- `result.CollectOkAndErr(results)` — split into successes and failures for independent handling
+- `rslt.CollectAll(results)` — returns `(Mapper[R], error)` where error is the first `Err` by index order (post-hoc extraction, not execution control)
+- `rslt.CollectOk(results)` — returns `Mapper[R]` containing only successes (keep-successes)
+- `rslt.CollectOkAndErr(results)` — split into successes and failures for independent handling
 
 **Naming:** `FanOut` chosen over `ConcurrentMap` (long, doesn't signal per-item results), `MapResults` (doesn't signal concurrency), `TraverseN` (opaque to Go developers). The fan-out/fan-in pattern is well-known in Go (Go Blog: Pipelines). The name signals "concurrent I/O dispatch" without promising CPU parallelism. Naming can be revised during internal use.
 

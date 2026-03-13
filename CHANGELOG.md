@@ -2,8 +2,8 @@
 
 ## v0.59.0
 
-- **BREAKING**: Rename `GetOr`/`GetOrCall` to `Or`/`OrCall` on `either` and `result` — aligns with `option.Or()`
-- **result** — Add `OrCall(fn func() R) R` for parity with option and either
+- **BREAKING**: Rename `GetOr`/`GetOrCall` to `Or`/`OrCall` on `either` and `rslt` — aligns with `option.Or()`
+- **rslt** — Add `OrCall(fn func() R) R` for parity with option and either
 
 ## v0.58.0
 
@@ -72,9 +72,9 @@
 - **option** — `FlatMap` method and standalone function (monadic bind)
   - `(o Option[T]) FlatMap(fn func(T) Option[T]) Option[T]` — same-type chaining
   - `option.FlatMap[T, R](o, fn func(T) Option[R]) Option[R]` — cross-type
-- **result** — `FlatMap` method and standalone function (monadic bind)
+- **rslt** — `FlatMap` method and standalone function (monadic bind)
   - `(r Result[R]) FlatMap(fn func(R) Result[R]) Result[R]` — same-type chaining
-  - `result.FlatMap[R, S](res, fn func(R) Result[S]) Result[S]` — cross-type
+  - `rslt.FlatMap[R, S](res, fn func(R) Result[S]) Result[S]` — cross-type
 
 ## v0.46.0
 

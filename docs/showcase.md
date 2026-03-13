@@ -69,29 +69,29 @@ results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 **Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
 
-The original method is 217 lines (L2590–L2806). Each of the 48 fields follows the same 3-line pattern: `if b.Field != zero { result.Field = b.Field }` — 144 lines of conditional assignment alone, 48 with fluentfp. The examples below show one representative field per pattern.
+The original method is 217 lines (L2590–L2806). Each of the 48 fields follows the same 3-line pattern: `if b.Field != zero { rslt.Field = b.Field }` — 144 lines of conditional assignment alone, 48 with fluentfp. The examples below show one representative field per pattern.
 
 **Original** (one field per pattern — `s` is the receiver, `b` is the override):
 ```go
 if b.AuthoritativeRegion != "" {
-    result.AuthoritativeRegion = b.AuthoritativeRegion
+    rslt.AuthoritativeRegion = b.AuthoritativeRegion
 }
 if b.BootstrapExpect > 0 {
-    result.BootstrapExpect = b.BootstrapExpect
+    rslt.BootstrapExpect = b.BootstrapExpect
 }
 if b.RaftProtocol != 0 {
-    result.RaftProtocol = b.RaftProtocol
+    rslt.RaftProtocol = b.RaftProtocol
 }
 ```
 
 **fluentfp:**
 ```go
-result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.BootstrapExpect = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
-result.RaftProtocol = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
+rslt.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
+rslt.BootstrapExpect = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
+rslt.RaftProtocol = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
 ```
 
-**What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
+**What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the rslt.
 
 **What's eliminated:** Mechanical duplication — the three-line if-block pattern repeated 48 times. Each field's conditional is now a single expression with a consistent shape: `value.FirstNonEmpty(override, default)` or `value.FirstNonZero(override, default)`. The risk here isn't shadowing — it's copy-paste error and review fatigue across 144 lines of structurally identical code.
 
@@ -495,7 +495,7 @@ primes := stream.Generate(2, lof.Inc).KeepIf(isPrime).Take(25).Collect()
 
 **What changed:** The channel pipeline becomes a lazy stream pipeline that produces the same first N primes without goroutines or channels. `stream.Generate` produces 2, 3, 4, ... lazily via deferred thunks. `.KeepIf(isPrime)` filters candidates eagerly to the first match, then defers the rest. `.Take(25)` bounds the sequence. `.Collect()` materializes to a slice.
 
-The two versions use different algorithms to achieve the same result. The sieve distributes trial division across N goroutines — each `Filter` goroutine checks divisibility by one specific prime. The stream version concentrates trial division in `isPrime`, checking all factors up to √n per candidate. For 25 primes the performance difference is negligible; the sieve's goroutine scheduling overhead exceeds any saved arithmetic.
+The two versions use different algorithms to achieve the same rslt. The sieve distributes trial division across N goroutines — each `Filter` goroutine checks divisibility by one specific prime. The stream version concentrates trial division in `isPrime`, checking all factors up to √n per candidate. For 25 primes the performance difference is negligible; the sieve's goroutine scheduling overhead exceeds any saved arithmetic.
 
 **What's eliminated:** Goroutine and channel resource accumulation. The original creates goroutines that run for the lifetime of the process: `Generate` loops infinitely, each `Filter` loops until its input channel closes (which never happens). Go's [garbage collector cannot collect goroutines](https://go.dev/blog/pipelines) — they must exit on their own. In a short-lived program like the test, the process exits before this matters; in a long-lived server using the same pattern, the goroutines would accumulate indefinitely.
 
@@ -681,13 +681,13 @@ uploads, err := slice.FanOutAll(ctx, 4, chunks, uploadChunk)
 For Hex's pattern — partial success is acceptable:
 
 ```go
-downloaded, errs := result.CollectOkAndErr(slice.FanOut(ctx, 8, deps, fetchDep))
+downloaded, errs := rslt.CollectOkAndErr(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
 Or when only successes matter:
 
 ```go
-downloaded := result.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
+downloaded := rslt.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
 **What this brings to Go:** `FanOutAll` for all-or-nothing with early cancellation, `FanOut` + `CollectOkAndErr` for both halves, `FanOut` + `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.

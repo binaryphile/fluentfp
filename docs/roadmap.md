@@ -50,7 +50,7 @@ Useful features with clear demand but existing workarounds.
 | Operation | Description | Who has it |
 |-----------|-------------|------------|
 | MapNone | Transform the absent case | mo |
-| ~~Match/Fold~~ | ~~Pattern-match dispatch~~ | done — `result.Fold`, `either.Fold` |
+| ~~Match/Fold~~ | ~~Pattern-match dispatch~~ | done — `rslt.Fold`, `either.Fold` |
 
 ### Function Composition
 

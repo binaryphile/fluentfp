@@ -30,13 +30,6 @@ top5 := slice.SortByDesc(players, Player.Score).Take(5)
 ```
 
 ```go
-// Tag filtering (allowlist semantics — empty filter matches all)
-if !slice.String(m.Tags).Matches(filter.Tags) {
-    continue
-}
-```
-
-```go
 // Cross-type mapping (both types inferred)
 users := slice.Map(ids, FetchUser)
 ```
@@ -128,14 +121,14 @@ See [comparison](../comparison.md) for the full library comparison.
 `From` creates `Mapper[T]`. For cross-type mapping, prefer the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `MapTo[R]` creates `MapperTo[R,T]` for the narrow case where you filter before cross-type mapping: `MapTo[R](ts).KeepIf(pred).Map(fn)`. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
 - **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `TakeWhile`, `Drop`, `DropLast`, `DropWhile`, `NonZero`
-- **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (`String`)
+- **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny` (`String`)
 - **Transform**: `Convert`, `FlatMap`, `Map` (`MapperTo`), `Reverse`, `Intersperse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String`), `UniqueBy`, `SortBy`, `SortByDesc`
 - **Combine**: `Zip`, `ZipWith`
 - **Aggregate**: `Fold`, `Scan`, `MapAccum`, `Len`, `Max` (`int`, `float64`), `Min` (`int`, `float64`), `Sum` (`int`, `float64`), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
 - **Generate**: `Range`, `RangeFrom`, `RangeStep` (return `Int` for numeric chaining), `RepeatN`
 - **View**: `Chunk`, `Window` (sliding windows sharing backing array — overlapping windows alias the same memory; mutating one affects adjacent windows; use `.Clone()` for independent copies)
-- **Parallel (no error return)**: `PMap`, `PKeepIf`, `PEach` — bounded concurrent operations for callbacks that do not return errors. Panics in fn are recovered, converted to `*result.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Usually only worth using when per-item workload is large enough to amortize the overhead caused by creation and scheduling of goroutines.
-- **Parallel (error-aware)**: `FanOut`, `FanOutAll`, `FanOutEach` — bounded concurrency for callbacks that take `context.Context` and return errors. Use `FanOut` for value-producing operations where partial success is acceptable, `FanOutAll` for all-or-nothing operations with early cancellation, and `FanOutEach` for side-effecting callbacks that return only `error`. If item costs vary widely, use the corresponding weighted variant (`FanOutWeighted`, `FanOutWeightedAll`, `FanOutEachWeighted`). See [result](../result/) for `CollectAll`, `CollectOk`, and `CollectOkAndErr`.
+- **Parallel (no error return)**: `PMap`, `PKeepIf`, `PEach` — bounded concurrent operations for callbacks that do not return errors. Panics in fn are recovered, converted to `*rslt.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Usually only worth using when per-item workload is large enough to amortize the overhead caused by creation and scheduling of goroutines.
+- **Parallel (error-aware)**: `FanOut`, `FanOutAll`, `FanOutEach` — bounded concurrency for callbacks that take `context.Context` and return errors. Use `FanOut` for value-producing operations where partial success is acceptable, `FanOutAll` for all-or-nothing operations with early cancellation, and `FanOutEach` for side-effecting callbacks that return only `error`. If item costs vary widely, use the corresponding weighted variant (`FanOutWeighted`, `FanOutWeightedAll`, `FanOutEachWeighted`). See [rslt](../rslt/) for `CollectAll`, `CollectOk`, and `CollectOkAndErr`.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
 
@@ -149,10 +142,10 @@ See [comparison](../comparison.md) for the full library comparison.
 
 ```go
 results := slice.FanOut(ctx, 10, cities, City)
-infos, err := result.CollectAll(results)
+infos, err := rslt.CollectAll(results)
 ```
 
-`FanOutEach` is the side-effect variant for operations that don't produce values — it returns `[]error` instead of `Mapper[result.Result[R]]`.
+`FanOutEach` is the side-effect variant for operations that don't produce values — it returns `[]error` instead of `Mapper[rslt.Result[R]]`.
 
 ### How it works
 
@@ -183,16 +176,16 @@ infos, err := slice.FanOutAll(ctx, 10, cities, City)
 
 ### Fail-fast vs partial results
 
-`FanOut` does not cancel siblings on failure — every item runs to completion. This is intentional: many workloads want partial results. Use `result.CollectOk(results)` to gather successes and discard failures, or `result.CollectOkAndErr(results)` to get both halves.
+`FanOut` does not cancel siblings on failure — every item runs to completion. This is intentional: many workloads want partial results. Use `rslt.CollectOk(results)` to gather successes and discard failures, or `rslt.CollectOkAndErr(results)` to get both halves.
 
 If any failure should fail the whole batch, use `FanOutAll` instead — on the first error or panic it cancels a derived context, skips unstarted work, lets in-flight callbacks stop early if they honor `ctx`, and still waits for started callbacks to return.
 
 ### Panic recovery
 
-If `fn` panics, that item's result becomes `Err` wrapping a `*result.PanicError` (with the panic value and stack trace). Other items are unaffected. Detect panics with `errors.As`:
+If `fn` panics, that item's result becomes `Err` wrapping a `*rslt.PanicError` (with the panic value and stack trace). Other items are unaffected. Detect panics with `errors.As`:
 
 ```go
-var pe *result.PanicError
+var pe *rslt.PanicError
 if errors.As(err, &pe) {
     log.Printf("panic: %v\n%s", pe.Value, pe.Stack)
 }
@@ -218,7 +211,7 @@ Choose in two steps:
 | `func(context.Context, T) (R, error)` | Partial success OK | `FanOut` / `FanOutWeighted` + collector |
 | `func(context.Context, T) error` | Side effects only | `FanOutEach` / `FanOutEachWeighted` |
 
-**No error return** — use `PMap`, `PKeepIf`, or `PEach` when your callback does not return an error. Panics in fn are recovered, converted to `*result.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Remaining workers continue until fn returns. If fn may block indefinitely, use `FanOut` or `FanOutAll` instead — they accept `context.Context` for timeout and cancellation. This is a good fit for transforms and filters where failure is not part of the callback's contract:
+**No error return** — use `PMap`, `PKeepIf`, or `PEach` when your callback does not return an error. Panics in fn are recovered, converted to `*rslt.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Remaining workers continue until fn returns. If fn may block indefinitely, use `FanOut` or `FanOutAll` instead — they accept `context.Context` for timeout and cancellation. This is a good fit for transforms and filters where failure is not part of the callback's contract:
 
 ```go
 // Normalize 10K strings
@@ -243,13 +236,13 @@ manifests, err := slice.FanOutAll(ctx, 4, files, parseAndValidateManifest)
 ```go
 // Download avatars (missing ones OK)
 avatarResults := slice.FanOut(ctx, 10, users, downloadAvatar)
-avatars, errs := result.CollectOkAndErr(avatarResults)
+avatars, errs := rslt.CollectOkAndErr(avatarResults)
 ```
 
 ```go
 // Decode untrusted images (some may be corrupt)
 imageResults := slice.FanOut(ctx, 8, blobs, decodeImage)
-images := result.CollectOk(imageResults)
+images := rslt.CollectOk(imageResults)
 ```
 
 **Side effects only** — `FanOutEach` returns `[]error` instead of values:

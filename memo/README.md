@@ -51,7 +51,7 @@ lookup := memo.FnWith(expensiveLookup, memo.NewLRU[string, Result](1000))
 
 ## Concurrency Semantics
 
-**`Of` guarantees single evaluation.** Concurrent callers wait for the in-flight evaluation — only one goroutine computes the result. This is true single-flight behavior.
+**`Of` guarantees single evaluation.** Concurrent callers wait for the in-flight evaluation — only one goroutine computes the rslt. This is true single-flight behavior.
 
 **Keyed wrappers (`Fn`, `FnWith`, `FnErr`, `FnErrWith`) do not coalesce concurrent misses.** The cache is concurrent-safe, but multiple goroutines requesting the same uncached key may all compute it simultaneously. If deduplication matters (expensive API calls, stampede-prone workloads), use `golang.org/x/sync/singleflight` or add external coordination.
 
@@ -59,7 +59,7 @@ lookup := memo.FnWith(expensiveLookup, memo.NewLRU[string, Result](1000))
 
 **`Of` retries panicked functions.** Unlike `sync.Once`, which poisons permanently on panic, `Of` resets to pending — subsequent calls retry the function. If initialization panics due to a transient condition (network, file not ready), the next call gets another chance.
 
-**`FnErr` retries errors.** Only successful results are cached. If the underlying function returns an error, subsequent calls retry rather than returning the cached error. This matches the assumption that errors are transient — if you need to cache errors, use `Fn` with `result.Result[V]` as the value type.
+**`FnErr` retries errors.** Only successful results are cached. If the underlying function returns an error, subsequent calls retry rather than returning the cached error. This matches the assumption that errors are transient — if you need to cache errors, use `Fn` with `rslt.Result[V]` as the value type.
 
 **`Of`: successes are permanent.** Once `Of`'s function returns successfully, the result is cached and the original function is released for GC. Keyed wrappers retain `fn` for future uncached keys.
 

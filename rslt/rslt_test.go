@@ -1,11 +1,12 @@
-package result_test
+package rslt_test
 
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
-	"github.com/binaryphile/fluentfp/result"
+	"github.com/binaryphile/fluentfp/rslt"
 )
 
 func TestErrNilPanics(t *testing.T) {
@@ -21,13 +22,13 @@ func TestErrNilPanics(t *testing.T) {
 		}
 
 		// expectedMsg is the panic message for Err(nil).
-		expectedMsg := "result.Err: error must not be nil"
+		expectedMsg := "rslt.Err: error must not be nil"
 		if got != expectedMsg {
 			t.Errorf("got %q, want %q", got, expectedMsg)
 		}
 	}()
 
-	result.Err[int](nil)
+	rslt.Err[int](nil)
 }
 
 func TestOf(t *testing.T) {
@@ -66,7 +67,7 @@ func TestOf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := result.Of(tt.value, tt.err)
+			got := rslt.Of(tt.value, tt.err)
 			val, ok := got.Get()
 			if val != tt.wantVal || ok != tt.wantOk {
 				t.Errorf("Of: got (%d, %t), want (%d, %t)", val, ok, tt.wantVal, tt.wantOk)
@@ -75,7 +76,7 @@ func TestOf(t *testing.T) {
 	}
 
 	t.Run("preserves error identity", func(t *testing.T) {
-		got := result.Of(0, sentinelErr)
+		got := rslt.Of(0, sentinelErr)
 		err, ok := got.GetErr()
 		if !ok {
 			t.Fatal("expected Err result")
@@ -92,19 +93,19 @@ func TestConvert(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		result  result.Result[int]
+		result  rslt.Result[int]
 		wantVal int
 		wantOk  bool
 	}{
 		{
 			name:    "ok transforms",
-			result:  result.Ok(5),
+			result:  rslt.Ok(5),
 			wantVal: 10,
 			wantOk:  true,
 		},
 		{
 			name:    "err passes through",
-			result:  result.Err[int](errors.New("fail")),
+			result:  rslt.Err[int](errors.New("fail")),
 			wantVal: 0,
 			wantOk:  false,
 		},
@@ -123,32 +124,69 @@ func TestConvert(t *testing.T) {
 
 func TestMustGet(t *testing.T) {
 	t.Run("ok returns value", func(t *testing.T) {
-		got := result.Ok(42).MustGet()
+		got := rslt.Ok(42).MustGet()
 		if got != 42 {
 			t.Errorf("MustGet: got %d, want 42", got)
 		}
 	})
 
-	t.Run("err panics", func(t *testing.T) {
+	t.Run("err panics with wrapped error", func(t *testing.T) {
+		originalErr := errors.New("fail")
+
 		defer func() {
 			v := recover()
 			if v == nil {
 				t.Fatal("expected panic, got none")
 			}
 
-			got, ok := v.(string)
+			err, ok := v.(error)
 			if !ok {
-				t.Fatalf("expected string panic, got %T: %v", v, v)
+				t.Fatalf("expected error panic, got %T: %v", v, v)
 			}
 
-			// expectedMsg is the panic message for MustGet on Err.
-			expectedMsg := "result: MustGet called on Err"
-			if got != expectedMsg {
-				t.Errorf("got %q, want %q", got, expectedMsg)
+			if !errors.Is(err, originalErr) {
+				t.Errorf("panic error does not wrap original: got %v", err)
+			}
+
+			if !strings.Contains(err.Error(), "rslt.MustGet") {
+				t.Errorf("panic error missing context: got %v", err)
 			}
 		}()
 
-		result.Err[int](errors.New("fail")).MustGet()
+		rslt.Err[int](originalErr).MustGet()
+	})
+}
+
+func TestMapErr(t *testing.T) {
+	// wrapWithContext annotates an error with context.
+	wrapWithContext := func(err error) error {
+		return fmt.Errorf("context: %w", err)
+	}
+
+	t.Run("err transforms error", func(t *testing.T) {
+		original := errors.New("fail")
+		r := rslt.Err[int](original).MapErr(wrapWithContext)
+
+		err, ok := r.GetErr()
+		if !ok {
+			t.Fatal("expected Err")
+		}
+
+		if !errors.Is(err, original) {
+			t.Error("wrapped error does not chain to original")
+		}
+
+		if !strings.Contains(err.Error(), "context:") {
+			t.Errorf("error missing context: %v", err)
+		}
+	})
+
+	t.Run("ok passes through unchanged", func(t *testing.T) {
+		r := rslt.Ok(42).MapErr(wrapWithContext)
+		v, ok := r.Get()
+		if !ok || v != 42 {
+			t.Errorf("MapErr on Ok: got (%d, %t), want (42, true)", v, ok)
+		}
 	})
 }
 
@@ -158,19 +196,19 @@ func TestStandaloneMap(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		input   result.Result[int]
+		input   rslt.Result[int]
 		wantVal string
 		wantOk  bool
 	}{
 		{
 			name:    "ok transforms cross-type",
-			input:   result.Ok(42),
+			input:   rslt.Ok(42),
 			wantVal: "42",
 			wantOk:  true,
 		},
 		{
 			name:    "err passes through",
-			input:   result.Err[int](errors.New("fail")),
+			input:   rslt.Err[int](errors.New("fail")),
 			wantVal: "",
 			wantOk:  false,
 		},
@@ -178,7 +216,7 @@ func TestStandaloneMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := result.Map(tt.input, itoa)
+			got := rslt.Map(tt.input, itoa)
 			val, ok := got.Get()
 			if val != tt.wantVal || ok != tt.wantOk {
 				t.Errorf("Map: got (%q, %t), want (%q, %t)", val, ok, tt.wantVal, tt.wantOk)
@@ -196,24 +234,24 @@ func TestFold(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		input result.Result[int]
+		input rslt.Result[int]
 		want  int
 	}{
 		{
 			name:  "ok dispatches to onOk",
-			input: result.Ok(42),
+			input: rslt.Ok(42),
 			want:  42,
 		},
 		{
 			name:  "err dispatches to onErr",
-			input: result.Err[int](errors.New("fail")),
+			input: rslt.Err[int](errors.New("fail")),
 			want:  4,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := result.Fold(tt.input, errLen, identity)
+			got := rslt.Fold(tt.input, errLen, identity)
 			if got != tt.want {
 				t.Errorf("Fold: got %d, want %d", got, tt.want)
 			}
@@ -246,7 +284,7 @@ func TestPanicErrorUnwrap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pe := &result.PanicError{Value: tt.value}
+			pe := &rslt.PanicError{Value: tt.value}
 			unwrapped := pe.Unwrap()
 			if tt.wantErr && unwrapped == nil {
 				t.Error("Unwrap: got nil, want error")
@@ -265,10 +303,10 @@ func TestPanicErrorChain(t *testing.T) {
 	// wrappedSentinel wraps sentinel to test chain traversal.
 	wrappedSentinel := fmt.Errorf("wrapped: %w", sentinel)
 
-	pe := &result.PanicError{Value: wrappedSentinel}
+	pe := &rslt.PanicError{Value: wrappedSentinel}
 
 	// Wrap in Err to test the full chain: Err → PanicError → wrapped → sentinel
-	r := result.Err[int](pe)
+	r := rslt.Err[int](pe)
 	err, ok := r.GetErr()
 	if !ok {
 		t.Fatal("expected Err result")
@@ -278,7 +316,7 @@ func TestPanicErrorChain(t *testing.T) {
 		t.Error("errors.Is: PanicError chain does not reach sentinel")
 	}
 
-	var target *result.PanicError
+	var target *rslt.PanicError
 	if !errors.As(err, &target) {
 		t.Error("errors.As: could not extract *PanicError from chain")
 	}
@@ -290,37 +328,37 @@ func TestPanicErrorChain(t *testing.T) {
 func TestCollectAll(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   []result.Result[int]
+		input   []rslt.Result[int]
 		want    []int
 		wantErr bool
 	}{
 		{
 			name:    "all ok",
-			input:   []result.Result[int]{result.Ok(1), result.Ok(2), result.Ok(3)},
+			input:   []rslt.Result[int]{rslt.Ok(1), rslt.Ok(2), rslt.Ok(3)},
 			want:    []int{1, 2, 3},
 			wantErr: false,
 		},
 		{
 			name:    "one err",
-			input:   []result.Result[int]{result.Ok(1), result.Err[int](errors.New("fail")), result.Ok(3)},
+			input:   []rslt.Result[int]{rslt.Ok(1), rslt.Err[int](errors.New("fail")), rslt.Ok(3)},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "first err by index wins",
-			input:   []result.Result[int]{result.Err[int](errors.New("first")), result.Err[int](errors.New("second"))},
+			input:   []rslt.Result[int]{rslt.Err[int](errors.New("first")), rslt.Err[int](errors.New("second"))},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "empty",
-			input:   []result.Result[int]{},
+			input:   []rslt.Result[int]{},
 			want:    []int{},
 			wantErr: false,
 		},
 		{
 			name:    "zero-value results treated as ok",
-			input:   []result.Result[int]{{}, result.Ok(5)},
+			input:   []rslt.Result[int]{{}, rslt.Ok(5)},
 			want:    []int{0, 5},
 			wantErr: false,
 		},
@@ -328,7 +366,7 @@ func TestCollectAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := result.CollectAll(tt.input)
+			got, err := rslt.CollectAll(tt.input)
 			if tt.wantErr {
 				if err == nil {
 					t.Error("CollectAll: got nil error, want error")
@@ -363,8 +401,8 @@ func TestCollectAll(t *testing.T) {
 	t.Run("first err by index returns that error", func(t *testing.T) {
 		// firstErr is the error that should be returned (it appears first by index).
 		firstErr := errors.New("first")
-		input := []result.Result[int]{result.Err[int](firstErr), result.Err[int](errors.New("second"))}
-		_, err := result.CollectAll(input)
+		input := []rslt.Result[int]{rslt.Err[int](firstErr), rslt.Err[int](errors.New("second"))}
+		_, err := rslt.CollectAll(input)
 		if !errors.Is(err, firstErr) {
 			t.Errorf("CollectAll: got error %v, want %v", err, firstErr)
 		}
@@ -374,39 +412,39 @@ func TestCollectAll(t *testing.T) {
 func TestCollectOk(t *testing.T) {
 	tests := []struct {
 		name  string
-		input []result.Result[int]
+		input []rslt.Result[int]
 		want  []int
 	}{
 		{
 			name:  "all ok",
-			input: []result.Result[int]{result.Ok(1), result.Ok(2), result.Ok(3)},
+			input: []rslt.Result[int]{rslt.Ok(1), rslt.Ok(2), rslt.Ok(3)},
 			want:  []int{1, 2, 3},
 		},
 		{
 			name:  "mixed",
-			input: []result.Result[int]{result.Ok(1), result.Err[int](errors.New("fail")), result.Ok(3)},
+			input: []rslt.Result[int]{rslt.Ok(1), rslt.Err[int](errors.New("fail")), rslt.Ok(3)},
 			want:  []int{1, 3},
 		},
 		{
 			name:  "all err",
-			input: []result.Result[int]{result.Err[int](errors.New("a")), result.Err[int](errors.New("b"))},
+			input: []rslt.Result[int]{rslt.Err[int](errors.New("a")), rslt.Err[int](errors.New("b"))},
 			want:  []int{},
 		},
 		{
 			name:  "empty",
-			input: []result.Result[int]{},
+			input: []rslt.Result[int]{},
 			want:  []int{},
 		},
 		{
 			name:  "zero-value results included",
-			input: []result.Result[int]{{}, result.Err[int](errors.New("fail")), result.Ok(5)},
+			input: []rslt.Result[int]{{}, rslt.Err[int](errors.New("fail")), rslt.Ok(5)},
 			want:  []int{0, 5},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := result.CollectOk(tt.input)
+			got := rslt.CollectOk(tt.input)
 			if len(got) != len(tt.want) {
 				t.Errorf("CollectOk: got len %d, want len %d", len(got), len(tt.want))
 
@@ -431,7 +469,7 @@ func TestLift(t *testing.T) {
 		return 0, errors.New("not 42")
 	}
 
-	lifted := result.Lift(fallibleAtoi)
+	lifted := rslt.Lift(fallibleAtoi)
 
 	t.Run("success wraps as ok", func(t *testing.T) {
 		got := lifted("42")
@@ -453,15 +491,15 @@ func TestLift(t *testing.T) {
 
 func TestResultFlatMap(t *testing.T) {
 	// validate returns Ok if positive, Err otherwise.
-	validate := func(n int) result.Result[int] {
+	validate := func(n int) rslt.Result[int] {
 		if n > 0 {
-			return result.Ok(n * 10)
+			return rslt.Ok(n * 10)
 		}
-		return result.Err[int](errors.New("non-positive"))
+		return rslt.Err[int](errors.New("non-positive"))
 	}
 
 	t.Run("ok with fn returning ok", func(t *testing.T) {
-		got := result.Ok(5).FlatMap(validate)
+		got := rslt.Ok(5).FlatMap(validate)
 		val, ok := got.Get()
 		if !ok || val != 50 {
 			t.Errorf("FlatMap: got (%d, %t), want (50, true)", val, ok)
@@ -469,7 +507,7 @@ func TestResultFlatMap(t *testing.T) {
 	})
 
 	t.Run("ok with fn returning err", func(t *testing.T) {
-		got := result.Ok(-1).FlatMap(validate)
+		got := rslt.Ok(-1).FlatMap(validate)
 		if got.IsOk() {
 			t.Error("FlatMap: expected Err when fn returns Err")
 		}
@@ -477,7 +515,7 @@ func TestResultFlatMap(t *testing.T) {
 
 	t.Run("err short-circuits and preserves error", func(t *testing.T) {
 		sentinelErr := errors.New("original")
-		got := result.Err[int](sentinelErr).FlatMap(validate)
+		got := rslt.Err[int](sentinelErr).FlatMap(validate)
 		err, ok := got.GetErr()
 		if !ok {
 			t.Fatal("FlatMap: expected Err result")
@@ -491,7 +529,7 @@ func TestResultFlatMap(t *testing.T) {
 func TestOrCall(t *testing.T) {
 	t.Run("Ok returns value without calling", func(t *testing.T) {
 		called := false
-		r := result.Ok(42)
+		r := rslt.Ok(42)
 		got := r.OrCall(func() int { called = true; return 99 })
 		if got != 42 {
 			t.Errorf("OrCall() = %v, want 42", got)
@@ -503,7 +541,7 @@ func TestOrCall(t *testing.T) {
 
 	t.Run("Err calls function", func(t *testing.T) {
 		called := false
-		r := result.Err[int](errors.New("fail"))
+		r := rslt.Err[int](errors.New("fail"))
 		got := r.OrCall(func() int { called = true; return 99 })
 		if got != 99 {
 			t.Errorf("OrCall() = %v, want 99", got)
@@ -516,15 +554,15 @@ func TestOrCall(t *testing.T) {
 
 func TestStandaloneFlatMap(t *testing.T) {
 	// stringify returns Ok string if positive, Err otherwise.
-	stringify := func(n int) result.Result[string] {
+	stringify := func(n int) rslt.Result[string] {
 		if n > 0 {
-			return result.Ok(fmt.Sprintf("%d", n*2))
+			return rslt.Ok(fmt.Sprintf("%d", n*2))
 		}
-		return result.Err[string](errors.New("non-positive"))
+		return rslt.Err[string](errors.New("non-positive"))
 	}
 
 	t.Run("ok with fn returning ok", func(t *testing.T) {
-		got := result.FlatMap(result.Ok(5), stringify)
+		got := rslt.FlatMap(rslt.Ok(5), stringify)
 		val, ok := got.Get()
 		if !ok || val != "10" {
 			t.Errorf("FlatMap: got (%q, %t), want (\"10\", true)", val, ok)
@@ -532,7 +570,7 @@ func TestStandaloneFlatMap(t *testing.T) {
 	})
 
 	t.Run("ok with fn returning err", func(t *testing.T) {
-		got := result.FlatMap(result.Ok(-1), stringify)
+		got := rslt.FlatMap(rslt.Ok(-1), stringify)
 		if got.IsOk() {
 			t.Error("FlatMap: expected Err when fn returns Err")
 		}
@@ -540,7 +578,7 @@ func TestStandaloneFlatMap(t *testing.T) {
 
 	t.Run("err short-circuits and preserves error", func(t *testing.T) {
 		sentinelErr := errors.New("original")
-		got := result.FlatMap(result.Err[int](sentinelErr), stringify)
+		got := rslt.FlatMap(rslt.Err[int](sentinelErr), stringify)
 		err, ok := got.GetErr()
 		if !ok {
 			t.Fatal("FlatMap: expected Err result")

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/binaryphile/fluentfp/result"
+	"github.com/binaryphile/fluentfp/rslt"
 )
 
 // --- PMap ---
@@ -142,9 +142,9 @@ func TestPMapPanicRecovery(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 
-			pe, ok := v.(*result.PanicError)
+			pe, ok := v.(*rslt.PanicError)
 			if !ok {
-				t.Fatalf("expected *result.PanicError, got %T", v)
+				t.Fatalf("expected *rslt.PanicError, got %T", v)
 			}
 
 			if pe.Value != "boom" {
@@ -175,9 +175,9 @@ func TestPMapPanicRecoverySingleWorker(t *testing.T) {
 			t.Fatal("expected panic")
 		}
 
-		pe, ok := v.(*result.PanicError)
+		pe, ok := v.(*rslt.PanicError)
 		if !ok {
-			t.Fatalf("expected *result.PanicError, got %T", v)
+			t.Fatalf("expected *rslt.PanicError, got %T", v)
 		}
 
 		if pe.Value != "single boom" {
@@ -202,9 +202,9 @@ func TestPKeepIfPanicRecovery(t *testing.T) {
 			t.Fatal("expected panic")
 		}
 
-		pe, ok := v.(*result.PanicError)
+		pe, ok := v.(*rslt.PanicError)
 		if !ok {
-			t.Fatalf("expected *result.PanicError, got %T", v)
+			t.Fatalf("expected *rslt.PanicError, got %T", v)
 		}
 
 		if pe.Value != "filter boom" {
@@ -234,9 +234,9 @@ func TestPEachPanicRecovery(t *testing.T) {
 			t.Fatal("expected panic")
 		}
 
-		pe, ok := v.(*result.PanicError)
+		pe, ok := v.(*rslt.PanicError)
 		if !ok {
-			t.Fatalf("expected *result.PanicError, got %T", v)
+			t.Fatalf("expected *rslt.PanicError, got %T", v)
 		}
 
 		if pe.Value != "each boom" {
@@ -265,14 +265,14 @@ func TestPMapPanicIdempotentWrapping(t *testing.T) {
 			t.Fatal("expected panic")
 		}
 
-		pe, ok := v.(*result.PanicError)
+		pe, ok := v.(*rslt.PanicError)
 		if !ok {
-			t.Fatalf("expected *result.PanicError, got %T", v)
+			t.Fatalf("expected *rslt.PanicError, got %T", v)
 		}
 
 		// The inner PanicError should NOT be double-wrapped.
-		// pe.Value should be "already wrapped", not another *result.PanicError.
-		if _, nested := pe.Value.(*result.PanicError); nested {
+		// pe.Value should be "already wrapped", not another *rslt.PanicError.
+		if _, nested := pe.Value.(*rslt.PanicError); nested {
 			t.Error("PanicError was double-wrapped")
 		}
 
@@ -281,9 +281,9 @@ func TestPMapPanicIdempotentWrapping(t *testing.T) {
 		}
 	}()
 
-	// panicWithPanicError panics with an existing *result.PanicError.
+	// panicWithPanicError panics with an existing *rslt.PanicError.
 	panicWithPanicError := func(n int) int {
-		panic(&result.PanicError{Value: "already wrapped", Stack: []byte("original stack")})
+		panic(&rslt.PanicError{Value: "already wrapped", Stack: []byte("original stack")})
 	}
 
 	PMap([]int{1}, 1, panicWithPanicError)
@@ -296,9 +296,9 @@ func TestPMapPanicMultipleWorkers(t *testing.T) {
 			t.Fatal("expected panic")
 		}
 
-		pe, ok := v.(*result.PanicError)
+		pe, ok := v.(*rslt.PanicError)
 		if !ok {
-			t.Fatalf("expected *result.PanicError, got %T", v)
+			t.Fatalf("expected *rslt.PanicError, got %T", v)
 		}
 
 		// One arbitrary panic wins — value must be one of the expected strings.
@@ -336,9 +336,9 @@ func TestPMapPanicStackContainsPanicSite(t *testing.T) {
 			t.Fatal("expected panic")
 		}
 
-		pe, ok := v.(*result.PanicError)
+		pe, ok := v.(*rslt.PanicError)
 		if !ok {
-			t.Fatalf("expected *result.PanicError, got %T", v)
+			t.Fatalf("expected *rslt.PanicError, got %T", v)
 		}
 
 		stack := string(pe.Stack)
