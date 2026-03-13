@@ -29,6 +29,19 @@ func (s Stream[T]) KeepIf(fn func(T) bool) Stream[T] {
 	return Stream[T]{}
 }
 
+// RemoveIf returns a stream containing only elements where fn returns false.
+// It is the complement of KeepIf.
+// Panics if fn is nil.
+func (s Stream[T]) RemoveIf(fn func(T) bool) Stream[T] {
+	if fn == nil {
+		panic("stream.RemoveIf: fn must not be nil")
+	}
+
+	notFn := func(v T) bool { return !fn(v) }
+
+	return s.KeepIf(notFn)
+}
+
 // Convert applies fn to each element, returning a stream of results.
 // Eagerly transforms the current head; tail transforms are deferred.
 // Same-type transform — use standalone Map for cross-type mapping.

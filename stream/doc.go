@@ -17,6 +17,7 @@ func _() {
 
 	// Stream methods — lazy operations
 	_ = Stream[int].KeepIf
+	_ = Stream[int].RemoveIf
 	_ = Stream[int].Convert
 	_ = Stream[int].Take
 	_ = Stream[int].TakeWhile
@@ -28,6 +29,8 @@ func _() {
 	_ = Stream[int].Collect
 	_ = Stream[int].Find
 	_ = Stream[int].Any
+	_ = Stream[int].Every
+	_ = Stream[int].None
 	_ = Stream[int].Seq
 
 	// Constructors

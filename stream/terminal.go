@@ -78,6 +78,39 @@ func (s Stream[T]) Any(fn func(T) bool) bool {
 	return false
 }
 
+// Every returns true if fn returns true for every element.
+// Returns true for an empty stream (vacuous truth).
+// Short-circuits on first false. On an infinite stream where fn always returns true,
+// this will not terminate. Panics if fn is nil.
+func (s Stream[T]) Every(fn func(T) bool) bool {
+	if fn == nil {
+		panic("stream.Every: fn must not be nil")
+	}
+
+	cur := s
+	for !cur.IsEmpty() {
+		if !fn(cur.cell.head) {
+			return false
+		}
+
+		cur = cur.Tail()
+	}
+
+	return true
+}
+
+// None returns true if fn returns false for every element.
+// Returns true for an empty stream (vacuous truth).
+// Short-circuits on first true. On an infinite stream where fn always returns false,
+// this will not terminate. Panics if fn is nil.
+func (s Stream[T]) None(fn func(T) bool) bool {
+	if fn == nil {
+		panic("stream.None: fn must not be nil")
+	}
+
+	return !s.Any(fn)
+}
+
 // Seq returns an iter.Seq that yields each element. Bridges to Go's range protocol.
 // The returned closure captures the original stream head. During iteration, the
 // loop variable advances without accumulating additional references, but the

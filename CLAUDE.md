@@ -154,6 +154,11 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `slice.Fold`, `slice.Scan`, `slice.Unzip2/3/4` - accumulation and multi-output logic
 - `slice.Zip`, `slice.ZipWith` - length-mismatch truncation
 - `slice.Intersperse` - separator insertion edge cases (empty, single)
+- `slice.Range`, `slice.RangeFrom`, `slice.RangeStep` - half-open integer generation with direction/step edge cases
+- `slice.Window` - sliding window with backing array aliasing
+- `stream.RemoveIf` - complement of KeepIf (delegation correctness)
+- `stream.Every`, `stream.None` - universal/negative quantification with short-circuit
+- `seq.Unfold` - stateful lazy generation with termination
 - `option.New`, `option.NonZero`, `option.NonNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
 - `option.KeepIf`, `option.RemoveIf` - double conditional (filter)
@@ -177,14 +182,16 @@ When multiple methods share **identical logic**, test ONE representative:
 - `value.Of`, `value.LazyOf` - just store values
 - `value.When` (on Cond) - trivial delegation to option.New
 
-### Coverage Baseline (2026-03-12)
+### Coverage Baseline (2026-03-13)
 
 | Package | Coverage | Notes |
 |---------|----------|-------|
 | must | 100% | All domain (conditional + panic) |
 | value | 100% | All domain code paths tested |
 | option | 51.9% | Domain tested, trivial aliases untested |
-| slice | 92.6% | Domain tested, new ops fully covered |
+| slice | 93.4% | Domain tested, new ops fully covered |
+| stream | 100% | All operations tested |
+| seq | 89.4% | Domain tested, generation covered |
 | lof | 0.0% | All trivial wrappers - acceptable |
 
 ### Go Test Style

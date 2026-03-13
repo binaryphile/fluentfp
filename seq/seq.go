@@ -71,3 +71,31 @@ func Repeat[T any](v T) Seq[T] {
 		}
 	})
 }
+
+// Unfold creates a Seq by repeatedly applying fn to a seed state.
+// fn returns (element, nextState, continue). When continue is false,
+// the sequence ends without emitting element. Fully lazy — fn is not
+// called until iteration begins (unlike stream.Unfold, which eagerly
+// evaluates the first element at construction time).
+// Panics if fn is nil.
+func Unfold[T, S any](seed S, fn func(S) (T, S, bool)) Seq[T] {
+	if fn == nil {
+		panic("seq.Unfold: fn must not be nil")
+	}
+
+	return Seq[T](func(yield func(T) bool) {
+		state := seed
+		for {
+			v, next, ok := fn(state)
+			if !ok {
+				return
+			}
+
+			if !yield(v) {
+				return
+			}
+
+			state = next
+		}
+	})
+}

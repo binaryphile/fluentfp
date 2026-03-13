@@ -72,6 +72,107 @@ func TestFromIter(t *testing.T) {
 	assertSliceEqual(t, got, []int{1, 2, 3})
 }
 
+func TestUnfold(t *testing.T) {
+	tests := []struct {
+		name string
+		seed int
+		fn   func(int) (int, int, bool)
+		want []int
+	}{
+		{
+			name: "finite sequence",
+			seed: 0,
+			fn: func(s int) (int, int, bool) {
+				if s >= 3 {
+					return 0, 0, false
+				}
+				return s * 10, s + 1, true
+			},
+			want: []int{0, 10, 20},
+		},
+		{
+			name: "empty (first call returns false)",
+			seed: 0,
+			fn: func(int) (int, int, bool) {
+				return 0, 0, false
+			},
+			want: nil,
+		},
+		{
+			name: "single element",
+			seed: 42,
+			fn: func(s int) (int, int, bool) {
+				if s == 42 {
+					return s, 0, true
+				}
+				return 0, 0, false
+			},
+			want: []int{42},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Unfold(tt.seed, tt.fn).Collect()
+			assertSliceEqual(t, got, tt.want)
+		})
+	}
+
+	t.Run("infinite + Take", func(t *testing.T) {
+		// Fibonacci
+		type pair struct{ a, b int }
+		fib := Unfold(pair{0, 1}, func(p pair) (int, pair, bool) {
+			return p.a, pair{p.b, p.a + p.b}, true
+		})
+		got := fib.Take(7).Collect()
+		assertSliceEqual(t, got, []int{0, 1, 1, 2, 3, 5, 8})
+	})
+}
+
+func TestUnfoldNilPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic")
+		}
+	}()
+
+	Unfold[int](0, nil)
+}
+
+func TestUnfoldLaziness(t *testing.T) {
+	var calls int
+
+	// counting tracks how many times fn is called.
+	counting := func(s int) (int, int, bool) {
+		calls++
+		return s, s + 1, true
+	}
+
+	_ = Unfold(0, counting)
+
+	if calls != 0 {
+		t.Errorf("Unfold should be fully lazy: got %d calls, want 0", calls)
+	}
+}
+
+func TestUnfoldNoOverevaluation(t *testing.T) {
+	var calls int
+
+	// counting tracks how many times fn is called.
+	counting := func(s int) (int, int, bool) {
+		calls++
+		return s, s + 1, true
+	}
+
+	// Take(3) from infinite unfold should call fn exactly 3 times.
+	got := Unfold(0, counting).Take(3).Collect()
+	assertSliceEqual(t, got, []int{0, 1, 2})
+
+	if calls != 3 {
+		t.Errorf("Take(3) on infinite Unfold: got %d fn calls, want 3", calls)
+	}
+}
+
 // --- Lazy operations ---
 
 func TestKeepIf(t *testing.T) {

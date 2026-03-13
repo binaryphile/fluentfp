@@ -394,6 +394,36 @@ func TestKeepIfNilFnPanics(t *testing.T) {
 	})
 }
 
+// --- RemoveIf (domain, table-driven) ---
+
+func TestRemoveIf(t *testing.T) {
+	isEven := func(n int) bool { return n%2 == 0 }
+
+	tests := []struct {
+		name  string
+		input []int
+		want  []int
+	}{
+		{"empty", nil, nil},
+		{"all removed", []int{2, 4, 6}, nil},
+		{"none removed", []int{1, 3, 5}, []int{1, 3, 5}},
+		{"some removed", []int{1, 2, 3, 4, 5}, []int{1, 3, 5}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stream.From(tt.input).RemoveIf(isEven).Collect()
+			assertSliceEqual(t, tt.want, got)
+		})
+	}
+}
+
+func TestRemoveIfNilFnPanics(t *testing.T) {
+	assertPanics(t, func() {
+		stream.Of(1).RemoveIf(nil)
+	})
+}
+
 // --- Take (domain, table-driven) ---
 
 func TestTake(t *testing.T) {
@@ -578,6 +608,78 @@ func TestAny(t *testing.T) {
 func TestAnyNilFnPanics(t *testing.T) {
 	assertPanics(t, func() {
 		stream.Of(1).Any(nil)
+	})
+}
+
+// --- Every (domain, table-driven) ---
+
+func TestEvery(t *testing.T) {
+	isPositive := func(n int) bool { return n > 0 }
+
+	tests := []struct {
+		name  string
+		input []int
+		want  bool
+	}{
+		{"all true", []int{1, 2, 3}, true},
+		{"one false", []int{1, -1, 3}, false},
+		{"empty vacuous truth", nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stream.From(tt.input).Every(isPositive)
+			if got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEveryShortCircuits(t *testing.T) {
+	// On an infinite stream, Every should return false immediately on first false.
+	naturals := stream.Generate(1, func(n int) int { return n + 1 })
+	lessThan3 := func(n int) bool { return n < 3 }
+	got := naturals.Every(lessThan3)
+	if got {
+		t.Error("Every should short-circuit to false")
+	}
+}
+
+func TestEveryNilFnPanics(t *testing.T) {
+	assertPanics(t, func() {
+		stream.Of(1).Every(nil)
+	})
+}
+
+// --- None (domain, table-driven) ---
+
+func TestNone(t *testing.T) {
+	isNegative := func(n int) bool { return n < 0 }
+
+	tests := []struct {
+		name  string
+		input []int
+		want  bool
+	}{
+		{"none match", []int{1, 2, 3}, true},
+		{"one matches", []int{1, -1, 3}, false},
+		{"empty vacuous truth", nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stream.From(tt.input).None(isNegative)
+			if got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNoneNilFnPanics(t *testing.T) {
+	assertPanics(t, func() {
+		stream.Of(1).None(nil)
 	})
 }
 
@@ -1054,11 +1156,14 @@ func TestNilCallbackPanics(t *testing.T) {
 		fn   func()
 	}{
 		{"KeepIf", func() { s.KeepIf(nil) }},
+		{"RemoveIf", func() { s.RemoveIf(nil) }},
 		{"Convert", func() { s.Convert(nil) }},
 		{"TakeWhile", func() { s.TakeWhile(nil) }},
 		{"DropWhile", func() { s.DropWhile(nil) }},
 		{"Find", func() { s.Find(nil) }},
 		{"Any", func() { s.Any(nil) }},
+		{"Every", func() { s.Every(nil) }},
+		{"None", func() { s.None(nil) }},
 		{"Each", func() { s.Each(nil) }},
 		{"Map", func() { stream.Map[int, int](s, nil) }},
 		{"Fold", func() { stream.Fold[int](s, 0, nil) }},
