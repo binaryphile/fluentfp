@@ -149,8 +149,11 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 
 **fluentfp-specific domain code:**
 - `slice.KeepIf`, `slice.RemoveIf` - conditional inclusion logic
-- `slice.Take`, `slice.TakeLast` - boundary handling (`if n > len`, negative n)
-- `slice.Fold`, `slice.Unzip2/3/4` - accumulation and multi-output logic
+- `slice.Take`, `slice.TakeLast`, `slice.Drop`, `slice.DropLast` - boundary handling (`if n > len`, negative n)
+- `slice.TakeWhile`, `slice.DropWhile` - predicate-based prefix/suffix logic
+- `slice.Fold`, `slice.Scan`, `slice.Unzip2/3/4` - accumulation and multi-output logic
+- `slice.Zip`, `slice.ZipWith` - length-mismatch truncation
+- `slice.Intersperse` - separator insertion edge cases (empty, single)
 - `option.New`, `option.NonZero`, `option.NonNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
 - `option.KeepIf`, `option.RemoveIf` - double conditional (filter)
@@ -174,14 +177,14 @@ When multiple methods share **identical logic**, test ONE representative:
 - `value.Of`, `value.LazyOf` - just store values
 - `value.When` (on Cond) - trivial delegation to option.New
 
-### Coverage Baseline (2026-01-03)
+### Coverage Baseline (2026-03-12)
 
 | Package | Coverage | Notes |
 |---------|----------|-------|
 | must | 100% | All domain (conditional + panic) |
 | value | 100% | All domain code paths tested |
 | option | 51.9% | Domain tested, trivial aliases untested |
-| slice | 60.2% | Domain tested, ToX methods trivial |
+| slice | 92.6% | Domain tested, new ops fully covered |
 | lof | 0.0% | All trivial wrappers - acceptable |
 
 ### Go Test Style

@@ -114,7 +114,7 @@ for _, u := range result {     // range
 
 - Keep `[]T` for your slice arguments in function signatures, not `Mapper[T]` — use `From()` at the point of use. This keeps fluentfp as an implementation detail; callers don't need to import it.  It can be useful to return `Mapper[T]` from many functions, however, knowing that it's still usable by the consumer as a regular slice.
 - `From()` is a zero-cost type conversion — no array copy. The Go spec [guarantees](https://go.dev/ref/spec#Conversions) that converting between types with identical underlying types only changes the type, not the representation. The 24-byte slice header (pointer, length, capacity) is shared; the backing array is the same. (`append` to either may mutate the other if capacity remains.)
-- **Mutation boundaries:** Most operations (`KeepIf`, `Convert`, `ToString`, etc.) allocate fresh slices — the result is independent of the input. View operations (`From` alone, `Take`, `TakeLast`, `Chunk`) share the backing array. Use `.Clone()` at boundaries where shared state could be mutated. See [design.md § Boundaries and Defensive Copying](../docs/design.md#boundaries-and-defensive-copying) for practical guidance.
+- **Mutation boundaries:** Most operations (`KeepIf`, `Convert`, `ToString`, etc.) allocate fresh slices — the result is independent of the input. View operations (`From` alone, `Take`, `TakeLast`, `TakeWhile`, `Drop`, `DropLast`, `DropWhile`, `Chunk`) share the backing array. Use `.Clone()` at boundaries where shared state could be mutated. See [design.md § Boundaries and Defensive Copying](../docs/design.md#boundaries-and-defensive-copying) for practical guidance.
 - Nil-safe: `From(nil).KeepIf(...).ToString(...)` returns an empty slice — Go's range over nil is zero iterations
 
 Other Go FP libraries can't do this:
@@ -127,14 +127,17 @@ See [comparison](../comparison.md) for the full library comparison.
 
 `From` creates `Mapper[T]`. For cross-type mapping, prefer the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `MapTo[R]` creates `MapperTo[R,T]` for the narrow case where you filter before cross-type mapping: `MapTo[R](ts).KeepIf(pred).Map(fn)`. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
-- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `NonZero`
+- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `TakeWhile`, `Drop`, `DropLast`, `DropWhile`, `NonZero`
 - **Search**: `Find`, `IndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Contains`, `ContainsAny`, `Matches` (`String`)
-- **Transform**: `Convert`, `FlatMap`, `Map` (`MapperTo`), `Reverse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String`), `UniqueBy`, `SortBy`, `SortByDesc`
-- **Aggregate**: `Fold`, `MapAccum`, `Len`, `Max` (`int`, `float64`), `Min` (`int`, `float64`), `Sum` (`int`, `float64`), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
+- **Transform**: `Convert`, `FlatMap`, `Map` (`MapperTo`), `Reverse`, `Intersperse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String`), `UniqueBy`, `SortBy`, `SortByDesc`
+- **Combine**: `Zip`, `ZipWith`
+- **Aggregate**: `Fold`, `Scan`, `MapAccum`, `Len`, `Max` (`int`, `float64`), `Min` (`int`, `float64`), `Sum` (`int`, `float64`), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
 - **Parallel (no error return)**: `PMap`, `PKeepIf`, `PEach` — bounded concurrent operations for callbacks that do not return errors. Panics in fn are recovered, converted to `*result.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Usually only worth using when per-item workload is large enough to amortize the overhead caused by creation and scheduling of goroutines.
 - **Parallel (error-aware)**: `FanOut`, `FanOutAll`, `FanOutEach` — bounded concurrency for callbacks that take `context.Context` and return errors. Use `FanOut` for value-producing operations where partial success is acceptable, `FanOutAll` for all-or-nothing operations with early cancellation, and `FanOutEach` for side-effecting callbacks that return only `error`. If item costs vary widely, use the corresponding weighted variant (`FanOutWeighted`, `FanOutWeightedAll`, `FanOutEachWeighted`). See [result](../result/) for `CollectAll`, `CollectOk`, and `CollectOkAndErr`.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
+
+`Scan` is `Fold` that collects all intermediate accumulator values. It includes the initial value as the first element (Haskell `scanl` semantics), so `Scan(ts, z, f)` returns `len(ts)+1` elements. Law: `last(Scan(ts, z, f)) == Fold(ts, z, f)`.
 
 ## FanOut
 

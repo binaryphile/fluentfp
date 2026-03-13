@@ -33,6 +33,32 @@ func (ts MapperTo[R, T]) Convert(fn func(T) T) MapperTo[R, T] {
 	return results
 }
 
+// Drop returns ts without the first n elements.
+// Returns empty if n >= len(ts). Negative n is treated as zero.
+func (ts MapperTo[R, T]) Drop(n int) MapperTo[R, T] {
+	n = min(max(0, n), len(ts))
+
+	return ts[n:]
+}
+
+// DropLast returns ts without the last n elements.
+// Returns empty if n >= len(ts). Negative n is treated as zero.
+func (ts MapperTo[R, T]) DropLast(n int) MapperTo[R, T] {
+	return ts[:max(0, len(ts)-max(0, n))]
+}
+
+// DropWhile returns the suffix of ts remaining after dropping the longest prefix
+// of elements that satisfy fn.
+func (ts MapperTo[R, T]) DropWhile(fn func(T) bool) MapperTo[R, T] {
+	for i, t := range ts {
+		if !fn(t) {
+			return ts[i:]
+		}
+	}
+
+	return ts[len(ts):]
+}
+
 // First returns the first element, or not-ok if the slice is empty.
 func (ts MapperTo[R, T]) First() option.Option[T] {
 	if len(ts) == 0 {
@@ -151,6 +177,17 @@ func (ts MapperTo[R, T]) TakeLast(n int) MapperTo[R, T] {
 	n = max(0, n)
 
 	return ts[max(0, len(ts)-n):]
+}
+
+// TakeWhile returns the longest prefix of elements that satisfy fn.
+func (ts MapperTo[R, T]) TakeWhile(fn func(T) bool) MapperTo[R, T] {
+	for i, t := range ts {
+		if !fn(t) {
+			return ts[:i]
+		}
+	}
+
+	return ts
 }
 
 // ToAny returns the result of applying fn to each member of ts.

@@ -662,3 +662,122 @@ func TestLast(t *testing.T) {
 		})
 	}
 }
+
+func TestDrop(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []int
+		n     int
+		want  []int
+	}{
+		{name: "n less than length", input: []int{1, 2, 3, 4, 5}, n: 2, want: []int{3, 4, 5}},
+		{name: "n equals length", input: []int{1, 2, 3}, n: 3, want: []int{}},
+		{name: "n greater than length", input: []int{1, 2, 3}, n: 10, want: []int{}},
+		{name: "n is zero", input: []int{1, 2, 3}, n: 0, want: []int{1, 2, 3}},
+		{name: "negative n", input: []int{1, 2, 3}, n: -1, want: []int{1, 2, 3}},
+		{name: "empty slice", input: []int{}, n: 5, want: []int{}},
+		{name: "nil slice", input: nil, n: 3, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).Drop(tt.n)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("Drop(%d) = %v, want %v", tt.n, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDropLast(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []int
+		n     int
+		want  []int
+	}{
+		{name: "n less than length", input: []int{1, 2, 3, 4, 5}, n: 2, want: []int{1, 2, 3}},
+		{name: "n equals length", input: []int{1, 2, 3}, n: 3, want: []int{}},
+		{name: "n greater than length", input: []int{1, 2, 3}, n: 10, want: []int{}},
+		{name: "n is zero", input: []int{1, 2, 3}, n: 0, want: []int{1, 2, 3}},
+		{name: "negative n", input: []int{1, 2, 3}, n: -1, want: []int{1, 2, 3}},
+		{name: "empty slice", input: []int{}, n: 5, want: []int{}},
+		{name: "nil slice", input: nil, n: 3, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).DropLast(tt.n)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("DropLast(%d) = %v, want %v", tt.n, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDropWhile(t *testing.T) {
+	isLessThan3 := func(n int) bool { return n < 3 }
+	tests := []struct {
+		name  string
+		input []int
+		want  []int
+	}{
+		{name: "drops prefix", input: []int{1, 2, 3, 4, 5}, want: []int{3, 4, 5}},
+		{name: "all match", input: []int{1, 2}, want: []int{}},
+		{name: "none match", input: []int{3, 4, 5}, want: []int{3, 4, 5}},
+		{name: "empty slice", input: []int{}, want: []int{}},
+		{name: "nil slice", input: nil, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).DropWhile(isLessThan3)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("DropWhile() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTakeWhile(t *testing.T) {
+	isLessThan3 := func(n int) bool { return n < 3 }
+	tests := []struct {
+		name  string
+		input []int
+		want  []int
+	}{
+		{name: "takes prefix", input: []int{1, 2, 3, 4, 5}, want: []int{1, 2}},
+		{name: "all match", input: []int{1, 2}, want: []int{1, 2}},
+		{name: "none match", input: []int{3, 4, 5}, want: []int{}},
+		{name: "empty slice", input: []int{}, want: []int{}},
+		{name: "nil slice", input: nil, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).TakeWhile(isLessThan3)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("TakeWhile() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIntersperse(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []int
+		sep   int
+		want  []int
+	}{
+		{name: "multiple elements", input: []int{1, 2, 3}, sep: 0, want: []int{1, 0, 2, 0, 3}},
+		{name: "two elements", input: []int{1, 2}, sep: 0, want: []int{1, 0, 2}},
+		{name: "single element", input: []int{1}, sep: 0, want: []int{1}},
+		{name: "empty slice", input: []int{}, sep: 0, want: []int{}},
+		{name: "nil slice", input: nil, sep: 0, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).Intersperse(tt.sep)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("Intersperse(%d) = %v, want %v", tt.sep, got, tt.want)
+			}
+		})
+	}
+}

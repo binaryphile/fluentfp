@@ -32,6 +32,32 @@ func (ts Mapper[T]) Convert(fn func(T) T) Mapper[T] {
 	return results
 }
 
+// Drop returns ts without the first n elements.
+// Returns empty if n >= len(ts). Negative n is treated as zero.
+func (ts Mapper[T]) Drop(n int) Mapper[T] {
+	n = min(max(0, n), len(ts))
+
+	return ts[n:]
+}
+
+// DropLast returns ts without the last n elements.
+// Returns empty if n >= len(ts). Negative n is treated as zero.
+func (ts Mapper[T]) DropLast(n int) Mapper[T] {
+	return ts[:max(0, len(ts)-max(0, n))]
+}
+
+// DropWhile returns the suffix of ts remaining after dropping the longest prefix
+// of elements that satisfy fn.
+func (ts Mapper[T]) DropWhile(fn func(T) bool) Mapper[T] {
+	for i, t := range ts {
+		if !fn(t) {
+			return ts[i:]
+		}
+	}
+
+	return ts[len(ts):]
+}
+
 // Each applies fn to each member of ts.
 func (ts Mapper[T]) Each(fn func(T)) {
 	for _, t := range ts {
@@ -131,6 +157,24 @@ func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Option[int] {
 	return option.NotOk[int]()
 }
 
+// Intersperse inserts sep between every adjacent pair of elements.
+// Returns ts directly for len <= 1 (zero-alloc, preserves nil).
+func (ts Mapper[T]) Intersperse(sep T) Mapper[T] {
+	if len(ts) <= 1 {
+		return ts
+	}
+
+	results := make([]T, 2*len(ts)-1)
+	for i, t := range ts {
+		results[2*i] = t
+		if i < len(ts)-1 {
+			results[2*i+1] = sep
+		}
+	}
+
+	return results
+}
+
 // KeyByInt indexes elements by an int key derived from fn.
 // If multiple elements produce the same key, the last one wins.
 // For other key types, use the standalone KeyBy function.
@@ -209,6 +253,17 @@ func (ts Mapper[T]) TakeLast(n int) Mapper[T] {
 	n = max(0, n)
 
 	return ts[max(0, len(ts)-n):]
+}
+
+// TakeWhile returns the longest prefix of elements that satisfy fn.
+func (ts Mapper[T]) TakeWhile(fn func(T) bool) Mapper[T] {
+	for i, t := range ts {
+		if !fn(t) {
+			return ts[:i]
+		}
+	}
+
+	return ts
 }
 
 // ToAny returns the result of applying fn to each member of ts.
