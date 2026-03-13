@@ -25,4 +25,10 @@ func _() {
 
 	// Side-effect wrappers
 	_ = OnErr[int, int]
+
+	// Retry
+	_ = Retry[int, int]
+	_ = Backoff(nil)
+	_ = ConstantBackoff
+	_ = ExponentialBackoff
 }

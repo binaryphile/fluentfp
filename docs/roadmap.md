@@ -62,7 +62,7 @@ Useful features with clear demand but existing workarounds.
 
 | Operation | Description | Who has it |
 |-----------|-------------|------------|
-| Retry/Attempt | Retry with backoff | lo |
+| ~~Retry/Attempt~~ | ~~Retry with backoff~~ | done — `hof.Retry` with `ConstantBackoff`/`ExponentialBackoff` |
 | ~~Throttle~~ | ~~Rate limiting~~ | done v0.56.0 as `hof.Throttle`/`ThrottleWeighted` |
 | Debounce | Rate limiting | lo |
 | Channel ops | SliceToChannel, ChannelToSlice, FanIn | lo |

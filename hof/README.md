@@ -46,6 +46,12 @@ defer cancel()
 failFast := hof.OnErr(fetchURL, cancel)
 ```
 
+```go
+// Retry with exponential backoff — composable with Throttle
+resilientFetch := hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), fetchFromAPI)
+resp, err := resilientFetch(ctx, url)
+```
+
 ## hof vs lof
 
 `hof` *builds* functions — it takes functions and returns new functions. `lof` *is* functions — it wraps Go builtins and standard library functions (`len`, `fmt.Println`) as first-class values for use in chains.
@@ -74,8 +80,13 @@ failFast := hof.OnErr(fetchURL, cancel)
 **Side-Effect Wrappers**
 - `OnErr[T, R](fn func(context.Context, T) (R, error), onErr func()) func(context.Context, T) (R, error)` — call handler on error
 
-All functions panic on nil inputs. `Throttle` and `ThrottleWeighted` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity.
+**Retry**
+- `Retry[T, R](maxAttempts int, backoff Backoff, fn) func(context.Context, T) (R, error)` — retry on error with pluggable backoff
+- `ConstantBackoff(delay time.Duration) Backoff` — fixed delay between retries
+- `ExponentialBackoff(initial time.Duration) Backoff` — full jitter: random in [0, initial * 2^n)
 
-`Throttle` and `ThrottleWeighted` return functions that are safe for concurrent use from multiple goroutines. Both are context-aware — they return `ctx.Err()` on cancellation rather than blocking indefinitely.
+All functions panic on nil inputs. `Throttle`, `ThrottleWeighted`, and `Retry` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity. `ExponentialBackoff` panics if initial <= 0.
+
+`Throttle` and `ThrottleWeighted` return functions that are safe for concurrent use from multiple goroutines. All context-aware wrappers (`Throttle`, `ThrottleWeighted`, `Retry`) return `ctx.Err()` on cancellation rather than blocking indefinitely.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/hof) for complete API documentation, the [main README](../README.md) for installation, and [lof](../lof/) for builtin adapters.

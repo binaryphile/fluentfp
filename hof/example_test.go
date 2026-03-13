@@ -120,3 +120,23 @@ func ExampleOnErr() {
 	// 10 0
 	// 0 1
 }
+
+func ExampleRetry() {
+	attempts := 0
+
+	// failThenSucceed fails twice, then succeeds.
+	failThenSucceed := func(_ context.Context, n int) (int, error) {
+		attempts++
+		if attempts < 3 {
+			return 0, fmt.Errorf("not yet")
+		}
+
+		return n * 2, nil
+	}
+
+	retried := hof.Retry(3, hof.ConstantBackoff(0), failThenSucceed)
+	result, err := retried(context.Background(), 5)
+
+	fmt.Println(result, err)
+	// Output: 10 <nil>
+}
