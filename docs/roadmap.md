@@ -26,15 +26,15 @@ Useful features with clear demand but existing workarounds.
 
 | Operation | Description | Who has it |
 |-----------|-------------|------------|
-| DropRight/DropRightWhile | Drop from end | lo |
-| FindLast | Find from end | lo, IBM |
+| ~~DropRight/DropRightWhile~~ | ~~Drop from end~~ | done — `DropLast`, `DropLastWhile` |
+| ~~FindLast~~ | ~~Find from end~~ | done |
 | IndexOf/LastIndexOf | By value, not predicate | lo |
-| IsSorted/IsSortedBy | Check sort order | lo |
-| Intersperse | Insert separator between elements | IBM |
+| ~~IsSorted/IsSortedBy~~ | ~~Check sort order~~ | done |
+| ~~Intersperse~~ | ~~Insert separator between elements~~ | done |
 | Shuffle | Randomize order | lo |
 | Sample/Samples | Random element(s) | lo |
 | ~~CountBy~~ | ~~Count per group~~ | Superseded by `Tally` (v0.35.0) |
-| Repeat/RepeatBy | Generate slice by repeating | lo |
+| ~~Repeat/RepeatBy~~ | ~~Generate slice by repeating~~ | done — `RepeatN` |
 
 ### Map Operations
 

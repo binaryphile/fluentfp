@@ -1,6 +1,7 @@
 package slice
 
 import (
+	"math"
 	"reflect"
 	"testing"
 )
@@ -318,20 +319,24 @@ func TestStringContains(t *testing.T) {
 
 func TestIntMax(t *testing.T) {
 	tests := []struct {
-		name  string
-		input Int
-		want  int
+		name   string
+		input  Int
+		want   int
+		wantOk bool
 	}{
-		{name: "empty", input: Int{}, want: 0},
-		{name: "single element", input: Int{42}, want: 42},
-		{name: "multiple elements", input: Int{3, 7, 2, 9, 1}, want: 9},
-		{name: "negative numbers", input: Int{-5, -1, -8, -3}, want: -1},
-		{name: "all same", input: Int{4, 4, 4}, want: 4},
+		{name: "empty", input: Int{}},
+		{name: "single element", input: Int{42}, want: 42, wantOk: true},
+		{name: "multiple elements", input: Int{3, 7, 2, 9, 1}, want: 9, wantOk: true},
+		{name: "negative numbers", input: Int{-5, -1, -8, -3}, want: -1, wantOk: true},
+		{name: "all same", input: Int{4, 4, 4}, want: 4, wantOk: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.input.Max()
-			if got != tt.want {
+			got, ok := tt.input.Max().Get()
+			if ok != tt.wantOk {
+				t.Errorf("Max().IsOk() = %v, want %v", ok, tt.wantOk)
+			}
+			if ok && got != tt.want {
 				t.Errorf("Max() = %v, want %v", got, tt.want)
 			}
 		})
@@ -340,20 +345,24 @@ func TestIntMax(t *testing.T) {
 
 func TestIntMin(t *testing.T) {
 	tests := []struct {
-		name  string
-		input Int
-		want  int
+		name   string
+		input  Int
+		want   int
+		wantOk bool
 	}{
-		{name: "empty", input: Int{}, want: 0},
-		{name: "single element", input: Int{42}, want: 42},
-		{name: "multiple elements", input: Int{3, 7, 2, 9, 1}, want: 1},
-		{name: "negative numbers", input: Int{-5, -1, -8, -3}, want: -8},
-		{name: "all same", input: Int{4, 4, 4}, want: 4},
+		{name: "empty", input: Int{}},
+		{name: "single element", input: Int{42}, want: 42, wantOk: true},
+		{name: "multiple elements", input: Int{3, 7, 2, 9, 1}, want: 1, wantOk: true},
+		{name: "negative numbers", input: Int{-5, -1, -8, -3}, want: -8, wantOk: true},
+		{name: "all same", input: Int{4, 4, 4}, want: 4, wantOk: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.input.Min()
-			if got != tt.want {
+			got, ok := tt.input.Min().Get()
+			if ok != tt.wantOk {
+				t.Errorf("Min().IsOk() = %v, want %v", ok, tt.wantOk)
+			}
+			if ok && got != tt.want {
 				t.Errorf("Min() = %v, want %v", got, tt.want)
 			}
 		})
@@ -382,20 +391,32 @@ func TestIntSum(t *testing.T) {
 
 func TestFloat64Max(t *testing.T) {
 	tests := []struct {
-		name  string
-		input Float64
-		want  float64
+		name   string
+		input  Float64
+		want   float64
+		wantOk bool
 	}{
-		{name: "empty", input: Float64{}, want: 0},
-		{name: "single element", input: Float64{3.14}, want: 3.14},
-		{name: "multiple elements", input: Float64{1.1, 5.5, 2.2, 4.4}, want: 5.5},
-		{name: "negative numbers", input: Float64{-1.5, -0.5, -3.0}, want: -0.5},
-		{name: "all same", input: Float64{2.0, 2.0, 2.0}, want: 2.0},
+		{name: "empty", input: Float64{}},
+		{name: "single element", input: Float64{3.14}, want: 3.14, wantOk: true},
+		{name: "multiple elements", input: Float64{1.1, 5.5, 2.2, 4.4}, want: 5.5, wantOk: true},
+		{name: "negative numbers", input: Float64{-1.5, -0.5, -3.0}, want: -0.5, wantOk: true},
+		{name: "all same", input: Float64{2.0, 2.0, 2.0}, want: 2.0, wantOk: true},
+		{name: "NaN skipped", input: Float64{math.NaN(), 3.0, math.NaN(), 1.0}, want: 3.0, wantOk: true},
+		{name: "all NaN", input: Float64{math.NaN(), math.NaN()}},
+		{name: "NaN first then value", input: Float64{math.NaN(), 5.0}, want: 5.0, wantOk: true},
+		{name: "value then NaN", input: Float64{5.0, math.NaN()}, want: 5.0, wantOk: true},
+		{name: "positive infinity", input: Float64{1.0, math.Inf(1), 2.0}, want: math.Inf(1), wantOk: true},
+		{name: "negative infinity", input: Float64{math.Inf(-1), 1.0}, want: 1.0, wantOk: true},
+		{name: "mixed inf and NaN", input: Float64{math.NaN(), math.Inf(-1), math.NaN(), math.Inf(1)}, want: math.Inf(1), wantOk: true},
+		{name: "single NaN", input: Float64{math.NaN()}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.input.Max()
-			if got != tt.want {
+			got, ok := tt.input.Max().Get()
+			if ok != tt.wantOk {
+				t.Errorf("Max().IsOk() = %v, want %v", ok, tt.wantOk)
+			}
+			if ok && got != tt.want {
 				t.Errorf("Max() = %v, want %v", got, tt.want)
 			}
 		})
@@ -404,20 +425,32 @@ func TestFloat64Max(t *testing.T) {
 
 func TestFloat64Min(t *testing.T) {
 	tests := []struct {
-		name  string
-		input Float64
-		want  float64
+		name   string
+		input  Float64
+		want   float64
+		wantOk bool
 	}{
-		{name: "empty", input: Float64{}, want: 0},
-		{name: "single element", input: Float64{3.14}, want: 3.14},
-		{name: "multiple elements", input: Float64{1.1, 5.5, 2.2, 4.4}, want: 1.1},
-		{name: "negative numbers", input: Float64{-1.5, -0.5, -3.0}, want: -3.0},
-		{name: "all same", input: Float64{2.0, 2.0, 2.0}, want: 2.0},
+		{name: "empty", input: Float64{}},
+		{name: "single element", input: Float64{3.14}, want: 3.14, wantOk: true},
+		{name: "multiple elements", input: Float64{1.1, 5.5, 2.2, 4.4}, want: 1.1, wantOk: true},
+		{name: "negative numbers", input: Float64{-1.5, -0.5, -3.0}, want: -3.0, wantOk: true},
+		{name: "all same", input: Float64{2.0, 2.0, 2.0}, want: 2.0, wantOk: true},
+		{name: "NaN skipped", input: Float64{math.NaN(), 3.0, math.NaN(), 1.0}, want: 1.0, wantOk: true},
+		{name: "all NaN", input: Float64{math.NaN(), math.NaN()}},
+		{name: "NaN first then value", input: Float64{math.NaN(), 5.0}, want: 5.0, wantOk: true},
+		{name: "value then NaN", input: Float64{5.0, math.NaN()}, want: 5.0, wantOk: true},
+		{name: "positive infinity", input: Float64{math.Inf(1), 1.0}, want: 1.0, wantOk: true},
+		{name: "negative infinity", input: Float64{1.0, math.Inf(-1), 2.0}, want: math.Inf(-1), wantOk: true},
+		{name: "mixed inf and NaN", input: Float64{math.NaN(), math.Inf(1), math.NaN(), math.Inf(-1)}, want: math.Inf(-1), wantOk: true},
+		{name: "single NaN", input: Float64{math.NaN()}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.input.Min()
-			if got != tt.want {
+			got, ok := tt.input.Min().Get()
+			if ok != tt.wantOk {
+				t.Errorf("Min().IsOk() = %v, want %v", ok, tt.wantOk)
+			}
+			if ok && got != tt.want {
 				t.Errorf("Min() = %v, want %v", got, tt.want)
 			}
 		})
@@ -428,8 +461,11 @@ func TestClone(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		var s Mapper[int]
 		got := s.Clone()
-		if got != nil {
-			t.Errorf("Clone() = %v, want nil", got)
+		if got == nil {
+			t.Fatal("Clone() returned nil, want non-nil empty slice")
+		}
+		if len(got) != 0 {
+			t.Errorf("Clone() = %v, want empty", got)
 		}
 	})
 
@@ -578,7 +614,7 @@ func TestTakeLast(t *testing.T) {
 			name:  "nil slice",
 			input: nil,
 			n:     3,
-			want:  nil,
+			want:  []int{},
 		},
 	}
 	for _, tt := range tests {
@@ -676,7 +712,7 @@ func TestDrop(t *testing.T) {
 		{name: "n is zero", input: []int{1, 2, 3}, n: 0, want: []int{1, 2, 3}},
 		{name: "negative n", input: []int{1, 2, 3}, n: -1, want: []int{1, 2, 3}},
 		{name: "empty slice", input: []int{}, n: 5, want: []int{}},
-		{name: "nil slice", input: nil, n: 3, want: nil},
+		{name: "nil slice", input: nil, n: 3, want: []int{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -701,7 +737,7 @@ func TestDropLast(t *testing.T) {
 		{name: "n is zero", input: []int{1, 2, 3}, n: 0, want: []int{1, 2, 3}},
 		{name: "negative n", input: []int{1, 2, 3}, n: -1, want: []int{1, 2, 3}},
 		{name: "empty slice", input: []int{}, n: 5, want: []int{}},
-		{name: "nil slice", input: nil, n: 3, want: nil},
+		{name: "nil slice", input: nil, n: 3, want: []int{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -724,7 +760,7 @@ func TestDropWhile(t *testing.T) {
 		{name: "all match", input: []int{1, 2}, want: []int{}},
 		{name: "none match", input: []int{3, 4, 5}, want: []int{3, 4, 5}},
 		{name: "empty slice", input: []int{}, want: []int{}},
-		{name: "nil slice", input: nil, want: nil},
+		{name: "nil slice", input: nil, want: []int{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -747,7 +783,7 @@ func TestTakeWhile(t *testing.T) {
 		{name: "all match", input: []int{1, 2}, want: []int{1, 2}},
 		{name: "none match", input: []int{3, 4, 5}, want: []int{}},
 		{name: "empty slice", input: []int{}, want: []int{}},
-		{name: "nil slice", input: nil, want: nil},
+		{name: "nil slice", input: nil, want: []int{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -798,13 +834,105 @@ func TestIntersperse(t *testing.T) {
 		{name: "two elements", input: []int{1, 2}, sep: 0, want: []int{1, 0, 2}},
 		{name: "single element", input: []int{1}, sep: 0, want: []int{1}},
 		{name: "empty slice", input: []int{}, sep: 0, want: []int{}},
-		{name: "nil slice", input: nil, sep: 0, want: nil},
+		{name: "nil slice", input: nil, sep: 0, want: []int{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := From(tt.input).Intersperse(tt.sep)
 			if !reflect.DeepEqual([]int(got), tt.want) {
 				t.Errorf("Intersperse(%d) = %v, want %v", tt.sep, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDropLastWhile(t *testing.T) {
+	isGreaterThan3 := func(n int) bool { return n > 3 }
+	tests := []struct {
+		name  string
+		input []int
+		want  []int
+	}{
+		{name: "drops suffix", input: []int{1, 2, 3, 4, 5}, want: []int{1, 2, 3}},
+		{name: "all match", input: []int{4, 5}, want: []int{}},
+		{name: "none match", input: []int{1, 2, 3}, want: []int{1, 2, 3}},
+		{name: "empty slice", input: []int{}, want: []int{}},
+		{name: "nil slice", input: nil, want: []int{}},
+		{name: "single match", input: []int{5}, want: []int{}},
+		{name: "single no match", input: []int{1}, want: []int{1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).DropLastWhile(isGreaterThan3)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("DropLastWhile() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDropLastWhile_StopsEvaluating(t *testing.T) {
+	calls := 0
+	pred := func(n int) bool {
+		calls++
+		return n > 3
+	}
+
+	From([]int{1, 2, 3, 4, 5}).DropLastWhile(pred)
+
+	if calls != 3 {
+		t.Errorf("predicate called %d times, want 3 (should stop at first false from end)", calls)
+	}
+}
+
+func TestIsSorted(t *testing.T) {
+	ascending := func(a, b int) int { return a - b }
+	tests := []struct {
+		name  string
+		input []int
+		want  bool
+	}{
+		{name: "sorted ascending", input: []int{1, 2, 3, 4, 5}, want: true},
+		{name: "reverse sorted", input: []int{5, 4, 3, 2, 1}, want: false},
+		{name: "unsorted", input: []int{3, 1, 2}, want: false},
+		{name: "single element", input: []int{42}, want: true},
+		{name: "empty slice", input: []int{}, want: true},
+		{name: "equal elements", input: []int{3, 3, 3}, want: true},
+		{name: "two elements sorted", input: []int{1, 2}, want: true},
+		{name: "two elements unsorted", input: []int{2, 1}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).IsSorted(ascending)
+			if got != tt.want {
+				t.Errorf("IsSorted() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsSortedBy(t *testing.T) {
+	type item struct {
+		name string
+		age  int
+	}
+	byAge := func(i item) int { return i.age }
+
+	tests := []struct {
+		name  string
+		input []item
+		want  bool
+	}{
+		{name: "sorted by key", input: []item{{"a", 1}, {"b", 2}, {"c", 3}}, want: true},
+		{name: "unsorted by key", input: []item{{"a", 3}, {"b", 1}, {"c", 2}}, want: false},
+		{name: "empty", input: []item{}, want: true},
+		{name: "single", input: []item{{"a", 1}}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsSortedBy(tt.input, byAge)
+			if got != tt.want {
+				t.Errorf("IsSortedBy() = %v, want %v", got, tt.want)
 			}
 		})
 	}

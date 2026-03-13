@@ -21,6 +21,11 @@ func SortByDesc[T any, K cmp.Ordered](ts []T, fn func(T) K) Mapper[T] {
 	return c
 }
 
+// IsSortedBy reports whether ts is sorted in ascending order by the key extracted via fn.
+func IsSortedBy[T any, K cmp.Ordered](ts []T, fn func(T) K) bool {
+	return slices.IsSortedFunc(ts, func(a, b T) int { return cmp.Compare(fn(a), fn(b)) })
+}
+
 // Asc builds an ascending comparator from a key extractor.
 func Asc[T any, S cmp.Ordered](key func(T) S) func(T, T) int {
 	return func(a, b T) int { return cmp.Compare(key(a), key(b)) }

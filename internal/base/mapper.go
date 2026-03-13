@@ -35,6 +35,9 @@ func (ts Mapper[T]) Convert(fn func(T) T) Mapper[T] {
 // Drop returns ts without the first n elements.
 // Returns empty if n >= len(ts). Negative n is treated as zero.
 func (ts Mapper[T]) Drop(n int) Mapper[T] {
+	if len(ts) == 0 {
+		return Mapper[T]{}
+	}
 	n = min(max(0, n), len(ts))
 
 	return ts[n:]
@@ -43,12 +46,18 @@ func (ts Mapper[T]) Drop(n int) Mapper[T] {
 // DropLast returns ts without the last n elements.
 // Returns empty if n >= len(ts). Negative n is treated as zero.
 func (ts Mapper[T]) DropLast(n int) Mapper[T] {
+	if len(ts) == 0 {
+		return Mapper[T]{}
+	}
 	return ts[:max(0, len(ts)-max(0, n))]
 }
 
 // DropWhile returns the suffix of ts remaining after dropping the longest prefix
 // of elements that satisfy fn.
 func (ts Mapper[T]) DropWhile(fn func(T) bool) Mapper[T] {
+	if len(ts) == 0 {
+		return Mapper[T]{}
+	}
 	for i, t := range ts {
 		if !fn(t) {
 			return ts[i:]
@@ -56,6 +65,21 @@ func (ts Mapper[T]) DropWhile(fn func(T) bool) Mapper[T] {
 	}
 
 	return ts[len(ts):]
+}
+
+// DropLastWhile returns the prefix of ts remaining after dropping the longest suffix
+// of elements that satisfy fn.
+func (ts Mapper[T]) DropLastWhile(fn func(T) bool) Mapper[T] {
+	if len(ts) == 0 {
+		return Mapper[T]{}
+	}
+	for i := len(ts) - 1; i >= 0; i-- {
+		if !fn(ts[i]) {
+			return ts[:i+1]
+		}
+	}
+
+	return ts[:0]
 }
 
 // Each applies fn to each member of ts.
@@ -110,8 +134,8 @@ func (ts Mapper[T]) None(fn func(T) bool) bool {
 
 // Clone returns a shallow copy of the slice with independent backing array.
 func (ts Mapper[T]) Clone() Mapper[T] {
-	if ts == nil {
-		return nil
+	if len(ts) == 0 {
+		return Mapper[T]{}
 	}
 	c := make([]T, len(ts))
 	copy(c, ts)
@@ -137,6 +161,17 @@ func (ts Mapper[T]) Find(fn func(T) bool) option.Option[T] {
 	return option.NotOk[T]()
 }
 
+// FindLast returns the last element matching the predicate, or not-ok if none match.
+func (ts Mapper[T]) FindLast(fn func(T) bool) option.Option[T] {
+	for i := len(ts) - 1; i >= 0; i-- {
+		if fn(ts[i]) {
+			return option.Of(ts[i])
+		}
+	}
+
+	return option.NotOk[T]()
+}
+
 // FlatMap applies fn to each element, concatenating the resulting slices in iteration order.
 // Nil slices returned by fn are treated as empty. The result is always non-nil.
 func (ts Mapper[T]) FlatMap(fn func(T) []T) Mapper[T] {
@@ -157,12 +192,23 @@ func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Option[int] {
 	return option.NotOk[int]()
 }
 
+// LastIndexWhere returns the index of the last element matching the predicate, or not-ok if none match.
+func (ts Mapper[T]) LastIndexWhere(fn func(T) bool) option.Option[int] {
+	for i := len(ts) - 1; i >= 0; i-- {
+		if fn(ts[i]) {
+			return option.Of(i)
+		}
+	}
+
+	return option.NotOk[int]()
+}
+
 // Intersperse inserts sep between every adjacent pair of elements.
-// Returns ts directly for len <= 1 (zero-alloc, preserves nil).
+// Returns a new slice; the result does not alias the input.
 // Not available on MapperTo — interspersing before a cross-type map is uncommon.
 func (ts Mapper[T]) Intersperse(sep T) Mapper[T] {
-	if len(ts) <= 1 {
-		return ts
+	if len(ts) == 0 {
+		return Mapper[T]{}
 	}
 
 	results := make([]T, 2*len(ts)-1)
@@ -241,6 +287,9 @@ func (ts Mapper[T]) Partition(fn func(T) bool) (Mapper[T], Mapper[T]) {
 
 // Take returns the first n elements of ts.
 func (ts Mapper[T]) Take(n int) Mapper[T] {
+	if len(ts) == 0 {
+		return Mapper[T]{}
+	}
 	n = max(0, n)
 	if n > len(ts) {
 		n = len(ts)
@@ -251,6 +300,9 @@ func (ts Mapper[T]) Take(n int) Mapper[T] {
 
 // TakeLast returns the last n elements of ts.
 func (ts Mapper[T]) TakeLast(n int) Mapper[T] {
+	if len(ts) == 0 {
+		return Mapper[T]{}
+	}
 	n = max(0, n)
 
 	return ts[max(0, len(ts)-n):]
@@ -258,6 +310,9 @@ func (ts Mapper[T]) TakeLast(n int) Mapper[T] {
 
 // TakeWhile returns the longest prefix of elements that satisfy fn.
 func (ts Mapper[T]) TakeWhile(fn func(T) bool) Mapper[T] {
+	if len(ts) == 0 {
+		return Mapper[T]{}
+	}
 	for i, t := range ts {
 		if !fn(t) {
 			return ts[:i]

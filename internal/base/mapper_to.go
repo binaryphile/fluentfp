@@ -15,8 +15,8 @@ type MapperTo[R, T any] []T
 
 // Clone returns a shallow copy of the slice with independent backing array.
 func (ts MapperTo[R, T]) Clone() MapperTo[R, T] {
-	if ts == nil {
-		return nil
+	if len(ts) == 0 {
+		return MapperTo[R, T]{}
 	}
 	c := make([]T, len(ts))
 	copy(c, ts)
@@ -36,6 +36,9 @@ func (ts MapperTo[R, T]) Convert(fn func(T) T) MapperTo[R, T] {
 // Drop returns ts without the first n elements.
 // Returns empty if n >= len(ts). Negative n is treated as zero.
 func (ts MapperTo[R, T]) Drop(n int) MapperTo[R, T] {
+	if len(ts) == 0 {
+		return MapperTo[R, T]{}
+	}
 	n = min(max(0, n), len(ts))
 
 	return ts[n:]
@@ -44,12 +47,18 @@ func (ts MapperTo[R, T]) Drop(n int) MapperTo[R, T] {
 // DropLast returns ts without the last n elements.
 // Returns empty if n >= len(ts). Negative n is treated as zero.
 func (ts MapperTo[R, T]) DropLast(n int) MapperTo[R, T] {
+	if len(ts) == 0 {
+		return MapperTo[R, T]{}
+	}
 	return ts[:max(0, len(ts)-max(0, n))]
 }
 
 // DropWhile returns the suffix of ts remaining after dropping the longest prefix
 // of elements that satisfy fn.
 func (ts MapperTo[R, T]) DropWhile(fn func(T) bool) MapperTo[R, T] {
+	if len(ts) == 0 {
+		return MapperTo[R, T]{}
+	}
 	for i, t := range ts {
 		if !fn(t) {
 			return ts[i:]
@@ -57,6 +66,21 @@ func (ts MapperTo[R, T]) DropWhile(fn func(T) bool) MapperTo[R, T] {
 	}
 
 	return ts[len(ts):]
+}
+
+// DropLastWhile returns the prefix of ts remaining after dropping the longest suffix
+// of elements that satisfy fn.
+func (ts MapperTo[R, T]) DropLastWhile(fn func(T) bool) MapperTo[R, T] {
+	if len(ts) == 0 {
+		return MapperTo[R, T]{}
+	}
+	for i := len(ts) - 1; i >= 0; i-- {
+		if !fn(ts[i]) {
+			return ts[:i+1]
+		}
+	}
+
+	return ts[:0]
 }
 
 // First returns the first element, or not-ok if the slice is empty.
@@ -164,6 +188,9 @@ func (ts MapperTo[R, T]) Partition(fn func(T) bool) (MapperTo[R, T], MapperTo[R,
 
 // Take returns the first n members of ts.
 func (ts MapperTo[R, T]) Take(n int) MapperTo[R, T] {
+	if len(ts) == 0 {
+		return MapperTo[R, T]{}
+	}
 	n = max(0, n)
 	if n > len(ts) {
 		n = len(ts)
@@ -174,6 +201,9 @@ func (ts MapperTo[R, T]) Take(n int) MapperTo[R, T] {
 
 // TakeLast returns the last n members of ts.
 func (ts MapperTo[R, T]) TakeLast(n int) MapperTo[R, T] {
+	if len(ts) == 0 {
+		return MapperTo[R, T]{}
+	}
 	n = max(0, n)
 
 	return ts[max(0, len(ts)-n):]
@@ -181,6 +211,9 @@ func (ts MapperTo[R, T]) TakeLast(n int) MapperTo[R, T] {
 
 // TakeWhile returns the longest prefix of elements that satisfy fn.
 func (ts MapperTo[R, T]) TakeWhile(fn func(T) bool) MapperTo[R, T] {
+	if len(ts) == 0 {
+		return MapperTo[R, T]{}
+	}
 	for i, t := range ts {
 		if !fn(t) {
 			return ts[:i]
@@ -287,6 +320,11 @@ func (ts MapperTo[R, T]) Sort(cmp func(T, T) int) MapperTo[R, T] {
 	copy(c, ts)
 	slices.SortFunc(c, cmp)
 	return c
+}
+
+// IsSorted reports whether ts is sorted according to cmp.
+func (ts MapperTo[R, T]) IsSorted(cmp func(T, T) int) bool {
+	return slices.IsSortedFunc(ts, cmp)
 }
 
 // Map returns the result of applying fn to each member of ts.

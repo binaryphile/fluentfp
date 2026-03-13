@@ -150,7 +150,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 **fluentfp-specific domain code:**
 - `slice.KeepIf`, `slice.RemoveIf` - conditional inclusion logic
 - `slice.Take`, `slice.TakeLast`, `slice.Drop`, `slice.DropLast` - boundary handling (`if n > len`, negative n)
-- `slice.TakeWhile`, `slice.DropWhile` - predicate-based prefix/suffix logic
+- `slice.TakeWhile`, `slice.DropWhile`, `slice.DropLastWhile` - predicate-based prefix/suffix logic
 - `slice.Fold`, `slice.Scan`, `slice.Unzip2/3/4` - accumulation and multi-output logic
 - `slice.Zip`, `slice.ZipWith` - length-mismatch truncation
 - `slice.Intersperse` - separator insertion edge cases (empty, single)
