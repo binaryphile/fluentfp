@@ -205,7 +205,6 @@ func (ts Mapper[T]) LastIndexWhere(fn func(T) bool) option.Option[int] {
 
 // Intersperse inserts sep between every adjacent pair of elements.
 // Returns a new slice; the result does not alias the input.
-// Not available on MapperTo — interspersing before a cross-type map is uncommon.
 func (ts Mapper[T]) Intersperse(sep T) Mapper[T] {
 	if len(ts) == 0 {
 		return Mapper[T]{}

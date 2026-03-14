@@ -63,21 +63,6 @@ func TestMapper_Partition(t *testing.T) {
 	}
 }
 
-func TestMapperTo_Partition(t *testing.T) {
-	isEven := func(n int) bool { return n%2 == 0 }
-
-	gotMatch, gotRest := MapperTo[string, int]{1, 2, 3, 4, 5}.Partition(isEven)
-	wantMatch := []int{2, 4}
-	wantRest := []int{1, 3, 5}
-
-	if !reflect.DeepEqual([]int(gotMatch), wantMatch) {
-		t.Errorf("MapperTo.Partition() match = %v, want %v", gotMatch, wantMatch)
-	}
-	if !reflect.DeepEqual([]int(gotRest), wantRest) {
-		t.Errorf("MapperTo.Partition() rest = %v, want %v", gotRest, wantRest)
-	}
-}
-
 func TestPartition_MatchesStandalone(t *testing.T) {
 	isEven := func(n int) bool { return n%2 == 0 }
 

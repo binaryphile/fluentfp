@@ -12,9 +12,6 @@ import (
 // From does not copy; the Entries and the original map share the same backing data.
 type Entries[K comparable, V any] = base.Entries[K, V]
 
-// MapperTo wraps a map for cross-type transformation.
-type MapperTo[T any, K comparable, V any] = base.EntryMapper[T, K, V]
-
 // From converts a map to Entries for fluent operations.
 func From[K comparable, V any](m map[K]V) Entries[K, V] {
 	return Entries[K, V](m)
@@ -34,7 +31,6 @@ func Keys[K comparable, V any](m map[K]V) base.Mapper[K] {
 
 // Map transforms each key-value pair in m using fn and returns the results
 // as a Mapper. All type parameters are inferred from the arguments.
-// Use MapTo[T](m).Map(fn) when explicit type specification is needed.
 // Order is not guaranteed (map iteration order).
 // Panics if fn is nil.
 func Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) base.Mapper[T] {
@@ -64,12 +60,6 @@ func MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) base.Entries[K
 	}
 
 	return result
-}
-
-// MapTo wraps a map for transformation to type T.
-// Usage: kv.MapTo[TargetType](m).Map(fn)
-func MapTo[T any, K comparable, V any](m map[K]V) MapperTo[T, K, V] {
-	return base.NewEntryMapper[T](m)
 }
 
 // ToPairs converts a map to a slice of key-value pairs.

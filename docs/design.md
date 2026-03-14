@@ -26,9 +26,9 @@ flowchart TD
 
 | Package | Role |
 |---------|------|
-| `internal/base` | Core types (`Mapper`, `MapperTo`, `Entries`, `Float64`, `Int`, `String`) and all their methods. Hidden from external consumers. |
+| `internal/base` | Core types (`Mapper`, `Entries`, `Float64`, `Int`, `String`) and all their methods. Hidden from external consumers. |
 | `slice` | Type aliases for base types + slice-consuming standalone functions (From, Map, GroupBy, SortBy, Fold, etc.) |
-| `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapTo, Values, Keys) |
+| `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapValues, Values, Keys) |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
 | `rslt` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`CollectOkAndErr` collectors |
@@ -60,18 +60,6 @@ A defined type with underlying type `[]T` — not a struct wrapper, not a type a
 **Not a struct wrapper:** would break interop — callers could not convert to `[]T`, use `range` directly, or pass to functions expecting `[]T` without unwrapping.
 
 **Not a type alias:** aliases cannot have methods in Go.
-
-### D2: MapperTo[R,T] for arbitrary type mapping
-
-```go
-type MapperTo[R, T any] []T
-```
-
-Carries target type `R` at the type level. `R` does not appear in the slice representation but controls the return type of `.Map()`.
-
-**Why it exists:** Go methods cannot declare type parameters beyond those on the receiver type. A method like `.Map[R](fn func(T) R) Mapper[R]` is illegal — the extra type parameter must come from the type, not the method. `MapperTo` binds `R` at construction time via `slice.MapTo[R](ts)`.
-
-**Prefer `slice.Map` for most cross-type mapping.** The standalone `slice.Map(ts, fn)` infers all types and returns `Mapper[R]` for further chaining. `MapperTo` is only needed when you filter or transform *before* the cross-type map: `slice.MapTo[R](ts).KeepIf(pred).Map(fn)`.
 
 ### D3: Specialized terminal types
 
@@ -182,21 +170,15 @@ Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent
 
 Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `Convert`, `Find`, `FlatMap`, etc.
 
-Standalone functions for operations needing extra type parameters or custom traversal: `FlatMap`, `PFlatMap`, `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`, `GroupBy`, `KeyBy`, `Partition`. `GroupBy` lives in the `slice` package — it returns `Mapper[Group[K, T]]` for direct chaining. Map-consuming standalone functions live in `kv` (`kv.Values`, `kv.MapTo[T]`).
+Standalone functions for operations needing extra type parameters or custom traversal: `Map`, `FlatMap`, `PFlatMap`, `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`, `GroupBy`, `KeyBy`, `Partition`. `GroupBy` lives in the `slice` package — it returns `Mapper[Group[K, T]]` for direct chaining. Map-consuming standalone functions live in `kv` (`kv.Map`, `kv.Values`).
 
-**Why:** Go methods cannot introduce new type parameters (the D2 constraint). Standalone functions can.
+**Why:** Go methods cannot introduce new type parameters. Standalone functions can.
 
 **Consequence:** `Mapper[T]` constrains `T` to `any`, keeping it maximally general. Operations needing `comparable` or `cmp.Ordered` (`SortBy`, `ToSet`, `UniqueBy`, `NonZero`) live as standalone functions where the constraint applies to the key or element, not the receiver.
 
-### D10: Defined type vs struct wrapper rule
+### D10: Defined type rule
 
-**If it IS the collection → defined type. If it wraps for transformation → struct.**
-
-`Mapper[T]`, `Entries[K,V]`, `Float64`, `Int`, `String` are all defined types over their underlying collection (`[]T` or `map[K]V`). Users can range, index, pass to standard functions — the type IS the data.
-
-`MapperTo[R,T]`, `EntryMapper[T,K,V]` are struct wrappers. They carry extra type information (`R` or `T`) that doesn't appear in the underlying data. The struct exists to bind the extra type parameter, not to represent the collection.
-
-**Why it matters:** Defined types enable zero-cost conversion to/from the underlying type. Struct wrappers break this — but they're only used for intermediate transformation types that are consumed immediately (`.Map(fn)`).
+`Mapper[T]`, `Entries[K,V]`, `Float64`, `Int`, `String` are all defined types over their underlying collection (`[]T` or `map[K]V`). Users can range, index, pass to standard functions — the type IS the data. Defined types enable zero-cost conversion to/from the underlying type.
 
 ### D11: Result as standalone defined type
 
@@ -362,9 +344,7 @@ imports `slice`, and shared types flow through `internal/base`.
 **From is a type conversion:** `kv.From(m)` is zero-cost — same D1 pattern as
 `slice.From`. The `Entries` and the original map share backing data. No copy.
 
-**Two cross-type transform paths:** `kv.Map(m, fn)` infers all types (preferred).
-`kv.MapTo[T](m).Map(fn)` binds the target type explicitly (when inference doesn't
-suffice). Mirrors the `slice.Map` vs `slice.MapTo[R]` split (D2/D9).
+**Cross-type transform:** `kv.Map(m, fn)` infers all types and returns `Mapper[T]`.
 
 **MapValues preserves map structure:** `MapValues(m, fn)` returns `Entries[K, V2]` —
 keys preserved, values transformed. Enables chains like
@@ -585,7 +565,7 @@ All collection and option operations handle nil input without panic:
 
 **Clone** preserves nil (nil in, nil out) — deliberate, maintains the caller's nil/empty distinction.
 
-**FlatMap** always returns non-nil. The standalone, `PFlatMap`, `Mapper`, and `MapperTo` implementations all use `make([]T, 0, ...)`, so the result is non-nil even when no elements are produced.
+**FlatMap** always returns non-nil. The standalone, `PFlatMap`, and `Mapper` implementations all use `make([]T, 0, ...)`, so the result is non-nil even when no elements are produced.
 
 **Exception:** `pair.Zip` and `pair.ZipWith` panic on length mismatch. This is a precondition violation, not a nil issue — `Zip(nil, nil)` returns an empty slice without panic.
 

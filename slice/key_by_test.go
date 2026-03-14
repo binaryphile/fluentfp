@@ -130,40 +130,6 @@ func TestMapper_KeyByInt(t *testing.T) {
 	}
 }
 
-func TestMapperTo_KeyByString(t *testing.T) {
-	type item struct {
-		id   int
-		name string
-	}
-
-	// getName extracts the name field as the map key.
-	getName := func(i item) string { return i.name }
-
-	got := MapperTo[int, item]{{1, "a"}, {2, "b"}}.KeyByString(getName)
-	want := map[string]item{"a": {1, "a"}, "b": {2, "b"}}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("MapperTo.KeyByString() = %v, want %v", got, want)
-	}
-}
-
-func TestMapperTo_KeyByInt(t *testing.T) {
-	type item struct {
-		id   int
-		name string
-	}
-
-	// getID extracts the ID field as the map key.
-	getID := func(i item) int { return i.id }
-
-	got := MapperTo[string, item]{{1, "a"}, {2, "b"}}.KeyByInt(getID)
-	want := map[int]item{1: {1, "a"}, 2: {2, "b"}}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("MapperTo.KeyByInt() = %v, want %v", got, want)
-	}
-}
-
 func TestKeyByString_MatchesStandalone(t *testing.T) {
 	type item struct {
 		id   int

@@ -1,7 +1,6 @@
 package slice
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 )
@@ -109,64 +108,6 @@ func TestFlatMap(t *testing.T) {
 		result := From([]int{10, 20, 30}).FlatMap(wrap)
 		want := []int{10, 20, 30}
 		if !reflect.DeepEqual([]int(result), want) {
-			t.Errorf("result = %v, want %v", result, want)
-		}
-	})
-}
-
-func TestMapperToFlatMap(t *testing.T) {
-	t.Run("nil receiver returns empty", func(t *testing.T) {
-		// toStrings converts int to string slice.
-		toStrings := func(n int) []string { return []string{fmt.Sprintf("%d", n)} }
-		var m MapperTo[string, int]
-		result := m.FlatMap(toStrings)
-		if len(result) != 0 {
-			t.Errorf("result length = %d, want 0", len(result))
-		}
-		if result == nil {
-			t.Error("result is nil, want non-nil empty slice")
-		}
-	})
-
-	t.Run("cross-type flatten", func(t *testing.T) {
-		// repeatAsString returns n copies of the string representation.
-		repeatAsString := func(n int) []string {
-			s := fmt.Sprintf("%d", n)
-			out := make([]string, n)
-			for i := range out {
-				out[i] = s
-			}
-			return out
-		}
-		result := MapTo[string]([]int{1, 2, 3}).FlatMap(repeatAsString)
-		want := []string{"1", "2", "2", "3", "3", "3"}
-		if !reflect.DeepEqual([]string(result), want) {
-			t.Errorf("result = %v, want %v", result, want)
-		}
-	})
-
-	t.Run("empty input returns empty", func(t *testing.T) {
-		// toStrings converts int to string slice.
-		toStrings := func(n int) []string { return []string{fmt.Sprintf("%d", n)} }
-		result := MapTo[string]([]int{}).FlatMap(toStrings)
-		if len(result) != 0 {
-			t.Errorf("result length = %d, want 0", len(result))
-		}
-		if result == nil {
-			t.Error("result is nil, want non-nil empty slice")
-		}
-	})
-
-	t.Run("chains with KeepIf", func(t *testing.T) {
-		// expandToStrings returns string representations.
-		expandToStrings := func(n int) []string {
-			return []string{fmt.Sprintf("a%d", n), fmt.Sprintf("b%d", n)}
-		}
-		// startsWithA returns true if the string starts with 'a'.
-		startsWithA := func(s string) bool { return s[0] == 'a' }
-		result := MapTo[string]([]int{1, 2}).FlatMap(expandToStrings).KeepIf(startsWithA)
-		want := []string{"a1", "a2"}
-		if !reflect.DeepEqual([]string(result), want) {
 			t.Errorf("result = %v, want %v", result, want)
 		}
 	})

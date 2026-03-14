@@ -47,10 +47,10 @@ func main() {
 
 	mustGet := must.Of(http.Get)
 	mustBodyFromResponse := must.Of(bodyFromResponse)
-	var ids slice.MapperTo[*http.Response, int] = []int{1, 2}
+	ids := slice.From([]int{1, 2})
 
 	urls := ids.ToString(urlFromID)
-	responses := urls.Map(mustGet)
+	responses := slice.Map(urls, mustGet)
 	bodies := responses.ToString(mustBodyFromResponse)
 	bodies.Each(lof.Println) // (2 JSON responses from external API)
 }

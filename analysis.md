@@ -449,7 +449,7 @@ A named function like `completedAfterCutoff` lets you skip the first two and rea
 
 The restraint is deliberate: solve patterns cleanly without becoming a framework.
 
-**Works with Go's type system.** Generics are used minimally—`Mapper[T]` and `MapperTo[R, T]` are the extent of it. No reflection, no `any` abuse, no code generation. Type safety is preserved throughout.
+**Works with Go's type system.** Generics are used minimally—`Mapper[T]` is the core type. No reflection, no `any` abuse, no code generation. Type safety is preserved throughout.
 
 ## Nil Safety
 

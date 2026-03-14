@@ -169,14 +169,13 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 When multiple methods share **identical logic**, test ONE representative:
 - `option.ToInt` covers all `option.ToX` methods (same if-ok-then-transform pattern)
 - `option.Or` covers `OrZero`/`OrEmpty` (same if-ok-return-value pattern)
-- `slice.KeepIf` on `Mapper` covers `MapperTo.KeepIf` (identical implementation)
 
 ### Trivial Code: Don't Test
 
 - Loop + apply with no branching (e.g., `ToInt`, `ToString` - just iterate and call fn)
 - Wrappers around stdlib (e.g., `lof.Len` wraps `len()`)
 - Type aliases with identical logic (e.g., `OrZero`, `OrEmpty` are same impl)
-- `slice.From`, `slice.MapTo` - just return input
+- `slice.From` - just returns input
 - `option.Of`, `option.NotOk` - just construct struct
 - `option.Get`, `option.IsOk` - just return fields
 - `value.Of`, `value.LazyOf` - just store values

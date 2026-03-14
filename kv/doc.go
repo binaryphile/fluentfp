@@ -20,9 +20,6 @@ func _() {
 
 	_ = Map[int, int, int]
 	_ = MapValues[int, int, int]
-	_ = MapTo[int, int, int]
-	_ = MapperTo[int, int, int].Map
-
 	_ = Values[int, int]
 	_ = Keys[int, int]
 

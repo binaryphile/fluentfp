@@ -5,7 +5,6 @@ import "github.com/binaryphile/fluentfp/internal/base"
 // Type aliases for types defined in internal/base.
 // All methods defined on the base types are available through these aliases.
 type Mapper[T any] = base.Mapper[T]
-type MapperTo[R, T any] = base.MapperTo[R, T]
 type Entries[K comparable, V any] = base.Entries[K, V]
 type Float64 = base.Float64
 type Int = base.Int

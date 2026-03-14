@@ -118,11 +118,11 @@ See [comparison](../comparison.md) for the full library comparison.
 
 ## Operations
 
-`From` creates `Mapper[T]`. For cross-type mapping, prefer the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `MapTo[R]` creates `MapperTo[R,T]` for the narrow case where you filter before cross-type mapping: `MapTo[R](ts).KeepIf(pred).Map(fn)`. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
+`From` creates `Mapper[T]`. For cross-type mapping, use the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
 - **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `TakeWhile`, `Drop`, `DropLast`, `DropWhile`, `DropLastWhile`, `NonZero`
 - **Search**: `Find`, `FindLast`, `IndexOf`, `IndexWhere`, `LastIndexOf`, `LastIndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Sample`, `Contains`, `ContainsAny` (`String`)
-- **Transform**: `Convert`, `FlatMap` (method + standalone), `Map` (`MapperTo`), `Reverse`, `Shuffle`, `Intersperse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String`), `UniqueBy`, `Samples`, `SortBy`, `SortByDesc`, `IsSorted`, `IsSortedBy`
+- **Transform**: `Convert`, `FlatMap` (method + standalone), `Map` (standalone), `Reverse`, `Shuffle`, `Intersperse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String`), `UniqueBy`, `Samples`, `SortBy`, `SortByDesc`, `IsSorted`, `IsSortedBy`
 - **Combine**: `Zip`, `ZipWith`
 - **Aggregate**: `Fold`, `Scan`, `MapAccum`, `Len`, `Max` (`int`, `float64`), `Min` (`int`, `float64`), `Sum` (`int`, `float64`), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
 - **Generate**: `Range`, `RangeFrom`, `RangeStep` (return `Int` for numeric chaining), `RepeatN`

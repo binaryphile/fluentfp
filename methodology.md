@@ -194,7 +194,7 @@ count := slice.From(users).
 
 **What counts toward multiline:**
 - `KeepIf`, `RemoveIf`, `Convert`, `Len`, `Each` — these count
-- `slice.From()`, `slice.MapTo[R]()` — setup, doesn't count
+- `slice.From()` — setup, doesn't count
 - `ToString`, `ToInt`, `ToFloat64` — data extraction, chains onto previous line
 
 **Why this matters:**

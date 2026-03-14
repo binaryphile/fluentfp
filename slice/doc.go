@@ -2,16 +2,11 @@
 //
 // Mapper[T] is a fluent slice that can chain operations like ToString (map), KeepIf (filter), etc.
 //
-// MapperTo[R, T] is a fluent slice with one additional method, Map, for cross-type mapping to R.
-// R comes first so callers can write slice.MapTo[Dst](src) and let T be inferred.
-// If you don't need cross-type mapping, use Mapper instead.
-//
 // Entries[K, V] is a fluent map type for chaining map operations.
 package slice
 
 func _() {
 	_ = From[int]
-	_ = MapTo[int, int]
 
 	_ = Mapper[int].Any
 	_ = Mapper[int].Clone
@@ -60,47 +55,6 @@ func _() {
 	_ = Mapper[int].ToInt64
 	_ = Mapper[int].ToRune
 	_ = Mapper[int].ToString
-
-	_ = MapperTo[int, int].Clone
-	_ = MapperTo[int, int].Convert
-	_ = MapperTo[int, int].Drop
-	_ = MapperTo[int, int].DropLast
-	_ = MapperTo[int, int].DropLastWhile
-	_ = MapperTo[int, int].DropWhile
-	_ = MapperTo[int, int].Each
-	_ = MapperTo[int, int].First
-	_ = MapperTo[int, int].FlatMap
-	_ = MapperTo[int, int].IsSorted
-	_ = MapperTo[int, int].KeepIf
-	_ = MapperTo[int, int].KeyByInt
-	_ = MapperTo[int, int].KeyByString
-	_ = MapperTo[int, int].Last
-	_ = MapperTo[int, int].Len
-	_ = MapperTo[int, int].Map
-	_ = MapperTo[int, int].PEach
-	_ = MapperTo[int, int].PKeepIf
-	_ = MapperTo[int, int].PMap
-	_ = MapperTo[int, int].Partition
-	_ = MapperTo[int, int].RemoveIf
-	_ = MapperTo[int, int].Reverse
-	_ = MapperTo[int, int].Samples
-	_ = MapperTo[int, int].Shuffle
-	_ = MapperTo[int, int].Single
-	_ = MapperTo[int, int].Sort
-	_ = MapperTo[int, int].Take
-	_ = MapperTo[int, int].TakeLast
-	_ = MapperTo[int, int].TakeWhile
-	_ = MapperTo[int, int].ToAny
-	_ = MapperTo[int, int].ToBool
-	_ = MapperTo[int, int].ToByte
-	_ = MapperTo[int, int].ToError
-	_ = MapperTo[int, int].ToFloat32
-	_ = MapperTo[int, int].ToFloat64
-	_ = MapperTo[int, int].ToInt
-	_ = MapperTo[int, int].ToInt32
-	_ = MapperTo[int, int].ToInt64
-	_ = MapperTo[int, int].ToRune
-	_ = MapperTo[int, int].ToString
 
 	_ = Entries[int, int].Values
 	_ = Entries[int, int].Keys
