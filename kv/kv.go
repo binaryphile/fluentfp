@@ -62,6 +62,23 @@ func MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) base.Entries[K
 	return result
 }
 
+// MapKeys transforms each key in m using fn, preserving values.
+// Returns Entries for chaining (e.g., MapKeys(m, fn).KeepIf(pred).Values()).
+// If fn maps multiple keys to the same K2, last-wins (map iteration order).
+// Panics if fn is nil.
+func MapKeys[K comparable, V any, K2 comparable](m map[K]V, fn func(K) K2) base.Entries[K2, V] {
+	if fn == nil {
+		panic("kv.MapKeys: fn must not be nil")
+	}
+
+	result := make(map[K2]V, len(m))
+	for k, v := range m {
+		result[fn(k)] = v
+	}
+
+	return result
+}
+
 // ToPairs converts a map to a slice of key-value pairs.
 // Order is not guaranteed (map iteration order).
 func ToPairs[K comparable, V any](m map[K]V) base.Mapper[pair.Pair[K, V]] {

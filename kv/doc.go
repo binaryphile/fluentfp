@@ -19,6 +19,7 @@ func _() {
 	_ = Entries[int, int].RemoveIf
 
 	_ = Map[int, int, int]
+	_ = MapKeys[int, int, int]
 	_ = MapValues[int, int, int]
 	_ = Values[int, int]
 	_ = Keys[int, int]

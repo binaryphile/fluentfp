@@ -28,7 +28,7 @@ flowchart TD
 |---------|------|
 | `internal/base` | Core types (`Mapper`, `Entries`, `Float64`, `Int`, `String`) and all their methods. Hidden from external consumers. |
 | `slice` | Type aliases for base types + slice-consuming standalone functions (From, Map, GroupBy, SortBy, Fold, etc.) |
-| `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapValues, Values, Keys) |
+| `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapKeys, MapValues, Values, Keys) |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
 | `rslt` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`CollectOkAndErr` collectors |
@@ -350,6 +350,8 @@ imports `slice`, and shared types flow through `internal/base`.
 keys preserved, values transformed. Enables chains like
 `kv.MapValues(raw, parse).KeepIf(isValid).Values()` without losing the map context
 until the caller is ready to extract.
+
+**MapKeys is symmetric with MapValues:** `MapKeys(m, fn)` returns `Entries[K2, V]` — values preserved, keys transformed. Last-wins on key collision, consistent with `Merge` and `FromPairs`.
 
 **KeepIf/RemoveIf on Entries:** Filter map entries by a `func(K, V) bool` predicate,
 returning `Entries` for further chaining. Mirrors `Mapper.KeepIf`/`RemoveIf` but

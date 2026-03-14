@@ -137,6 +137,71 @@ func TestMapValues(t *testing.T) {
 	})
 }
 
+func TestMapKeys(t *testing.T) {
+	t.Run("transforms keys", func(t *testing.T) {
+		m := map[int]string{1: "a", 2: "b", 3: "c"}
+		got := MapKeys(m, strconv.Itoa)
+		want := map[string]string{"1": "a", "2": "b", "3": "c"}
+		if !reflect.DeepEqual(map[string]string(got), want) {
+			t.Errorf("MapKeys() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("preserves values exactly", func(t *testing.T) {
+		m := map[string]int{"x": 10, "y": 20}
+		// doubleKey returns the key repeated twice.
+		doubleKey := func(k string) string { return k + k }
+		got := MapKeys(m, doubleKey)
+		want := map[string]int{"xx": 10, "yy": 20}
+		if !reflect.DeepEqual(map[string]int(got), want) {
+			t.Errorf("MapKeys() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("empty map returns non-nil empty map", func(t *testing.T) {
+		got := MapKeys(map[string]int{}, func(k string) string { return k })
+		if got == nil {
+			t.Error("MapKeys() returned nil, want non-nil empty map")
+		}
+		if len(got) != 0 {
+			t.Errorf("MapKeys() len = %d, want 0", len(got))
+		}
+	})
+
+	t.Run("nil map returns non-nil empty map", func(t *testing.T) {
+		got := MapKeys[string, int](nil, func(k string) string { return k })
+		if got == nil {
+			t.Error("MapKeys() returned nil, want non-nil empty map")
+		}
+		if len(got) != 0 {
+			t.Errorf("MapKeys() len = %d, want 0", len(got))
+		}
+	})
+
+	t.Run("result chains with Entries methods", func(t *testing.T) {
+		m := map[int]string{1: "a", 2: "b", 3: "c"}
+		// isKeyOver1 returns true if the string key is greater than "1".
+		isKeyOver1 := func(k string, _ string) bool { return k > "1" }
+		got := MapKeys(m, strconv.Itoa).KeepIf(isKeyOver1)
+		want := map[string]string{"2": "b", "3": "c"}
+		if !reflect.DeepEqual(map[string]string(got), want) {
+			t.Errorf("MapKeys().KeepIf() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("duplicate keys last-wins", func(t *testing.T) {
+		m := map[int]string{1: "a", 2: "b", 3: "c"}
+		// mod2 maps all keys to 0 or 1.
+		mod2 := func(k int) int { return k % 2 }
+		got := MapKeys(m, mod2)
+		// 1→"a" and 3→"c" both map to key 1; 2→"b" maps to key 0.
+		// Last-wins, but iteration order is non-deterministic.
+		if len(got) != 2 {
+			t.Errorf("MapKeys() len = %d, want 2 (duplicate keys collapsed)", len(got))
+		}
+	})
+}
+
 func TestKeepIf(t *testing.T) {
 	// valueOver1 returns true if the value exceeds 1.
 	valueOver1 := func(_ string, v int) bool { return v > 1 }
