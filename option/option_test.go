@@ -2,6 +2,7 @@ package option
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -63,6 +64,22 @@ func TestNonNil(t *testing.T) {
 	})
 }
 
+func TestNonErr(t *testing.T) {
+	t.Run("nil error returns ok option", func(t *testing.T) {
+		opt := NonErr(42, nil)
+		if v, ok := opt.Get(); !ok || v != 42 {
+			t.Errorf("NonErr(42, nil) = (%v, %v), want (42, true)", v, ok)
+		}
+	})
+
+	t.Run("non-nil error returns not-ok option", func(t *testing.T) {
+		opt := NonErr(42, fmt.Errorf("boom"))
+		if _, ok := opt.Get(); ok {
+			t.Error("NonErr(42, error) should be not-ok")
+		}
+	})
+}
+
 // --- Extraction ---
 
 func TestOr(t *testing.T) {
@@ -102,6 +119,50 @@ func TestOrCall(t *testing.T) {
 		got := opt.OrCall(func() int { return 99 })
 		if got != 99 {
 			t.Errorf("not-ok.OrCall() = %v, want 99", got)
+		}
+	})
+}
+
+func TestOrElse(t *testing.T) {
+	t.Run("ok option returns value without calling fn", func(t *testing.T) {
+		called := false
+		opt := Of(42)
+		got := opt.OrElse(func() Option[int] {
+			called = true
+			return Of(99)
+		})
+		if v, ok := got.Get(); !ok || v != 42 {
+			t.Errorf("Of(42).OrElse() = (%v, %v), want (42, true)", v, ok)
+		}
+		if called {
+			t.Error("OrElse function was called when option was ok")
+		}
+	})
+
+	t.Run("not-ok option calls fn and returns its result", func(t *testing.T) {
+		opt := New(0, false)
+		got := opt.OrElse(func() Option[int] { return Of(99) })
+		if v, ok := got.Get(); !ok || v != 99 {
+			t.Errorf("not-ok.OrElse() = (%v, %v), want (99, true)", v, ok)
+		}
+	})
+
+	t.Run("not-ok with fn returning not-ok stays not-ok", func(t *testing.T) {
+		opt := New(0, false)
+		got := opt.OrElse(func() Option[int] { return New(0, false) })
+		if _, ok := got.Get(); ok {
+			t.Error("not-ok.OrElse(not-ok) should be not-ok")
+		}
+	})
+
+	t.Run("chained OrElse picks first ok", func(t *testing.T) {
+		opt := New(0, false)
+		got := opt.
+			OrElse(func() Option[int] { return New(0, false) }).
+			OrElse(func() Option[int] { return Of(77) }).
+			OrElse(func() Option[int] { return Of(88) })
+		if v, ok := got.Get(); !ok || v != 77 {
+			t.Errorf("chained OrElse = (%v, %v), want (77, true)", v, ok)
 		}
 	})
 }

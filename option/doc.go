@@ -17,6 +17,7 @@ func _() {
 	_ = Option[int].MustGet
 	_ = Option[int].Or
 	_ = Option[int].OrCall
+	_ = Option[int].OrElse
 	_ = Option[int].OrEmpty
 	_ = Option[int].OrZero
 	_ = Option[int].RemoveIf
@@ -47,6 +48,7 @@ func _() {
 	_ = New[int]
 	_ = NonEmpty
 	_ = NonEmptyCall("", func(string) int { return 0 })
+	_ = NonErr[int]
 	_ = NonNil[int]
 	_ = NonNilCall[int, int](nil, func(int) int { return 0 })
 	_ = NonZero[int]

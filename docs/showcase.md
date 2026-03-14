@@ -400,32 +400,6 @@ combined := slice.
 
 ---
 
-## GroupBy
-
-### Alert rule grouping by organization key — grafana/grafana
-
-**Source:** [alert_rule.go](https://github.com/grafana/grafana/blob/main/pkg/services/ngalert/models/alert_rule.go)
-**Pain point:** Manual map construction with duplicated key expression per iteration
-
-Grafana (72k stars) groups alert rules by a composite key — `AlertRuleGroupKey{OrgID, NamespaceUID, RuleGroup}` — for evaluation scheduling. Each rule has a `GetGroupKey()` method that extracts this key. The grouping loop allocates a map, iterates, and calls `GetGroupKey()` twice per iteration: once as the map key, once inside `append`.
-
-**Original:**
-```go
-result := make(map[AlertRuleGroupKey]RulesGroup)
-for _, rule := range rules {
-	result[rule.GetGroupKey()] = append(result[rule.GetGroupKey()], rule)
-}
-```
-
-**fluentfp:**
-```go
-groups := slice.GroupBy(rules, (*AlertRule).GetGroupKey)
-```
-
-**What changed:** The map-init + loop + append boilerplate becomes a single call. The method expression `(*AlertRule).GetGroupKey` names the key extraction directly. `GroupBy` preserves first-seen order (the map does not), and returns `Mapper[Group[K, T]]` for further chaining — sort, filter, or transform the groups without converting back to a map.
-
----
-
 ## Lazy Streams
 
 ### Lazy sequences without goroutines — golang/go (stdlib test suite)
@@ -1148,26 +1122,27 @@ func (config *inClusterClientConfig) Namespace() (string, bool, error) {
 
 **fluentfp:**
 ```go
+const saPath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+
+// trimToString converts bytes to a trimmed string.
+trimToString := func(b []byte) string { return strings.TrimSpace(string(b)) }
+
 // readSANamespace reads the namespace from the service account token file.
-readSANamespace := func() string {
-    data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
-    if err != nil {
-        return ""
-    }
-    return strings.TrimSpace(string(data))
+readSANamespace := func() option.String {
+    return option.NonErr(os.ReadFile(saPath)).
+        ToString(trimToString).
+        FlatMap(option.NonEmpty)
 }
 
 func (config *inClusterClientConfig) Namespace() (string, bool, error) {
-    ns := value.FirstNonEmpty(os.Getenv("POD_NAMESPACE"), readSANamespace(), "default")
+    ns := option.Env("POD_NAMESPACE").OrElse(readSANamespace).Or("default")
     return ns, false, nil
 }
 ```
 
-**What changed:** Three if-blocks with early returns become a single `value.FirstNonEmpty` call listing the priority chain. The reader sees the resolution order — env, file, default — in one line instead of tracing three code blocks. Each source is a function call in argument position; the fallback logic is implicit in `FirstNonEmpty`.
+**What changed:** Three if-blocks with early returns become a one-line chain: `Env → OrElse → Or`. The reader sees the resolution order — env, file, default — left to right. `OrElse` defers `readSANamespace` so it's only called when the env var is absent. Inside the helper, `NonErr` converts the `([]byte, error)` pair into an option, `ToString` maps to string, and `FlatMap(NonEmpty)` filters empty results — three named transformations instead of nested `if err == nil { if ns := ...; len(ns) > 0`.
 
-**What's eliminated:** The cascading if-return pattern. The original is 11 lines of control flow for what is logically "first non-empty of these three sources." The nested `if err == nil { if ns := ...; len(ns) > 0` inside the file-read branch is two levels of condition for one fallback source.
-
-**Trade-off:** `readSANamespace()` is called eagerly even when `POD_NAMESPACE` is set. For config resolution at startup (called once), this is fine — readability wins over avoiding a cheap file read. For expensive fallbacks where short-circuit matters, use option chaining: `option.Env("KEY")` constructs an option from the env var, and `.OrCall(fn)` defers the fallback computation.
+**What's eliminated:** The cascading if-return pattern. The original is 11 lines of control flow for what is logically "first non-empty of these three sources." The helper's chain replaces the two-level condition (error check + empty check) with composable steps.
 
 **Where this pattern appears:** Viper's [`find()`](https://github.com/spf13/viper/blob/master/viper.go#L1194-L1320) (27k stars) is a 130-line, 6-level waterfall — override → pflag → env → config file → key-value store → default — where each level is the same `val = search(...); if val != nil { return val }` block.  The Kubernetes out-of-cluster counterpart [`DirectClientConfig.Namespace()`](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L399-L421) has the same 3-level pattern: CLI flag → kubeconfig context → `"default"`.
 
@@ -1632,3 +1607,4 @@ The following examples were investigated but not showcased above — in each cas
 | `slice.Contains` | consul (28k) | [stringslice.go#L11-L18](https://github.com/hashicorp/consul/blob/c81dc8c55148a6331dd0056d9358290e9a60ec43/lib/stringslice/stringslice.go#L11-L18) | String-specific `Contains` utility used across HashiCorp projects |
 | `kv.Merge` | kubernetes (121k) | [labels.go#L124-L134](https://github.com/kubernetes/apimachinery/blob/master/pkg/labels/labels.go#L124-L134) | 7-line two-loop last-wins map merge; same pattern in Nomad `MergeMapStringString` |
 | `kv.OmitByKeys` | kubernetes (121k) | [labels.go#L37-L49](https://github.com/kubernetes/kubernetes/blob/master/pkg/util/labels/labels.go#L37-L49) | 8-line clone + delete for removing a label key |
+| `slice.GroupBy` | grafana (72k) | [alert_rule.go](https://github.com/grafana/grafana/blob/main/pkg/services/ngalert/models/alert_rule.go) | 4-line map+loop+append grouping alert rules by composite key with duplicated `GetGroupKey()` call |

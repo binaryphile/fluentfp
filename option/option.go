@@ -56,6 +56,15 @@ func NonNil[T any](t *T) (_ Option[T]) {
 	return Of(*t)
 }
 
+// NonErr returns an ok option of t provided that err is nil, or not-ok otherwise.
+func NonErr[T any](t T, err error) (_ Option[T]) {
+	if err != nil {
+		return
+	}
+
+	return Of(t)
+}
+
 // methods
 
 // IfOk applies fn to the option's value provided that the option is ok.
@@ -111,6 +120,7 @@ func (b Option[T]) MustGet() T {
 }
 
 // Or returns the option's value provided that the option is ok, otherwise t.
+// For an Option[T]-valued fallback that preserves optionality, see [Option.OrElse].
 func (b Option[T]) Or(t T) T {
 	if !b.ok {
 		return t
@@ -127,12 +137,29 @@ func (b Option[T]) IfNotOk(fn func()) {
 }
 
 // OrCall returns the option's value provided that it is ok, otherwise the result of calling fn.
+// For an Option[T]-valued fallback, see [Option.OrElse].
 func (b Option[T]) OrCall(fn func() T) (_ T) {
 	if !b.ok {
 		return fn()
 	}
 
 	return b.t
+}
+
+// OrElse returns b if b is ok; otherwise it calls fn and returns its result.
+// Unlike [Option.Or] and [Option.OrCall] which extract T, OrElse stays in
+// Option[T] — enabling multi-level fallback chains:
+//
+//	user := envLookup("USER").
+//	    OrElse(configLookup).
+//	    OrElse(defaultUserOption).
+//	    Or("unknown")
+func (b Option[T]) OrElse(fn func() Option[T]) (_ Option[T]) {
+	if b.ok {
+		return b
+	}
+
+	return fn()
 }
 
 // OrEmpty returns the option's value provided that it is ok, otherwise the zero value for T.

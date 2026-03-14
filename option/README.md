@@ -111,9 +111,9 @@ Once you have an `Option[T]`, the same API works regardless of where the value c
 
 `Option[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null). SQL via `Value`/`Scan` (ok → value, not-ok → NULL). Note: both JSON and SQL collapse Ok(nil) and NotOk into the same representation (null/NULL) — a round-trip through serialization may lose the distinction.
 
-- **Create**: `Of`, `New`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `Env`, `Lookup`
+- **Create**: `Of`, `New`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `NonErr`, `Env`, `Lookup`
 - **Create + Transform**: `NonZeroCall`, `NonEmptyCall`, `NonNilCall` — check presence and apply fn in one step
-- **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrZero`, `OrEmpty`, `OrFalse` (standalone for `Option[bool]`)
+- **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrElse`, `OrZero`, `OrEmpty`, `OrFalse` (standalone for `Option[bool]`)
 - **Transform**: `Convert` (same type), `Map` (cross-type, standalone), `ToString`, `ToInt`, other `To*`, `ToOpt`
 - **Filter**: `KeepIf`, `RemoveIf`
 - **Side effects**: `IfOk`, `IfNotOk`, `Lift`
