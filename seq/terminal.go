@@ -100,6 +100,40 @@ func (s Seq[T]) None(fn func(T) bool) bool {
 	return true
 }
 
+// Reduce combines elements left-to-right using the first element as the initial value.
+// Returns not-ok if the sequence is empty. For a single-element sequence, returns that
+// element without calling fn. Requires a finite sequence.
+// Panics if fn is nil (even for empty or single-element sequences).
+// Note: this differs from slice.Reduce, which tolerates nil fn when len <= 1.
+func (s Seq[T]) Reduce(fn func(T, T) T) option.Option[T] {
+	if fn == nil {
+		panic("seq.Reduce: fn must not be nil")
+	}
+
+	if s == nil {
+		return option.Option[T]{}
+	}
+
+	first := true
+	var acc T
+
+	for v := range s {
+		if first {
+			acc = v
+			first = false
+			continue
+		}
+
+		acc = fn(acc, v)
+	}
+
+	if first {
+		return option.Option[T]{}
+	}
+
+	return option.Of(acc)
+}
+
 // Each applies fn to every element for side effects. Requires a finite sequence.
 // Panics if fn is nil.
 func (s Seq[T]) Each(fn func(T)) {

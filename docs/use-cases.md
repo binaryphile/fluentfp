@@ -351,8 +351,8 @@
 **Main Scenario:**
 1. Developer selects the sequence source.
 2. Developer constructs a lazy sequence from the source.
-3. Developer specifies transformations: filtering, converting, limiting count, skipping elements, changing element types, expanding and flattening, concatenating sequences, pairing corresponding elements, or accumulating intermediate values.
-4. Developer terminates the pipeline: collecting to a slice, iterating for side effects, searching for a match, or reducing to a single value.
+3. Developer specifies transformations: filtering, converting, filter+transform, limiting count, skipping elements, changing element types, expanding and flattening, concatenating sequences, deduplicating, interspersing separators, batching into chunks, pairing corresponding elements, or accumulating intermediate values.
+4. Developer terminates the pipeline: collecting to a slice, iterating for side effects, searching for a match, checking membership, or reducing to a single value.
 
 **Extensions:**
 - 1a. Sequence is empty: System produces a valid empty result for any terminal operation.
@@ -368,21 +368,31 @@
 - 3c. Developer needs to combine corresponding elements from two lazy sequences: System pairs elements, truncating to the shorter sequence.
 - 3d. Developer needs running accumulator values as a lazy sequence: System produces the initial value followed by each intermediate accumulation.
 - 3e. Developer needs each element paired with its positional index: System lazily pairs each element with its zero-based index as elements are consumed.
+- 3f. Developer needs to filter and transform elements in one step from a lazy sequence: System lazily applies a function that returns both a transformed value and a keep/discard signal. Elements where the function signals discard are excluded; kept elements appear transformed as they are consumed.
+- 3g. Developer needs to combine lazy sequence elements without providing an initial value: System uses the first element as the seed and applies the combining function across remaining elements from left to right. Returns absence if the sequence is empty.
+- 3h. Developer needs duplicate elements removed from a lazy sequence while preserving first occurrence: System lazily removes duplicates by element identity or by an extracted key. Elements are emitted as they are consumed; only the seen-key set is retained in memory.
+- 3i. Developer needs to check whether a lazy sequence contains a specific value: System checks membership by equality, short-circuiting on first match.
+- 3j. Developer needs a separator inserted between elements of a lazy sequence: System lazily inserts a separator value between every adjacent pair of elements. Empty and single-element sequences pass through unchanged.
+- 3k. Developer needs to process a lazy sequence in fixed-size batches: System lazily groups elements into slices of the specified size. The last batch may be smaller. Each emitted slice is a stable snapshot safe to retain.
 - 4a. Developer needs to bridge to a Go range loop: System provides an iterator compatible with Go's range protocol.
 - 4b. Developer needs to bridge to slice operations: System materializes to a plain slice for use with eager collection operations.
 - 4c. Developer needs iterator-native processing without memoization: System provides lazy pipelines that re-evaluate on each iteration, compatible with Go's range protocol. Unlike memoized sequences, these pipelines do not cache intermediate results.
 
 **Sub-Variations:**
 - Construction: from slice, variadic, generate (infinite), repeat (constant), unfold (step function), paginate (always-emit step function), prepend (eager cons), prepend lazy (deferred cons)
-- Filtering: by predicate
+- Filtering: by predicate, filter+transform (filter-map)
 - Limiting: by count (take), by predicate (take-while)
 - Skipping: by count (drop), by predicate (drop-while)
 - Transformation: same-type (method), cross-type (standalone)
+- Deduplication: by identity (unique), by key (unique-by)
 - Expanding: flatmap (expand and flatten sub-sequences)
 - Concatenating: concat (chain sequences end-to-end)
+- Separating: intersperse (insert separator between elements)
+- Batching: chunk (group into fixed-size slices)
 - Pairing: zip (combine corresponding elements)
-- Accumulating: scan (running intermediate values)
-- Termination: collect, each, find, any, fold, seq
+- Accumulating: scan (running intermediate values), reduce (no initial value)
+- Membership: contains (short-circuit equality check)
+- Termination: collect, each, find, any, every, none, fold, reduce, contains
 
 ---
 

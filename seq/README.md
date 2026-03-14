@@ -62,6 +62,41 @@ ranked := seq.Zip(seq.From(names), seq.From(scores)).Collect()
 totals := seq.Scan(seq.From(amounts), 0.0, sumFloat64).Collect()
 ```
 
+```go
+// FilterMap — filter and transform in one pass
+parsed := seq.FilterMap(lines, parseLine).Collect()
+```
+
+```go
+// Reduce — combine without an initial value
+sum := seq.From(amounts).Reduce(add).OrZero()
+```
+
+```go
+// Unique — deduplicate lazily
+distinct := seq.Unique(seq.From(ids)).Collect()
+```
+
+```go
+// Intersperse — insert separator between elements
+csv := seq.From(fields).Intersperse(",").Collect()
+```
+
+```go
+// Chunk — process in batches
+batches := seq.Chunk(seq.From(records), 100)
+for batch := range batches {
+    processBatch(batch)
+}
+```
+
+```go
+// Contains — short-circuit membership check
+if seq.Contains(seq.From(allowed), userRole) {
+    grant()
+}
+```
+
 ## Re-Evaluation
 
 Seq pipelines re-evaluate on every terminal call. There is no caching:
@@ -80,15 +115,19 @@ For cached evaluation, use `stream` instead.
 
 The zero value of `Seq[T]` is nil. It is **not safe for direct range** — use `Empty`, `From`, or other constructors. All constructors and Seq-returning operations return non-nil Seqs safe for range. Lazy operations are nil-safe on the receiver and return empty (non-nil) Seqs, enabling safe chaining. `From(nil)` and `From([]T{})` both return empty Seqs. `Collect()` on a nil Seq returns nil.
 
-`Every` and `None` return true on empty or nil input (vacuous truth). `Find` returns `option.Option[T]` — not-ok if no match is found.
+`Every` and `None` return true on empty or nil input (vacuous truth). `Find` and `Reduce` return `option.Option[T]` — not-ok if no match/element is found.
 
 `Convert` is a same-type transform (method). `Map` is a cross-type transform (standalone, because Go methods can't introduce additional type parameters).
 
-**Non-termination:** `Collect`, `Each`, and `Fold` on infinite sequences will not terminate. Always use `Take` or `TakeWhile` to bound infinite sequences before calling a terminal operation.
+**Non-termination:** `Collect`, `Each`, `Fold`, and `Reduce` on infinite sequences will not terminate. `Contains` terminates only if a match is found. Always use `Take` or `TakeWhile` to bound infinite sequences before calling a terminal operation.
 
 **Zip left-consumption bias:** `Zip` drives iteration from the first sequence. If the second sequence is shorter, one extra element from the first is consumed before exhaustion is detected. For side-effectful or single-use sources, be aware of this asymmetry.
 
-All callback-taking functions panic on nil callbacks. `FlatMap` treats nil inner Seqs as empty.
+All callback-taking functions panic on nil callbacks. `FlatMap` treats nil inner Seqs as empty. `Chunk` panics on size <= 0.
+
+**Stateful lazy operations:** `Unique`, `UniqueBy`, `Chunk`, and `Intersperse` allocate state (seen maps, buffers, flags) inside the iteration closure. Each iteration starts fresh — safe for repeated use. However, the source sequence re-evaluates on each iteration.
+
+**Memory growth:** `Unique` and `UniqueBy` maintain a seen-set that grows with the number of distinct elements/keys. On infinite or high-cardinality streams, memory may grow without bound. On infinite repeating streams, they stall once all distinct values have been emitted — requesting more elements than distinct values exist will never terminate (e.g., `Unique(cycle(1,2,3)).Take(4)`). `Chunk` buffers at most `size` elements.
 
 ## When to Use Seq vs Stream vs Slice
 
@@ -102,11 +141,11 @@ All callback-taking functions panic on nil callbacks. `FlatMap` treats nil inner
 
 ## Operations
 
-**Create**: `From`, `FromIter`, `Of`, `Generate`, `Repeat`
+**Create**: `From`, `FromIter`, `Of`, `Generate`, `Repeat`, `Unfold`, `FromNext`, `Empty`
 
-**Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Convert` (same-type), `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (cross-type, standalone), `FlatMap` (standalone), `Concat` (standalone), `Zip` (standalone), `Scan` (standalone)
+**Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Convert` (same-type), `Intersperse`, `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (cross-type, standalone), `FilterMap` (standalone), `FlatMap` (standalone), `Concat` (standalone), `Enumerate` (standalone), `Zip` (standalone), `Scan` (standalone), `Unique` (standalone), `UniqueBy` (standalone), `Chunk` (standalone)
 
-**Terminal** (force evaluation): `Collect`, `Find` (returns `option.Option[T]`), `Any`, `Every`, `None`, `Each`, `Fold` (standalone)
+**Terminal** (force evaluation): `Collect`, `Find` (returns `option.Option[T]`), `Reduce` (returns `option.Option[T]`), `Any`, `Every`, `None`, `Each`, `Fold` (standalone), `Contains` (standalone)
 
 **Unwrap**: `Iter` — return to `iter.Seq[T]` for stdlib interop
 

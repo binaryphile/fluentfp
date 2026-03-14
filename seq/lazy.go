@@ -130,6 +130,33 @@ func (s Seq[T]) TakeWhile(fn func(T) bool) Seq[T] {
 	})
 }
 
+// Intersperse inserts sep between every adjacent pair of elements.
+// Empty and single-element sequences pass through unchanged.
+// Fully streaming with O(1) state. Works with infinite sequences.
+func (s Seq[T]) Intersperse(sep T) Seq[T] {
+	if s == nil {
+		return Empty[T]()
+	}
+
+	return Seq[T](func(yield func(T) bool) {
+		first := true
+
+		for v := range s {
+			if !first {
+				if !yield(sep) {
+					return
+				}
+			}
+
+			if !yield(v) {
+				return
+			}
+
+			first = false
+		}
+	})
+}
+
 // DropWhile returns a Seq that skips elements while fn returns true,
 // then yields the rest.
 // Panics if fn is nil.

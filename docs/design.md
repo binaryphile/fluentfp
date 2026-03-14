@@ -459,6 +459,12 @@ A defined type over `iter.Seq[T]` that enables method chaining — the same tric
 
 **FlatMap, Concat, Zip, Scan:** All standalone (D9 pattern). FlatMap takes `func(T) Seq[R]` — inner sequences are lazy Seqs, not slices. Concat yields all of `a` then all of `b` via sequential range loops. Scan emits initial then lazily accumulates. Zip is the first use of `iter.Pull` in the codebase — ranges over `a` and Pulls `b` for lockstep iteration (one goroutine, not two). `defer stop()` required to release the Pull goroutine on early termination.
 
+**FilterMap, Contains, Chunk, Unique, UniqueBy:** All standalone (D9 pattern — either need extra type params, comparable constraints, or cause Go instantiation cycles). FilterMap combines filtering and cross-type transformation with a comma-ok callback. Contains needs `comparable` on `T` (can't express on `Seq[T any]` receiver). Unique/UniqueBy need `comparable` on `T` or key type `K`. Chunk must be standalone because `Seq[T].Chunk() Seq[[]T]` causes a Go instantiation cycle (`T` instantiated as `[]T`).
+
+**Intersperse, Reduce:** Methods (D9 pattern — unary, no extra params or constraints). Intersperse inserts a separator between adjacent elements with O(1) state. Reduce is a terminal that uses the first element as the initial accumulator value, returning `option.Option[T]` (empty sequence → not-ok). Reduce panics on nil fn unconditionally — diverges from `slice.Reduce` which tolerates nil fn on 0-1 elements, but matches the seq package contract where all nil callbacks panic.
+
+**Re-iteration safety for stateful operations:** Unique, UniqueBy, Chunk, and Intersperse allocate state (seen maps, buffers, flags) inside the `func(yield)` closure, not at construction time. Each iteration starts with fresh state. However, repeated iteration re-evaluates the source — if the source is stateful or effectful, results may differ.
+
 ### D23: Retry as retry-on-error function wrapper
 
 `Retry` wraps a function to retry on error with configurable backoff,
@@ -633,6 +639,7 @@ Where packages depend on each other, and why:
 | `Stream.Find` → `option.Option[T]` | Same pattern as `Mapper.Find` — no match is normal. |
 | `Heap.Min` → `option.Option[T]` | Same pattern as `Mapper.Find` — empty heap is normal, not exceptional. |
 | `Seq.Find` → `option.Option[T]` | Same pattern — no match is normal. |
+| `Seq.Reduce` → `option.Option[T]` | Same pattern — empty sequence is normal, not exceptional. |
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 | `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
 

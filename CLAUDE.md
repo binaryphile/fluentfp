@@ -174,6 +174,12 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `slice.Enumerate` - index pairing
 - `slice.Unique` - comparable dedup (NaN never deduplicates)
 - `seq.Enumerate` - lazy index pairing with per-iteration reset
+- `seq.FilterMap` - lazy filter+transform with comma-ok callback
+- `seq.Reduce` - terminal fold without initial, unconditional nil-fn panic
+- `seq.Unique`, `seq.UniqueBy` - lazy dedup with per-iteration seen-set reset
+- `seq.Contains` - terminal short-circuit membership check
+- `seq.Intersperse` - lazy separator insertion (O(1) state)
+- `seq.Chunk` - lazy batching with stable independent snapshots
 
 ### Representative Pattern Testing
 
@@ -199,7 +205,7 @@ When multiple methods share **identical logic**, test ONE representative:
 | option | 76.9% | Domain tested, trivial aliases untested |
 | slice | 93.4% | Domain tested, new ops fully covered |
 | stream | 100% | All operations tested |
-| seq | 89.9% | Domain tested, generation covered |
+| seq | 92.3% | Domain tested, generation + new ops covered |
 | lof | 0.0% | All trivial wrappers - acceptable |
 
 ### Go Test Style

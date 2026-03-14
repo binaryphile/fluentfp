@@ -136,6 +136,85 @@ func Scan[T, R any](s Seq[T], initial R, fn func(R, T) R) Seq[R] {
 	})
 }
 
+// FilterMap applies fn to each element and keeps only the results where fn returns true.
+// Combines filtering and type-changing transformation in a single lazy pass.
+// Fully streaming with O(1) state. Works with infinite sequences.
+// Panics if fn is nil.
+func FilterMap[T, R any](s Seq[T], fn func(T) (R, bool)) Seq[R] {
+	if fn == nil {
+		panic("seq.FilterMap: fn must not be nil")
+	}
+
+	if s == nil {
+		return Empty[R]()
+	}
+
+	return Seq[R](func(yield func(R) bool) {
+		for v := range s {
+			if r, ok := fn(v); ok {
+				if !yield(r) {
+					return
+				}
+			}
+		}
+	})
+}
+
+// Contains returns true if target is in the sequence. Short-circuits on first match.
+// On infinite sequences, terminates only if a match is found.
+// Note: for float types, NaN != NaN, so Contains(s, NaN) is always false.
+// Standalone because the comparable constraint cannot be expressed on the Seq[T any] receiver.
+func Contains[T comparable](s Seq[T], target T) bool {
+	if s == nil {
+		return false
+	}
+
+	for v := range s {
+		if v == target {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Chunk groups elements into slices of at most size elements.
+// The last chunk may have fewer than size elements.
+// Each emitted slice is a stable snapshot with independent backing storage.
+// Buffers up to size elements. Works with infinite sequences.
+// Panics if size <= 0.
+func Chunk[T any](s Seq[T], size int) Seq[[]T] {
+	if size <= 0 {
+		panic("seq.Chunk: size must be > 0")
+	}
+
+	if s == nil {
+		return Empty[[]T]()
+	}
+
+	return Seq[[]T](func(yield func([]T) bool) {
+		buf := make([]T, 0, size)
+
+		for v := range s {
+			buf = append(buf, v)
+
+			if len(buf) == size {
+				if !yield(buf) {
+					return
+				}
+
+				buf = make([]T, 0, size)
+			}
+		}
+
+		if len(buf) > 0 {
+			if !yield(buf) {
+				return
+			}
+		}
+	})
+}
+
 // Fold reduces a Seq to a single value by applying fn to an accumulator
 // and each element. Requires a finite sequence.
 // Standalone because Go methods cannot introduce additional type parameters.
