@@ -117,3 +117,31 @@ func Unfold[T, S any](seed S, fn func(S) (T, S, bool)) Seq[T] {
 		}
 	})
 }
+
+// FromNext creates a Seq from a pull-style iterator function.
+// next is called repeatedly; each call returns (value, ok).
+// When ok is false the sequence ends. next is not called again after
+// returning false.
+//
+// Because next is typically stateful (a cursor), iterating the returned
+// Seq a second time will see whatever state next is in — usually exhausted.
+// Use .Collect() to materialize if you need multiple passes.
+// Panics if next is nil.
+func FromNext[T any](next func() (T, bool)) Seq[T] {
+	if next == nil {
+		panic("seq.FromNext: next must not be nil")
+	}
+
+	return Seq[T](func(yield func(T) bool) {
+		for {
+			v, ok := next()
+			if !ok {
+				return
+			}
+
+			if !yield(v) {
+				return
+			}
+		}
+	})
+}

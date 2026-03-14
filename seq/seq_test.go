@@ -173,6 +173,125 @@ func TestUnfoldNoOverevaluation(t *testing.T) {
 	}
 }
 
+func TestFromNext(t *testing.T) {
+	tests := []struct {
+		name     string
+		makeNext func() func() (int, bool)
+		want     []int
+	}{
+		{
+			"finite",
+			func() func() (int, bool) {
+				i := 0
+				return func() (int, bool) {
+					i++
+					if i > 3 {
+						return 0, false
+					}
+					return i, true
+				}
+			},
+			[]int{1, 2, 3},
+		},
+		{
+			"empty",
+			func() func() (int, bool) {
+				return func() (int, bool) { return 0, false }
+			},
+			nil,
+		},
+		{
+			"single",
+			func() func() (int, bool) {
+				called := false
+				return func() (int, bool) {
+					if !called {
+						called = true
+						return 42, true
+					}
+					return 0, false
+				}
+			},
+			[]int{42},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FromNext(tt.makeNext()).Collect()
+			assertSliceEqual(t, got, tt.want)
+		})
+	}
+}
+
+func TestFromNextChainedPipeline(t *testing.T) {
+	i := 0
+
+	// oneThroughTen yields 1..10 then stops.
+	oneThroughTen := func() (int, bool) {
+		i++
+		if i > 10 {
+			return 0, false
+		}
+		return i, true
+	}
+
+	// isEven returns true for even numbers.
+	isEven := func(n int) bool { return n%2 == 0 }
+
+	got := FromNext(oneThroughTen).KeepIf(isEven).Take(2).Collect()
+	assertSliceEqual(t, got, []int{2, 4})
+}
+
+func TestFromNextLaziness(t *testing.T) {
+	var calls int
+
+	// counting tracks how many times next is called.
+	counting := func() (int, bool) {
+		calls++
+		return calls, true
+	}
+
+	_ = FromNext(counting)
+
+	if calls != 0 {
+		t.Errorf("FromNext should be fully lazy: got %d calls, want 0", calls)
+	}
+}
+
+func TestFromNextReIteration(t *testing.T) {
+	i := 0
+
+	// counter yields 1, 2, 3 then stops.
+	counter := func() (int, bool) {
+		i++
+		if i > 3 {
+			return 0, false
+		}
+		return i, true
+	}
+
+	s := FromNext(counter)
+	first := s.Collect()
+	second := s.Collect()
+
+	assertSliceEqual(t, first, []int{1, 2, 3})
+
+	if second != nil {
+		t.Errorf("re-iteration: got %v, want nil (exhausted cursor)", second)
+	}
+}
+
+func TestFromNextNilPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic")
+		}
+	}()
+
+	FromNext[int](nil)
+}
+
 // --- Lazy operations ---
 
 func TestKeepIf(t *testing.T) {

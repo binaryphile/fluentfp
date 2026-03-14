@@ -15,6 +15,7 @@ func _() {
 	_ = Generate[int]
 	_ = Repeat[int]
 	_ = Unfold[int, int]
+	_ = FromNext[int]
 
 	_ = Seq[int].KeepIf
 	_ = Seq[int].RemoveIf
