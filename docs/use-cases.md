@@ -73,7 +73,7 @@
 - 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
 - 2d. Developer needs elements grouped by a derived key: System groups elements into a chainable collection of groups, each containing a key and the elements sharing that key.
-- 2e. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error.
+- 2e. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error. For lazy sequences, system truncates to the shorter sequence.
 - 2f. Developer needs transformations applied concurrently: System applies transformations concurrently with bounded parallelism, preserving element order in the result. For I/O-bound workloads, system reports success or failure per element, recovers panics as errors, and respects context cancellation.
 - 2g. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
 - 2h. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements. For string collections, the developer may use a string-specific variant that reads as "non-empty" for clarity.
@@ -337,7 +337,7 @@
 **Main Scenario:**
 1. Developer selects the sequence source.
 2. Developer constructs a lazy sequence from the source.
-3. Developer specifies transformations: filtering, converting, limiting count, skipping elements, or changing element types.
+3. Developer specifies transformations: filtering, converting, limiting count, skipping elements, changing element types, expanding and flattening, concatenating sequences, pairing corresponding elements, or accumulating intermediate values.
 4. Developer terminates the pipeline: collecting to a slice, iterating for side effects, searching for a match, or reducing to a single value.
 
 **Extensions:**
@@ -348,7 +348,11 @@
 - 2d. Source is a step function with termination: System unfolds from a seed, producing elements until the step function signals stop.
 - 2e. Source is a step function that always produces an element: System produces an element from each step; an optional next-state controls whether to continue. Every step emits, including the last.
 - 2f. Source is a recursive definition: System accepts a head value and a deferred tail computation, building the sequence lazily.
+- 2g. Developer needs to chain two lazy sequences end-to-end: System produces all elements from the first, then all from the second.
 - 3a. Developer needs cross-type transformation: System transforms elements to a different type.
+- 3b. Developer needs to expand each element into a lazy sub-sequence and flatten: System applies expansion lazily, producing elements from inner sequences on demand.
+- 3c. Developer needs to combine corresponding elements from two lazy sequences: System pairs elements, truncating to the shorter sequence.
+- 3d. Developer needs running accumulator values as a lazy sequence: System produces the initial value followed by each intermediate accumulation.
 - 4a. Developer needs to bridge to a Go range loop: System provides an iterator compatible with Go's range protocol.
 - 4b. Developer needs to bridge to slice operations: System materializes to a plain slice for use with eager collection operations.
 - 4c. Developer needs iterator-native processing without memoization: System provides lazy pipelines that re-evaluate on each iteration, compatible with Go's range protocol. Unlike memoized sequences, these pipelines do not cache intermediate results.
@@ -359,6 +363,10 @@
 - Limiting: by count (take), by predicate (take-while)
 - Skipping: by count (drop), by predicate (drop-while)
 - Transformation: same-type (method), cross-type (standalone)
+- Expanding: flatmap (expand and flatten sub-sequences)
+- Concatenating: concat (chain sequences end-to-end)
+- Pairing: zip (combine corresponding elements)
+- Accumulating: scan (running intermediate values)
 - Termination: collect, each, find, any, fold, seq
 
 ---

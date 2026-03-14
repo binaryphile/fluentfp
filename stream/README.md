@@ -54,6 +54,26 @@ pages := stream.Paginate(firstCursor, fetchPage)
 allItems := stream.Map(pages, Page.Items).Collect()
 ```
 
+```go
+// FlatMap — expand each element and flatten, head-eager
+allChildren := stream.FlatMap(nodes, Node.Children).Collect()
+```
+
+```go
+// Concat — chain two streams end-to-end
+combined := stream.Concat(priorityItems, regularItems)
+```
+
+```go
+// Zip — pair corresponding elements, truncates to shorter
+pairs := stream.Zip(keys, values).Collect()
+```
+
+```go
+// Scan — running accumulation as a lazy stream
+balances := stream.Scan(transactions, startingBalance, applyTransaction)
+```
+
 ## Head-Eager, Tail-Lazy
 
 When a stream cell exists, its head value is already computed. Only the tail is deferred. This means:
@@ -94,6 +114,7 @@ Thread-safe: concurrent forcing of the same stream is coordinated via state mach
 
 **Non-termination.** Some operations may not terminate on infinite streams:
 - `KeepIf`, `Find`, `Any` — if no element matches
+- `FlatMap` — if all inner streams are empty (scans forward indefinitely)
 - `DropWhile` — if the predicate never becomes false
 - `Collect`, `Each`, `Fold` — on any infinite stream
 
@@ -116,7 +137,7 @@ All callback-taking functions panic on nil inputs.
 
 **Create**: `From`, `Of`, `Generate`, `Repeat`, `Unfold`, `Paginate`, `Prepend`, `PrependLazy`
 
-**Lazy** (return Stream): `KeepIf`, `Convert`, `Take`, `TakeWhile`, `Drop`, `DropWhile`, `Map` (standalone)
+**Lazy** (return Stream): `KeepIf`, `Convert`, `Take`, `TakeWhile`, `Drop`, `DropWhile`, `Map` (standalone), `FlatMap` (standalone), `Concat` (standalone), `Zip` (standalone), `Scan` (standalone)
 
 **Terminal** (force evaluation): `Each`, `Collect`, `Find`, `Any`, `Seq`, `Fold` (standalone)
 

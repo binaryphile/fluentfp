@@ -47,6 +47,21 @@ slices.Collect(seq.From(data).KeepIf(isValid).Iter())
 names := seq.Map(users, User.Name).Collect()
 ```
 
+```go
+// FlatMap — expand each item into a sub-sequence and flatten
+allTags := seq.FlatMap(items, Item.Tags).Collect()
+```
+
+```go
+// Zip — pair corresponding elements from two sequences
+ranked := seq.Zip(seq.From(names), seq.From(scores)).Collect()
+```
+
+```go
+// Scan — running totals as a lazy sequence
+totals := seq.Scan(seq.From(amounts), 0.0, sumFloat64).Collect()
+```
+
 ## Re-Evaluation
 
 Seq pipelines re-evaluate on every terminal call. There is no caching:
@@ -71,7 +86,9 @@ The zero value of `Seq[T]` is nil. It is **not safe for direct range** — use `
 
 **Non-termination:** `Collect`, `Each`, and `Fold` on infinite sequences will not terminate. Always use `Take` or `TakeWhile` to bound infinite sequences before calling a terminal operation.
 
-All callback-taking functions panic on nil callbacks.
+**Zip left-consumption bias:** `Zip` drives iteration from the first sequence. If the second sequence is shorter, one extra element from the first is consumed before exhaustion is detected. For side-effectful or single-use sources, be aware of this asymmetry.
+
+All callback-taking functions panic on nil callbacks. `FlatMap` treats nil inner Seqs as empty.
 
 ## When to Use Seq vs Stream vs Slice
 
@@ -87,7 +104,7 @@ All callback-taking functions panic on nil callbacks.
 
 **Create**: `From`, `FromIter`, `Of`, `Generate`, `Repeat`
 
-**Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Convert` (same-type), `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (cross-type, standalone)
+**Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Convert` (same-type), `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (cross-type, standalone), `FlatMap` (standalone), `Concat` (standalone), `Zip` (standalone), `Scan` (standalone)
 
 **Terminal** (force evaluation): `Collect`, `Find` (returns `option.Option[T]`), `Any`, `Every`, `None`, `Each`, `Fold` (standalone)
 

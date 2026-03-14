@@ -34,5 +34,9 @@ func _() {
 	_ = Seq[int].Iter
 
 	_ = Map[int, string]
+	_ = FlatMap[int, string]
 	_ = Fold[int, string]
+	_ = Concat[int]
+	_ = Zip[int, string]
+	_ = Scan[int, string]
 }

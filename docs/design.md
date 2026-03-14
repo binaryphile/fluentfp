@@ -231,6 +231,8 @@ A persistent lazy sequence where each cell's head is eager and tail is lazy, eva
 
 **Reentrancy constraint:** Callbacks must not force the same cell being evaluated (deadlock). This includes indirect paths — e.g., a Map callback that forces the Map result stream. This is inherent to memoized lazy evaluation, not specific to the locking implementation.
 
+**FlatMap, Concat, Zip, Scan:** All standalone (D9 pattern — cross-type parameters). FlatMap reuses KeepIf's scan-forward pattern: eagerly scans outer elements, produces inner streams, and advances until finding a non-empty inner stream for the head. Tail is lazy `Concat(innerTail, FlatMap(outerTail, fn))`. Concat is the lazy analog of slice `append` — a's head with lazy tail `Concat(a.Tail(), b)`. Zip pairs heads with lazy tail `Zip(a.Tail(), b.Tail())`, truncating to shorter. Scan emits initial as head, then lazily accumulates.
+
 ### D13: FanOut concurrency model
 
 Channel-based semaphore: `make(chan struct{}, n)` bounds concurrent goroutines.
@@ -437,6 +439,8 @@ A defined type over `iter.Seq[T]` that enables method chaining — the same tric
 **Convert vs Map:** Same D9 constraint as Mapper and Stream. `Convert(func(T) T)` is a method (same type). `Map[T, R]` is standalone (cross-type needs an extra type parameter that Go can't infer from the receiver).
 
 **Find returns `option.Option[T]`:** Same absence-is-normal pattern as `Mapper.Find` and `Stream.Find`.
+
+**FlatMap, Concat, Zip, Scan:** All standalone (D9 pattern). FlatMap takes `func(T) Seq[R]` — inner sequences are lazy Seqs, not slices. Concat yields all of `a` then all of `b` via sequential range loops. Scan emits initial then lazily accumulates. Zip is the first use of `iter.Pull` in the codebase — ranges over `a` and Pulls `b` for lockstep iteration (one goroutine, not two). `defer stop()` required to release the Pull goroutine on early termination.
 
 ### D23: Retry as retry-on-error function wrapper
 

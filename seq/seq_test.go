@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+
+	"github.com/binaryphile/fluentfp/tuple/pair"
 )
 
 // assertSliceEqual is a test helper that compares two slices.
@@ -551,6 +553,290 @@ func TestFold(t *testing.T) {
 	}
 }
 
+func TestFlatMap(t *testing.T) {
+	// duplicate returns each element twice as a Seq.
+	duplicate := func(n int) Seq[int] { return Of(n, n) }
+
+	tests := []struct {
+		name  string
+		input []int
+		want  []int
+	}{
+		{"normal", []int{1, 2, 3}, []int{1, 1, 2, 2, 3, 3}},
+		{"empty", []int{}, nil},
+		{"single", []int{5}, []int{5, 5}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FlatMap(From(tt.input), duplicate).Collect()
+			assertSliceEqual(t, got, tt.want)
+		})
+	}
+
+	t.Run("nil seq", func(t *testing.T) {
+		got := FlatMap(Seq[int](nil), duplicate).Collect()
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("empty inner seqs", func(t *testing.T) {
+		// nothing returns an empty Seq for every element.
+		nothing := func(int) Seq[int] { return Empty[int]() }
+
+		got := FlatMap(From([]int{1, 2, 3}), nothing).Collect()
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+}
+
+func TestFlatMapNilInner(t *testing.T) {
+	// nilForOdd returns nil Seq for odd numbers, non-nil for even.
+	nilForOdd := func(n int) Seq[int] {
+		if n%2 != 0 {
+			return nil
+		}
+		return Of(n * 10)
+	}
+
+	got := FlatMap(From([]int{1, 2, 3, 4}), nilForOdd).Collect()
+	assertSliceEqual(t, got, []int{20, 40})
+}
+
+func TestFlatMapAllNilInners(t *testing.T) {
+	// alwaysNil returns nil for every element.
+	alwaysNil := func(int) Seq[int] { return nil }
+
+	got := FlatMap(From([]int{1, 2, 3}), alwaysNil).Collect()
+	if got != nil {
+		t.Errorf("got %v, want nil", got)
+	}
+}
+
+func TestFlatMapEarlyTermination(t *testing.T) {
+	var outerCalls int
+
+	// countingTriple tracks outer calls and returns each element thrice.
+	countingTriple := func(n int) Seq[int] {
+		outerCalls++
+		return Of(n, n, n)
+	}
+
+	// Take 4 from FlatMap of [1,2,3] — should get [1,1,1,2] and stop.
+	got := FlatMap(From([]int{1, 2, 3}), countingTriple).Take(4).Collect()
+	assertSliceEqual(t, got, []int{1, 1, 1, 2})
+
+	// fn should have been called at most twice (for 1 and 2), not for 3.
+	if outerCalls > 2 {
+		t.Errorf("fn called %d times, want at most 2", outerCalls)
+	}
+}
+
+func TestFlatMapCrossType(t *testing.T) {
+	// toChars returns each character of the string representation as a Seq.
+	toChars := func(n int) Seq[string] {
+		s := strconv.Itoa(n)
+		chars := make([]string, len(s))
+		for i, c := range s {
+			chars[i] = string(c)
+		}
+		return From(chars)
+	}
+
+	got := FlatMap(From([]int{12, 34}), toChars).Collect()
+	assertSliceEqual(t, got, []string{"1", "2", "3", "4"})
+}
+
+func TestConcat(t *testing.T) {
+	tests := []struct {
+		name string
+		a    []int
+		b    []int
+		want []int
+	}{
+		{"both non-empty", []int{1, 2}, []int{3, 4}, []int{1, 2, 3, 4}},
+		{"first empty", []int{}, []int{3, 4}, []int{3, 4}},
+		{"second empty", []int{1, 2}, []int{}, []int{1, 2}},
+		{"both empty", []int{}, []int{}, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Concat(From(tt.a), From(tt.b)).Collect()
+			assertSliceEqual(t, got, tt.want)
+		})
+	}
+
+	t.Run("both nil", func(t *testing.T) {
+		got := Concat(Seq[int](nil), Seq[int](nil)).Collect()
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("first nil", func(t *testing.T) {
+		got := Concat(Seq[int](nil), From([]int{1, 2})).Collect()
+		assertSliceEqual(t, got, []int{1, 2})
+	})
+
+	t.Run("second nil", func(t *testing.T) {
+		got := Concat(From([]int{1, 2}), Seq[int](nil)).Collect()
+		assertSliceEqual(t, got, []int{1, 2})
+	})
+}
+
+func TestZip(t *testing.T) {
+	t.Run("same length", func(t *testing.T) {
+		got := Zip(From([]int{1, 2, 3}), From([]string{"a", "b", "c"})).Collect()
+		want := []pair.Pair[int, string]{
+			pair.Of(1, "a"),
+			pair.Of(2, "b"),
+			pair.Of(3, "c"),
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("first shorter", func(t *testing.T) {
+		got := Zip(From([]int{1}), From([]string{"a", "b", "c"})).Collect()
+		want := []pair.Pair[int, string]{pair.Of(1, "a")}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("second shorter", func(t *testing.T) {
+		got := Zip(From([]int{1, 2, 3}), From([]string{"a"})).Collect()
+		want := []pair.Pair[int, string]{pair.Of(1, "a")}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("first empty", func(t *testing.T) {
+		got := Zip(From([]int{}), From([]string{"a", "b"})).Collect()
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("second empty", func(t *testing.T) {
+		got := Zip(From([]int{1, 2}), From([]string{})).Collect()
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("nil seq", func(t *testing.T) {
+		got := Zip(Seq[int](nil), From([]string{"a"})).Collect()
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("left-consumption bias", func(t *testing.T) {
+		// When b is shorter, a consumes one extra element before detecting exhaustion.
+		var aCount int
+
+		// countingA tracks how many elements are consumed from a.
+		countingA := Seq[int](func(yield func(int) bool) {
+			for i := 1; i <= 5; i++ {
+				aCount++
+				if !yield(i) {
+					return
+				}
+			}
+		})
+
+		got := Zip(countingA, From([]string{"x", "y"})).Collect()
+		want := []pair.Pair[int, string]{pair.Of(1, "x"), pair.Of(2, "y")}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+
+		// a consumed 3 elements (1, 2, then 3 before discovering b is exhausted).
+		if aCount != 3 {
+			t.Errorf("a consumed %d elements, want 3 (2 paired + 1 over-read)", aCount)
+		}
+	})
+
+	t.Run("early termination via Take", func(t *testing.T) {
+		zipped := Zip(From([]int{1, 2, 3, 4, 5}), From([]string{"a", "b", "c", "d", "e"}))
+		got := Seq[pair.Pair[int, string]](zipped).Take(2).Collect()
+		want := []pair.Pair[int, string]{pair.Of(1, "a"), pair.Of(2, "b")}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestScan(t *testing.T) {
+	// sum adds two integers.
+	sum := func(acc, x int) int { return acc + x }
+
+	tests := []struct {
+		name    string
+		input   []int
+		initial int
+		want    []int
+	}{
+		{"running sum", []int{1, 2, 3}, 0, []int{0, 1, 3, 6}},
+		{"with initial", []int{1, 2, 3}, 10, []int{10, 11, 13, 16}},
+		{"single", []int{5}, 0, []int{0, 5}},
+		{"empty", []int{}, 42, []int{42}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Scan(From(tt.input), tt.initial, sum).Collect()
+			assertSliceEqual(t, got, tt.want)
+		})
+	}
+
+	t.Run("nil seq", func(t *testing.T) {
+		got := Scan(Seq[int](nil), 42, sum).Collect()
+		assertSliceEqual(t, got, []int{42})
+	})
+}
+
+func TestScanEmptyForms(t *testing.T) {
+	// sum adds two integers.
+	sum := func(acc, x int) int { return acc + x }
+
+	t.Run("nil", func(t *testing.T) {
+		got := Scan(Seq[int](nil), 42, sum).Collect()
+		assertSliceEqual(t, got, []int{42})
+	})
+
+	t.Run("Empty()", func(t *testing.T) {
+		got := Scan(Empty[int](), 42, sum).Collect()
+		assertSliceEqual(t, got, []int{42})
+	})
+
+	t.Run("From(nil)", func(t *testing.T) {
+		got := Scan(From[int](nil), 42, sum).Collect()
+		assertSliceEqual(t, got, []int{42})
+	})
+
+	t.Run("From(empty)", func(t *testing.T) {
+		got := Scan(From([]int{}), 42, sum).Collect()
+		assertSliceEqual(t, got, []int{42})
+	})
+}
+
+func TestScanCrossType(t *testing.T) {
+	// appendStr accumulates strings by appending.
+	appendStr := func(acc string, n int) string {
+		return acc + strconv.Itoa(n)
+	}
+
+	got := Scan(From([]int{1, 2, 3}), "", appendStr).Collect()
+	assertSliceEqual(t, got, []string{"", "1", "12", "123"})
+}
+
 func TestFoldEmpty(t *testing.T) {
 	// sum adds two integers.
 	sum := func(acc, x int) int { return acc + x }
@@ -706,6 +992,25 @@ func TestZeroValueSafety(t *testing.T) {
 	if got := Fold(s, 42, sum); got != 42 {
 		t.Errorf("Fold on zero: got %d, want 42", got)
 	}
+
+	// duplicate returns each element twice as a Seq.
+	duplicate := func(n int) Seq[int] { return Of(n, n) }
+
+	if got := FlatMap(s, duplicate).Collect(); got != nil {
+		t.Errorf("FlatMap on zero: got %v, want nil", got)
+	}
+
+	if got := Concat(s, s).Collect(); got != nil {
+		t.Errorf("Concat on zero: got %v, want nil", got)
+	}
+
+	if got := Zip(s, s).Collect(); got != nil {
+		t.Errorf("Zip on zero: got %v, want nil", got)
+	}
+
+	if got := Scan(s, 42, sum).Collect(); len(got) != 1 || got[0] != 42 {
+		t.Errorf("Scan on zero: got %v, want [42]", got)
+	}
 }
 
 // --- Zero value ---
@@ -781,6 +1086,8 @@ func TestNilReceiverLazyOps(t *testing.T) {
 		{"TakeWhile", s.TakeWhile(alwaysTrue)},
 		{"DropWhile", s.DropWhile(alwaysTrue)},
 		{"Map", Map(s, identity)},
+		{"FlatMap", FlatMap(s, func(v int) Seq[int] { return Of(v) })},
+		{"Concat", Concat(s, s)},
 	}
 
 	for _, tc := range cases {

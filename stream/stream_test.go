@@ -8,6 +8,7 @@ import (
 
 	"github.com/binaryphile/fluentfp/option"
 	"github.com/binaryphile/fluentfp/stream"
+	"github.com/binaryphile/fluentfp/tuple/pair"
 )
 
 // --- Constructors (light coverage) ---
@@ -1176,6 +1177,282 @@ func TestNilCallbackPanics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assertPanics(t, tt.fn)
 		})
+	}
+}
+
+// --- FlatMap ---
+
+func TestFlatMap(t *testing.T) {
+	// duplicate returns each element twice as a Stream.
+	duplicate := func(n int) stream.Stream[int] { return stream.Of(n, n) }
+
+	t.Run("normal", func(t *testing.T) {
+		got := stream.FlatMap(stream.Of(1, 2, 3), duplicate).Collect()
+		assertSliceEqual(t, []int{1, 1, 2, 2, 3, 3}, got)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		got := stream.FlatMap(stream.From([]int(nil)), duplicate).Collect()
+		assertSliceEqual(t, nil, got)
+	})
+
+	t.Run("empty inner streams", func(t *testing.T) {
+		// nothing returns an empty stream for every element.
+		nothing := func(int) stream.Stream[int] { return stream.From([]int(nil)) }
+
+		got := stream.FlatMap(stream.Of(1, 2, 3), nothing).Collect()
+		assertSliceEqual(t, nil, got)
+	})
+
+	t.Run("mixed empty and non-empty inner", func(t *testing.T) {
+		// onlyEven returns a stream of even numbers, empty for odd.
+		onlyEven := func(n int) stream.Stream[int] {
+			if n%2 == 0 {
+				return stream.Of(n)
+			}
+			return stream.From([]int(nil))
+		}
+
+		got := stream.FlatMap(stream.Of(1, 2, 3, 4), onlyEven).Collect()
+		assertSliceEqual(t, []int{2, 4}, got)
+	})
+}
+
+func TestFlatMapCrossType(t *testing.T) {
+	// repeat returns a stream of n copies of the string representation.
+	repeat := func(n int) stream.Stream[string] {
+		s := make([]string, n)
+		for i := range s {
+			s[i] = "x"
+		}
+		return stream.From(s)
+	}
+
+	got := stream.FlatMap(stream.Of(1, 2, 3), repeat).Collect()
+	assertSliceEqual(t, []string{"x", "x", "x", "x", "x", "x"}, got)
+}
+
+func TestFlatMapNilFnPanics(t *testing.T) {
+	assertPanics(t, func() {
+		stream.FlatMap[int, string](stream.Of(1), nil)
+	})
+}
+
+func TestFlatMapSkippedEmptyInners(t *testing.T) {
+	var callCount atomic.Int64
+
+	// countingOnlyEven tracks all calls, returns non-empty only for even.
+	countingOnlyEven := func(n int) stream.Stream[int] {
+		callCount.Add(1)
+		if n%2 == 0 {
+			return stream.Of(n * 10)
+		}
+		return stream.From([]int(nil))
+	}
+
+	s := stream.FlatMap(stream.Of(1, 2, 3, 4), countingOnlyEven)
+
+	// Construction scans eagerly: fn called for 1 (empty), then 2 (non-empty) = 2 calls.
+	if got := callCount.Load(); got != 2 {
+		t.Errorf("construction called fn %d times, want 2", got)
+	}
+
+	got := s.Collect()
+	assertSliceEqual(t, []int{20, 40}, got)
+
+	// After full traversal, fn called for all 4 elements.
+	if got := callCount.Load(); got != 4 {
+		t.Errorf("after Collect, fn called %d times, want 4", got)
+	}
+
+	// Second traversal reuses memoized cells — no additional fn calls.
+	countBefore := callCount.Load()
+	second := s.Collect()
+	assertSliceEqual(t, []int{20, 40}, second)
+
+	if got := callCount.Load(); got != countBefore {
+		t.Errorf("second Collect called fn %d additional times, want 0", got-countBefore)
+	}
+}
+
+func TestFlatMapMemoization(t *testing.T) {
+	var count atomic.Int64
+
+	// counting wraps each element and tracks calls.
+	counting := func(n int) stream.Stream[int] {
+		count.Add(1)
+		return stream.Of(n * 10)
+	}
+
+	s := stream.FlatMap(stream.Of(1, 2, 3), counting)
+
+	first := s.Collect()
+	countAfterFirst := count.Load()
+
+	second := s.Collect()
+	countAfterSecond := count.Load()
+
+	assertSliceEqual(t, []int{10, 20, 30}, first)
+	assertSliceEqual(t, []int{10, 20, 30}, second)
+
+	if countAfterSecond != countAfterFirst {
+		t.Errorf("fn called %d times on second Collect (want 0 additional calls)", countAfterSecond-countAfterFirst)
+	}
+}
+
+// --- Concat ---
+
+func TestConcat(t *testing.T) {
+	t.Run("both non-empty", func(t *testing.T) {
+		got := stream.Concat(stream.Of(1, 2), stream.Of(3, 4)).Collect()
+		assertSliceEqual(t, []int{1, 2, 3, 4}, got)
+	})
+
+	t.Run("first empty", func(t *testing.T) {
+		got := stream.Concat(stream.From([]int(nil)), stream.Of(3, 4)).Collect()
+		assertSliceEqual(t, []int{3, 4}, got)
+	})
+
+	t.Run("second empty", func(t *testing.T) {
+		got := stream.Concat(stream.Of(1, 2), stream.From([]int(nil))).Collect()
+		assertSliceEqual(t, []int{1, 2}, got)
+	})
+
+	t.Run("both empty", func(t *testing.T) {
+		got := stream.Concat(stream.From([]int(nil)), stream.From([]int(nil))).Collect()
+		assertSliceEqual(t, nil, got)
+	})
+}
+
+func TestConcatLaziness(t *testing.T) {
+	var count atomic.Int64
+	a := stream.Of(1, 2)
+	b := unfoldCounted([]int{3, 4, 5}, &count)
+
+	s := stream.Concat(a, b)
+
+	// Only force the first element — b should not have been forced yet.
+	_ = s.First()
+	if got := count.Load(); got != 0 {
+		t.Errorf("b forced %d times before a exhausted, want 0", got)
+	}
+}
+
+// --- Zip ---
+
+func TestZip(t *testing.T) {
+	t.Run("same length", func(t *testing.T) {
+		got := stream.Zip(stream.Of(1, 2, 3), stream.Of("a", "b", "c")).Collect()
+		want := []pair.Pair[int, string]{
+			pair.Of(1, "a"),
+			pair.Of(2, "b"),
+			pair.Of(3, "c"),
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("first shorter", func(t *testing.T) {
+		got := stream.Zip(stream.Of(1), stream.Of("a", "b", "c")).Collect()
+		want := []pair.Pair[int, string]{pair.Of(1, "a")}
+		if !slices.Equal(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("second shorter", func(t *testing.T) {
+		got := stream.Zip(stream.Of(1, 2, 3), stream.Of("a")).Collect()
+		want := []pair.Pair[int, string]{pair.Of(1, "a")}
+		if !slices.Equal(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("first empty", func(t *testing.T) {
+		got := stream.Zip(stream.From([]int(nil)), stream.Of("a")).Collect()
+		assertSliceEqual(t, nil, got)
+	})
+
+	t.Run("second empty", func(t *testing.T) {
+		got := stream.Zip(stream.Of(1), stream.From([]string(nil))).Collect()
+		assertSliceEqual(t, nil, got)
+	})
+}
+
+// --- Scan ---
+
+func TestScan(t *testing.T) {
+	// sum adds two integers.
+	sum := func(acc, x int) int { return acc + x }
+
+	t.Run("running sum", func(t *testing.T) {
+		got := stream.Scan(stream.Of(1, 2, 3), 0, sum).Collect()
+		assertSliceEqual(t, []int{0, 1, 3, 6}, got)
+	})
+
+	t.Run("with initial", func(t *testing.T) {
+		got := stream.Scan(stream.Of(1, 2, 3), 10, sum).Collect()
+		assertSliceEqual(t, []int{10, 11, 13, 16}, got)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		got := stream.Scan(stream.From([]int(nil)), 42, sum).Collect()
+		assertSliceEqual(t, []int{42}, got)
+	})
+
+	t.Run("single", func(t *testing.T) {
+		got := stream.Scan(stream.Of(5), 0, sum).Collect()
+		assertSliceEqual(t, []int{0, 5}, got)
+	})
+}
+
+func TestScanEmptyTailStability(t *testing.T) {
+	// sum adds two integers.
+	sum := func(acc, x int) int { return acc + x }
+
+	s := stream.Scan(stream.From([]int(nil)), 42, sum)
+
+	// Should have exactly one element.
+	v, ok := s.First().Get()
+	if !ok || v != 42 {
+		t.Errorf("got (%d, %v), want (42, true)", v, ok)
+	}
+
+	// Tail should be empty.
+	if !s.Tail().IsEmpty() {
+		t.Error("tail of Scan(empty) should be empty")
+	}
+
+	// Repeated Tail() should remain empty and stable.
+	if !s.Tail().IsEmpty() {
+		t.Error("repeated Tail() should remain empty")
+	}
+}
+
+func TestScanNilFnPanics(t *testing.T) {
+	assertPanics(t, func() {
+		stream.Scan[int, int](stream.Of(1), 0, nil)
+	})
+}
+
+func TestScanLaziness(t *testing.T) {
+	var count atomic.Int64
+	s := unfoldCounted([]int{1, 2, 3}, &count)
+
+	// sum adds two integers.
+	sum := func(acc, x int) int { return acc + x }
+
+	scanned := stream.Scan(s, 0, sum)
+
+	// Initial is the head — no tails should have been forced.
+	v, ok := scanned.First().Get()
+	if !ok || v != 0 {
+		t.Errorf("got (%d, %v), want (0, true)", v, ok)
+	}
+
+	if got := count.Load(); got != 0 {
+		t.Errorf("tails forced %d times at construction, want 0", got)
 	}
 }
 
