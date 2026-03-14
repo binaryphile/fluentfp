@@ -325,11 +325,11 @@ func Difference(a, b []string, lowercase bool) []string {
 func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     // trimAndLower trims whitespace and lowercases.
     trimAndLower := hof.Pipe(strings.TrimSpace, strings.ToLower)
-    // toNormalized trims whitespace, adding lowercasing when requested.
-    toNormalized := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
+    // normalize trims whitespace, adding lowercasing when requested.
+    normalize := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
 
-    normA := a.ToString(toNormalized).NonEmpty()
-    normB := b.ToString(toNormalized).NonEmpty()
+    normA := a.ToString(normalize).NonEmpty()
+    normB := b.ToString(normalize).NonEmpty()
 
     return slice.Difference(normA, normB).Sort(lof.StringAsc)
 }
@@ -387,7 +387,8 @@ countByStatus := func(g G) string {
 	return fmt.Sprintf("%s(%d)", g.Key, g.Len())
 }
 
-combined := slice.GroupSame(statuses).
+combined := slice.
+	GroupSame(statuses).
 	Sort(byKey).
 	ToString(countByStatus).
 	Join(", ")
@@ -745,12 +746,12 @@ func (g *AcyclicGraph) topoOrder(order walkType) []Vertex {
 
 **The same engine, four algorithms:**
 
-| Algorithm | `arrive` | `depart` |
-|-----------|----------|----------|
-| Topological sort | do nothing | collect vertex into result |
-| Connected components | add vertex to component set | do nothing |
-| Reachability | add vertex to reachable set | do nothing |
-| Path finder | extend current path | check if target reached |
+| Algorithm            | `arrive`                    | `depart`                   |
+| -------------------- | --------------------------- | -------------------------- |
+| Topological sort     | do nothing                  | collect vertex into result |
+| Connected components | add vertex to component set | do nothing                 |
+| Reachability         | add vertex to reachable set | do nothing                 |
+| Path finder          | extend current path         | check if target reached    |
 
 One function, four algorithms — only the behavioral arguments change. Terraform's 43 lines couple traversal to behavior, so each new algorithm means copy-paste-modify with the same DFS boilerplate.
 
@@ -898,8 +899,7 @@ func (s *Server) invalidateSession(id string, entMeta *acl.EnterpriseMeta) {
 **fluentfp:**
 ```go
 // At server construction — retry policy defined once, applied everywhere
-backoff := hof.ExponentialBackoff(invalidateRetryBase)
-s.resilientRaftApply = hof.Retry(maxInvalidateAttempts, backoff, s.leaderRaftApply)
+s.resilientRaftApply = hof.Retry(maxInvalidateAttempts, hof.ExponentialBackoff(invalidateRetryBase), s.leaderRaftApply)
 ```
 
 ```go
@@ -929,7 +929,7 @@ func (s *Server) invalidateSession(ctx context.Context, id string, entMeta *acl.
 
 *We presume `leaderRaftApply` has the signature `func(context.Context, T) (R, error)` — the original wraps a Raft apply call that could naturally take this shape.*
 
-**What changed:** The 7-line retry loop — `for` header, `leaderRaftApply`, success check, `time.Sleep` with bit-shift backoff, `continue` — collapses into a decorated `s.resilientRaftApply` defined once at construction time. The function body becomes setup + one call + result check. The backoff strategy is named and reusable across every Raft operation that needs resilience.
+**What changed:** The 7-line retry loop — `for` header, `leaderRaftApply`, success check, `time.Sleep` with bit-shift backoff, `continue` — collapses into a decorated `s.resilientRaftApply` defined once at construction time. The function body becomes setup + one call + result check. The backoff strategy is reusable across every Raft operation that needs resilience.
 
 **What's eliminated:** Manual retry loop, `time.Sleep`, backoff calculation (`1 << attempt * base`), per-iteration control flow. The retry policy is defined once and shared across `invalidateSession`, `invalidateKey`, and similar methods. The original's per-attempt error logging (`s.logger.Error("Invalidation failed")`) is not preserved — `hof.Retry` doesn't expose a per-attempt hook. For code that needs per-attempt logging, `hof.OnErr` can wrap the inner function, though it only receives a `func()` callback without error access.
 
@@ -976,16 +976,16 @@ go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
 **fluentfp:**
 ```go
 // At construction — compose resilience decorators
-backoff := hof.ConstantBackoff(retryInterval)
 throttledCreate := hof.Throttle(routeConcurrency, rc.routes.CreateRoute)
-createRoute := hof.Retry(maxRetries, backoff, throttledCreate)
+createRoute := hof.Retry(maxRetries, hof.ConstantBackoff(retryInterval), throttledCreate)
 ```
 
 ```go
 // At call site — five concerns reduced to one decorated call
 go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
     defer wg.Done()
-    _, err := createRoute(ctx, routeArgs{rc.clusterName, nameHint, route})
+    args := routeArgs{rc.clusterName, nameHint, route}
+    _, err := createRoute(ctx, args)
     if err != nil {
         rc.recorder.Eventf(nodeRef, v1.EventTypeWarning,
             "FailedToCreateRoute", "%v", err)
@@ -1098,14 +1098,12 @@ func (c *Client) unaryClientInterceptor(ctx context.Context, method string, req,
 **fluentfp (conceptual):**
 ```go
 // At interceptor setup — compose retry with error-triggered token refresh
-backoff := hof.ExponentialBackoff(retryBase)
-
 // refreshOnAuthErr triggers a token refresh on any error.
 // OnErr receives func() without error access, so it can't distinguish auth errors.
 refreshOnAuthErr := func() { c.refreshToken() }
 
 invokerWithRefresh := hof.OnErr(invoker, refreshOnAuthErr)
-resilientInvoke := hof.Retry(callOpts.max, backoff, invokerWithRefresh)
+resilientInvoke := hof.Retry(callOpts.max, hof.ExponentialBackoff(retryBase), invokerWithRefresh)
 ```
 
 **What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `hof.Retry` handles the loop and backoff, `hof.OnErr` handles the token refresh trigger. Two gaps are visible: `hof.OnErr` receives `func()` without error access (can't distinguish auth errors from other failures), and `hof.Retry` doesn't support a retry-predicate (can't express `isSafeRetry` or `isContextError` classification). Both are honest limitations this showcase surfaces.
