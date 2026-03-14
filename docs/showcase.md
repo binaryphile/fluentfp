@@ -1571,75 +1571,7 @@ func invert[A, B comparable](original map[A]B) map[B]A {
 var binaryOperationToItemType = kv.Invert(itemTypeToBinaryOperation)
 ```
 
-**What's eliminated:** The entire 12-line generic helper. `kv.Invert` is the operation — the rest was ceremony. HashiCorp Consul has the same pattern ([forwarding.go#L206-L222](https://github.com/hashicorp/consul/blob/main/internal/storage/raft/forwarding.go#L206-L222)) using an IIFE to build a reverse `error`→`codes.Code` lookup, though that case requires `error` keys which aren't `comparable` — a limitation `kv.Invert` honestly can't serve.
-
----
-
-### Label merging — kubernetes/apimachinery
-
-**Source:** [pkg/labels/labels.go#L124-L134](https://github.com/kubernetes/apimachinery/blob/master/pkg/labels/labels.go#L124-L134)
-**Pain point:** Hand-rolled map merge repeated across the ecosystem
-
-Kubernetes (121k stars) merges label sets throughout controllers, admission webhooks, and scheduling. The `Merge` function copies both maps into a new one with second-argument-wins precedence — two identical iteration loops.
-
-**Original:**
-```go
-func Merge(labels1, labels2 Set) Set {
-    mergedMap := Set{}
-    for k, v := range labels1 {
-        mergedMap[k] = v
-    }
-    for k, v := range labels2 {
-        mergedMap[k] = v
-    }
-    return mergedMap
-}
-```
-
-**fluentfp:**
-```go
-func Merge(labels1, labels2 Set) Set {
-    return kv.Merge(labels1, labels2)
-}
-```
-
-**What's eliminated:** Two iteration loops with identical structure. This is the same code pattern that appears in HashiCorp Nomad (`MergeMapStringString`), Docker, and dozens of other Go projects — each independently reimplementing last-wins map merge. `kv.Merge` accepts variadic maps, so 3-way config layering (`kv.Merge(defaults, fileConfig, envConfig)`) needs no additional code.
-
----
-
-### Clone-and-remove label — kubernetes/kubernetes
-
-**Source:** [pkg/util/labels/labels.go#L37-L49](https://github.com/kubernetes/kubernetes/blob/master/pkg/util/labels/labels.go#L37-L49)
-**Pain point:** 8-line clone + delete for removing a single label key
-
-Kubernetes controllers frequently strip internal labels before passing data to other components. The utility clones the map and removes one key.
-
-**Original:**
-```go
-func CloneAndRemoveLabel(labels map[string]string, labelKey string) map[string]string {
-    if labelKey == "" {
-        return labels
-    }
-    newLabels := map[string]string{}
-    for key, value := range labels {
-        newLabels[key] = value
-    }
-    delete(newLabels, labelKey)
-    return newLabels
-}
-```
-
-**fluentfp:**
-```go
-func CloneAndRemoveLabel(labels map[string]string, labelKey string) map[string]string {
-    if labelKey == "" {
-        return labels
-    }
-    return kv.OmitByKeys(labels, []string{labelKey})
-}
-```
-
-**What's eliminated:** The manual clone loop and `delete` call. `kv.OmitByKeys` returns a new map excluding the specified keys — clone + remove in one operation. For the multi-key case (common when stripping several internal labels), the savings compound further.
+**What's eliminated:** The iteration and key/value swap. `kv.Invert` replaces the core logic but not the duplicate detection — Mimir's version panics on duplicate values, while `kv.Invert` silently overwrites (last-wins). If duplicate detection matters, you'd add a validation step. HashiCorp Consul has the same inversion pattern ([forwarding.go#L206-L222](https://github.com/hashicorp/consul/blob/main/internal/storage/raft/forwarding.go#L206-L222)) using an IIFE, though that case uses `error` keys which aren't `comparable` — a limitation `kv.Invert` honestly can't serve.
 
 ---
 
@@ -1690,3 +1622,5 @@ The following examples were investigated but not showcased above — in each cas
 | `.None` | kubernetes (112k) | [util.go#L266-L272](https://github.com/kubernetes/kubernetes/blob/master/pkg/volume/util/util.go) | Loop checking no containers are running (double-negative logic) |
 | `slice.IndexOf` | uber/aresdb (3k) | [slices.go#L17-L35](https://github.com/uber/aresdb/blob/c21bfe58a6d7fecfb8eeb9cc3a98d079ef8e42b2/utils/slices.go#L17-L35) | Two separate functions — `IndexOfStr` and `IndexOfInt` — pre-generics |
 | `slice.Contains` | consul (28k) | [stringslice.go#L11-L18](https://github.com/hashicorp/consul/blob/c81dc8c55148a6331dd0056d9358290e9a60ec43/lib/stringslice/stringslice.go#L11-L18) | String-specific `Contains` utility used across HashiCorp projects |
+| `kv.Merge` | kubernetes (121k) | [labels.go#L124-L134](https://github.com/kubernetes/apimachinery/blob/master/pkg/labels/labels.go#L124-L134) | 7-line two-loop last-wins map merge; same pattern in Nomad `MergeMapStringString` |
+| `kv.OmitByKeys` | kubernetes (121k) | [labels.go#L37-L49](https://github.com/kubernetes/kubernetes/blob/master/pkg/util/labels/labels.go#L37-L49) | 8-line clone + delete for removing a label key |
