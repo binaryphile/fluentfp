@@ -52,9 +52,9 @@ func main() {
 	defaultName := emptyNameOption.Or("default")
 	fmt.Println("defaultName:", defaultName) // default
 
-	// OrZero returns the zero value if not-ok (OrFalse for bools)
+	// OrZero returns the zero value if not-ok (OrFalse is standalone for bool options)
 	fmt.Println("emptyNameOption.OrZero():", emptyNameOption.OrZero()) // ""
-	fmt.Println("notOkBool.OrFalse():", notOkBool.OrFalse()) // false
+	fmt.Println("option.OrFalse(notOkBool):", option.OrFalse(notOkBool)) // false
 
 	// MustGet panics if not-ok — use when ok is an invariant
 	fortyTwo := fortyTwoOption.MustGet()

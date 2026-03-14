@@ -17,7 +17,7 @@ import (
 func main() {
 	// === Environment Variables ===
 
-	home := must.Getenv("HOME")
+	home := must.NonEmptyEnv("HOME")
 	fmt.Println("home:", home) // (varies by system)
 
 	// === File Operations ===

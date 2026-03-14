@@ -25,6 +25,9 @@ type ofCell[T any] struct {
 // If fn panics, the cell resets to pending — subsequent calls retry the function.
 // This differs from sync.Once, which poisons permanently on panic.
 //
+// Reentrancy constraint: fn must not call the returned memoized function,
+// directly or indirectly — this would deadlock on the internal mutex.
+//
 // Panics if fn is nil.
 func Of[T any](fn func() T) func() T {
 	if fn == nil {
@@ -91,12 +94,16 @@ func safeCall[T any](fn func() T) (result T, panicVal any) {
 }
 
 // Fn wraps a single-arg function with an unbounded map cache.
+// Cache-backed, not single-flight: concurrent misses for the same key
+// may compute the value multiple times; the last store wins.
 // Thread-safe. Panics if fn is nil.
 func Fn[K comparable, V any](fn func(K) V) func(K) V {
 	return FnWith(fn, NewMap[K, V]())
 }
 
 // FnWith wraps a single-arg function with a caller-provided cache.
+// Cache-backed, not single-flight: concurrent misses for the same key
+// may compute the value multiple times; the last store wins.
 // Thread-safe (cache must handle its own synchronization).
 // Panics if fn or cache is nil.
 func FnWith[K comparable, V any](fn func(K) V, cache Cache[K, V]) func(K) V {
@@ -120,6 +127,8 @@ func FnWith[K comparable, V any](fn func(K) V, cache Cache[K, V]) func(K) V {
 
 // FnErr wraps a fallible single-arg function with an unbounded map cache.
 // Only successful results are cached — errors trigger retry on subsequent calls.
+// Cache-backed, not single-flight: concurrent misses for the same key
+// may compute the value multiple times; the last store wins.
 // Thread-safe. Panics if fn is nil.
 func FnErr[K comparable, V any](fn func(K) (V, error)) func(K) (V, error) {
 	return FnErrWith(fn, NewMap[K, V]())
@@ -127,6 +136,8 @@ func FnErr[K comparable, V any](fn func(K) (V, error)) func(K) (V, error) {
 
 // FnErrWith wraps a fallible single-arg function with a caller-provided cache.
 // Only successful results are cached — errors trigger retry on subsequent calls.
+// Cache-backed, not single-flight: concurrent misses for the same key
+// may compute the value multiple times; the last store wins.
 // Thread-safe (cache must handle its own synchronization).
 // Panics if fn or cache is nil.
 func FnErrWith[K comparable, V any](fn func(K) (V, error), cache Cache[K, V]) func(K) (V, error) {

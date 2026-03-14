@@ -10,7 +10,7 @@ import (
 )
 
 // This example demonstrates the either package for sum types.
-// Either holds exactly one of two types: Left or Right.
+// Either represents either a Left value or a Right value.
 // Convention: Left = failure, Right = success. Mnemonic: "Right is right."
 
 func main() {
@@ -65,10 +65,10 @@ func main() {
 
 	// === Mapping ===
 
-	// Map transforms the Right value (type-preserving)
+	// Convert transforms the Right value (type-preserving)
 	// doubleInt doubles an integer.
 	doubleInt := func(n int) int { return n * 2 }
-	doubled := ok42.Map(doubleInt)
+	doubled := ok42.Convert(doubleInt)
 	fmt.Println("Doubled:", doubled.Or(0)) // Doubled: 84
 
 	// either.Map transforms to a different type

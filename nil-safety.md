@@ -77,7 +77,7 @@ user := userOpt.Or(defaultUser)
 
 The API names are intuitive:
 - **Creation**: `Of` (always ok), `New` (conditional), `NonZero` (ok if non-zero), `NonNil` (from pointer)
-- **Extraction**: `Get()` (comma-ok), `Or()` (with default), `OrZero()`, `OrFalse()`, `MustGet()` (panic if not ok)
+- **Extraction**: `Get()` (comma-ok), `Or()` (with default), `OrZero()`, `OrFalse()` (standalone for `Option[bool]`), `MustGet()` (panic if not ok)
 
 ## Choosing the Right Defense
 

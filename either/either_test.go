@@ -5,6 +5,60 @@ import (
 	"testing"
 )
 
+// --- Zero value ---
+
+func TestZeroValue(t *testing.T) {
+	t.Run("zero value is Left", func(t *testing.T) {
+		var e Either[string, int]
+		if !e.IsLeft() {
+			t.Error("zero value should be Left")
+		}
+	})
+
+	t.Run("zero value Left contains zero of L", func(t *testing.T) {
+		var e Either[string, int]
+		if l, ok := e.GetLeft(); !ok || l != "" {
+			t.Errorf("zero value GetLeft() = (%v, %v), want (\"\", true)", l, ok)
+		}
+	})
+
+	t.Run("zero value Right returns zero of R", func(t *testing.T) {
+		var e Either[string, int]
+		if r, ok := e.Get(); ok || r != 0 {
+			t.Errorf("zero value Get() = (%v, %v), want (0, false)", r, ok)
+		}
+	})
+
+	t.Run("zero value Either[error, int] is Left(nil)", func(t *testing.T) {
+		var e Either[error, int]
+		if !e.IsLeft() {
+			t.Error("zero Either[error, int] should be Left")
+		}
+		if l, ok := e.GetLeft(); !ok || l != nil {
+			t.Errorf("zero Either[error, int] GetLeft() = (%v, %v), want (nil, true)", l, ok)
+		}
+	})
+
+	t.Run("zero value Or returns default", func(t *testing.T) {
+		var e Either[string, int]
+		if got := e.Or(99); got != 99 {
+			t.Errorf("zero value Or(99) = %v, want 99", got)
+		}
+	})
+
+	t.Run("zero value MustGet panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("MustGet() should panic on zero value")
+			}
+		}()
+		var e Either[string, int]
+		e.MustGet()
+	})
+}
+
+// --- Defaults ---
+
 func TestOr(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -43,33 +97,175 @@ func TestLeftOr(t *testing.T) {
 	}
 }
 
-func TestMap(t *testing.T) {
+// --- Transforms ---
+
+func TestConvert(t *testing.T) {
 	double := func(x int) int { return x * 2 }
 
-	tests := []struct {
-		name      string
-		either    Either[string, int]
-		wantRight int
-		wantLeft  string
-		wantIsRight bool
-	}{
-		{"Right applies function", Right[string, int](5), 10, "", true},
-		{"Left is no-op", Left[string, int]("err"), 0, "err", false},
+	t.Run("Right applies function", func(t *testing.T) {
+		result := Right[string, int](5).Convert(double)
+		if r, ok := result.Get(); !ok || r != 10 {
+			t.Errorf("Convert() = (%v, %v), want (10, true)", r, ok)
+		}
+	})
+
+	t.Run("Left does not call function", func(t *testing.T) {
+		called := false
+		tracking := func(x int) int { called = true; return x * 2 }
+		result := Left[string, int]("err").Convert(tracking)
+		if l, ok := result.GetLeft(); !ok || l != "err" {
+			t.Errorf("Convert() should preserve Left, got (%v, %v)", l, ok)
+		}
+		if called {
+			t.Error("Convert() should not call fn on Left")
+		}
+	})
+}
+
+func TestFlatMapMethod(t *testing.T) {
+	// validate returns Right if positive, Left otherwise.
+	validate := func(n int) Either[string, int] {
+		if n > 0 {
+			return Right[string, int](n * 10)
+		}
+		return Left[string, int]("non-positive")
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.either.Map(double)
-			if tt.wantIsRight {
-				if r, ok := result.Get(); !ok || r != tt.wantRight {
-					t.Errorf("Map() = (%v, %v), want (%v, true)", r, ok, tt.wantRight)
-				}
-			} else {
-				if l, ok := result.GetLeft(); !ok || l != tt.wantLeft {
-					t.Errorf("Map() should preserve Left %q, got (%v, %v)", tt.wantLeft, l, ok)
-				}
-			}
-		})
+
+	t.Run("Right with fn returning Right", func(t *testing.T) {
+		result := Right[string, int](5).FlatMap(validate)
+		if r, ok := result.Get(); !ok || r != 50 {
+			t.Errorf("FlatMap() = (%v, %v), want (50, true)", r, ok)
+		}
+	})
+
+	t.Run("Right with fn returning Left", func(t *testing.T) {
+		result := Right[string, int](-1).FlatMap(validate)
+		if l, ok := result.GetLeft(); !ok || l != "non-positive" {
+			t.Errorf("FlatMap() = (%v, %v), want (non-positive, true)", l, ok)
+		}
+	})
+
+	t.Run("Left short-circuits", func(t *testing.T) {
+		called := false
+		tracking := func(n int) Either[string, int] {
+			called = true
+			return Right[string, int](n)
+		}
+		result := Left[string, int]("error").FlatMap(tracking)
+		if _, ok := result.GetLeft(); !ok {
+			t.Error("FlatMap() on Left should return Left")
+		}
+		if called {
+			t.Error("FlatMap() should not call fn on Left")
+		}
+	})
+}
+
+func TestFlatMapLeft(t *testing.T) {
+	// recover converts a string error to a default Right value.
+	recover := func(s string) Either[string, int] {
+		if s == "recoverable" {
+			return Right[string, int](0)
+		}
+		return Left[string, int]("fatal: " + s)
 	}
+
+	t.Run("Left with recovery returning Right", func(t *testing.T) {
+		result := Left[string, int]("recoverable").FlatMapLeft(recover)
+		if r, ok := result.Get(); !ok || r != 0 {
+			t.Errorf("FlatMapLeft() = (%v, %v), want (0, true)", r, ok)
+		}
+	})
+
+	t.Run("Left with recovery returning Left", func(t *testing.T) {
+		result := Left[string, int]("permanent").FlatMapLeft(recover)
+		if l, ok := result.GetLeft(); !ok || l != "fatal: permanent" {
+			t.Errorf("FlatMapLeft() = (%v, %v), want (fatal: permanent, true)", l, ok)
+		}
+	})
+
+	t.Run("Right short-circuits", func(t *testing.T) {
+		called := false
+		tracking := func(s string) Either[string, int] {
+			called = true
+			return Right[string, int](0)
+		}
+		result := Right[string, int](42).FlatMapLeft(tracking)
+		if r, ok := result.Get(); !ok || r != 42 {
+			t.Errorf("FlatMapLeft() should preserve Right, got (%v, %v)", r, ok)
+		}
+		if called {
+			t.Error("FlatMapLeft() should not call fn on Right")
+		}
+	})
+}
+
+func TestFlatMapStandalone(t *testing.T) {
+	// parseInt returns Right[int] if input is "42", Left otherwise.
+	parseInt := func(s string) Either[error, int] {
+		if s == "42" {
+			return Right[error, int](42)
+		}
+		return Left[error, int](fmt.Errorf("bad input: %s", s))
+	}
+
+	t.Run("Right with fn returning Right", func(t *testing.T) {
+		e := Right[error, string]("42")
+		result := FlatMap(e, parseInt)
+		if r, ok := result.Get(); !ok || r != 42 {
+			t.Errorf("FlatMap() = (%v, %v), want (42, true)", r, ok)
+		}
+	})
+
+	t.Run("Right with fn returning Left", func(t *testing.T) {
+		e := Right[error, string]("bad")
+		result := FlatMap(e, parseInt)
+		if _, ok := result.GetLeft(); !ok {
+			t.Error("FlatMap() should return Left for bad input")
+		}
+	})
+
+	t.Run("Left short-circuits", func(t *testing.T) {
+		called := false
+		tracking := func(s string) Either[error, int] {
+			called = true
+			return Right[error, int](0)
+		}
+		e := Left[error, string](fmt.Errorf("original"))
+		result := FlatMap(e, tracking)
+		if l, ok := result.GetLeft(); !ok || l.Error() != "original" {
+			t.Errorf("FlatMap() should preserve Left, got (%v, %v)", l, ok)
+		}
+		if called {
+			t.Error("standalone FlatMap() should not call fn on Left")
+		}
+	})
+}
+
+func TestSwapMethod(t *testing.T) {
+	t.Run("Right becomes Left", func(t *testing.T) {
+		e := Right[string, int](42)
+		swapped := e.Swap()
+		if l, ok := swapped.GetLeft(); !ok || l != 42 {
+			t.Errorf("Swap() Right(42) should be Left(42), got (%v, %v)", l, ok)
+		}
+	})
+
+	t.Run("Left becomes Right", func(t *testing.T) {
+		e := Left[string, int]("error")
+		swapped := e.Swap()
+		if r, ok := swapped.Get(); !ok || r != "error" {
+			t.Errorf("Swap() Left(error) should be Right(error), got (%v, %v)", r, ok)
+		}
+	})
+
+	t.Run("double swap is identity", func(t *testing.T) {
+		e := Right[string, int](42)
+		roundtrip := e.Swap().Swap()
+		if r, ok := roundtrip.Get(); !ok || r != 42 {
+			t.Errorf("Swap().Swap() should be identity, got (%v, %v)", r, ok)
+		}
+	})
 }
 
 func TestFold(t *testing.T) {
@@ -93,7 +289,6 @@ func TestFold(t *testing.T) {
 	}
 }
 
-// TestMapFunc tests the package-level Map function for type-changing transforms.
 func TestMapFunc(t *testing.T) {
 	itoa := func(i int) string { return fmt.Sprintf("%d", i) }
 
@@ -105,16 +300,20 @@ func TestMapFunc(t *testing.T) {
 		}
 	})
 
-	t.Run("Left preserves error", func(t *testing.T) {
+	t.Run("Left does not call function", func(t *testing.T) {
+		called := false
+		tracking := func(i int) string { called = true; return fmt.Sprintf("%d", i) }
 		e := Left[string, int]("error")
-		result := Map(e, itoa)
+		result := Map(e, tracking)
 		if l, ok := result.GetLeft(); !ok || l != "error" {
 			t.Errorf("Map() should preserve Left, got (%v, %v)", l, ok)
+		}
+		if called {
+			t.Error("Map() should not call fn on Left")
 		}
 	})
 }
 
-// TestMapLeft tests the package-level MapLeft function.
 func TestMapLeft(t *testing.T) {
 	upper := func(s string) string { return "ERR:" + s }
 
@@ -126,16 +325,22 @@ func TestMapLeft(t *testing.T) {
 		}
 	})
 
-	t.Run("Right preserves value", func(t *testing.T) {
+	t.Run("Right does not call function", func(t *testing.T) {
+		called := false
+		tracking := func(s string) string { called = true; return "ERR:" + s }
 		e := Right[string, int](42)
-		result := MapLeft(e, upper)
+		result := MapLeft(e, tracking)
 		if r, ok := result.Get(); !ok || r != 42 {
 			t.Errorf("MapLeft() should preserve Right, got (%v, %v)", r, ok)
+		}
+		if called {
+			t.Error("MapLeft() should not call fn on Right")
 		}
 	})
 }
 
-// TestMustGet tests panic behavior for MustGet.
+// --- Panics ---
+
 func TestMustGet(t *testing.T) {
 	t.Run("Right returns value", func(t *testing.T) {
 		e := Right[string, int](42)
@@ -155,7 +360,6 @@ func TestMustGet(t *testing.T) {
 	})
 }
 
-// TestMustGetLeft tests panic behavior for MustGetLeft.
 func TestMustGetLeft(t *testing.T) {
 	t.Run("Left returns value", func(t *testing.T) {
 		e := Left[string, int]("error")
@@ -175,7 +379,8 @@ func TestMustGetLeft(t *testing.T) {
 	})
 }
 
-// TestIfRight tests side-effect execution for Right values.
+// --- Side effects ---
+
 func TestIfRight(t *testing.T) {
 	t.Run("Right calls function", func(t *testing.T) {
 		called := false
@@ -196,7 +401,6 @@ func TestIfRight(t *testing.T) {
 	})
 }
 
-// TestIfLeft tests side-effect execution for Left values.
 func TestIfLeft(t *testing.T) {
 	t.Run("Left calls function", func(t *testing.T) {
 		called := false
@@ -217,7 +421,8 @@ func TestIfLeft(t *testing.T) {
 	})
 }
 
-// TestOrCall tests lazy default for Right values.
+// --- Lazy defaults ---
+
 func TestOrCall(t *testing.T) {
 	t.Run("Right returns value without calling", func(t *testing.T) {
 		called := false
@@ -244,7 +449,6 @@ func TestOrCall(t *testing.T) {
 	})
 }
 
-// TestLeftOrCall tests lazy default for Left values.
 func TestLeftOrCall(t *testing.T) {
 	t.Run("Left returns value without calling", func(t *testing.T) {
 		called := false

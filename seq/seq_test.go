@@ -608,6 +608,75 @@ func TestCollectEmpty(t *testing.T) {
 	}
 }
 
+// --- Range safety ---
+
+func TestRangeSafety(t *testing.T) {
+	t.Run("Empty", func(t *testing.T) {
+		for range Empty[int]() {
+			t.Fatal("Empty should yield nothing")
+		}
+	})
+	t.Run("From nil", func(t *testing.T) {
+		for range From[int](nil) {
+			t.Fatal("From(nil) should yield nothing")
+		}
+	})
+	t.Run("From empty", func(t *testing.T) {
+		for range From([]int{}) {
+			t.Fatal("From(empty) should yield nothing")
+		}
+	})
+	t.Run("FromIter nil", func(t *testing.T) {
+		for range FromIter[int](nil) {
+			t.Fatal("FromIter(nil) should yield nothing")
+		}
+	})
+	t.Run("chained lazy on empty", func(t *testing.T) {
+		isPositive := func(n int) bool { return n > 0 }
+		for range From[int](nil).KeepIf(isPositive).Take(5) {
+			t.Fatal("chained lazy on empty should yield nothing")
+		}
+	})
+	t.Run("Iter on zero value", func(t *testing.T) {
+		var s Seq[int]
+		for range s.Iter() {
+			t.Fatal("Iter on zero value should yield nothing")
+		}
+	})
+}
+
+func TestNilReceiverLazyOps(t *testing.T) {
+	var s Seq[int]
+	identity := func(v int) int { return v }
+	alwaysTrue := func(v int) bool { return true }
+
+	cases := []struct {
+		name string
+		seq  Seq[int]
+	}{
+		{"KeepIf", s.KeepIf(alwaysTrue)},
+		{"RemoveIf", s.RemoveIf(alwaysTrue)},
+		{"Convert", s.Convert(identity)},
+		{"Take", s.Take(5)},
+		{"Drop", s.Drop(1)},
+		{"TakeWhile", s.TakeWhile(alwaysTrue)},
+		{"DropWhile", s.DropWhile(alwaysTrue)},
+		{"Map", Map(s, identity)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.seq == nil {
+				t.Fatal("returned nil Seq; want non-nil empty Seq")
+			}
+
+			for range tc.seq {
+				t.Fatal("should yield nothing")
+			}
+		})
+	}
+}
+
 // --- Cross-type Map with chaining ---
 
 func TestMapChain(t *testing.T) {

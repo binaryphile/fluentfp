@@ -2,8 +2,10 @@ package must
 
 import (
 	"errors"
+	"fmt"
 	"os"
-	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -15,7 +17,7 @@ func TestBeNil(t *testing.T) {
 	}{
 		{
 			name:      "panic on non-nil",
-			err:       errors.New(""),
+			err:       errors.New("test error"),
 			wantPanic: true,
 		},
 		{
@@ -27,17 +29,17 @@ func TestBeNil(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer func() {
-				switch r := recover(); r {
-				case nil:
-					if tt.wantPanic {
-						t.Error("BeNil() did not panic")
+				r := recover()
+				if tt.wantPanic {
+					if r == nil {
+						t.Fatal("BeNil() did not panic")
 					}
-				default:
-					if !tt.wantPanic {
-						t.Error("BeNil() panicked")
+					if r != tt.err {
+						t.Errorf("BeNil() panicked with %v, want exact error %v", r, tt.err)
 					}
+				} else if r != nil {
+					t.Errorf("BeNil() panicked unexpectedly: %v", r)
 				}
-
 			}()
 
 			BeNil(tt.err)
@@ -46,207 +48,208 @@ func TestBeNil(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	type args[T any] struct {
-		t   T
-		err error
-	}
-	type testCase[T any] struct {
-		name      string
-		args      args[T]
-		want      T
-		wantPanic bool
-	}
-	tests := []testCase[int]{
-		{
-			name:      "panic on error",
-			args:      args[int]{err: errors.New("")},
-			wantPanic: true,
-		},
-		{
-			name: "return value on no error",
-			args: args[int]{t: 1},
-			want: 1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				switch r := recover(); r {
-				case nil:
-				default:
-					if !tt.wantPanic {
-						t.Error("Get() panicked")
-					}
-				}
-			}()
+	t.Run("panic preserves exact error", func(t *testing.T) {
+		sentinel := errors.New("sentinel")
 
-			if got := Get(tt.args.t, tt.args.err); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Get() = %v, want %v", got, tt.want)
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("Get() did not panic")
 			}
-		})
-	}
+			if r != sentinel {
+				t.Errorf("Get() panicked with %v, want exact error %v", r, sentinel)
+			}
+		}()
+
+		Get(0, sentinel)
+	})
+
+	t.Run("return value on no error", func(t *testing.T) {
+		if got := Get(42, nil); got != 42 {
+			t.Errorf("Get() = %v, want 42", got)
+		}
+	})
+
+	t.Run("errors.Is traverses chain after recovery", func(t *testing.T) {
+		sentinel := errors.New("root cause")
+		wrapped := fmt.Errorf("context: %w", sentinel)
+
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("Get() did not panic")
+			}
+			err, ok := r.(error)
+			if !ok {
+				t.Fatalf("Get() panicked with %T, want error", r)
+			}
+			if !errors.Is(err, sentinel) {
+				t.Error("errors.Is could not find sentinel through wrapper after recovery")
+			}
+		}()
+
+		Get(0, wrapped)
+	})
 }
 
 func TestGet2(t *testing.T) {
-	type args[T any, T2 any] struct {
-		t   T
-		t2  T2
-		err error
-	}
-	type testCase[T any, T2 any] struct {
-		name      string
-		args      args[T, T2]
-		want      T
-		want2     T2
-		wantPanic bool
-	}
-	tests := []testCase[int, int]{
-		{
-			name:      "panic on error",
-			args:      args[int, int]{err: errors.New("")},
-			wantPanic: true,
-		},
-		{
-			name:  "return values on no error",
-			args:  args[int, int]{t: 1, t2: 2},
-			want:  1,
-			want2: 2,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				switch r := recover(); r {
-				case nil:
-					if tt.wantPanic {
-						t.Error("Get2() did not panic")
-					}
-				default:
-					if !tt.wantPanic {
-						t.Error("Get2() panicked")
-					}
-				}
-			}()
+	t.Run("panic preserves exact error", func(t *testing.T) {
+		sentinel := errors.New("sentinel")
 
-			got, got2 := Get2(tt.args.t, tt.args.t2, tt.args.err)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Get2() got = %v, want %v", got, tt.want)
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("Get2() did not panic")
 			}
-			if !reflect.DeepEqual(got2, tt.want2) {
-				t.Errorf("Get2() got1 = %v, want %v", got2, tt.want2)
+			if r != sentinel {
+				t.Errorf("Get2() panicked with %v, want exact error %v", r, sentinel)
 			}
-		})
-	}
+		}()
+
+		Get2(0, 0, sentinel)
+	})
+
+	t.Run("return values on no error", func(t *testing.T) {
+		got1, got2 := Get2(1, 2, nil)
+		if got1 != 1 {
+			t.Errorf("Get2() got1 = %v, want 1", got1)
+		}
+		if got2 != 2 {
+			t.Errorf("Get2() got2 = %v, want 2", got2)
+		}
+	})
 }
 
-func TestGetenv(t *testing.T) {
-	tests := []struct {
-		name      string
-		key       string
-		valueOpt  *string
-		want      string
-		wantPanic bool
-	}{
-		{
-			name:      "panic on non-existent key",
-			key:       "TEST_GETENV_KEY",
-			wantPanic: true,
-		},
-		{
-			name:      "panic on empty value",
-			key:       "TEST_GETENV_KEY",
-			valueOpt:  OptOf(""),
-			wantPanic: true,
-		},
-		{
-			name:     "return value on extant key",
-			key:      "TEST_GETENV_KEY",
-			valueOpt: OptOf("value"),
-			want:     "value",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				switch r := recover(); r {
-				case nil:
-					if tt.wantPanic {
-						t.Error("Getenv() did not panic")
-					}
-				default:
-					if !tt.wantPanic {
-						t.Error("Getenv() panicked")
-					}
-				}
-			}()
-
-			switch tt.valueOpt {
-			case nil:
-				if err := os.Unsetenv(tt.key); err != nil {
-					t.Fatal("couldn't unset environment variable")
-				}
-			default:
-				if err := os.Setenv(tt.key, *tt.valueOpt); err != nil {
-					t.Fatal("couldn't set environment variable")
-				}
-				defer func() {
-					if err := os.Unsetenv(tt.key); err != nil {
-						t.Log("couldn't unset environment variable")
-					}
-				}()
-			}
-
-			if got := Getenv(tt.key); got != tt.want {
-				t.Errorf("Getenv() = %v, want %v", got, tt.want)
+func TestNonEmptyEnv(t *testing.T) {
+	t.Run("panic on unset wraps ErrEnvUnset", func(t *testing.T) {
+		key := "MUST_TEST_UNSET"
+		old, had := os.LookupEnv(key)
+		os.Unsetenv(key)
+		t.Cleanup(func() {
+			if had {
+				os.Setenv(key, old)
+			} else {
+				os.Unsetenv(key)
 			}
 		})
-	}
+
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("NonEmptyEnv() did not panic")
+			}
+			err, ok := r.(error)
+			if !ok {
+				t.Fatalf("NonEmptyEnv() panicked with %T, want error", r)
+			}
+			if !errors.Is(err, ErrEnvUnset) {
+				t.Error("expected errors.Is(err, ErrEnvUnset)")
+			}
+		}()
+
+		NonEmptyEnv(key)
+	})
+
+	t.Run("panic on empty wraps ErrEnvEmpty", func(t *testing.T) {
+		t.Setenv("MUST_TEST_EMPTY", "")
+
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("NonEmptyEnv() did not panic")
+			}
+			err, ok := r.(error)
+			if !ok {
+				t.Fatalf("NonEmptyEnv() panicked with %T, want error", r)
+			}
+			if !errors.Is(err, ErrEnvEmpty) {
+				t.Error("expected errors.Is(err, ErrEnvEmpty)")
+			}
+		}()
+
+		NonEmptyEnv("MUST_TEST_EMPTY")
+	})
+
+	t.Run("return value on non-empty", func(t *testing.T) {
+		t.Setenv("MUST_TEST_SET", "hello")
+
+		if got := NonEmptyEnv("MUST_TEST_SET"); got != "hello" {
+			t.Errorf("NonEmptyEnv() = %v, want hello", got)
+		}
+	})
+
+	t.Run("panic message includes key", func(t *testing.T) {
+		key := "MUST_TEST_KEY_IN_MSG"
+
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("NonEmptyEnv() did not panic")
+			}
+			err, ok := r.(error)
+			if !ok {
+				t.Fatalf("NonEmptyEnv() panicked with %T, want error", r)
+			}
+			msg := err.Error()
+			if !strings.Contains(msg, key) {
+				t.Errorf("panic message %q does not contain key %q", msg, key)
+			}
+		}()
+
+		NonEmptyEnv(key)
+	})
 }
 
 func TestOf(t *testing.T) {
-	type testCase[T any, R any] struct {
-		name      string
-		t         T
-		fn        func(T) R
-		want      R
-		wantPanic bool
-	}
-	tests := []testCase[int, int]{
-		{
-			name:      "panic on error",
-			fn:        Of(func(int) (int, error) { return 0, errors.New("") }),
-			t:         0,
-			wantPanic: true,
-		},
-		{
-			name: "return value on no error",
-			fn:   Of(func(int) (int, error) { return 1, nil }),
-			t:    0,
-			want: 1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				switch r := recover(); r {
-				case nil:
-					if tt.wantPanic {
-						t.Error("Of() did not panic")
-					}
-				default:
-					if !tt.wantPanic {
-						t.Error("Of() panicked")
-					}
-				}
-			}()
+	t.Run("panic on error preserves exact error", func(t *testing.T) {
+		sentinel := errors.New("sentinel")
+		fn := Of(func(int) (int, error) { return 0, sentinel })
 
-			if got := tt.fn(tt.t); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Of() = %v, want %v", got, tt.want)
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("Of-wrapped function did not panic")
 			}
-		})
-	}
+			if r != sentinel {
+				t.Errorf("panicked with %v, want exact error %v", r, sentinel)
+			}
+		}()
+
+		fn(0)
+	})
+
+	t.Run("return value on no error", func(t *testing.T) {
+		fn := Of(func(n int) (int, error) { return n * 2, nil })
+
+		if got := fn(21); got != 42 {
+			t.Errorf("Of-wrapped function = %v, want 42", got)
+		}
+	})
+
+	t.Run("argument forwarding", func(t *testing.T) {
+		fn := Of(strconv.Atoi)
+
+		if got := fn("123"); got != 123 {
+			t.Errorf("Of(strconv.Atoi)(\"123\") = %v, want 123", got)
+		}
+	})
+
+	t.Run("nil function panics immediately wrapping ErrNilFunction", func(t *testing.T) {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("Of(nil) did not panic")
+			}
+			err, ok := r.(error)
+			if !ok {
+				t.Fatalf("Of(nil) panicked with %T, want error", r)
+			}
+			if !errors.Is(err, ErrNilFunction) {
+				t.Error("expected errors.Is(err, ErrNilFunction)")
+			}
+		}()
+
+		Of[int, int](nil)
+	})
 }
 
-func OptOf(s string) *string {
-	return &s
-}

@@ -1,6 +1,11 @@
 package base
 
-import "strings"
+import (
+	"math"
+	"strings"
+
+	"github.com/binaryphile/fluentfp/option"
+)
 
 type Float64 []float64
 
@@ -13,32 +18,48 @@ func (fs Float64) Sum() float64 {
 	return sum
 }
 
-// Max returns the largest element, or zero if the slice is empty.
-func (fs Float64) Max() float64 {
-	if len(fs) == 0 {
-		return 0
-	}
-	m := fs[0]
-	for _, v := range fs[1:] {
-		if v > m {
+// Max returns the largest non-NaN element, or not-ok if the slice is empty
+// or contains only NaN values. NaN elements are skipped.
+// Signed zeros: -0.0 and +0.0 are equal per IEEE 754; the result depends on
+// input order when both are present. Use [math.Copysign] if sign matters.
+func (fs Float64) Max() option.Option[float64] {
+	var m float64
+	found := false
+	for _, v := range fs {
+		if math.IsNaN(v) {
+			continue
+		}
+		if !found || v > m {
 			m = v
+			found = true
 		}
 	}
-	return m
+	if !found {
+		return option.NotOk[float64]()
+	}
+	return option.Of(m)
 }
 
-// Min returns the smallest element, or zero if the slice is empty.
-func (fs Float64) Min() float64 {
-	if len(fs) == 0 {
-		return 0
-	}
-	m := fs[0]
-	for _, v := range fs[1:] {
-		if v < m {
+// Min returns the smallest non-NaN element, or not-ok if the slice is empty
+// or contains only NaN values. NaN elements are skipped.
+// Signed zeros: -0.0 and +0.0 are equal per IEEE 754; the result depends on
+// input order when both are present. Use [math.Copysign] if sign matters.
+func (fs Float64) Min() option.Option[float64] {
+	var m float64
+	found := false
+	for _, v := range fs {
+		if math.IsNaN(v) {
+			continue
+		}
+		if !found || v < m {
 			m = v
+			found = true
 		}
 	}
-	return m
+	if !found {
+		return option.NotOk[float64]()
+	}
+	return option.Of(m)
 }
 
 type Int []int
@@ -52,10 +73,10 @@ func (is Int) Sum() int {
 	return sum
 }
 
-// Max returns the largest element, or zero if the slice is empty.
-func (is Int) Max() int {
+// Max returns the largest element, or not-ok if the slice is empty.
+func (is Int) Max() option.Option[int] {
 	if len(is) == 0 {
-		return 0
+		return option.NotOk[int]()
 	}
 	m := is[0]
 	for _, v := range is[1:] {
@@ -63,13 +84,13 @@ func (is Int) Max() int {
 			m = v
 		}
 	}
-	return m
+	return option.Of(m)
 }
 
-// Min returns the smallest element, or zero if the slice is empty.
-func (is Int) Min() int {
+// Min returns the smallest element, or not-ok if the slice is empty.
+func (is Int) Min() option.Option[int] {
 	if len(is) == 0 {
-		return 0
+		return option.NotOk[int]()
 	}
 	m := is[0]
 	for _, v := range is[1:] {
@@ -77,7 +98,7 @@ func (is Int) Min() int {
 			m = v
 		}
 	}
-	return m
+	return option.Of(m)
 }
 
 type String []string
@@ -118,12 +139,6 @@ func (ss String) ContainsAny(targets []string) bool {
 		}
 	}
 	return false
-}
-
-// Matches returns true if ss contains any element in filter.
-// Returns true if filter is empty (no constraint).
-func (ss String) Matches(filter []string) bool {
-	return len(filter) == 0 || ss.ContainsAny(filter)
 }
 
 // Each calls fn for every element.

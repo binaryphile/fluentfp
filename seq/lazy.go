@@ -8,7 +8,7 @@ func (s Seq[T]) KeepIf(fn func(T) bool) Seq[T] {
 	}
 
 	if s == nil {
-		return nil
+		return Empty[T]()
 	}
 
 	return Seq[T](func(yield func(T) bool) {
@@ -29,7 +29,7 @@ func (s Seq[T]) RemoveIf(fn func(T) bool) Seq[T] {
 	}
 
 	if s == nil {
-		return nil
+		return Empty[T]()
 	}
 
 	return Seq[T](func(yield func(T) bool) {
@@ -50,7 +50,7 @@ func (s Seq[T]) Convert(fn func(T) T) Seq[T] {
 	}
 
 	if s == nil {
-		return nil
+		return Empty[T]()
 	}
 
 	return Seq[T](func(yield func(T) bool) {
@@ -66,7 +66,7 @@ func (s Seq[T]) Convert(fn func(T) T) Seq[T] {
 // If n <= 0, yields nothing.
 func (s Seq[T]) Take(n int) Seq[T] {
 	if s == nil || n <= 0 {
-		return nil
+		return Empty[T]()
 	}
 
 	return Seq[T](func(yield func(T) bool) {
@@ -86,7 +86,7 @@ func (s Seq[T]) Take(n int) Seq[T] {
 // If n <= 0, yields all elements.
 func (s Seq[T]) Drop(n int) Seq[T] {
 	if s == nil {
-		return nil
+		return Empty[T]()
 	}
 
 	if n <= 0 {
@@ -118,7 +118,7 @@ func (s Seq[T]) TakeWhile(fn func(T) bool) Seq[T] {
 	}
 
 	if s == nil {
-		return nil
+		return Empty[T]()
 	}
 
 	return Seq[T](func(yield func(T) bool) {
@@ -139,7 +139,7 @@ func (s Seq[T]) DropWhile(fn func(T) bool) Seq[T] {
 	}
 
 	if s == nil {
-		return nil
+		return Empty[T]()
 	}
 
 	return Seq[T](func(yield func(T) bool) {

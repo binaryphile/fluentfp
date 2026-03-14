@@ -182,7 +182,7 @@ Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent
 
 Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `Convert`, `Find`, `FlatMap`, etc.
 
-Standalone functions for operations needing extra type parameters or custom traversal: `FlatMap`, `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`, `GroupBy`, `KeyBy`, `Partition`. `GroupBy` lives in the `slice` package — it returns `Mapper[Group[K, T]]` for direct chaining. Map-consuming standalone functions live in `kv` (`kv.Values`, `kv.MapTo[T]`).
+Standalone functions for operations needing extra type parameters or custom traversal: `FlatMap`, `PFlatMap`, `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`, `GroupBy`, `KeyBy`, `Partition`. `GroupBy` lives in the `slice` package — it returns `Mapper[Group[K, T]]` for direct chaining. Map-consuming standalone functions live in `kv` (`kv.Values`, `kv.MapTo[T]`).
 
 **Why:** Go methods cannot introduce new type parameters (the D2 constraint). Standalone functions can.
 
@@ -374,6 +374,11 @@ until the caller is ready to extract.
 **KeepIf/RemoveIf on Entries:** Filter map entries by a `func(K, V) bool` predicate,
 returning `Entries` for further chaining. Mirrors `Mapper.KeepIf`/`RemoveIf` but
 with both key and value available to the predicate.
+
+**pair dependency:** `ToPairs`/`FromPairs` introduce `kv → pair`. This is the one
+exception to the "kv depends only on internal/base" rule. The dependency is safe —
+`pair` has zero imports and cannot create cycles. The alternative (duplicating Pair
+in `internal/base` or using `[2]any`) is worse than a clean edge to a leaf package.
 
 ### D19: memo — Memoization as state machine
 
@@ -580,7 +585,7 @@ All collection and option operations handle nil input without panic:
 
 **Clone** preserves nil (nil in, nil out) — deliberate, maintains the caller's nil/empty distinction.
 
-**FlatMap** always returns non-nil. The standalone, `Mapper`, and `MapperTo` implementations all use `make([]T, 0, ...)`, so the result is non-nil even when no elements are produced.
+**FlatMap** always returns non-nil. The standalone, `PFlatMap`, `Mapper`, and `MapperTo` implementations all use `make([]T, 0, ...)`, so the result is non-nil even when no elements are produced.
 
 **Exception:** `pair.Zip` and `pair.ZipWith` panic on length mismatch. This is a precondition violation, not a nil issue — `Zip(nil, nil)` returns an empty slice without panic.
 
@@ -618,7 +623,8 @@ Where packages depend on each other, and why:
 | `Heap.Min` → `option.Option[T]` | Same pattern as `Mapper.Find` — empty heap is normal, not exceptional. |
 | `Seq.Find` → `option.Option[T]` | Same pattern — no match is normal. |
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
+| `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
 
-`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends only on `pair`. `stream`, `seq`, `heap`, and `value` depend only on `option`. `slice` depends on `internal/base` and `rslt`; `kv` depends only on `internal/base` — neither imports the other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends only on `pair`. `stream`, `seq`, `heap`, and `value` depend only on `option`. `slice` depends on `internal/base` and `rslt`; `kv` depends on `internal/base` and `pair` — neither `kv` nor `slice` imports the other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.

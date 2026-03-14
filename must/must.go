@@ -1,9 +1,19 @@
 package must
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
+
+// ErrEnvUnset indicates the environment variable is not set.
+var ErrEnvUnset = errors.New("environment variable unset")
+
+// ErrEnvEmpty indicates the environment variable is set but empty.
+var ErrEnvEmpty = errors.New("environment variable empty")
+
+// ErrNilFunction indicates a nil function was passed where one is required.
+var ErrNilFunction = errors.New("nil function")
 
 // BeNil panics if err is not nil.
 func BeNil(err error) {
@@ -32,21 +42,29 @@ func Get2[T, T2 any](t T, t2 T2, err error) (T, T2) {
 	return t, t2
 }
 
-// Getenv returns the value in the environment variable named by key.
-// It panics if the environment variable doesn't exist or is empty.
-func Getenv(key string) string {
-	result := os.Getenv(key)
-
-	if result == "" {
-		panic(fmt.Sprintf("expected value for environment variable %s", key))
+// NonEmptyEnv returns the value of the environment variable named by key.
+// It panics if the variable is unset or empty.
+// The panic value wraps [ErrEnvUnset] or [ErrEnvEmpty] for errors.Is matching.
+func NonEmptyEnv(key string) string {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		panic(fmt.Errorf("must.NonEmptyEnv(%q): %w", key, ErrEnvUnset))
+	}
+	if v == "" {
+		panic(fmt.Errorf("must.NonEmptyEnv(%q): %w", key, ErrEnvEmpty))
 	}
 
-	return result
+	return v
 }
 
 // Of returns the "must" version of fn.
 // fn must be a single-argument function.
+// Panics immediately if fn is nil, wrapping [ErrNilFunction].
 func Of[T, R any](fn func(T) (R, error)) func(T) R {
+	if fn == nil {
+		panic(fmt.Errorf("must.Of: %w", ErrNilFunction))
+	}
+
 	return func(t T) R {
 		result, err := fn(t)
 		BeNil(err)

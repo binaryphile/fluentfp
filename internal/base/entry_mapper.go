@@ -7,8 +7,9 @@ type EntryMapper[T any, K comparable, V any] struct {
 }
 
 // NewEntryMapper creates an EntryMapper for transformation to type T.
-func NewEntryMapper[T any, K comparable, V any](m map[K]V) EntryMapper[T, K, V] {
-	return EntryMapper[T, K, V]{m: m}
+// Accepts any map type with underlying type map[K]V, including defined types like Entries.
+func NewEntryMapper[T any, K comparable, V any, M ~map[K]V](m M) EntryMapper[T, K, V] {
+	return EntryMapper[T, K, V]{m: map[K]V(m)}
 }
 
 // Map transforms each key-value pair using fn and returns the results

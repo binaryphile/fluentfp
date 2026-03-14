@@ -1,7 +1,10 @@
 // Package kv provides fluent operations on Go maps (key-value collections).
 package kv
 
-import "github.com/binaryphile/fluentfp/internal/base"
+import (
+	"github.com/binaryphile/fluentfp/internal/base"
+	"github.com/binaryphile/fluentfp/tuple/pair"
+)
 
 // Entries is a defined type over map[K]V.
 // Indexing, ranging, and len all work as with a plain map.
@@ -33,7 +36,12 @@ func Keys[K comparable, V any](m map[K]V) base.Mapper[K] {
 // as a Mapper. All type parameters are inferred from the arguments.
 // Use MapTo[T](m).Map(fn) when explicit type specification is needed.
 // Order is not guaranteed (map iteration order).
+// Panics if fn is nil.
 func Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) base.Mapper[T] {
+	if fn == nil {
+		panic("kv.Map: fn must not be nil")
+	}
+
 	result := make([]T, 0, len(m))
 	for k, v := range m {
 		result = append(result, fn(k, v))
@@ -44,7 +52,12 @@ func Map[K comparable, V, T any](m map[K]V, fn func(K, V) T) base.Mapper[T] {
 
 // MapValues transforms each value in m using fn, preserving keys.
 // Returns Entries for chaining (e.g., MapValues(m, fn).KeepIf(pred).Values()).
+// Panics if fn is nil.
 func MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) base.Entries[K, V2] {
+	if fn == nil {
+		panic("kv.MapValues: fn must not be nil")
+	}
+
 	result := make(map[K]V2, len(m))
 	for k, v := range m {
 		result[k] = fn(v)
@@ -57,6 +70,28 @@ func MapValues[K comparable, V, V2 any](m map[K]V, fn func(V) V2) base.Entries[K
 // Usage: kv.MapTo[TargetType](m).Map(fn)
 func MapTo[T any, K comparable, V any](m map[K]V) MapperTo[T, K, V] {
 	return base.NewEntryMapper[T](m)
+}
+
+// ToPairs converts a map to a slice of key-value pairs.
+// Order is not guaranteed (map iteration order).
+func ToPairs[K comparable, V any](m map[K]V) base.Mapper[pair.Pair[K, V]] {
+	result := make([]pair.Pair[K, V], 0, len(m))
+	for k, v := range m {
+		result = append(result, pair.Of(k, v))
+	}
+
+	return result
+}
+
+// FromPairs converts a slice of key-value pairs to Entries.
+// If duplicate keys exist, the last pair wins.
+func FromPairs[K comparable, V any](pairs []pair.Pair[K, V]) Entries[K, V] {
+	result := make(map[K]V, len(pairs))
+	for _, p := range pairs {
+		result[p.First] = p.Second
+	}
+
+	return result
 }
 
 // Invert swaps keys and values. If multiple keys map to the same value,

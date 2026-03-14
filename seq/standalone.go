@@ -9,7 +9,7 @@ func Map[T, R any](s Seq[T], fn func(T) R) Seq[R] {
 	}
 
 	if s == nil {
-		return nil
+		return Empty[R]()
 	}
 
 	return Seq[R](func(yield func(R) bool) {

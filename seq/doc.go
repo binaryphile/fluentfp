@@ -8,6 +8,7 @@
 package seq
 
 func _() {
+	_ = Empty[int]
 	_ = From[int]
 	_ = FromIter[int]
 	_ = Of[int]

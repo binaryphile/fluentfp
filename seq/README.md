@@ -63,7 +63,7 @@ For cached evaluation, use `stream` instead.
 
 ## Behavior Notes
 
-The zero value of `Seq[T]` is nil and yields no elements. All lazy operations are nil-safe and return nil on nil receiver, enabling safe chaining. `From(nil)` and `From([]T{})` both return nil. `Collect()` on a nil Seq returns nil.
+The zero value of `Seq[T]` is nil. It is **not safe for direct range** — use `Empty`, `From`, or other constructors. All constructors and Seq-returning operations return non-nil Seqs safe for range. Lazy operations are nil-safe on the receiver and return empty (non-nil) Seqs, enabling safe chaining. `From(nil)` and `From([]T{})` both return empty Seqs. `Collect()` on a nil Seq returns nil.
 
 `Every` and `None` return true on empty or nil input (vacuous truth). `Find` returns `option.Option[T]` — not-ok if no match is found.
 

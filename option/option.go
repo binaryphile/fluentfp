@@ -145,19 +145,7 @@ func (b Option[T]) OrEmpty() (_ T) {
 	return b.t
 }
 
-// OrFalse returns the option's value provided that it is ok, otherwise false.
-// It is a readable alias for OrZero when the type is bool.
-func (b Option[T]) OrFalse() bool {
-	if !b.ok {
-		return false
-	}
-
-	// Type assert to bool; panics if T is not bool
-	return any(b.t).(bool)
-}
-
 // OrZero returns the option's value provided that it is ok, otherwise the zero value for T.
-// See OrEmpty and OrFalse for more readable aliases of OrZero when T is string or bool.
 func (b Option[T]) OrZero() (_ T) {
 	if !b.ok {
 		return
@@ -245,7 +233,8 @@ func (b Option[T]) ToString(fn func(T) string) (_ Option[string]) {
 	return Of(fn(b.t))
 }
 
-// ToOpt returns a pointer-based pseudo-option of the pointed-at value provided that the option is ok, or not-ok otherwise.
+// ToOpt returns a pointer to a copy of the value if ok, or nil if not-ok.
+// The returned pointer does not alias the Option's internal storage.
 // By convention, in consuming code, we suffix a pseudo-option's variable name with an "Opt" suffix
 // to clarify the pointer's meaning and use, hence "ToOpt".
 func (b Option[T]) ToOpt() (_ *T) {

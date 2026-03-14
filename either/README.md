@@ -71,11 +71,13 @@ Every site that touches `AppState` must handle both cases. The compiler enforces
 
 ## Operations
 
-`Either[L, R]` holds exactly one of two types.
+`Either[L, R]` represents either a Left or a Right value.
 
 - **Create**: `Left`, `Right`
 - **Extract**: `Get`, `GetLeft`, `IsLeft`, `IsRight`, `MustGet`, `MustGetLeft`, `Or`, `LeftOr`, `OrCall`, `LeftOrCall`
-- **Transform**: `.Map` (same-type, method), `Map` (cross-type, standalone), `MapLeft` (standalone), `Fold` (standalone)
+- **Transform**: `.Convert` (same-type Right), `.FlatMap` (same-type bind), `.FlatMapLeft` (recovery from Left), `.Swap`, `FlatMap` (cross-type bind), `Map` (cross-type Right), `MapLeft` (cross-type Left), `Fold`
 - **Side effects**: `IfRight`, `IfLeft`
+
+Methods are used when the return type can be expressed with existing type parameters. Standalone functions are needed when new type parameters must be introduced (`Map`, `MapLeft`, cross-type `FlatMap`, `Fold`).
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/either) for complete API documentation, the [main README](../README.md) for installation, and [option](../option/) for absent values without failure context.

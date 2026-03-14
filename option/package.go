@@ -4,12 +4,14 @@ import (
 	"os"
 )
 
-func Getenv(key string) String {
-	result := os.Getenv(key)
-
-	return NonZero(result)
+// Env returns an ok option of the environment variable's value if set and non-empty,
+// or not-ok if unset or empty.
+func Env(key string) String {
+	return NonEmpty(os.Getenv(key))
 }
 
+// Map returns an option of the result of applying fn to the option's value if ok, or not-ok otherwise.
+// For same-type mapping, use the Convert method.
 func Map[T, R any](b Option[T], fn func(T) R) (_ Option[R]) {
 	if !b.ok {
 		return
@@ -45,6 +47,13 @@ func Lookup[K comparable, V any](m map[K]V, key K) (_ Option[V]) {
 	return Of(v)
 }
 
+// OrFalse returns the option's value if ok, or false if not-ok.
+// Standalone for type safety — Go methods cannot constrain T to bool.
+func OrFalse(o Option[bool]) bool {
+	return o.OrZero()
+}
+
+// NotOk returns a not-ok option of type T.
 func NotOk[T any]() (_ Option[T]) {
 	return
 }

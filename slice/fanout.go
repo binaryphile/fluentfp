@@ -14,6 +14,9 @@ import (
 //
 // Returns Mapper[rslt.Result[R]] with len == len(ts), where output[i] corresponds to ts[i].
 //
+// Panics in fn are recovered and returned as *[rslt.PanicError] in the result slot,
+// detectable via errors.As. Panics are not re-thrown.
+//
 // Cancellation guarantees:
 //  1. FanOut returns only after all started callbacks have returned. No goroutine leaks.
 //  2. At most n callbacks execute concurrently. Semaphore enforced.
@@ -169,9 +172,20 @@ loop:
 //
 // Returns Mapper[rslt.Result[R]] with len == len(ts), where output[i] corresponds to ts[i].
 //
-// Same cancellation guarantees as FanOut. Partial acquire rollback: if ctx cancels
+// Panics in fn are recovered and returned as *[rslt.PanicError] in the result slot,
+// detectable via errors.As. Panics are not re-thrown.
+//
+// Same cancellation guarantees as [FanOut]. Partial acquire rollback: if ctx cancels
 // after acquiring some tokens for an item, the scheduler releases them and fills
 // remaining items with ctx.Err().
+//
+// Items are scheduled in input order. A high-cost item blocks later items from
+// starting even if capacity is available for them (head-of-line blocking).
+//
+// All item costs are evaluated eagerly before any goroutines start. cost should
+// be pure and inexpensive. If cost panics, the panic propagates immediately
+// (it is not recovered into a result slot). This pre-validation ensures invalid
+// costs are detected before work begins, preserving cleanup guarantees.
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
@@ -180,9 +194,14 @@ func FanOutWeighted[T, R any](ctx context.Context, capacity int, ts []T, cost fu
 }
 
 // FanOutEachWeighted applies fn to each element of ts concurrently, bounded by a
-// total cost budget. It is the side-effect variant of FanOutWeighted.
+// total cost budget. It is the side-effect variant of [FanOutWeighted].
 //
 // Returns []error with len == len(ts). Nil entries indicate success.
+// Panics from fn are wrapped as *rslt.PanicError in the error slice,
+// detectable via errors.As.
+//
+// Same cost pre-validation semantics as [FanOutWeighted]: cost is evaluated
+// eagerly, should be pure, and panics in cost propagate immediately.
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
@@ -236,6 +255,21 @@ func fanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], c
 		return Mapper[rslt.Result[R]]{}
 	}
 
+	// Pre-validate all costs before starting any goroutines.
+	// This ensures invalid costs are caught before work begins,
+	// preserving the no-goroutine-leaks guarantee.
+	costs := make([]int, len(ts))
+	for i, t := range ts {
+		c := cost(t)
+		if c <= 0 {
+			panic("slice.FanOutWeighted: cost must be > 0")
+		}
+		if c > capacity {
+			panic("slice.FanOutWeighted: cost must be <= capacity")
+		}
+		costs[i] = c
+	}
+
 	results := make([]rslt.Result[R], len(ts))
 
 	// Already-cancelled ctx: fill all slots, no callbacks run.
@@ -252,13 +286,7 @@ func fanOutWeighted[T, R any](ctx context.Context, capacity int, ts Mapper[T], c
 
 loop:
 	for i, t := range ts {
-		itemCost := cost(t)
-		if itemCost <= 0 {
-			panic("slice.FanOutWeighted: cost must be > 0")
-		}
-		if itemCost > capacity {
-			panic("slice.FanOutWeighted: cost must be <= capacity")
-		}
+		itemCost := costs[i]
 
 		// Pre-select cancellation check.
 		if err := ctx.Err(); err != nil {
@@ -333,6 +361,7 @@ loop:
 
 // FanOutAll applies fn to each element concurrently (at most n goroutines),
 // returning all values if every call succeeds, or the first observed failure otherwise.
+// On success, output order matches input order.
 // On first failure (error or panic), the derived context is cancelled so cooperative
 // work can stop early. Already-running callbacks continue until fn returns.
 //
@@ -344,10 +373,12 @@ loop:
 //
 // Panics if n <= 0, ctx is nil, or fn is nil.
 func FanOutAll[T, R any](ctx context.Context, n int, ts []T, fn func(context.Context, T) (R, error)) ([]R, error) {
+	if n <= 0 {
+		panic("slice.FanOutAll: n must be > 0")
+	}
 	if ctx == nil {
 		panic("slice.FanOutAll: ctx must not be nil")
 	}
-
 	if fn == nil {
 		panic("slice.FanOutAll: fn must not be nil")
 	}
@@ -397,18 +428,24 @@ func FanOutAll[T, R any](ctx context.Context, n int, ts []T, fn func(context.Con
 // failure otherwise. On first failure (error or panic), the derived context is
 // cancelled so cooperative work can stop early.
 //
-// Same semantics as [FanOutAll] — see its documentation for error selection,
-// panic handling, and cancellation guarantees.
+// Same error/cancellation semantics as [FanOutAll]. Same cost pre-validation
+// semantics as [FanOutWeighted]: cost is evaluated eagerly, should be pure,
+// and panics in cost propagate immediately.
 //
 // Derives a child context internally — the caller's context is never cancelled.
 //
 // Panics if capacity <= 0, cost is nil, ctx is nil, or fn is nil.
 // Per-item: panics if cost(t) <= 0 or cost(t) > capacity.
 func FanOutWeightedAll[T, R any](ctx context.Context, capacity int, ts []T, cost func(T) int, fn func(context.Context, T) (R, error)) ([]R, error) {
+	if capacity <= 0 {
+		panic("slice.FanOutWeightedAll: capacity must be > 0")
+	}
+	if cost == nil {
+		panic("slice.FanOutWeightedAll: cost must not be nil")
+	}
 	if ctx == nil {
 		panic("slice.FanOutWeightedAll: ctx must not be nil")
 	}
-
 	if fn == nil {
 		panic("slice.FanOutWeightedAll: fn must not be nil")
 	}

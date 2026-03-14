@@ -6,27 +6,40 @@ import (
 )
 
 // Seq is a lazy iterator over iter.Seq[T] with method chaining.
-// Zero value yields no elements. Range works directly:
+// Range works directly:
 //
 //	for v := range seq.From(data).KeepIf(pred) { ... }
 //
 // Unlike stream.Stream (memoized), Seq pipelines re-evaluate on each
 // Collect or range — standard iter.Seq behavior.
 //
+// The zero value (nil) is NOT safe for direct range — it will panic.
+// Use [Empty], [From], or other constructors. All constructors and
+// Seq-returning operations return non-nil Seqs safe for range.
+//
 // Use .Iter() when a function expects iter.Seq[T].
 type Seq[T any] iter.Seq[T]
 
 // Iter returns the underlying iter.Seq[T] for interop with stdlib
-// and other libraries.
+// and other libraries. Returns a no-op iterator if s is nil (zero value).
 func (s Seq[T]) Iter() iter.Seq[T] {
+	if s == nil {
+		return iter.Seq[T](Empty[T]())
+	}
+
 	return iter.Seq[T](s)
 }
 
+// Empty returns a Seq that yields no elements. Safe for direct range.
+func Empty[T any]() Seq[T] {
+	return Seq[T](func(func(T) bool) {})
+}
+
 // From creates a Seq from a slice.
-// Returns nil for nil or empty input.
+// Returns an empty Seq for nil or empty input.
 func From[T any](ts []T) Seq[T] {
 	if len(ts) == 0 {
-		return nil
+		return Empty[T]()
 	}
 
 	return Seq[T](slices.Values(ts))
@@ -38,7 +51,12 @@ func Of[T any](vs ...T) Seq[T] {
 }
 
 // FromIter wraps an existing iter.Seq[T] as a Seq for method chaining.
+// If s is nil, returns an empty Seq safe for range.
 func FromIter[T any](s iter.Seq[T]) Seq[T] {
+	if s == nil {
+		return Empty[T]()
+	}
+
 	return Seq[T](s)
 }
 

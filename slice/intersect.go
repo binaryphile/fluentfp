@@ -8,9 +8,9 @@ func Intersect[T comparable](a, b []T) Mapper[T] {
 	}
 
 	bSet := ToSet(b)
-	cap := min(len(a), len(b))
-	seen := make(map[T]bool, cap)
-	result := make(Mapper[T], 0, cap)
+	hint := min(len(a), len(b))
+	seen := make(map[T]bool, hint)
+	result := make(Mapper[T], 0, hint)
 
 	for _, v := range a {
 		if bSet[v] && !seen[v] {

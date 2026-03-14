@@ -77,10 +77,10 @@ host := value.FirstNonZero(envHost, configHost, "localhost")
 region := value.FirstNonEmpty(override.Region, defaults.Region)
 ```
 
-`FirstNonNil` dereferences the first non-nil pointer, or returns zero if all are nil:
+`FirstNonNilValue` returns the dereferenced value of the first non-nil pointer, or zero if all are nil:
 
 ```go
-timeout := value.FirstNonNil(override.Timeout, defaults.Timeout)
+timeout := value.FirstNonNilValue(override.Timeout, defaults.Timeout)
 ```
 
 ## Composition
@@ -108,7 +108,7 @@ value creates the condition. option resolves it. The packages compose.
 color := value.Of(warn).When(critical).Or(calm)
 
 // option: the value might not exist
-port := option.Getenv("PORT").Or("8080")
+port := option.Env("PORT").Or("8080")
 ```
 
 ## Operations
@@ -117,10 +117,10 @@ port := option.Getenv("PORT").Or("8080")
 
 - `Of(T) Cond[T]` — wrap a value
 - `Cond[T].When(bool) option.Option[T]` — ok if true, not-ok if false
-- `LazyOf(func() T) LazyCond[T]` — wrap a function (lazy)
+- `LazyOf(func() T) LazyCond[T]` — wrap a function (lazy, panics if nil)
 - `LazyCond[T].When(bool) option.Option[T]` — evaluate only if true
 - `FirstNonZero[T comparable](vals ...T) T` — first non-zero value
 - `FirstNonEmpty(vals ...string) string` — first non-empty string (string-specific variant of FirstNonZero)
-- `FirstNonNil[T any](ptrs ...*T) T` — first non-nil pointer, dereferenced (zero if all nil)
+- `FirstNonNilValue[T any](ptrs ...*T) T` — first non-nil pointer, dereferenced (zero if all nil)
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/value) for complete API documentation, the [main README](../README.md) for installation, [option](../option/) for absent values without conditions, and the [showcase](../docs/showcase.md) for real-world rewrites.

@@ -43,7 +43,7 @@ Useful features with clear demand but existing workarounds.
 | ~~Invert~~ | ~~Swap keys and values~~ | done |
 | ~~Merge/Assign~~ | ~~Combine maps~~ | done — `Merge` |
 | ~~PickByKeys/OmitByKeys~~ | ~~Filter by key set~~ | done |
-| Entries/FromEntries | Map to/from slice of pairs | lo |
+| ~~Entries/FromEntries~~ | ~~Map to/from slice of pairs~~ | done — `ToPairs`, `FromPairs` |
 
 ### Option/Result Extras
 

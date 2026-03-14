@@ -10,7 +10,7 @@ func NonZero[T comparable](t T) option.Option[T] {
 // NonEmpty returns an ok option if s is not empty, or not-ok otherwise.
 var NonEmpty = option.NonEmpty
 
-// NonNil returns an ok option of *t if t is not nil, or not-ok otherwise.
+// NonNil returns an ok option containing the dereferenced value if t is not nil, or not-ok otherwise.
 func NonNil[T any](t *T) option.Option[T] {
 	return option.NonNil(t)
 }
@@ -25,7 +25,7 @@ func NonEmptyCall[R any](s string, fn func(string) R) option.Option[R] {
 	return option.NonEmptyCall(s, fn)
 }
 
-// NonNilCall returns an ok option of fn(*t) if t is not nil, or not-ok otherwise.
+// NonNilCall returns an ok option of fn(dereferenced t) if t is not nil, or not-ok otherwise.
 func NonNilCall[T any, R any](t *T, fn func(T) R) option.Option[R] {
 	return option.NonNilCall(t, fn)
 }

@@ -52,7 +52,7 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
     ModeTablePackets: ProcessesResult.TotalPackets,
 }
 
-byViewModeDesc := slice.Desc(sortFuncs[mode])  // slice.Desc 
+byViewModeDesc := slice.Desc(sortFuncs[mode])  // slice.Desc creates a comparator for .Sort
 results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 ```
 
@@ -150,46 +150,6 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 
 ---
 
-## Filter & Split
-
-### Tracked/untracked split — jesseduffield/lazygit
-
-**Source:** [files_controller.go#L422-L439](https://github.com/jesseduffield/lazygit/blob/9046d5e/pkg/gui/controllers/files_controller.go#L422-L439)
-**Pain point:** Manual loop with if/else to split a slice into two groups by predicate
-
-The original partitions file nodes into tracked and untracked — each half feeds a different git operation (`UnstageTrackedFiles` vs `UnstageUntrackedFiles`), so both outputs are needed. lazygit wrote their own `utils.Partition` utility; without it, the code would be an 8-line manual loop.
-
-**Extracted** (both sides share):
-```go
-// isTracked returns true for directories and tracked files.
-isTracked := func(node *filetree.FileNode) bool {
-    return !node.IsFile() || node.GetIsTracked()
-}
-```
-
-**Original** (without utility — 8 lines):
-```go
-var trackedNodes, untrackedNodes []*filetree.FileNode
-for _, node := range selectedNodes {
-    if isTracked(node) {
-        trackedNodes = append(trackedNodes, node)
-    } else {
-        untrackedNodes = append(untrackedNodes, node)
-    }
-}
-```
-
-**fluentfp:**
-```go
-trackedNodes, untrackedNodes := slice.Partition(selectedNodes, isTracked)
-```
-
-**What changed:** The 8-line if/else accumulation loop becomes a single function call. Both sides use the same `isTracked` predicate — the difference is purely the loop scaffolding. `Partition` returns two `Mapper[T]` values, so either half can chain further (`.KeepIf`, `.Convert`, etc.) if needed.
-
-**What's eliminated:** Accumulator boilerplate — declaring two empty slices, the for/if/else branch, and two `append` calls. The manual loop isn't especially bug-prone (if/else is exhaustive), but the pattern is pure ceremony: every partition loop has identical structure, differing only in the predicate. lazygit's team recognized this — they wrote `utils.Partition` themselves. The alternative without a utility — two `KeepIf`/`RemoveIf` passes — traverses the slice twice and forces the reader to verify the predicates are complementary. `Partition` is single-pass and complementary by construction.
-
----
-
 ### Pipeline fluency vs type safety — ruilisi/css-checker
 
 **Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
@@ -226,6 +186,126 @@ summaries := slice.Map(duplicates, toSummary)
 **What's eliminated:** The readability is equivalent, so the win is purely type safety. go-linq's `interface{}`-based callbacks sacrifice compile-time safety for full method chaining — a trade-off that made sense before generics existed.
 
 *Historical note: go-linq brought LINQ-style FP to Go before generics existed. Its `interface{}`-based API was the best approach at the time, and it proved the demand that led to generics being added to the language. The pain points above are artifacts of that era, not design failures.*
+
+---
+
+### Random service instance selection — hashicorp/consul
+
+**Source:** [connect/resolver.go#L101-L117](https://github.com/hashicorp/consul/blob/main/connect/resolver.go#L101-L117)
+**Pain point:** Guard + `rand.Intn` + indexing ceremony repeated for every random-pick site
+
+Consul (28k stars) resolves service connections by querying healthy instances and picking one at random for client-side load balancing. The random selection requires a three-line guard: default `idx := 0`, conditionally overwrite with `rand.Intn` if more than one instance, then index into the slice. This pattern appears twice in the same file — `resolveService` and `resolveQuery` use identical logic.
+
+**Original:**
+```go
+func (cr *ConsulResolver) resolveService(ctx context.Context) (string, connect.CertURI, error) {
+    svcs, _, err := cr.Client.Health().Connect(cr.Name, "", true, cr.queryOptions(ctx))
+    if err != nil {
+        return "", nil, err
+    }
+
+    if len(svcs) < 1 {
+        return "", nil, fmt.Errorf("no healthy instances found")
+    }
+
+    // Services are not shuffled by HTTP API, pick one at (pseudo) random.
+    idx := 0
+    if len(svcs) > 1 {
+        idx = rand.Intn(len(svcs))
+    }
+
+    return cr.resolveServiceEntry(svcs[idx])
+}
+```
+
+**fluentfp:**
+```go
+func (cr *ConsulResolver) resolveService(ctx context.Context) (string, connect.CertURI, error) {
+    svcs, _, err := cr.Client.Health().Connect(cr.Name, "", true, cr.queryOptions(ctx))
+    if err != nil {
+        return "", nil, err
+    }
+
+    svc, ok := slice.From(svcs).Sample().Get()
+    if !ok {
+        return "", nil, fmt.Errorf("no healthy instances found")
+    }
+
+    return cr.resolveServiceEntry(svc)
+}
+```
+
+**What changed:** The empty check and random selection merge into one operation. `Sample()` returns `option.Option[T]` — not-ok when the slice is empty, otherwise a random element. The three-line guard (`idx := 0; if len > 1 { idx = rand.Intn(...) }`) and the separate `len(svcs) < 1` check collapse into `.Sample().Get()`. The comment "pick one at (pseudo) random" becomes the method name.
+
+**What's eliminated:** The index-based selection ceremony. The original needs three lines because `rand.Intn(0)` panics on empty input and `rand.Intn(1)` is always zero for single-element slices — so the code manually handles both edge cases. `Sample()` absorbs this: empty → not-ok, single element → that element, multiple → random. The pattern appears twice in the same file with identical logic — each collapses to a single method call.
+
+---
+
+### Five interleaved concerns in gateway service listing — hashicorp/consul
+
+**Source:** [config_entry_gateways.go#L401-L423](https://github.com/hashicorp/consul/blob/main/agent/structs/config_entry_gateways.go#L401-L423)
+**Pain point:** Nested loops, filtering, transformation, deduplication via map, and sorting tangled in one function body
+
+Consul (28k stars) lists services behind an ingress gateway. An `IngressGatewayConfigEntry` has a `Listeners []IngressListener` field, and each `IngressListener` has a `Services []IngressService` field. `ListRelatedServices` must flatten listeners to their services, skip wildcards, build canonical `ServiceID`s, deduplicate, and sort. The original needs two loops — one to build a dedup map, another to collect and sort — because the map-based dedup idiom forces a second pass to extract values. The reader must trace five concerns through 27 lines to confirm correctness.
+
+**Original:**
+```go
+func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
+    found := make(map[ServiceID]struct{})
+
+    for _, listener := range e.Listeners {
+        for _, service := range listener.Services {
+            if service.Name == WildcardSpecifier {
+                continue
+            }
+            svcID := NewServiceID(service.Name, &service.EnterpriseMeta)
+            found[svcID] = struct{}{}
+        }
+    }
+
+    if len(found) == 0 {
+        return nil
+    }
+
+    out := make([]ServiceID, 0, len(found))
+    for svc := range found {
+        out = append(out, svc)
+    }
+    sort.Slice(out, func(i, j int) bool {
+        return out[i].LessThan(&out[j].EnterpriseMeta) ||
+            out[i].ID < out[j].ID
+    })
+    return out
+}
+```
+
+**fluentfp:**
+```go
+// isExplicit returns true if the service is not a wildcard.
+isExplicit := func(s IngressService) bool { return s.Name != WildcardSpecifier }
+
+// toServiceID builds a ServiceID from an IngressService.
+toServiceID := func(s IngressService) ServiceID {
+    return NewServiceID(s.Name, &s.EnterpriseMeta)
+}
+
+// byEnterpriseThenID sorts by enterprise metadata, then by ID.
+byEnterpriseThenID := func(a, b ServiceID) bool {
+    return a.LessThan(&b.EnterpriseMeta) || a.ID < b.ID
+}
+
+func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
+    services := slice.FlatMap(e.Listeners, IngressListener.Services).KeepIf(isExplicit)
+    serviceIDs := slice.Map(services, toServiceID)
+    return slice.UniqueBy(serviceIDs, ServiceID.Key).Sort(byEnterpriseThenID)
+}
+```
+
+*We presume an imaginary `Services` method on `IngressListener` returning `[]IngressService` — a trivial accessor instead of a `Services` field.*
+
+**What changed:** Five interleaved concerns separate into a three-line pipeline. The nested `for listener / for service` loop becomes `FlatMap(... GetServices)`. The `if wildcard { continue }` becomes `.KeepIf(isExplicit)`. The map-based dedup (first loop) and collect-from-map (second loop) merge into `UniqueBy`. The `sort.Slice` with index comparator becomes `.Sort(byEnterpriseThenID)`. Each line does one thing; the data flow reads left to right and top to bottom.
+
+**What's eliminated:** The two-loop pattern forced by map-based deduplication. The original needs loop 1 to populate `map[ServiceID]struct{}`, then loop 2 to extract keys into a slice for sorting — a Go idiom so common it's invisible, but it splits logically atomic work (dedup + collect) across two code blocks separated by an emptiness check. `UniqueBy` deduplicates and collects in a single pass, and the pipeline makes each transformation step — flatten, filter, transform, deduplicate, sort — independently readable.
 
 ---
 
@@ -287,62 +367,16 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     // toNormalized trims whitespace, adding lowercasing when requested.
     toNormalized := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
 
-    normA := slice.NonEmpty(a.Convert(toNormalized))
-    normB := slice.NonEmpty(b.Convert(toNormalized))
+    normA := a.ToString(toNormalized).NonEmpty()
+    normB := b.ToString(toNormalized).NonEmpty()
 
     return slice.Difference(normA, normB).Sort(lof.StringAsc)
 }
 ```
 
-**What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `NonEmpty` for blank removal. Normalization separates into `.Convert(toNormalized)`, making it visible that lowercasing is a *transform*, not part of the set operation.
+**What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `.NonEmpty()` for blank removal. Normalization chains fluently via `.ToString(toNormalized).NonEmpty()`, making it visible that lowercasing is a *transform*, not part of the set operation.
 
 **What's eliminated:** The build-then-delete pattern (`for range a → map[a] = {}; for range b → delete(map, b)`) is the manual idiom for set difference in Go. It requires reasoning about map mutation — deletions during a scan of a different slice — which is correct but non-obvious at a glance. `slice.Difference` names the intent directly. The early-return inconsistency (main path normalizes; empty-`b` path doesn't) disappears because the pipeline processes all inputs uniformly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
-
----
-
-## Predicate
-
-### Schema migration predicate loop — grafana/grafana
-
-**Source:** [v30.go#L218-L231](https://github.com/grafana/grafana/blob/a72e02f88a2a9d50f43fe4350926abe970fddd21/apps/dashboard/pkg/migration/schemaversion/v30.go#L218-L231)
-**Pain point:** Nested type assertions with continue/return-false bury the "all mappings valid?" intent
-
-Grafana (72.5k stars) migrates dashboard JSON schemas across versions. `upgradeValueMappings` skips panels whose value mappings are already in the new format, delegating to `areAllMappingsNewFormat`. The function iterates through `[]interface{}` elements, performing a type assertion to `map[string]interface{}`, then a second type assertion to extract the `"type"` key as a string, then checks non-emptiness. Three nesting levels of `if`/`ok` with `continue` on success and `return false` on failure — the reader must trace exit polarity through each branch to confirm "this returns true when all mappings pass."
-
-**Original:**
-```go
-func areAllMappingsNewFormat(oldMappings []interface{}) bool {
-	for _, mapping := range oldMappings {
-		if mappingMap, ok := mapping.(map[string]interface{}); ok {
-			if mappingType, ok := mappingMap["type"].(string); ok && mappingType != "" {
-				continue
-			} else {
-				return false
-			}
-		}
-	}
-	return true
-}
-```
-
-**fluentfp:**
-```go
-// isNewFormat returns true if the mapping has a non-empty "type" key.
-isNewFormat := func(mapping any) bool {
-	m, ok := mapping.(map[string]any)
-	if !ok {
-		return true // non-map entries don't invalidate
-	}
-	t, ok := m["type"].(string)
-	return ok && t != ""
-}
-
-allNew := slice.From(oldMappings).Every(isNewFormat)
-```
-
-**What changed:** The universal quantifier is named — `.Every(isNewFormat)` reads as "all mappings are new format." The type-assertion logic moves into a predicate that expresses the positive case directly.
-
-**What's eliminated:** Exit polarity ambiguity. In the original, `continue` means "this one passed," `return false` means "this one failed," and `return true` after the loop means "all passed" — the reader must trace three levels of nesting to confirm the polarity. `.Every(pred)` names the quantifier directly; the predicate encapsulates the assertion logic with a single boolean expression.
 
 ---
 
@@ -383,7 +417,7 @@ func combinedStatus(statuses []string) string {
 
 **fluentfp:**
 ```go
-type G = slice.Group[string, string]
+type G = slice.Group[string, string] // a map-like key-value struct
 
 var byKey = slice.Asc(G.GetKey)
 
@@ -392,7 +426,7 @@ countByStatus := func(g G) string {
 	return fmt.Sprintf("%s(%d)", g.Key, g.Len())
 }
 
-combined := slice.Tally(statuses).
+combined := slice.GroupSame(statuses).
 	Sort(byKey).
 	ToString(countByStatus).
 	Join(", ")
@@ -859,3 +893,698 @@ results := slice.Map(candidates, toCandidate)
 ```
 
 **What this shows:** `kv.Keys` extracts map keys into slices, `combo.CartesianProduct` replaces the nested loop, then the result flows through `slice.From` → `.KeepIf` → `slice.Map` — a pipeline where each stage expresses one concern. The original interleaves iteration, filtering, construction, and accumulation in a single nested block.
+
+---
+
+## Function Decoration
+
+### Retry + backoff tangled in business logic — hashicorp/consul
+
+**Source:** [session_ttl.go#L102-L134](https://github.com/hashicorp/consul/blob/main/agent/consul/session_ttl.go#L102-L134)
+**Pain point:** Retry loop, exponential backoff calculation, and error logging woven into a function body where the actual operation is one line
+
+Consul (28k stars) invalidates expired session TTLs via Raft consensus. The core operation — `leaderRaftApply` — is a single call. Around it: a manual retry loop, bit-shift backoff calculation (`1 << attempt * base`), per-attempt error logging, and final max-retries logging. The retry mechanics are hand-rolled in every function that needs resilience.
+
+**Original:**
+```go
+func (s *Server) invalidateSession(id string, entMeta *acl.EnterpriseMeta) {
+    defer metrics.MeasureSince([]string{"session_ttl", "invalidate"}, time.Now())
+
+    s.sessionTimers.Del(id)
+
+    args := structs.SessionRequest{
+        Datacenter: s.config.Datacenter,
+        Op:         structs.SessionDestroy,
+        Session:    structs.Session{ID: id},
+    }
+    if entMeta != nil {
+        args.Session.EnterpriseMeta = *entMeta
+    }
+
+    for attempt := uint(0); attempt < maxInvalidateAttempts; attempt++ {
+        _, err := s.leaderRaftApply("Session.Check", structs.SessionRequestType, args)
+        if err == nil {
+            s.logger.Debug("Session TTL expired", "session", id)
+            return
+        }
+        s.logger.Error("Invalidation failed", "error", err)
+        time.Sleep((1 << attempt) * invalidateRetryBase)
+    }
+    s.logger.Error("maximum revoke attempts reached for session", "error", id)
+}
+```
+
+**fluentfp:**
+```go
+// At server construction — retry policy defined once, applied everywhere
+backoff := hof.ExponentialBackoff(invalidateRetryBase)
+s.resilientRaftApply = hof.Retry(maxInvalidateAttempts, backoff, s.leaderRaftApply)
+```
+
+```go
+// At call site — retry mechanics gone
+func (s *Server) invalidateSession(ctx context.Context, id string, entMeta *acl.EnterpriseMeta) {
+    defer metrics.MeasureSince([]string{"session_ttl", "invalidate"}, time.Now())
+
+    s.sessionTimers.Del(id)
+
+    args := structs.SessionRequest{
+        Datacenter: s.config.Datacenter,
+        Op:         structs.SessionDestroy,
+        Session:    structs.Session{ID: id},
+    }
+    if entMeta != nil {
+        args.Session.EnterpriseMeta = *entMeta
+    }
+
+    _, err := s.resilientRaftApply(ctx, args)
+    if err != nil {
+        s.logger.Error("maximum revoke attempts reached for session", "error", id)
+        return
+    }
+    s.logger.Debug("Session TTL expired", "session", id)
+}
+```
+
+*We presume `leaderRaftApply` has the signature `func(context.Context, T) (R, error)` — the original wraps a Raft apply call that could naturally take this shape.*
+
+**What changed:** The 7-line retry loop — `for` header, `leaderRaftApply`, success check, `time.Sleep` with bit-shift backoff, `continue` — collapses into a decorated `s.resilientRaftApply` defined once at construction time. The function body becomes setup + one call + result check. The backoff strategy is named and reusable across every Raft operation that needs resilience.
+
+**What's eliminated:** Manual retry loop, `time.Sleep`, backoff calculation (`1 << attempt * base`), per-iteration control flow. The retry policy is defined once and shared across `invalidateSession`, `invalidateKey`, and similar methods. The original's per-attempt error logging (`s.logger.Error("Invalidation failed")`) is not preserved — `hof.Retry` doesn't expose a per-attempt hook. For code that needs per-attempt logging, `hof.OnErr` can wrap the inner function, though it only receives a `func()` callback without error access.
+
+**What this pattern looks like at scale:** The same retry-loop-with-backoff pattern appears throughout the examples below and in CockroachDB's [TCP accept loop](https://github.com/cockroachdb/cockroach/blob/master/pkg/util/netutil/net.go#L159-L195) (hand-rolled exponential backoff with cap). In each case, the actual operation is 1-3 lines; the ceremony around it runs 10-30x longer. Function decoration separates these concerns, makes them independently testable, and eliminates the copy-paste visible across codebases.
+
+### Semaphore + retry + event recording — kubernetes/kubernetes
+
+**Source:** [route_controller.go#L424-L450](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/cloud-provider/controllers/route/route_controller.go#L424-L450)
+**Pain point:** Five cross-cutting concerns around a one-line operation
+
+Kubernetes' route controller (121k stars) creates cloud-provider routes for nodes. The core operation — `CreateRoute` — is one line. Around it: a channel-based semaphore for concurrency control, `RetryOnConflict` for retry, timing measurement, structured logging at multiple levels, and Kubernetes event recording on failure.
+
+**Original:**
+```go
+go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
+    defer wg.Done()
+    err := clientretry.RetryOnConflict(updateNetworkConditionBackoff, func() error {
+        startTime := time.Now()
+        rateLimiter <- struct{}{}
+        klog.Infof("Creating route for node %s %s with hint %s, throttled %v",
+            nodeName, route.DestinationCIDR, nameHint,
+            time.Since(startTime))
+        err := rc.routes.CreateRoute(ctx, rc.clusterName,
+            nameHint, route)
+        <-rateLimiter
+        if err != nil {
+            msg := fmt.Sprintf("Could not create route %s %s for node %s after %v: %v",
+                nameHint, route.DestinationCIDR, nodeName,
+                time.Since(startTime), err)
+            if rc.recorder != nil {
+                rc.recorder.Eventf(
+                    &v1.ObjectReference{APIVersion: "v1", Kind: "Node",
+                        Name: string(nodeName), UID: node.UID},
+                    v1.EventTypeWarning, "FailedToCreateRoute", "%s", msg)
+            }
+            klog.V(4).Info(msg)
+            return err
+        }
+        return nil
+    })
+}(nodeName, nameHint, route)
+```
+
+**fluentfp:**
+```go
+// At construction — compose resilience decorators
+backoff := hof.ConstantBackoff(retryInterval)
+throttledCreate := hof.Throttle(routeConcurrency, rc.routes.CreateRoute)
+createRoute := hof.Retry(maxRetries, backoff, throttledCreate)
+```
+
+```go
+// At call site — five concerns reduced to one decorated call
+go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
+    defer wg.Done()
+    _, err := createRoute(ctx, routeArgs{rc.clusterName, nameHint, route})
+    if err != nil {
+        rc.recorder.Eventf(nodeRef, v1.EventTypeWarning,
+            "FailedToCreateRoute", "%v", err)
+    }
+}(nodeName, nameHint, route)
+```
+
+*We presume `CreateRoute` adapted to the `func(context.Context, T) (R, error)` signature.*
+
+**What changed:** The channel-based semaphore (`rateLimiter <- struct{}{}` / `<-rateLimiter`) becomes `hof.Throttle`. The `RetryOnConflict` wrapper with its callback becomes `hof.Retry`. The two decorators compose: throttle the inner function, then retry the throttled version. The goroutine body shrinks from 20 lines of cross-cutting concerns to a single decorated call + error handling.
+
+**What's eliminated:** Manual semaphore acquire/release (a common source of deadlocks if the release is missed on an error path), the `RetryOnConflict` callback wrapper, timing instrumentation interleaved with business logic. The pattern repeats in the same file for `deleteRoute` with nearly identical ceremony.
+
+### Composed decoration across provider implementations — traefik/traefik
+
+**Source:** [kubernetes.go#L78-L157](https://github.com/traefik/traefik/blob/master/pkg/provider/kubernetes/crd/kubernetes.go#L78-L157)
+**Pain point:** Retry + throttle + panic recovery + error logging duplicated across 5 provider files
+
+Traefik (62k stars) implements provider loops for Kubernetes CRD, Kubernetes Ingress, Kubernetes Gateway, and others. Each provider has a `Provide` method that watches for events, throttles updates, retries with exponential backoff on failure, logs errors, and recovers from panics. The same ~80 lines of ceremony repeat across 5 files — the only difference is the inner operation.
+
+**Original** (abbreviated):
+```go
+func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.Pool) error {
+    logger := log.With().Str(logs.ProviderName, providerName).Logger()
+
+    pool.GoCtx(func(ctxPool context.Context) {
+        operation := func() error {
+            eventsChan, err := k8sClient.WatchAll(p.Namespaces, ctxPool.Done())
+            if err != nil {
+                logger.Error().Err(err).Msg("Error watching kubernetes events")
+                timer := time.NewTimer(1 * time.Second)
+                select {
+                case <-timer.C:
+                    return err
+                case <-ctxPool.Done():
+                    return nil
+                }
+            }
+
+            throttleDuration := time.Duration(p.ThrottleDuration)
+            throttledChan := throttleEvents(ctxLog, throttleDuration, pool, eventsChan)
+
+            for {
+                select {
+                case <-throttledChan:
+                    // ... build and push configuration ...
+                case <-ctxPool.Done():
+                    return nil
+                }
+            }
+        }
+
+        notify := func(err error, time time.Duration) {
+            logger.Error().Err(err).Msgf("Provider error, retrying in %s", time)
+        }
+        err := backoff.RetryNotify(
+            safe.OperationWithRecover(operation),
+            backoff.WithContext(job.NewBackOff(backoff.NewExponentialBackOff()), ctxPool),
+            notify)
+    })
+    return nil
+}
+```
+
+**What this shows:** The structural win isn't line count in a single file — it's that 5 provider files each copy-paste the same ~80 lines of retry/throttle/recover ceremony. With function decoration, the ceremony would be defined once — `hof.Retry(maxAttempts, backoff, watchAndProcess)` — and each provider would supply only its watch function. Traefik is already halfway there: it uses a third-party `backoff.RetryNotify` + `safe.OperationWithRecover`. The remaining ceremony (event throttling via channel wrapper, `time.Sleep` for rate limiting, error logging at multiple points) is the part that decoration would further extract. This is a case where the pattern motivates the tool rather than demonstrating a clean 1:1 rewrite — the long-running watch-loop pattern doesn't map directly to `hof.Retry`'s request-response model.
+
+### Retry + token refresh + error classification — etcd-io/etcd
+
+**Source:** [retry_interceptor.go#L47-L90](https://github.com/etcd-io/etcd/blob/main/client/v3/retry_interceptor.go#L47-L90)
+**Pain point:** Retry loop with backoff, debug logging, error classification, and token refresh all in one for-loop body
+
+etcd (48k stars) intercepts gRPC unary calls with retry logic. The for-loop body handles 6 concerns in 45 lines: backoff waiting, the actual gRPC invoke, debug logging per attempt, warn logging on failure, error classification (is it safe to retry? is it a context error?), and conditional token refresh.
+
+**Original** (abbreviated):
+```go
+func (c *Client) unaryClientInterceptor(ctx context.Context, method string, req, reply any,
+    cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+    // ...
+    var lastErr error
+    for attempt := 0; attempt < callOpts.max; attempt++ {
+        if err := waitRetryBackoff(ctx, attempt, callOpts); err != nil {
+            return err
+        }
+        c.GetLogger().Debug("retrying of unary invoker", zap.String("target", cc.Target()),
+            zap.Uint("attempt", uint(attempt)))
+        lastErr = invoker(ctx, method, req, reply, cc, grpcOpts...)
+        if lastErr == nil {
+            return nil
+        }
+        c.GetLogger().Warn("retrying of unary invoker failed",
+            zap.String("target", cc.Target()), zap.Uint("attempt", uint(attempt)),
+            zap.Error(lastErr))
+        if isContextError(lastErr) {
+            if ctx.Err() != nil {
+                return lastErr
+            }
+            continue
+        }
+        if callOpts.retryAuth && c.shouldRefreshToken(lastErr, callOpts) {
+            // refresh token with its own error handling...
+        }
+        if !isSafeRetry(c, lastErr, callOpts) {
+            return lastErr
+        }
+    }
+    return lastErr
+}
+```
+
+**fluentfp (conceptual):**
+```go
+// At interceptor setup — compose retry with error-triggered token refresh
+backoff := hof.ExponentialBackoff(retryBase)
+
+// refreshOnAuthErr triggers a token refresh on any error.
+// OnErr receives func() without error access, so it can't distinguish auth errors.
+refreshOnAuthErr := func() { c.refreshToken() }
+
+invokerWithRefresh := hof.OnErr(invoker, refreshOnAuthErr)
+resilientInvoke := hof.Retry(callOpts.max, backoff, invokerWithRefresh)
+```
+
+**What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `hof.Retry` handles the loop and backoff, `hof.OnErr` handles the token refresh trigger. Two gaps are visible: `hof.OnErr` receives `func()` without error access (can't distinguish auth errors from other failures), and `hof.Retry` doesn't support a retry-predicate (can't express `isSafeRetry` or `isContextError` classification). Both are honest limitations this showcase surfaces.
+
+---
+
+## Option Chaining
+
+### Config resolution waterfall — kubernetes/client-go
+
+**Source:** [client_config.go#L646-L661](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L646-L661)
+**Pain point:** Three-level if-empty cascade for a single value
+
+Kubernetes client-go (121k stars) resolves the in-cluster namespace through a priority chain: environment variable → service account file → default. Each level is a check-and-return block with its own early return.
+
+**Original:**
+```go
+func (config *inClusterClientConfig) Namespace() (string, bool, error) {
+    // This way assumes you've set the POD_NAMESPACE environment variable using the downward API.
+    if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+        return ns, false, nil
+    }
+
+    // Fall back to the namespace associated with the service account token, if available
+    if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+        if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
+            return ns, false, nil
+        }
+    }
+
+    return "default", false, nil
+}
+```
+
+**fluentfp:**
+```go
+// readSANamespace reads the namespace from the service account token file.
+readSANamespace := func() string {
+    data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+    if err != nil {
+        return ""
+    }
+    return strings.TrimSpace(string(data))
+}
+
+func (config *inClusterClientConfig) Namespace() (string, bool, error) {
+    ns := value.FirstNonEmpty(os.Getenv("POD_NAMESPACE"), readSANamespace(), "default")
+    return ns, false, nil
+}
+```
+
+**What changed:** Three if-blocks with early returns become a single `value.FirstNonEmpty` call listing the priority chain. The reader sees the resolution order — env, file, default — in one line instead of tracing three code blocks. Each source is a function call in argument position; the fallback logic is implicit in `FirstNonEmpty`.
+
+**What's eliminated:** The cascading if-return pattern. The original is 11 lines of control flow for what is logically "first non-empty of these three sources." The nested `if err == nil { if ns := ...; len(ns) > 0` inside the file-read branch is two levels of condition for one fallback source.
+
+**Trade-off:** `readSANamespace()` is called eagerly even when `POD_NAMESPACE` is set. For config resolution at startup (called once), this is fine — readability wins over avoiding a cheap file read. For expensive fallbacks where short-circuit matters, use option chaining: `option.Env("KEY")` constructs an option from the env var, and `.OrCall(fn)` defers the fallback computation.
+
+**Where this pattern appears:** Viper's [`find()`](https://github.com/spf13/viper/blob/master/viper.go#L1194-L1320) (27k stars) is a 130-line, 6-level waterfall — override → pflag → env → config file → key-value store → default — where each level is the same `val = search(...); if val != nil { return val }` block.  The Kubernetes out-of-cluster counterpart [`DirectClientConfig.Namespace()`](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L399-L421) has the same 3-level pattern: CLI flag → kubeconfig context → `"default"`.
+
+### Env var fallback chain — hashicorp/terraform
+
+**Source:** [cliconfig.go#L438-L443](https://github.com/hashicorp/terraform/blob/main/internal/command/cliconfig/cliconfig.go#L438-L443)
+**Pain point:** Two env vars tried in sequence, then a computed default — same if-empty pattern repeated
+
+Terraform (48k stars) resolves its CLI config file path through a priority chain: the `TF_CLI_CONFIG_FILE` env var, then the deprecated `TERRAFORM_CONFIG` env var, then a default path from `ConfigFile()`. The first two are in one function, then the result feeds into another if-empty check.
+
+**Original:**
+```go
+func cliConfigFileOverride() string {
+    configFilePath := os.Getenv("TF_CLI_CONFIG_FILE")
+    if configFilePath == "" {
+        configFilePath = os.Getenv("TERRAFORM_CONFIG")
+    }
+    return configFilePath
+}
+
+// At call site (lines 406-416):
+configFilePath := cliConfigFileOverride()
+if configFilePath == "" {
+    var err error
+    configFilePath, err = ConfigFile()
+    if err != nil {
+        // ...
+    }
+}
+```
+
+**fluentfp:**
+```go
+func cliConfigFileOverride() string {
+    return value.FirstNonEmpty(
+        os.Getenv("TF_CLI_CONFIG_FILE"),
+        os.Getenv("TERRAFORM_CONFIG"),
+    )
+}
+
+// At call site:
+configFilePath := option.NonEmpty(cliConfigFileOverride()).OrCall(configFileMust)
+```
+
+*`configFileMust` wraps `ConfigFile()` to handle the error and return a string.*
+
+**What changed:** The if-empty chain becomes `value.FirstNonEmpty` — the priority order is a literal argument list. The call site uses `option.NonEmpty` + `.OrCall` to defer the expensive `ConfigFile()` computation until needed.
+
+### Config directory resolution — docker/cli
+
+**Source:** [config.go#L77-L85](https://github.com/docker/cli/blob/master/cli/config/config.go#L77-L85)
+**Pain point:** Env var override with computed default, nested inside `sync.Once`
+
+Docker CLI (5.7k stars) resolves the config directory: env var override or a computed default from the home directory.
+
+**Original:**
+```go
+func Dir() string {
+    initConfigDir.Do(func() {
+        configDir = os.Getenv(EnvOverrideConfigDir)
+        if configDir == "" {
+            configDir = filepath.Join(getHomeDir(), configFileDir)
+        }
+    })
+    return configDir
+}
+```
+
+And `getHomeDir()` itself (lines 61-69) has the same pattern:
+```go
+func getHomeDir() string {
+    home, _ := os.UserHomeDir()
+    if home == "" && runtime.GOOS != "windows" {
+        if u, err := user.Current(); err == nil {
+            return u.HomeDir
+        }
+    }
+    return home
+}
+```
+
+**fluentfp:**
+```go
+func Dir() string {
+    initConfigDir.Do(func() {
+        // defaultDir computes the config directory from the user's home directory.
+        defaultDir := func() string { return filepath.Join(getHomeDir(), configFileDir) }
+        configDir = option.Env(EnvOverrideConfigDir).OrCall(defaultDir)
+    })
+    return configDir
+}
+```
+
+**What changed:** `option.Env` combines `os.Getenv` + non-empty check into one call. `.OrCall(defaultDir)` defers the `filepath.Join` + `getHomeDir()` computation. The if-empty block becomes a one-line chain.
+
+### Annotation lookup + parse + default — kubernetes/kubernetes
+
+**Source:** [ttl_controller.go#L246-L262](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/ttl/ttl_controller.go#L246-L262)
+**Pain point:** Three levels of early-return-if-not-ok for a single parsed value
+
+Kubernetes (121k stars) reads an integer from a node annotation: check annotations not nil, check key exists, parse to int. Each failure returns `(0, false)`.
+
+**Original:**
+```go
+func getIntFromAnnotation(ctx context.Context, node *v1.Node, annotationKey string) (int, bool) {
+    if node.Annotations == nil {
+        return 0, false
+    }
+    annotationValue, ok := node.Annotations[annotationKey]
+    if !ok {
+        return 0, false
+    }
+    intValue, err := strconv.Atoi(annotationValue)
+    if err != nil {
+        klog.FromContext(ctx).V(2).Info("Could not parse annotation",
+            "key", annotationKey, "value", annotationValue, "err", err)
+        return 0, false
+    }
+    return intValue, true
+}
+```
+
+**fluentfp:**
+```go
+// tryAtoi parses s as an integer, returning an ok option on success or not-ok on failure.
+tryAtoi := func(s string) option.Int {
+    n, err := strconv.Atoi(s)
+    return option.New(n, err == nil)
+}
+
+func getIntFromAnnotation(node *v1.Node, annotationKey string) (int, bool) {
+    annotation := option.Lookup(node.Annotations, annotationKey)
+    return option.FlatMap(annotation, tryAtoi).Get()
+}
+```
+
+*`option.Lookup` handles both nil maps and missing keys — Go returns `("", false)` for nil maps, which `Lookup` converts to not-ok. `tryAtoi` returns not-ok on parse failure, so `FlatMap` propagates the absence. The original logged parse errors, which this version loses.*
+
+**What changed:** Three levels of nil/ok/err guards collapse into a two-step chain: look up the key, then transform the value. `option.Lookup` replaces both the nil-map check and the comma-ok idiom in one call. The chain reads as intent: "look up this annotation and convert to int."
+
+**What's eliminated:** Three separate early-return blocks that all return `(0, false)`. The original is 12 lines of guard clauses for what is logically "look up and parse, or absent." The same `map[string]string` → `int` pattern appears 4 times in Kubernetes' ingress-nginx [annotation parser](https://github.com/kubernetes/ingress-nginx/blob/main/internal/ingress/annotations/parser/main.go#L101-L140) (`parseBool`, `parseString`, `parseInt`, `parseFloat32`) — each function repeating the same map-lookup + parse + error structure.
+
+**Trade-off:** The error logging on parse failure is lost in the option chain. The original logs the bad annotation value and key — useful for debugging misconfigured nodes. The option version trades diagnostic detail for brevity. A middle ground: use `option.FlatMap` with a function that returns `option.NotOk` on parse error, keeping the log call inside the function.
+
+---
+
+## Enterprise Patterns
+
+### Event sourcing as Fold — temporalio/temporal
+
+**Source:** [mutable_state_rebuilder.go#L103-L767](https://github.com/temporalio/temporal/blob/main/service/history/workflow/mutable_state_rebuilder.go#L103-L767)
+**Pain point:** 664-line function that is structurally a left-fold, but the fold is invisible
+
+Temporal (12k stars) rebuilds workflow state by replaying history events. The `applyEvents` method iterates over a `[]*HistoryEvent` slice, applying each event to a mutable state aggregate via a switch statement with 40+ cases. The function is 664 lines because it interleaves iteration mechanics with event application.
+
+**Original** (abbreviated):
+```go
+func (b *MutableStateRebuilderImpl) applyEvents(
+    ctx context.Context,
+    history []*historypb.HistoryEvent,
+    newRunHistory []*historypb.HistoryEvent,
+) (MutableState, error) {
+    // ... 40 lines of setup ...
+    for _, event := range history {
+        switch event.GetEventType() {
+        case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
+            // ... mutate state ...
+        case enumspb.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED:
+            // ... mutate state ...
+        case enumspb.EVENT_TYPE_ACTIVITY_TASK_COMPLETED:
+            // ... mutate state ...
+        // ... 40+ more cases, each mutating state ...
+        }
+    }
+    return b.mutableState, nil
+}
+```
+
+**fluentfp (structural pattern):**
+```go
+// applyEvent transitions workflow state based on a single event.
+// Each case is a pure state transition — no loop context needed.
+applyEvent := func(state WorkflowState, event *historypb.HistoryEvent) WorkflowState {
+    switch event.GetEventType() {
+    case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
+        return state.WithExecution(event.GetWorkflowExecutionStartedEventAttributes())
+    case enumspb.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED:
+        return state.WithScheduledActivity(event.GetActivityTaskScheduledEventAttributes())
+    // ...
+    }
+    return state
+}
+
+currentState := slice.Fold(history, initialState, applyEvent)
+```
+
+**What this shows:** Every Go event-sourcing library hides a fold inside imperative replay code — a `for` loop that mutates aggregate fields via a switch statement. Making it `slice.Fold(events, initial, applyEvent)` surfaces the mathematical structure: state is a deterministic function of an initial value and an ordered sequence of transformations. The transition function (`applyEvent`) becomes independently unit-testable — you can test each event type without constructing a full event stream. The fold also makes the invariant explicit: events are applied left-to-right, and the accumulator type is the aggregate type.
+
+**Where this pattern appears:** [hallgren/eventsourcing](https://github.com/hallgren/eventsourcing), [looplab/eventhorizon](https://github.com/looplab/eventhorizon), [thefabric-io/eventsourcing](https://github.com/thefabric-io/eventsourcing) — all implement the same for-loop-over-events-with-switch pattern. The fold is the unifying abstraction.
+
+### Middleware composition as Fold — kubernetes/apiserver
+
+**Source:** [config.go#L1036-L1130](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apiserver/pkg/server/config.go#L1036-L1130)
+**Pain point:** 90-line function of repeated `handler = wrapper(handler)` assignments
+
+Kubernetes' API server (121k stars) builds its HTTP handler chain by wrapping a base handler in 15+ middleware layers — authentication, authorization, CORS, audit, panic recovery, etc. Each line is `handler = wrapper(handler, config...)`.
+
+**Original** (abbreviated):
+```go
+func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
+    handler := apiHandler
+    handler = filterlatency.TrackCompleted(handler)
+    handler = genericapifilters.WithAuthorization(handler, c.Authorization.Authorizer, c.Serializer)
+    handler = filterlatency.TrackStarted(handler, c.TracerProvider, "authorization")
+    handler = genericapifilters.WithAuthentication(handler, c.AuthenticationInfo.Authenticator, ...)
+    handler = genericfilters.WithCORS(handler, c.CorsAllowedOriginList, ...)
+    handler = genericapifilters.WithWarningRecorder(handler)
+    handler = genericfilters.WithTimeoutForNonLongRunningRequests(handler, ...)
+    handler = genericapifilters.WithRequestDeadline(handler, ...)
+    handler = genericfilters.WithWaitGroup(handler, ...)
+    handler = genericapifilters.WithRequestInfo(handler, c.RequestInfoResolver)
+    handler = genericapifilters.WithCacheControl(handler)
+    handler = genericfilters.WithHTTPLogging(handler)
+    handler = genericfilters.WithRetryAfter(handler, c.lifecycleSignals.HasBeenReady.Signaled())
+    handler = genericfilters.WithPanicRecovery(handler, c.RequestInfoResolver)
+    handler = genericapifilters.WithAuditInit(handler)
+    return handler
+}
+```
+
+**fluentfp (structural pattern):**
+```go
+type Middleware func(http.Handler) http.Handler
+
+// applyMiddleware wraps the handler with the next middleware layer.
+applyMiddleware := func(h http.Handler, mw Middleware) http.Handler {
+    return mw(h)
+}
+
+// Build middleware stack as data — inspectable, testable, reorderable
+middlewares := []Middleware{
+    filterlatency.TrackCompleted,
+    withAuth(c),
+    withLatencyTracking(c, "authorization"),
+    withAuthentication(c),
+    withCORS(c),
+    genericapifilters.WithWarningRecorder,
+    withTimeout(c),
+    // ...
+    withPanicRecovery(c),
+    genericapifilters.WithAuditInit,
+}
+
+handler := slice.Fold(middlewares, apiHandler, applyMiddleware)
+```
+
+*Helper functions like `withAuth(c)` partially apply config to produce a `Middleware` from a multi-arg wrapper.*
+
+**What this shows:** The repeated `handler = wrapper(handler)` pattern is a left-fold over a middleware list. Making it `slice.Fold(middlewares, base, apply)` turns the handler chain into a first-class data structure — you can inspect it, filter it (e.g., skip CORS in tests), reorder it, or log it, without editing a 90-line function. go-kit's [`endpoint.Chain`](https://github.com/go-kit/kit/blob/master/endpoint/endpoint.go) and chi's [`chain.go`](https://github.com/go-chi/chi/blob/master/chain.go) already recognize this — they implement the fold explicitly.
+
+### Saga / compensation — cockroachdb/cockroach
+
+**Source:** [replica_command.go#L3280](https://github.com/cockroachdb/cockroach/blob/master/pkg/kv/kvserver/replica_command.go#L3280)
+**Pain point:** Resource acquisition loop paired with a reverse-order cleanup closure
+
+CockroachDB (32k stars) acquires snapshot locks for learner replicas. Each addition gets a lock and a cleanup function. On completion or failure, cleanups run in reverse order. The imperative code manually manages the cleanup slice and builds a closure that iterates it.
+
+**Original:**
+```go
+func (r *Replica) lockLearnerSnapshot(
+    ctx context.Context, additions []roachpb.ReplicationTarget,
+) (unlock func()) {
+    var cleanups []func()
+    for _, addition := range additions {
+        lockUUID := uuid.MakeV4()
+        _, cleanup := r.addSnapshotLogTruncationConstraint(
+            ctx, lockUUID, true, addition.StoreID)
+        cleanups = append(cleanups, cleanup)
+    }
+    return func() {
+        for _, cleanup := range cleanups {
+            cleanup()
+        }
+    }
+}
+```
+
+**fluentfp:**
+```go
+// call invokes a zero-argument function.
+call := func(fn func()) { fn() }
+
+func (r *Replica) lockLearnerSnapshot(
+    ctx context.Context, additions []roachpb.ReplicationTarget,
+) (unlock func()) {
+    // acquireLock acquires a snapshot lock and returns its cleanup.
+    acquireLock := func(addition roachpb.ReplicationTarget) func() {
+        lockUUID := uuid.MakeV4()
+        _, cleanup := r.addSnapshotLogTruncationConstraint(
+            ctx, lockUUID, true, addition.StoreID)
+        return cleanup
+    }
+
+    cleanups := slice.Map(additions, acquireLock)
+    return func() { cleanups.Each(call) }
+}
+```
+
+**What this shows:** The pattern is a map (acquire resources → get cleanups) paired with an each (release all). The imperative version manually manages a `[]func()` slice with append in one loop and iteration in another. The FP version makes the structure explicit: `Map` to acquire, `.Each` to release. For true saga compensation — where undos must run in reverse order on failure — the return line becomes `cleanups.Reverse().Each(call)`. The same acquire-then-release pattern appears in [itimofeev/go-saga](https://github.com/itimofeev/go-saga) and [tiagomelo/go-saga](https://github.com/tiagomelo/go-saga), where saga coordinators manually iterate completed steps backward.
+
+### Validation accumulation — hashicorp/terraform
+
+**Source:** [resource.go#L714-L800](https://github.com/hashicorp/terraform/blob/main/internal/configs/resource.go#L714-L800)
+**Pain point:** Validation loop with manual error accumulation and interleaved classification
+
+Terraform (48k stars) validates `replace_triggered_by` expressions. Each expression needs unwrapping, reference extraction, and multiple checks. Diagnostics from each step accumulate into a shared slice.
+
+**Original** (abbreviated):
+```go
+func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagnostics) {
+    exprs, diags := hcl.ExprList(expr)
+
+    for _, expr := range exprs {
+        expr, jsDiags := unwrapJSONRefExpr(expr)
+        diags = diags.Extend(jsDiags)
+
+        refs, refDiags := langrefs.ReferencesInExpr(addrs.ParseRef, expr)
+        for _, diag := range refDiags {
+            diags = append(diags, &hcl.Diagnostic{
+                Severity: hcl.DiagError,
+                Summary:  "Invalid reference in replace_triggered_by",
+                Detail:   diag.Detail,
+                Subject:  expr.Range().Ptr(),
+            })
+        }
+
+        for _, ref := range refs {
+            switch sub := ref.Subject.(type) {
+            case addrs.ForEachAttr:
+                if sub.Name != "key" {
+                    diags = append(diags, &hcl.Diagnostic{...})
+                }
+            case addrs.CountAttr:
+                if sub.Name != "index" {
+                    diags = append(diags, &hcl.Diagnostic{...})
+                }
+            }
+        }
+    }
+    return exprs, diags
+}
+```
+
+**fluentfp (structural pattern):**
+```go
+// validateTriggerExpr validates a single replace_triggered_by expression
+// and returns all diagnostics found.
+validateTriggerExpr := func(expr hcl.Expression) hcl.Diagnostics {
+    expr, jsDiags := unwrapJSONRefExpr(expr)
+    refs, refDiags := langrefs.ReferencesInExpr(addrs.ParseRef, expr)
+    // ... classify refs, build diagnostics ...
+    return append(jsDiags, refDiags...)
+}
+
+func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagnostics) {
+    exprs, diags := hcl.ExprList(expr)
+    diags = append(diags, slice.FlatMap(exprs, validateTriggerExpr)...)
+    return exprs, diags
+}
+```
+
+**What this shows:** The validation loop is structurally a `FlatMap` — each input expression produces zero or more diagnostics, and the results are concatenated. The imperative version interleaves validation logic with `diags = append(diags, ...)` accumulation and `diags = diags.Extend(...)` calls. `slice.FlatMap(exprs, validate)` separates the traversal (iterate + flatten) from the validation logic (per-expression checks). The same pattern recurs in Terraform's `VerifyDependencySelections`, `validateProviderConfigs`, and dozens of similar validation functions. [go-ozzo/ozzo-validation](https://github.com/go-ozzo/ozzo-validation) and [go-playground/validator](https://github.com/go-playground/validator) implement the same accumulate-all-errors design internally.
+
+---
+
+## Additional Applicability
+
+The following examples were investigated but not showcased above — in each case, the original code is a manual implementation of the exact operation fluentfp provides, making the comparison circular ("we replaced your implementation of X with our X"). They're listed here as evidence of how often these patterns appear in production Go code.  The point is that these are useful constructs that these projects had to write themselves, but you don't have to.
+
+| fluentfp operation | Project (stars) | Original code | What it replaces |
+|--------------------|----------------|---------------|------------------|
+| `slice.Partition` | lazygit (55k) | [files_controller.go#L422-L439](https://github.com/jesseduffield/lazygit/blob/9046d5e/pkg/gui/controllers/files_controller.go#L422-L439) | 8-line if/else loop splitting tracked vs untracked files |
+| `.Every` | grafana (72k) | [v30.go#L218-L231](https://github.com/grafana/grafana/blob/a72e02f88a2a9d50f43fe4350926abe970fddd21/apps/dashboard/pkg/migration/schemaversion/v30.go#L218-L231) | Nested type assertions checking all dashboard mappings are new format |
+| `.DropLastWhile` | kubernetes (112k) | [status_manager.go#L573-L587](https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/status/status_manager.go) | Backward for-loop trimming trailing uninitialized containers |
+| `.None` | kubernetes (112k) | [util.go#L266-L272](https://github.com/kubernetes/kubernetes/blob/master/pkg/volume/util/util.go) | Loop checking no containers are running (double-negative logic) |
+| `slice.IndexOf` | uber/aresdb (3k) | [slices.go#L17-L35](https://github.com/uber/aresdb/blob/c21bfe58a6d7fecfb8eeb9cc3a98d079ef8e42b2/utils/slices.go#L17-L35) | Two separate functions — `IndexOfStr` and `IndexOfInt` — pre-generics |
+| `slice.Contains` | consul (28k) | [stringslice.go#L11-L18](https://github.com/hashicorp/consul/blob/c81dc8c55148a6331dd0056d9358290e9a60ec43/lib/stringslice/stringslice.go#L11-L18) | String-specific `Contains` utility used across HashiCorp projects |

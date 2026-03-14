@@ -67,6 +67,26 @@ func TestDeleteMin(t *testing.T) {
 			t.Error("DeleteMin should preserve comparator")
 		}
 	})
+
+	t.Run("singleton preserves comparator", func(t *testing.T) {
+		h := New[int](intAsc).Insert(42)
+		h2 := h.DeleteMin()
+
+		if !h2.IsEmpty() {
+			t.Error("DeleteMin on singleton should return empty")
+		}
+
+		// comparator preserved — Insert should work
+		h3 := h2.Insert(7)
+		if h3.Len() != 1 {
+			t.Fatalf("Insert after singleton DeleteMin: Len = %d; want 1", h3.Len())
+		}
+
+		v, ok := h3.Min().Get()
+		if !ok || v != 7 {
+			t.Errorf("Min after Insert = %d, %v; want 7, true", v, ok)
+		}
+	})
 }
 
 func TestMerge(t *testing.T) {
@@ -178,6 +198,41 @@ func TestPop(t *testing.T) {
 
 		if !rest.IsEmpty() {
 			t.Error("Pop rest should be empty")
+		}
+	})
+
+	t.Run("empty pop preserves comparator", func(t *testing.T) {
+		h := New[int](intAsc)
+		_, rest, _ := h.Pop()
+
+		// rest should still support Insert because comparator is preserved
+		rest = rest.Insert(42)
+		if rest.Len() != 1 {
+			t.Fatalf("Insert after empty Pop: Len = %d; want 1", rest.Len())
+		}
+
+		v, ok := rest.Min().Get()
+		if !ok || v != 42 {
+			t.Errorf("Min after Insert = %d, %v; want 42, true", v, ok)
+		}
+	})
+
+	t.Run("singleton pop preserves comparator", func(t *testing.T) {
+		h := New[int](intAsc).Insert(42)
+		v, rest, ok := h.Pop()
+		if !ok || v != 42 {
+			t.Fatalf("Pop() = %d, %v; want 42, true", v, ok)
+		}
+
+		// rest is now empty but should preserve comparator
+		rest = rest.Insert(7)
+		if rest.Len() != 1 {
+			t.Fatalf("Insert after singleton Pop: Len = %d; want 1", rest.Len())
+		}
+
+		got, ok := rest.Min().Get()
+		if !ok || got != 7 {
+			t.Errorf("Min after Insert = %d, %v; want 7, true", got, ok)
 		}
 	})
 }

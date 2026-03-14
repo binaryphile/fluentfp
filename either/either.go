@@ -1,7 +1,10 @@
 package either
 
-// Either represents a value of one of two types.
-// Convention: Left for failure, Right for success.
+// Either represents either a Left value or a Right value.
+//
+// The zero value is Left containing L's zero value. In particular,
+// Either[error, R]{} is Left(nil) — a Left with no meaningful error.
+// Always construct explicitly via [Left] or [Right].
 type Either[L, R any] struct {
 	left    L
 	right   R
@@ -58,13 +61,40 @@ func (e Either[L, R]) LeftOr(defaultVal L) L {
 	return defaultVal
 }
 
-// Map applies fn to the Right value and returns a new Either.
+// Convert applies fn to the Right value and returns a new Either.
 // If e is Left, returns e unchanged.
-func (e Either[L, R]) Map(fn func(R) R) Either[L, R] {
+func (e Either[L, R]) Convert(fn func(R) R) Either[L, R] {
 	if !e.isRight {
 		return e
 	}
 	return Right[L, R](fn(e.right))
+}
+
+// FlatMap applies fn to the Right value and returns the result.
+// If e is Left, returns e unchanged.
+func (e Either[L, R]) FlatMap(fn func(R) Either[L, R]) Either[L, R] {
+	if !e.isRight {
+		return e
+	}
+	return fn(e.right)
+}
+
+// FlatMapLeft applies fn to the Left value if e is Left, attempting recovery.
+// If e is Right, returns e unchanged. The fn may return Right to recover
+// or Left to continue the failure with a different error.
+func (e Either[L, R]) FlatMapLeft(fn func(L) Either[L, R]) Either[L, R] {
+	if e.isRight {
+		return e
+	}
+	return fn(e.left)
+}
+
+// Swap returns a new Either with Left and Right swapped.
+func (e Either[L, R]) Swap() Either[R, L] {
+	if e.isRight {
+		return Left[R, L](e.right)
+	}
+	return Right[R, L](e.left)
 }
 
 // MustGet returns the Right value or panics if e is Left.
@@ -117,6 +147,15 @@ func (e Either[L, R]) LeftOrCall(fn func() L) L {
 
 // functions
 
+// FlatMap applies fn to the Right value and returns the result.
+// If e is Left, returns the Left value unchanged.
+func FlatMap[L, R, R2 any](e Either[L, R], fn func(R) Either[L, R2]) Either[L, R2] {
+	if !e.isRight {
+		return Left[L, R2](e.left)
+	}
+	return fn(e.right)
+}
+
 // Fold applies onLeft if e is Left, or onRight if e is Right.
 func Fold[L, R, T any](e Either[L, R], onLeft func(L) T, onRight func(R) T) T {
 	if e.isRight {
@@ -142,3 +181,4 @@ func MapLeft[L, R, L2 any](e Either[L, R], fn func(L) L2) Either[L2, R] {
 	}
 	return Left[L2, R](fn(e.left))
 }
+

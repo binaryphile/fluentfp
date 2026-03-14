@@ -26,6 +26,9 @@ func _() {
 	_ = Values[int, int]
 	_ = Keys[int, int]
 
+	_ = ToPairs[int, int]
+	_ = FromPairs[int, int]
+
 	_ = Invert[int, int]
 	_ = Merge[int, int]
 	_ = PickByKeys[int, int]

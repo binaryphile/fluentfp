@@ -42,6 +42,11 @@ func Throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(cont
 // The total cost of concurrently-executing calls never exceeds capacity.
 // The returned function blocks until enough budget is available.
 // The returned function is safe for concurrent use from multiple goroutines.
+//
+// Token acquisition is serialized to prevent partial-acquire deadlock.
+// This means a high-cost waiter blocks later callers even if capacity is
+// available for them (head-of-line blocking).
+//
 // Panics if capacity <= 0, cost is nil, or fn is nil.
 // Per-call: panics if cost(t) <= 0 or cost(t) > capacity.
 func ThrottleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {

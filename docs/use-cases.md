@@ -68,6 +68,7 @@
 - 1c. Collection source is a set: System extracts the set's members as a collection for further transformation.
 - 1d. Developer needs to filter or transform map entries while preserving map structure: System applies predicates or value transforms to entries, returning a map for further map-level operations or value extraction.
 - 1e. Collection source is a combinatorial construction: System generates all permutations, combinations, subsets, or pairwise products from input elements.
+- 1f. Developer needs map entries as a flat collection of key-value pairs, or needs to construct a map from pairs: System converts between map and pair-slice representations. When constructing from pairs with duplicate keys, the last pair wins.
 - 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order. When the expansion produces a different type, the standalone variant infers both types.
 - 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.

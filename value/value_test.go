@@ -160,32 +160,32 @@ func TestFirstNonZero(t *testing.T) {
 	})
 }
 
-func TestFirstNonNil(t *testing.T) {
+func TestFirstNonNilValue(t *testing.T) {
 	a, b := 1, 2
 
 	t.Run("first non-nil wins", func(t *testing.T) {
-		got := value.FirstNonNil(&a, &b)
+		got := value.FirstNonNilValue(&a, &b)
 		if got != 1 {
 			t.Errorf("got %d, want 1", got)
 		}
 	})
 
 	t.Run("skips nil", func(t *testing.T) {
-		got := value.FirstNonNil(nil, &b)
+		got := value.FirstNonNilValue(nil, &b)
 		if got != 2 {
 			t.Errorf("got %d, want 2", got)
 		}
 	})
 
 	t.Run("all nil", func(t *testing.T) {
-		got := value.FirstNonNil[int](nil, nil)
+		got := value.FirstNonNilValue[int](nil, nil)
 		if got != 0 {
 			t.Errorf("got %d, want 0", got)
 		}
 	})
 
 	t.Run("no args", func(t *testing.T) {
-		got := value.FirstNonNil[int]()
+		got := value.FirstNonNilValue[int]()
 		if got != 0 {
 			t.Errorf("got %d, want 0", got)
 		}
@@ -217,4 +217,46 @@ func TestOf_When_OrCall_lazy_fallback(t *testing.T) {
 	if got != 99 {
 		t.Errorf("got %d, want 99", got)
 	}
+}
+
+// --- Edge cases ---
+
+func TestLazyOf_nil_panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("LazyOf(nil) should panic")
+		}
+	}()
+	value.LazyOf[int](nil)
+}
+
+func TestFirstNonNilValue_pointer_to_zero_wins(t *testing.T) {
+	x := 0
+	got := value.FirstNonNilValue(&x)
+	if got != 0 {
+		t.Errorf("got %d, want 0 (pointer to zero should still win)", got)
+	}
+}
+
+func TestFirstNonEmpty(t *testing.T) {
+	t.Run("skips empty", func(t *testing.T) {
+		got := value.FirstNonEmpty("", "fallback")
+		if got != "fallback" {
+			t.Errorf("got %q, want %q", got, "fallback")
+		}
+	})
+
+	t.Run("all empty", func(t *testing.T) {
+		got := value.FirstNonEmpty("", "")
+		if got != "" {
+			t.Errorf("got %q, want %q", got, "")
+		}
+	})
+
+	t.Run("first wins", func(t *testing.T) {
+		got := value.FirstNonEmpty("first", "second")
+		if got != "first" {
+			t.Errorf("got %q, want %q", got, "first")
+		}
+	})
 }

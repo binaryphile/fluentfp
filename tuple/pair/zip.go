@@ -4,7 +4,7 @@ package pair
 // Panics if the slices have different lengths.
 func Zip[A, B any](as []A, bs []B) []Pair[A, B] {
 	if len(as) != len(bs) {
-		panic("zip: arguments must have same length")
+		panic("pair.Zip: arguments must have same length")
 	}
 
 	result := make([]Pair[A, B], len(as))
@@ -16,10 +16,13 @@ func Zip[A, B any](as []A, bs []B) []Pair[A, B] {
 }
 
 // ZipWith applies fn to corresponding elements of the two input slices.
-// Panics if the slices have different lengths.
+// Panics if the slices have different lengths or fn is nil.
 func ZipWith[A, B, R any](as []A, bs []B, fn func(A, B) R) []R {
+	if fn == nil {
+		panic("pair.ZipWith: fn must not be nil")
+	}
 	if len(as) != len(bs) {
-		panic("zipWith: arguments must have same length")
+		panic("pair.ZipWith: arguments must have same length")
 	}
 
 	result := make([]R, len(as))

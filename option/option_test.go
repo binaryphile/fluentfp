@@ -1,6 +1,9 @@
 package option
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 // --- Construction ---
 
@@ -332,6 +335,89 @@ func TestStandaloneFlatMap(t *testing.T) {
 		result := FlatMap(New("", false), parseInt)
 		if _, ok := result.Get(); ok {
 			t.Error("FlatMap(not-ok, parseInt) should be not-ok")
+		}
+	})
+}
+
+// --- JSON ---
+
+func TestUnmarshalJSONNullWithWhitespace(t *testing.T) {
+	t.Run("null with surrounding whitespace becomes not-ok", func(t *testing.T) {
+		var opt Option[int]
+		if err := json.Unmarshal([]byte("  null  "), &opt); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if opt.IsOk() {
+			t.Error("whitespace-padded null should unmarshal to not-ok")
+		}
+	})
+
+	t.Run("bare null becomes not-ok", func(t *testing.T) {
+		var opt Option[int]
+		if err := json.Unmarshal([]byte("null"), &opt); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if opt.IsOk() {
+			t.Error("null should unmarshal to not-ok")
+		}
+	})
+
+	t.Run("value still unmarshals to ok", func(t *testing.T) {
+		var opt Option[int]
+		if err := json.Unmarshal([]byte("42"), &opt); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if v, ok := opt.Get(); !ok || v != 42 {
+			t.Errorf("got (%v, %v), want (42, true)", v, ok)
+		}
+	})
+}
+
+// --- Env ---
+
+func TestEnv(t *testing.T) {
+	t.Run("set variable returns ok", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_VAR", "hello")
+		opt := Env("FLUENTFP_TEST_VAR")
+		if v, ok := opt.Get(); !ok || v != "hello" {
+			t.Errorf("Env(set) = (%v, %v), want (hello, true)", v, ok)
+		}
+	})
+
+	t.Run("unset variable returns not-ok", func(t *testing.T) {
+		opt := Env("FLUENTFP_DEFINITELY_UNSET_12345")
+		if opt.IsOk() {
+			t.Error("Env(unset) should be not-ok")
+		}
+	})
+
+	t.Run("empty variable returns not-ok", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_EMPTY", "")
+		opt := Env("FLUENTFP_TEST_EMPTY")
+		if opt.IsOk() {
+			t.Error("Env(empty) should be not-ok")
+		}
+	})
+}
+
+// --- OrFalse standalone ---
+
+func TestOrFalse(t *testing.T) {
+	t.Run("ok true returns true", func(t *testing.T) {
+		if !OrFalse(Of(true)) {
+			t.Error("OrFalse(Of(true)) should be true")
+		}
+	})
+
+	t.Run("ok false returns false", func(t *testing.T) {
+		if OrFalse(Of(false)) {
+			t.Error("OrFalse(Of(false)) should be false")
+		}
+	})
+
+	t.Run("not-ok returns false", func(t *testing.T) {
+		if OrFalse(NotOkBool) {
+			t.Error("OrFalse(NotOkBool) should be false")
 		}
 	})
 }

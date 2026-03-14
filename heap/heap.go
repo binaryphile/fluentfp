@@ -179,11 +179,12 @@ func (h Heap[T]) Min() option.Option[T] {
 }
 
 // Pop returns the minimum element, the remaining heap, and true.
-// Returns zero T, empty heap, and false if the heap is empty.
+// Returns zero T, the receiver (preserving comparator), and false if empty.
 // Stone's heap-extractor.
 func (h Heap[T]) Pop() (_ T, _ Heap[T], _ bool) {
 	if h.root == nil {
-		return
+		var zero T
+		return zero, h, false
 	}
 
 	return h.root.elem, h.DeleteMin(), true

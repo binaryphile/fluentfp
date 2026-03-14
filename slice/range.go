@@ -23,12 +23,18 @@ func Range(end int) Int {
 
 // RangeFrom returns [start, start+1, ..., end-1].
 // Returns empty for start >= end.
+// Panics if the range is too large to allocate.
 func RangeFrom(start, end int) Int {
 	if start >= end {
 		return Int{}
 	}
 
-	result := make([]int, end-start)
+	n := int(uint(end) - uint(start))
+	if n <= 0 {
+		panic("slice.RangeFrom: range too large")
+	}
+
+	result := make([]int, n)
 	for i := range result {
 		result[i] = start + i
 	}
@@ -57,11 +63,24 @@ func RangeStep(start, end, step int) Int {
 		return Int{}
 	}
 
+	// Overflow-safe count using unsigned arithmetic.
 	var count int
 	if step > 0 {
-		count = (end - start + step - 1) / step
+		diff := uint(end) - uint(start)
+		ustep := uint(step)
+		ucount := (diff-1)/ustep + 1
+		count = int(ucount)
+		if count <= 0 {
+			panic("slice.RangeStep: range too large")
+		}
 	} else {
-		count = (start - end + (-step) - 1) / (-step)
+		diff := uint(start) - uint(end)
+		ustep := uint(-step) // safe: step != minInt checked above
+		ucount := (diff-1)/ustep + 1
+		count = int(ucount)
+		if count <= 0 {
+			panic("slice.RangeStep: range too large")
+		}
 	}
 
 	result := make([]int, count)

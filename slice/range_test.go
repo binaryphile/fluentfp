@@ -44,6 +44,8 @@ func TestRangeFrom(t *testing.T) {
 		{name: "start exceeds end", start: 5, end: 3, want: []int{}},
 		{name: "negative start", start: -2, end: 2, want: []int{-2, -1, 0, 1}},
 		{name: "single element", start: 0, end: 1, want: []int{0}},
+		{name: "near MaxInt upper bound", start: math.MaxInt - 1, end: math.MaxInt, want: []int{math.MaxInt - 1}},
+		{name: "near MinInt lower bound", start: math.MinInt, end: math.MinInt + 1, want: []int{math.MinInt}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,6 +78,10 @@ func TestRangeStep(t *testing.T) {
 		{name: "negative start and end", start: -5, end: -1, step: 2, want: []int{-5, -3}},
 		{name: "negative step with negative values", start: -1, end: -5, step: -1, want: []int{-1, -2, -3, -4}},
 		{name: "single element negative step", start: 5, end: 4, step: -1, want: []int{5}},
+		{name: "near MaxInt small output", start: math.MaxInt - 2, end: math.MaxInt, step: 1, want: []int{math.MaxInt - 2, math.MaxInt - 1}},
+		{name: "near MinInt small output descending", start: math.MinInt + 2, end: math.MinInt, step: -1, want: []int{math.MinInt + 2, math.MinInt + 1}},
+		{name: "start equals end positive step", start: 0, end: 0, step: 1, want: []int{}},
+		{name: "start equals end negative step", start: 5, end: 5, step: -1, want: []int{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,6 +114,33 @@ func TestRangeStep_panics_on_min_int_step(t *testing.T) {
 		}
 	}()
 	slice.RangeStep(0, 5, math.MinInt)
+}
+
+func TestRangeFrom_panics_on_huge_range(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("RangeFrom(MinInt, MaxInt) did not panic")
+		}
+	}()
+	slice.RangeFrom(math.MinInt, math.MaxInt)
+}
+
+func TestRangeStep_panics_on_huge_positive_range(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("RangeStep(MinInt, MaxInt, 1) did not panic")
+		}
+	}()
+	slice.RangeStep(math.MinInt, math.MaxInt, 1)
+}
+
+func TestRangeStep_panics_on_huge_negative_range(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("RangeStep(MaxInt, MinInt, -1) did not panic")
+		}
+	}()
+	slice.RangeStep(math.MaxInt, math.MinInt, -1)
 }
 
 func TestRange_chains_with_Int_methods(t *testing.T) {

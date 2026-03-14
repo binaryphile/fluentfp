@@ -52,8 +52,8 @@ func forBatches(n, workers int, fn func(batchIdx, start, end int)) {
 		}
 		wg.Add(1)
 		go func(idx, start, end int) {
-			defer wg.Done()
 			defer func() {
+				defer wg.Done() // unconditional: runs even if recovery logic panics
 				if v := recover(); v != nil {
 					panicOnce.Do(func() {
 						caught = toPanicError(v)
@@ -128,6 +128,38 @@ func (m Mapper[T]) PKeepIf(workers int, fn func(T) bool) Mapper[T] {
 		total += len(b)
 	}
 	results := make([]T, 0, total)
+	for _, b := range batchResults {
+		results = append(results, b...)
+	}
+	return results
+}
+
+// PFlatMap applies fn to each element of m concurrently using the specified number of
+// worker goroutines, then flattens the results into a single slice. Order is preserved.
+// The fn must be safe for concurrent use.
+//
+// Panics in fn are recovered, converted to *[rslt.PanicError] with a stack captured
+// during recovery, and re-panicked on the calling goroutine after all workers exit.
+func PFlatMap[T, R any](m Mapper[T], workers int, fn func(T) []R) Mapper[R] {
+	if workers <= 0 {
+		panic("fluentfp: workers must be > 0")
+	}
+	if len(m) == 0 {
+		return Mapper[R]{}
+	}
+	batchResults := make([][]R, min(workers, len(m)))
+	forBatches(len(m), workers, func(idx, start, end int) {
+		var result []R
+		for j := start; j < end; j++ {
+			result = append(result, fn(m[j])...)
+		}
+		batchResults[idx] = result
+	})
+	total := 0
+	for _, b := range batchResults {
+		total += len(b)
+	}
+	results := make([]R, 0, total)
 	for _, b := range batchResults {
 		results = append(results, b...)
 	}

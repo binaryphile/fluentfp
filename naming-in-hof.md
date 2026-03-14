@@ -123,7 +123,7 @@ Suffix with `Option` to signal the value may be absent:
 
 ```go
 userOption := option.Of(user)
-portOption := option.Getenv("PORT")
+portOption := option.Env("PORT")
 nameOption := option.NonZero(name)
 
 // Use the option

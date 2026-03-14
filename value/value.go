@@ -1,5 +1,3 @@
-// Package value provides value-first conditional selection.
-// Use this for selecting a value with a fallback, not for executing branches of logic.
 package value
 
 import "github.com/binaryphile/fluentfp/option"
@@ -37,8 +35,8 @@ func FirstNonEmpty(vals ...string) string {
 	return FirstNonZero(vals...)
 }
 
-// FirstNonNil returns the dereferenced value of the first non-nil pointer, or zero if all are nil.
-func FirstNonNil[T any](ptrs ...*T) (_ T) {
+// FirstNonNilValue returns the dereferenced value of the first non-nil pointer, or zero if all are nil.
+func FirstNonNilValue[T any](ptrs ...*T) (_ T) {
 	for _, p := range ptrs {
 		if p != nil {
 			return *p
@@ -55,7 +53,11 @@ type LazyCond[T any] struct {
 
 // LazyOf wraps a function for lazy conditional selection.
 // The function is only called if the condition is true.
+// Panics if fn is nil.
 func LazyOf[T any](fn func() T) LazyCond[T] {
+	if fn == nil {
+		panic("value: LazyOf called with nil function")
+	}
 	return LazyCond[T]{fn: fn}
 }
 

@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strconv"
 	"testing"
+
+	"github.com/binaryphile/fluentfp/tuple/pair"
 )
 
 func TestMapTo(t *testing.T) {
@@ -453,6 +455,134 @@ func TestOmitByKeys(t *testing.T) {
 		got := OmitByKeys[string, int](nil, []string{"a"})
 		if len(got) != 0 {
 			t.Errorf("OmitByKeys() = %v, want empty", got)
+		}
+	})
+}
+
+func TestToPairs(t *testing.T) {
+	t.Run("converts map to pairs", func(t *testing.T) {
+		m := map[string]int{"a": 1, "b": 2, "c": 3}
+		got := ToPairs(m)
+		if len(got) != 3 {
+			t.Fatalf("ToPairs() len = %d, want 3", len(got))
+		}
+		sort.Slice(got, func(i, j int) bool { return got[i].First < got[j].First })
+		if got[0].First != "a" || got[0].Second != 1 {
+			t.Errorf("ToPairs()[0] = {%q, %d}, want {\"a\", 1}", got[0].First, got[0].Second)
+		}
+		if got[1].First != "b" || got[1].Second != 2 {
+			t.Errorf("ToPairs()[1] = {%q, %d}, want {\"b\", 2}", got[1].First, got[1].Second)
+		}
+		if got[2].First != "c" || got[2].Second != 3 {
+			t.Errorf("ToPairs()[2] = {%q, %d}, want {\"c\", 3}", got[2].First, got[2].Second)
+		}
+	})
+
+	t.Run("empty map returns empty", func(t *testing.T) {
+		got := ToPairs(map[string]int{})
+		if len(got) != 0 {
+			t.Errorf("ToPairs() = %v, want empty", got)
+		}
+	})
+
+	t.Run("nil map returns empty", func(t *testing.T) {
+		got := ToPairs[string, int](nil)
+		if len(got) != 0 {
+			t.Errorf("ToPairs() = %v, want empty", got)
+		}
+	})
+
+	t.Run("single entry", func(t *testing.T) {
+		got := ToPairs(map[string]int{"x": 42})
+		if len(got) != 1 {
+			t.Fatalf("ToPairs() len = %d, want 1", len(got))
+		}
+		if got[0].First != "x" || got[0].Second != 42 {
+			t.Errorf("ToPairs()[0] = {%q, %d}, want {\"x\", 42}", got[0].First, got[0].Second)
+		}
+	})
+
+	t.Run("result chains with Mapper methods", func(t *testing.T) {
+		m := map[string]int{"a": 1, "b": 2, "c": 3}
+		// hasValueOver1 returns true if the pair's value exceeds 1.
+		hasValueOver1 := func(p pair.Pair[string, int]) bool { return p.Second > 1 }
+		count := ToPairs(m).KeepIf(hasValueOver1).Len()
+		if count != 2 {
+			t.Errorf("ToPairs().KeepIf().Len() = %d, want 2", count)
+		}
+	})
+}
+
+func TestFromPairs(t *testing.T) {
+	t.Run("converts pairs to map", func(t *testing.T) {
+		ps := []pair.Pair[string, int]{
+			pair.Of("a", 1),
+			pair.Of("b", 2),
+			pair.Of("c", 3),
+		}
+		got := FromPairs(ps)
+		want := map[string]int{"a": 1, "b": 2, "c": 3}
+		if !reflect.DeepEqual(map[string]int(got), want) {
+			t.Errorf("FromPairs() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("duplicate keys last wins", func(t *testing.T) {
+		ps := []pair.Pair[string, int]{
+			pair.Of("a", 1),
+			pair.Of("a", 99),
+		}
+		got := FromPairs(ps)
+		if got["a"] != 99 {
+			t.Errorf("FromPairs() duplicate key = %d, want 99 (last wins)", got["a"])
+		}
+		if len(got) != 1 {
+			t.Errorf("FromPairs() len = %d, want 1", len(got))
+		}
+	})
+
+	t.Run("empty slice returns empty", func(t *testing.T) {
+		got := FromPairs([]pair.Pair[string, int]{})
+		if got == nil || len(got) != 0 {
+			t.Errorf("FromPairs() = %v, want non-nil empty", got)
+		}
+	})
+
+	t.Run("nil slice returns empty", func(t *testing.T) {
+		got := FromPairs[string, int](nil)
+		if got == nil || len(got) != 0 {
+			t.Errorf("FromPairs() = %v, want non-nil empty", got)
+		}
+	})
+
+	t.Run("single pair", func(t *testing.T) {
+		ps := []pair.Pair[string, int]{pair.Of("x", 42)}
+		got := FromPairs(ps)
+		want := map[string]int{"x": 42}
+		if !reflect.DeepEqual(map[string]int(got), want) {
+			t.Errorf("FromPairs() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("result chains with Entries methods", func(t *testing.T) {
+		ps := []pair.Pair[string, int]{
+			pair.Of("a", 1),
+			pair.Of("b", 2),
+			pair.Of("c", 3),
+		}
+		// valueOver1 returns true if the value exceeds 1.
+		valueOver1 := func(_ string, v int) bool { return v > 1 }
+		got := FromPairs(ps).KeepIf(valueOver1)
+		if len(got) != 2 {
+			t.Errorf("FromPairs().KeepIf() len = %d, want 2", len(got))
+		}
+	})
+
+	t.Run("roundtrip preserves map", func(t *testing.T) {
+		m := map[string]int{"a": 1, "b": 2, "c": 3}
+		got := FromPairs(ToPairs(m))
+		if !reflect.DeepEqual(map[string]int(got), m) {
+			t.Errorf("FromPairs(ToPairs()) = %v, want %v", got, m)
 		}
 	})
 }
