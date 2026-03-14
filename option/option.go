@@ -30,6 +30,7 @@ func NonZero[T comparable](t T) (_ Option[T]) {
 }
 
 // New returns an ok option of t provided that ok is true, or not-ok otherwise.
+// For condition-first construction, see [When] and [WhenFunc].
 func New[T any](t T, ok bool) (_ Option[T]) {
 	if !ok {
 		return

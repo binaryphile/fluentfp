@@ -77,21 +77,21 @@ parsePort := func(s string) int {
 port := hostOpt.ToInt(parsePort)
 ```
 
-### Value Lazy Evaluation
+### Conditional Value Selection
 
-For lazy evaluation with `value.LazyOf`, name expensive computations:
+For conditional values with `option.When` / `option.WhenFunc`, name expensive computations:
 
 ```go
-// Inline for simple expressions
-result := value.Of(cached).When(cacheHit).Or(fetchFromDB())
+// Eager: cached is already computed
+result := option.When(cacheHit, cached).Or(fetchFromDB())
 
 // Lazy: expensiveDefault only called when cache misses
-result := value.LazyOf(expensiveDefault).When(!cacheHit).Or(cachedValue)
+result := option.WhenFunc(!cacheHit, expensiveDefault).Or(cachedValue)
 
 // Named when computation is complex
 // loadConfig reads and parses the config file.
 loadConfig := func() Config { return must.Get(parseConfigFile(path)) }
-cfg := value.LazyOf(loadConfig).When(!useDefault).Or(defaultCfg)
+cfg := option.WhenFunc(!useDefault, loadConfig).Or(defaultCfg)
 ```
 
 ### Fold Handlers (either package)
@@ -167,5 +167,5 @@ names := actives.ToString(User.Name)
 - **Don't name single field access** — `func(u User) string { return u.Name }` is fine inline
 - **Don't extract predicates for simple `if`** — `if u.IsActive()` beats `if isActive(u)`
 - **Don't name trivial defaults** — `opt.Or("default")` doesn't need `defaultValue := "default"`
-- **Don't abstract one-time conditionals** — `value.Of(a).When(x).Or(b)` is clear inline
+- **Don't abstract one-time conditionals** — `option.When(x, a).Or(b)` is clear inline
 - **Don't create "utils" packages** — keep named functions near their usage

@@ -539,3 +539,126 @@ func TestOrFalse(t *testing.T) {
 		}
 	})
 }
+
+// --- When / WhenFunc ---
+
+func TestWhen(t *testing.T) {
+	t.Run("true returns ok option", func(t *testing.T) {
+		got, ok := When(true, 42).Get()
+		if !ok || got != 42 {
+			t.Errorf("When(true, 42) = (%v, %v), want (42, true)", got, ok)
+		}
+	})
+
+	t.Run("false returns not-ok option", func(t *testing.T) {
+		if _, ok := When(false, 42).Get(); ok {
+			t.Error("When(false, 42) should be not-ok")
+		}
+	})
+}
+
+func TestWhen_OrCall_lazy_fallback(t *testing.T) {
+	fallbackCalled := false
+	fallback := func() int {
+		fallbackCalled = true
+		return 99
+	}
+
+	// When true, fallback should not be called
+	got := When(true, 42).OrCall(fallback)
+	if fallbackCalled {
+		t.Error("fallback called when condition true")
+	}
+	if got != 42 {
+		t.Errorf("got %d, want 42", got)
+	}
+
+	// When false, fallback should be called
+	fallbackCalled = false
+	got = When(false, 42).OrCall(fallback)
+	if !fallbackCalled {
+		t.Error("fallback not called when condition false")
+	}
+	if got != 99 {
+		t.Errorf("got %d, want 99", got)
+	}
+}
+
+func TestWhenFunc(t *testing.T) {
+	t.Run("true calls fn and returns ok", func(t *testing.T) {
+		callCount := 0
+		fn := func() int {
+			callCount++
+			return 42
+		}
+
+		result := WhenFunc(true, fn)
+
+		if callCount != 1 {
+			t.Errorf("fn called %d times, want 1", callCount)
+		}
+		got, ok := result.Get()
+		if !ok {
+			t.Fatal("expected ok option")
+		}
+		if got != 42 {
+			t.Errorf("got %d, want 42", got)
+		}
+	})
+
+	t.Run("false does not call fn", func(t *testing.T) {
+		callCount := 0
+		fn := func() int {
+			callCount++
+			return 42
+		}
+
+		result := WhenFunc(false, fn)
+
+		if callCount != 0 {
+			t.Errorf("fn called %d times, want 0", callCount)
+		}
+		_, ok := result.Get()
+		if ok {
+			t.Fatal("expected not-ok option")
+		}
+	})
+
+	t.Run("true with Or returns value", func(t *testing.T) {
+		fn := func() int { return 42 }
+
+		got := WhenFunc(true, fn).Or(0)
+
+		if got != 42 {
+			t.Errorf("got %d, want 42", got)
+		}
+	})
+
+	t.Run("false with Or returns fallback", func(t *testing.T) {
+		fn := func() int { return 42 }
+
+		got := WhenFunc(false, fn).Or(99)
+
+		if got != 99 {
+			t.Errorf("got %d, want 99", got)
+		}
+	})
+}
+
+func TestWhenFunc_nil_panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("WhenFunc(true, nil) should panic")
+		}
+	}()
+	WhenFunc[int](true, nil)
+}
+
+func TestWhenFunc_nil_false_panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("WhenFunc(false, nil) should panic")
+		}
+	}()
+	WhenFunc[int](false, nil)
+}

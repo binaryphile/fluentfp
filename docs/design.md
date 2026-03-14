@@ -11,7 +11,6 @@ flowchart TD
     slice --> base
     slice --> result
     kv --> base
-    value --> option
     result
     stream --> option
     seq --> option
@@ -34,7 +33,6 @@ flowchart TD
 | `rslt` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`CollectOkAndErr` collectors |
 | `stream` | Lazy memoized sequences with per-cell mutex memoization. Head-eager, tail-lazy. Pure sources only. |
 | `must` | Panic-on-error enforcement for initialization invariants |
-| `value` | Conditional value selection with eager/lazy evaluation |
 | `pair` | Tuple construction and pairwise slice operations |
 | `lof` | Adapters that make Go builtins usable as higher-order function arguments |
 | `hof` | Function combinators — composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), predicates (`Eq`), concurrency control (`Throttle`/`ThrottleWeighted`), side-effect wrappers (`OnErr`) |
@@ -127,18 +125,37 @@ Boolean flag dispatch — Go has no discriminated unions.
 
 **Not interface-based:** would lose type parameters and require assertion to extract values.
 
-### D6: Value selection as type chain
+### D6: Conditional value selection
 
 ```go
-type Cond[T any] struct{ v T }
-type LazyCond[T any] struct{ fn func() T }
+option.When(cond, v)        // eager — v evaluated by Go call semantics
+option.WhenFunc(cond, fn)   // lazy — fn called only when cond is true
 ```
 
-Two types with identical fluent chain shape (`.When(bool).Or(T)`) but different constructors (`Of(T)` vs `LazyOf(func() T)`).
+Two standalone functions in `option` with different evaluation strategies. `When` delegates to `New(t, cond)` — it's a readability alias that puts the condition first, matching `if cond` reading order. `WhenFunc` guards a function call behind the condition.
 
-**Why two types:** the caller picks based on evaluation cost. `Cond` evaluates the value eagerly. `LazyCond` never evaluates the function unless the condition is true — the unused branch's computation is never performed.
+**Why two functions:** the caller picks based on evaluation cost. `When` evaluates eagerly (Go call semantics). `WhenFunc` only calls `fn` when the condition is true.
 
-**Not a single function with bool parameter:** loses the fluent `Of(v).When(c).Or(d)` readability.
+**Why `When` exists despite being an alias for `New`:** `When` is justified as the eager half of a `When`/`WhenFunc` pair — it makes the eager/lazy distinction discoverable. Without it, callers would need to know that `New` is the eager counterpart to `WhenFunc`, which is not obvious from the names. Style rule: prefer `When` for explicit boolean conditions, `New` for forwarding comma-ok results.
+
+**Eager nil check in WhenFunc:** panics if `fn` is nil even when `cond` is false. This preserves the contract from the predecessor (`value.LazyOf` panicked on nil identically). Branch-dependent bug detection is worse than fail-fast — a nil function is always programmer error regardless of condition.
+
+**What was rejected:**
+- *Only `New`*: `New(v, cond)` reads as comma-ok forwarding, not boolean selection. Callers writing `option.New("critical", overdue)` would fight the reading order.
+- *Intermediate types (`Cond[T]`/`LazyCond[T]`)*: the old `value.Of(v).When(cond)` DSL required two types with one method each. Standalone functions eliminate the type machinery.
+- *Overloading `When` for both eager/lazy*: Go has no function overloading. A single function accepting `any` would lose type safety.
+- *Retaining coalesce helpers (`FirstNonZero`, `FirstNonEmpty`)*: these are exactly `cmp.Or` (Go 1.22+ stdlib) for comparable types. `FirstNonNilValue` (pointer dereference) had zero showcase usage and weird semantics — deleted without replacement.
+
+**Migration from `value` package (deleted in v0.40.0):**
+
+| Old | New | Notes |
+|-----|-----|-------|
+| `value.Of(v).When(cond)` | `option.When(cond, v)` | Condition-first; arg order flipped |
+| `value.LazyOf(fn).When(cond)` | `option.WhenFunc(cond, fn)` | Same nil-panic contract |
+| `value.FirstNonZero(a, b, ...)` | `cmp.Or(a, b, ...)` | Stdlib; requires `comparable` |
+| `value.FirstNonEmpty(a, b, ...)` | `cmp.Or(a, b, ...)` | Stdlib; string-specific variant |
+| `value.FirstNonNilValue(p, q, ...)` | No replacement | Pointer-dereference coalesce; zero usage in showcase |
+| `value.NonZero`, `value.NonNil`, etc. | `option.NonZero`, `option.NonNil`, etc. | Were already re-exports |
 
 ### D7: Must as explicit panic contract
 
@@ -608,7 +625,7 @@ Where packages depend on each other, and why:
 | `Mapper.Sample` → `option.Option[T]` | Same: empty collection is normal, not exceptional. |
 | `FindAs[R,T]` → `option.Option[R]` | Type-assertion search where absence and type mismatch both mean "not found." |
 | `Mapper.Single` → `either.Either[int, T]` | Failure carries information (the actual count). A plain error would discard it. |
-| `value.When` → `option.Option[T]` | Reuses option's `Or`/`OrZero` extraction rather than duplicating. |
+| `option.When` → `option.Option[T]` | Conditional construction reusing option's `Or`/`OrZero` extraction. |
 | `Entries.Values` → `Mapper[V]` | Bridges map values into slice pipelines. Used by `kv.From(m).Values()` for map-to-slice conversion. |
 | `FanOut` → `rslt.Result[R]` | Per-item results for concurrent traversal. `Mapper[Result[R]]` preserves chainability — callers filter, partition, or collect results using existing Mapper methods. |
 | `FanOut` → `rslt.PanicError` | Recovered panics wrapped as errors. `errors.As(err, &pe)` detects panic-originated failures. Preserves error chains via `Unwrap()`. |
@@ -619,6 +636,6 @@ Where packages depend on each other, and why:
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 | `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
 
-`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends only on `pair`. `stream`, `seq`, `heap`, and `value` depend only on `option`. `slice` depends on `internal/base` and `rslt`; `kv` depends on `internal/base` and `pair` — neither `kv` nor `slice` imports the other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends only on `pair`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `internal/base` and `rslt`; `kv` depends on `internal/base` and `pair` — neither `kv` nor `slice` imports the other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.

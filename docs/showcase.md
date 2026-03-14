@@ -86,14 +86,14 @@ if b.RaftProtocol != 0 {
 
 **fluentfp:**
 ```go
-result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.BootstrapExpect = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
-result.RaftProtocol = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
+result.AuthoritativeRegion = cmp.Or(b.AuthoritativeRegion, s.AuthoritativeRegion)
+result.BootstrapExpect = option.When(b.BootstrapExpect > 0, b.BootstrapExpect).Or(s.BootstrapExpect)
+result.RaftProtocol = cmp.Or(b.RaftProtocol, s.RaftProtocol)
 ```
 
-**What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
+**What changed:** Every field reads as intent: `cmp.Or(override, default)` for strings and numbers where zero means "absent" — stdlib handles the common case. When zero is a valid override (like `BootstrapExpect`), `option.When(cond, v).Or(fallback)` gates on an explicit condition instead. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
 
-**What's eliminated:** Mechanical duplication — the three-line if-block pattern repeated 48 times. Each field's conditional is now a single expression with a consistent shape: `value.FirstNonEmpty(override, default)` or `value.FirstNonZero(override, default)`. The risk here isn't shadowing — it's copy-paste error and review fatigue across 144 lines of structurally identical code.
+**What's eliminated:** Mechanical duplication — the three-line if-block pattern repeated 48 times. Each field's conditional is now a single expression with a consistent shape: `cmp.Or(override, default)` for zero-value coalescing or `option.When(cond, v).Or(fallback)` for explicit conditions. The risk here isn't shadowing — it's copy-paste error and review fatigue across 144 lines of structurally identical code.
 
 ---
 
@@ -326,7 +326,7 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     // trimAndLower trims whitespace and lowercases.
     trimAndLower := hof.Pipe(strings.TrimSpace, strings.ToLower)
     // normalize trims whitespace, adding lowercasing when requested.
-    normalize := value.Of(trimAndLower).When(lowercase).Or(strings.TrimSpace)
+    normalize := option.When(lowercase, trimAndLower).Or(strings.TrimSpace)
 
     normA := a.ToString(normalize).NonEmpty()
     normB := b.ToString(normalize).NonEmpty()
@@ -1175,7 +1175,7 @@ if configFilePath == "" {
 **fluentfp:**
 ```go
 func cliConfigFileOverride() string {
-    return value.FirstNonEmpty(
+    return cmp.Or(
         os.Getenv("TF_CLI_CONFIG_FILE"),
         os.Getenv("TERRAFORM_CONFIG"),
     )
@@ -1187,7 +1187,7 @@ configFilePath := option.NonEmpty(cliConfigFileOverride()).OrCall(configFileMust
 
 *`configFileMust` wraps `ConfigFile()` to handle the error and return a string.*
 
-**What changed:** The if-empty chain becomes `value.FirstNonEmpty` — the priority order is a literal argument list. The call site uses `option.NonEmpty` + `.OrCall` to defer the expensive `ConfigFile()` computation until needed.
+**What changed:** The if-empty chain becomes `cmp.Or` (stdlib) — the priority order is a literal argument list. The call site uses `option.NonEmpty` + `.OrCall` to defer the expensive `ConfigFile()` computation until needed.
 
 ### Config directory resolution — docker/cli
 

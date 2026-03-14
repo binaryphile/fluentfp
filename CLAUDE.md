@@ -162,7 +162,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `option.New`, `option.NonZero`, `option.NonNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
 - `option.KeepIf`, `option.RemoveIf` - double conditional (filter)
-- `value.When` (on LazyCond) - conditional function call
+- `option.WhenFunc` - conditional function call with eager nil check
 
 ### Representative Pattern Testing
 
@@ -178,16 +178,14 @@ When multiple methods share **identical logic**, test ONE representative:
 - `slice.From` - just returns input
 - `option.Of`, `option.NotOk` - just construct struct
 - `option.Get`, `option.IsOk` - just return fields
-- `value.Of`, `value.LazyOf` - just store values
-- `value.When` (on Cond) - trivial delegation to option.New
+- `option.When` - trivial delegation to option.New
 
 ### Coverage Baseline (2026-03-13)
 
 | Package | Coverage | Notes |
 |---------|----------|-------|
 | must | 100% | All domain (conditional + panic) |
-| value | 100% | All domain code paths tested |
-| option | 51.9% | Domain tested, trivial aliases untested |
+| option | 75.9% | Domain tested, trivial aliases untested |
 | slice | 93.4% | Domain tested, new ops fully covered |
 | stream | 100% | All operations tested |
 | seq | 89.4% | Domain tested, generation covered |

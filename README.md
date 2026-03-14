@@ -83,13 +83,13 @@ return Alert{
 }
 </code></pre></td><td><pre><code class="language-go">return Alert{
     Message: msg,
-    Level:   value.Of("critical").When(overdue).Or("info"),
-    Icon:    value.Of("!").When(overdue).Or("✓"),
+    Level:   option.When(overdue, "critical").Or("info"),
+    Icon:    option.When(overdue, "!").Or("✓"),
 }
 </code></pre></td></tr>
 </table>
 
-Go has no inline conditional expression. `value.Of` fills that gap — each field resolves in place, so the struct literal stays a single statement. *From [hashicorp/consul](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530).*
+Go has no inline conditional expression. `option.When` fills that gap — each field resolves in place, so the struct literal stays a single statement. *From [hashicorp/consul](https://github.com/hashicorp/consul/blob/554b4ba24f86/agent/agent.go#L2482-L2530).*
 
 ### Bounded Concurrent Requests
 
@@ -218,11 +218,10 @@ Packages are independent — import one or all.
 | ------------------- | ----------------------------- | ---------------------------------------------- |
 | [slice](slice/)     | Collection transforms         | `KeepIf`, `RemoveIf`, `Fold`, `FanOutAll`      |
 | [kv](kv/)           | Map transforms                | `KeepIf`, `MapValues`, `Map`, `Values`         |
-| [option](option/)   | Nil safety                    | `Of`, `Get`, `Or`, `NonZero`, `NonNil`         |
+| [option](option/)   | Optional values + conditionals | `Of`, `When`, `WhenFunc`, `Or`, `NonZero`      |
 | [either](either/)   | Sum types                     | `Left`, `Right`, `Fold`, `Convert`, `FlatMap`  |
 | [rslt](rslt/)   | Typed error handling          | `Ok`, `Err`, `CollectAll`, `CollectOk`         |
 | [must](must/)       | Invariant enforcement         | `Get`, `BeNil`, `Of`                           |
-| [value](value/)     | Conditional value selection   | `Of().When().Or()`                             |
 | [stream](stream/)   | Lazy memoized sequences       | `Generate`, `Unfold`, `Take`, `Collect`        |
 | [seq](seq/)         | Fluent iter.Seq chains        | `From`, `KeepIf`, `Take`, `Collect`            |
 | [heap](heap/)       | Persistent priority queue     | `New`, `Insert`, `Pop`, `Collect`              |
