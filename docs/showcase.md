@@ -1124,14 +1124,12 @@ func (config *inClusterClientConfig) Namespace() (string, bool, error) {
 ```go
 const saPath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
-// trimToString converts bytes to a trimmed string.
-trimToString := func(b []byte) string { return strings.TrimSpace(string(b)) }
+// trim converts bytes to a trimmed string.
+trim := func(b []byte) string { return strings.TrimSpace(string(b)) }
 
 // readSANamespace reads the namespace from the service account token file.
 readSANamespace := func() option.String {
-    return option.NonErr(os.ReadFile(saPath)).
-        ToString(trimToString).
-        FlatMap(option.NonEmpty)
+    return option.NonErr(os.ReadFile(saPath)).ToString(trim).FlatMap(option.NonEmpty)
 }
 
 func (config *inClusterClientConfig) Namespace() (string, bool, error) {

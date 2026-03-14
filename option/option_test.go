@@ -124,7 +124,7 @@ func TestOrCall(t *testing.T) {
 }
 
 func TestOrElse(t *testing.T) {
-	t.Run("ok option returns value without calling fn", func(t *testing.T) {
+	t.Run("ok returns self without calling fn", func(t *testing.T) {
 		called := false
 		opt := Of(42)
 		got := opt.OrElse(func() Option[int] {
@@ -139,7 +139,14 @@ func TestOrElse(t *testing.T) {
 		}
 	})
 
-	t.Run("not-ok option calls fn and returns its result", func(t *testing.T) {
+	t.Run("ok does not panic on nil fn", func(t *testing.T) {
+		got := Of(42).OrElse(nil)
+		if v, ok := got.Get(); !ok || v != 42 {
+			t.Errorf("Of(42).OrElse(nil) = (%v, %v), want (42, true)", v, ok)
+		}
+	})
+
+	t.Run("not-ok calls fn and returns result", func(t *testing.T) {
 		opt := New(0, false)
 		got := opt.OrElse(func() Option[int] { return Of(99) })
 		if v, ok := got.Get(); !ok || v != 99 {
@@ -147,7 +154,29 @@ func TestOrElse(t *testing.T) {
 		}
 	})
 
-	t.Run("not-ok with fn returning not-ok stays not-ok", func(t *testing.T) {
+	t.Run("not-ok with nil fn panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expected panic when not-ok calls nil fn")
+			}
+		}()
+		var opt Option[int]
+		opt.OrElse(nil)
+	})
+
+	t.Run("callback called exactly once", func(t *testing.T) {
+		calls := 0
+		opt := New(0, false)
+		opt.OrElse(func() Option[int] {
+			calls++
+			return Of(1)
+		})
+		if calls != 1 {
+			t.Errorf("callback called %d times, want 1", calls)
+		}
+	})
+
+	t.Run("callback may return not-ok", func(t *testing.T) {
 		opt := New(0, false)
 		got := opt.OrElse(func() Option[int] { return New(0, false) })
 		if _, ok := got.Get(); ok {
@@ -155,14 +184,42 @@ func TestOrElse(t *testing.T) {
 		}
 	})
 
-	t.Run("chained OrElse picks first ok", func(t *testing.T) {
-		opt := New(0, false)
+	t.Run("zero-value receiver is not-ok", func(t *testing.T) {
+		var opt Option[int]
+		got := opt.OrElse(func() Option[int] { return Of(77) })
+		if v, ok := got.Get(); !ok || v != 77 {
+			t.Errorf("zero.OrElse() = (%v, %v), want (77, true)", v, ok)
+		}
+	})
+
+	t.Run("ok with nil underlying value short-circuits", func(t *testing.T) {
+		called := false
+		opt := Of[*int](nil)
+		got := opt.OrElse(func() Option[*int] {
+			called = true
+			n := 99
+			return Of(&n)
+		})
+		if _, ok := got.Get(); !ok {
+			t.Error("Of(nil).OrElse() should be ok")
+		}
+		if called {
+			t.Error("fn called despite ok option with nil value")
+		}
+	})
+
+	t.Run("chained fallbacks short-circuit after first ok", func(t *testing.T) {
+		calls := [3]int{}
+		var opt Option[int]
 		got := opt.
-			OrElse(func() Option[int] { return New(0, false) }).
-			OrElse(func() Option[int] { return Of(77) }).
-			OrElse(func() Option[int] { return Of(88) })
+			OrElse(func() Option[int] { calls[0]++; return New(0, false) }).
+			OrElse(func() Option[int] { calls[1]++; return Of(77) }).
+			OrElse(func() Option[int] { calls[2]++; return Of(88) })
 		if v, ok := got.Get(); !ok || v != 77 {
 			t.Errorf("chained OrElse = (%v, %v), want (77, true)", v, ok)
+		}
+		if calls[0] != 1 || calls[1] != 1 || calls[2] != 0 {
+			t.Errorf("call counts = %v, want [1 1 0]", calls)
 		}
 	})
 }
