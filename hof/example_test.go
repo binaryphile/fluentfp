@@ -99,7 +99,7 @@ func ExampleOnErr() {
 	var count int
 
 	// onErr increments the error counter.
-	onErr := func() { count++ }
+	onErr := func(_ error) { count++ }
 	// failOrDouble returns an error for negative inputs.
 	failOrDouble := func(_ context.Context, n int) (int, error) {
 		if n < 0 {

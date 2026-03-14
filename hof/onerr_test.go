@@ -13,7 +13,7 @@ func TestOnErrBasicSuccess(t *testing.T) {
 	called := false
 
 	// onErr records whether it was called.
-	onErr := func() { called = true }
+	onErr := func(_ error) { called = true }
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
@@ -32,10 +32,10 @@ func TestOnErrBasicSuccess(t *testing.T) {
 }
 
 func TestOnErrCallsOnError(t *testing.T) {
-	called := false
+	var gotErr error
 
-	// onErr records whether it was called.
-	onErr := func() { called = true }
+	// onErr captures the error it receives.
+	onErr := func(err error) { gotErr = err }
 	errBoom := errors.New("boom")
 	// failingFn always returns an error.
 	failingFn := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
@@ -46,8 +46,8 @@ func TestOnErrCallsOnError(t *testing.T) {
 	if !errors.Is(err, errBoom) {
 		t.Fatalf("got error %v, want %v", err, errBoom)
 	}
-	if !called {
-		t.Fatal("onErr should be called on error")
+	if !errors.Is(gotErr, errBoom) {
+		t.Fatalf("onErr received %v, want %v", gotErr, errBoom)
 	}
 }
 
@@ -56,7 +56,7 @@ func TestOnErrWithContextCancel(t *testing.T) {
 	defer cancel()
 
 	// onErr cancels the context on first error.
-	onErr := func() { cancel() }
+	onErr := func(_ error) { cancel() }
 	errBoom := errors.New("boom")
 	// failingFn always returns an error.
 	failingFn := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
@@ -76,7 +76,7 @@ func TestOnErrComposesWithThrottle(t *testing.T) {
 	var errCount atomic.Int32
 
 	// onErr increments the error counter (concurrency-safe).
-	onErr := func() { errCount.Add(1) }
+	onErr := func(_ error) { errCount.Add(1) }
 	// doubleOrFail doubles positive inputs, errors on negative.
 	doubleOrFail := func(_ context.Context, n int) (int, error) {
 		if n < 0 {
@@ -115,7 +115,7 @@ func TestOnErrValidationPanics(t *testing.T) {
 	// dummyFn is a placeholder function.
 	dummyFn := func(_ context.Context, _ int) (int, error) { return 0, nil }
 	// dummyOnErr is a placeholder side-effect.
-	dummyOnErr := func() {}
+	dummyOnErr := func(error) {}
 
 	tests := []struct {
 		name string

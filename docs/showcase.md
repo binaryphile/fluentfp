@@ -1098,15 +1098,18 @@ func (c *Client) unaryClientInterceptor(ctx context.Context, method string, req,
 **fluentfp (conceptual):**
 ```go
 // At interceptor setup — compose retry with error-triggered token refresh
-// refreshOnAuthErr triggers a token refresh on any error.
-// OnErr receives func() without error access, so it can't distinguish auth errors.
-refreshOnAuthErr := func() { c.refreshToken() }
+// refreshOnAuthErr refreshes the token only for authentication errors.
+refreshOnAuthErr := func(err error) {
+    if c.shouldRefreshToken(err, callOpts) {
+        c.refreshToken()
+    }
+}
 
 invokerWithRefresh := hof.OnErr(invoker, refreshOnAuthErr)
 resilientInvoke := hof.Retry(callOpts.max, hof.ExponentialBackoff(retryBase), invokerWithRefresh)
 ```
 
-**What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `hof.Retry` handles the loop and backoff, `hof.OnErr` handles the token refresh trigger. Two gaps are visible: `hof.OnErr` receives `func()` without error access (can't distinguish auth errors from other failures), and `hof.Retry` doesn't support a retry-predicate (can't express `isSafeRetry` or `isContextError` classification). Both are honest limitations this showcase surfaces.
+**What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `hof.Retry` handles the loop and backoff, `hof.OnErr` handles the token refresh trigger with error classification via `func(error)`. One gap remains: `hof.Retry` doesn't support a retry-predicate (can't express `isSafeRetry` or `isContextError` classification).
 
 ---
 

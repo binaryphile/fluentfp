@@ -43,7 +43,7 @@ fetchData := hof.ThrottleWeighted(100, estimateSize, fetchFromAPI)
 // Cancel remaining work on first error
 ctx, cancel := context.WithCancel(parentCtx)
 defer cancel()
-failFast := hof.OnErr(fetchURL, cancel)
+failFast := hof.OnErr(fetchURL, func(_ error) { cancel() })
 ```
 
 ```go
@@ -78,7 +78,7 @@ resp, err := resilientFetch(ctx, url)
 - `ThrottleWeighted[T, R](capacity int, cost func(T) int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)` — bound by total cost
 
 **Side-Effect Wrappers**
-- `OnErr[T, R](fn func(context.Context, T) (R, error), onErr func()) func(context.Context, T) (R, error)` — call handler on error
+- `OnErr[T, R](fn func(context.Context, T) (R, error), onErr func(error)) func(context.Context, T) (R, error)` — call handler with error
 
 **Retry**
 - `Retry[T, R](maxAttempts int, backoff Backoff, fn) func(context.Context, T) (R, error)` — retry on error with pluggable backoff

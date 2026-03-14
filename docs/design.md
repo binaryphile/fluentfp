@@ -275,9 +275,11 @@ released before fn runs, so fn execution is fully concurrent.
 
 ### D16: OnErr as error-triggered side-effect wrapper
 
-`OnErr` wraps a function to call a side-effect (`onErr func()`) after the
-wrapped function returns a non-nil error. The original result is returned
-unchanged — OnErr observes errors, it doesn't handle them.
+`OnErr` wraps a function to call a side-effect (`onErr func(error)`) with the
+error after the wrapped function returns a non-nil error. The original result
+is returned unchanged — OnErr observes errors, it doesn't handle them.
+The error parameter lets handlers classify errors (e.g., refresh token only
+on auth errors).
 
 **Function wrapper family:** OnErr shares the `func(ctx, T) (R, error)` →
 `func(ctx, T) (R, error)` signature with Throttle/ThrottleWeighted (D15).
@@ -289,8 +291,7 @@ OnErr does the same at the function boundary — the caller never sees a Result.
 **Stateless:** Unlike Throttle (which captures a channel semaphore), OnErr
 captures only fn and onErr. No mutable state, no synchronization needed
 internally. However, onErr must be safe for concurrent use when the returned
-function is called from multiple goroutines (e.g., `context.CancelFunc` is
-documented as safe for concurrent calls).
+function is called from multiple goroutines.
 
 ### D17: pair as standalone tuple package
 
