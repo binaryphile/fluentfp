@@ -68,7 +68,7 @@
 - 1c. Collection source is a set: System extracts the set's members as a collection for further transformation.
 - 1d. Developer needs to filter or transform map entries while preserving map structure: System applies predicates or value transforms to entries, returning a map for further map-level operations or value extraction.
 - 1e. Collection source is a combinatorial construction: System generates all permutations, combinations, subsets, or pairwise products from input elements.
-- 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order.
+- 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order. When the expansion produces a different type, the standalone variant infers both types.
 - 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
 - 2d. Developer needs elements grouped by a derived key: System groups elements into a chainable collection of groups, each containing a key and the elements sharing that key.
@@ -77,6 +77,8 @@
 - 2g. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
 - 2h. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements. For string collections, the developer may use a string-specific variant that reads as "non-empty" for clarity.
 - 2i. Developer needs to split a collection into fixed-size batches: System divides the collection into sub-collections of the specified size; the last batch may be smaller.
+- 2j. Developer needs elements in random order: System produces a randomly shuffled copy of the collection.
+- 2k. Developer needs a random subset of elements: System selects count random elements without replacement; if count exceeds length, returns all elements in random order.
 - 4a. Developer needs to apply a side effect to each element rather than produce a new collection: System calls the function for every element in order.
 
 **Sub-Variations:**
@@ -86,6 +88,7 @@
 - Deduplication: by identity or by extracted key
 - Batching: by fixed size
 - Concurrent bounding: by item count (uniform cost) or by total cost (weighted)
+- Randomization: full shuffle, random subset without replacement
 - Combinatorial: permutations, combinations, power sets, Cartesian products
 
 ---
@@ -125,10 +128,11 @@
 - 2i. Developer checks that no elements satisfy a criterion: System tests every element and returns true only if none match.
 - 2j. Developer needs elements indexed by a derived key for O(1) lookup: System produces a map from extracted keys to elements.
 - 2k. Developer needs to efficiently track the minimum or maximum across a growing dataset: System maintains a persistent sorted structure where the extremum is always available in constant time and insertions produce a new structure without modifying the original.
+- 2l. Developer needs a random element from a collection: System returns a random element or indicates absence if the collection is empty.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
-- Element search: first element, first matching, first type-compatible, index of first matching
+- Element search: first element, first matching, first type-compatible, index of first matching, random element
 - Condition checks: any match, all match, no match, membership
 - Multi-field extraction: 2, 3, or 4 fields simultaneously
 - Indexing: by extracted key for O(1) lookup
@@ -298,6 +302,7 @@
 - 1f. Developer needs to pass a Go builtin as a higher-order argument: System provides a first-class function wrapping the builtin, usable anywhere a function value is expected.
 - 1g. Developer needs a function that enforces a concurrency budget when called from multiple goroutines: System returns a function with the same signature that blocks callers until budget is available, bounding by call count or per-call cost.
 - 1h. Developer needs a function that triggers a side-effect when a call fails: System returns a function with the same signature that calls the original, then invokes the handler on error.
+- 1i. Developer needs a function that retries on failure with configurable delays: System returns a function with the same signature that retries the original on error, waiting between attempts according to a backoff strategy, and respecting context cancellation during waits.
 
 **Sub-Variations:**
 - Composition: left-to-right (Pipe)
@@ -306,6 +311,7 @@
 - Builtin adapters: length, printing, string predicates, successor
 - Concurrency control: by count (Throttle), by cost (ThrottleWeighted)
 - Side-effect on error (OnErr)
+- Retry with backoff: constant delay, exponential with full jitter
 
 ---
 

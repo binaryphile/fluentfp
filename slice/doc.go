@@ -41,6 +41,9 @@ func _() {
 	_ = Mapper[int].Partition
 	_ = Mapper[int].RemoveIf
 	_ = Mapper[int].Reverse
+	_ = Mapper[int].Sample
+	_ = Mapper[int].Samples
+	_ = Mapper[int].Shuffle
 	_ = Mapper[int].Single
 	_ = Mapper[int].Sort
 	_ = Mapper[int].Take
@@ -80,6 +83,8 @@ func _() {
 	_ = MapperTo[int, int].Partition
 	_ = MapperTo[int, int].RemoveIf
 	_ = MapperTo[int, int].Reverse
+	_ = MapperTo[int, int].Samples
+	_ = MapperTo[int, int].Shuffle
 	_ = MapperTo[int, int].Single
 	_ = MapperTo[int, int].Sort
 	_ = MapperTo[int, int].Take
@@ -134,6 +139,7 @@ func _() {
 	_ = Contains[int]
 	_ = Difference[int]
 	_ = IndexOf[int]
+	_ = FlatMap[int, int]
 	_ = Flatten[int]
 	_ = FromSet[int]
 	_ = Group[int, int]{}
@@ -144,7 +150,7 @@ func _() {
 	_ = Partition[int]
 	_ = SortBy[int, int]
 	_ = SortByDesc[int, int]
-	_ = Tally[int]
+	_ = GroupSame[int]
 	_ = Union[int]
 
 	_ = Asc[int, int]
@@ -169,6 +175,7 @@ func _() {
 	_ = Fold[int, int]
 	_ = Map[int, int]
 	_ = MapAccum[int, int, int]
+	_ = PFlatMap[int, int]
 	_ = PMap[int, int]
 	_ = ToSet[int]
 	_ = ToSetBy[int, int]

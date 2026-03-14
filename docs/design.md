@@ -170,7 +170,7 @@ Also provides `lof.IsNonEmpty` as a predicate for `KeepIf` (filtering non-empty 
 
 ### D14: hof as function combinators
 
-Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), a standard building block (`Eq`), and concurrency control (`Throttle`/`ThrottleWeighted`).
+Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), a standard building block (`Eq`), concurrency control (`Throttle`/`ThrottleWeighted`), side-effect wrappers (`OnErr`), and retry with backoff (`Retry` with `ConstantBackoff`/`ExponentialBackoff`).
 
 **Why needed:** Go functions are values but lack composition operators. `hof` provides the glue that lets developers build new functions from existing ones — for use in fluentfp chains or standalone. `Pipe(trim, toLower)` builds a transform; `Bind(add, 5)` fixes an argument; `Eq(target)` builds a predicate.
 
@@ -182,7 +182,7 @@ Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent
 
 Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `Convert`, `Find`, `FlatMap`, etc.
 
-Standalone functions for operations needing extra type parameters or custom traversal: `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`, `GroupBy`, `KeyBy`, `Partition`. `GroupBy` lives in the `slice` package — it returns `Mapper[Group[K, T]]` for direct chaining. Map-consuming standalone functions live in `kv` (`kv.Values`, `kv.MapTo[T]`).
+Standalone functions for operations needing extra type parameters or custom traversal: `FlatMap`, `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`, `GroupBy`, `KeyBy`, `Partition`. `GroupBy` lives in the `slice` package — it returns `Mapper[Group[K, T]]` for direct chaining. Map-consuming standalone functions live in `kv` (`kv.Values`, `kv.MapTo[T]`).
 
 **Why:** Go methods cannot introduce new type parameters (the D2 constraint). Standalone functions can.
 
@@ -450,6 +450,44 @@ A defined type over `iter.Seq[T]` that enables method chaining — the same tric
 
 **Find returns `option.Option[T]`:** Same absence-is-normal pattern as `Mapper.Find` and `Stream.Find`.
 
+### D23: Retry as retry-on-error function wrapper
+
+`Retry` wraps a function to retry on error with configurable backoff,
+returning a function with the same `func(context.Context, T) (R, error)`
+signature as Throttle and OnErr.
+
+```go
+type Backoff func(n int) time.Duration
+
+func Retry[T, R any](maxAttempts int, backoff Backoff, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
+```
+
+**Function wrapper family:** Retry shares the same signature as Throttle (D15)
+and OnErr (D16). All three compose freely: `Throttle(n, Retry(3, backoff, fn))`.
+
+**Backoff as function type:** `Backoff func(n int) time.Duration` — not an
+interface. Takes the zero-based attempt number, returns a delay. Two built-in
+constructors: `ConstantBackoff(delay)` returns fixed delay, `ExponentialBackoff(initial)`
+returns random delay in `[0, initial * 2^n)` (full jitter per AWS architecture
+blog). Custom strategies are plain functions.
+
+**Full jitter for ExponentialBackoff:** `rand.N(initial << n)` from `math/rand/v2`.
+Full jitter (random in full range) outperforms equal jitter and decorrelated
+jitter for contention reduction. Overflow guard: if `initial << n` overflows
+(negative or zero), clamp to `math.MaxInt64`.
+
+**Context-aware sleep:** Between attempts, `Retry` uses `time.NewTimer` + `select`
+on both the timer and `ctx.Done()`. Context cancellation during backoff returns
+`ctx.Err()` immediately. Context is also checked before each attempt.
+
+**Stateless:** Unlike Throttle (which captures a channel semaphore), Retry
+captures only `maxAttempts`, `backoff`, and `fn`. Each call to the returned
+function is independent — no shared retry state between concurrent callers.
+
+**Panics on invalid args:** `maxAttempts < 1`, `nil backoff`, `nil fn` all
+panic. Same contract as `ExponentialBackoff(initial <= 0)`. These are
+programming errors, not runtime conditions.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.
@@ -542,7 +580,7 @@ All collection and option operations handle nil input without panic:
 
 **Clone** preserves nil (nil in, nil out) — deliberate, maintains the caller's nil/empty distinction.
 
-**FlatMap** always returns non-nil. Both `Mapper` and `MapperTo` implementations use `make([]T, 0, ...)`, so the result is non-nil even when no elements are produced.
+**FlatMap** always returns non-nil. The standalone, `Mapper`, and `MapperTo` implementations all use `make([]T, 0, ...)`, so the result is non-nil even when no elements are produced.
 
 **Exception:** `pair.Zip` and `pair.ZipWith` panic on length mismatch. This is a precondition violation, not a nil issue — `Zip(nil, nil)` returns an empty slice without panic.
 
@@ -568,6 +606,7 @@ Where packages depend on each other, and why:
 | `Mapper.Find` → `option.Option[T]` | Absence is the expected case, not an error. Option provides richer extraction (`Or`, `OrZero`, `IfOk`) vs bare comma-ok. |
 | `Mapper.First` → `option.Option[T]` | Same: empty collection is normal, not exceptional. |
 | `Mapper.IndexWhere` → `option.Option[int]` | Same: no match is normal, not exceptional. |
+| `Mapper.Sample` → `option.Option[T]` | Same: empty collection is normal, not exceptional. |
 | `FindAs[R,T]` → `option.Option[R]` | Type-assertion search where absence and type mismatch both mean "not found." |
 | `Mapper.Single` → `either.Either[int, T]` | Failure carries information (the actual count). A plain error would discard it. |
 | `value.When` → `option.Option[T]` | Reuses option's `Or`/`OrZero` extraction rather than duplicating. |

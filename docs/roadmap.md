@@ -31,8 +31,8 @@ Useful features with clear demand but existing workarounds.
 | ~~IndexOf/LastIndexOf~~ | ~~By value, not predicate~~ | done |
 | ~~IsSorted/IsSortedBy~~ | ~~Check sort order~~ | done |
 | ~~Intersperse~~ | ~~Insert separator between elements~~ | done |
-| Shuffle | Randomize order | lo |
-| Sample/Samples | Random element(s) | lo |
+| ~~Shuffle~~ | ~~Randomize order~~ | done — `Mapper.Shuffle` |
+| ~~Sample/Samples~~ | ~~Random element(s)~~ | done — `Mapper.Sample`/`Mapper.Samples` |
 | ~~CountBy~~ | ~~Count per group~~ | Superseded by `Tally` (v0.35.0) |
 | ~~Repeat/RepeatBy~~ | ~~Generate slice by repeating~~ | done — `RepeatN` |
 
