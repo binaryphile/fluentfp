@@ -32,6 +32,8 @@ Use `mcp__era__code_search` for API signatures and package details.
 
 No inline lambdas — if the logic is simple enough to inline, it's simple enough to name and document. Exception: standard idioms (t.Run, http.HandlerFunc).
 
+**Naming exception:** Standalone cross-type transforms may use ecosystem-standard names when the house-style alternative is materially worse. Current exception: `FilterMap` (not `KeepMap`) — universally recognized (Rust, lo, Elixir).
+
 **Uniform commas rule — commas at one nesting level only.** When a call contains another call, only one level may have multiple arguments (commas). This keeps every comma at the same nesting depth, so the reader never has to mentally track which arguments belong to which call.
 
 ```go
@@ -162,7 +164,16 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `option.New`, `option.NonZero`, `option.NonNil` - conditional construction
 - `option.Or`, `option.OrCall`, `option.MustGet` - conditional extraction
 - `option.KeepIf`, `option.RemoveIf` - double conditional (filter)
+- `option.OrWrap` - absent-case recovery staying in Option (lazy evaluation)
+- `option.ZipWith` - combine two Options (both-present gate)
 - `option.WhenFunc` - conditional function call with eager nil check
+- `slice.FilterMap` - combined filter+transform with comma-ok callback
+- `slice.MinBy`, `slice.MaxBy` - extremum by key with cmp.Compare (NaN ordering)
+- `slice.Reduce` - fold without initial, single-element returns without calling fn
+- `slice.Associate` - key+value extraction to map (last wins for duplicates)
+- `slice.Enumerate` - index pairing
+- `slice.Unique` - comparable dedup (NaN never deduplicates)
+- `seq.Enumerate` - lazy index pairing with per-iteration reset
 
 ### Representative Pattern Testing
 
@@ -185,10 +196,10 @@ When multiple methods share **identical logic**, test ONE representative:
 | Package | Coverage | Notes |
 |---------|----------|-------|
 | must | 100% | All domain (conditional + panic) |
-| option | 75.9% | Domain tested, trivial aliases untested |
+| option | 76.9% | Domain tested, trivial aliases untested |
 | slice | 93.4% | Domain tested, new ops fully covered |
 | stream | 100% | All operations tested |
-| seq | 89.4% | Domain tested, generation covered |
+| seq | 89.9% | Domain tested, generation covered |
 | lof | 0.0% | All trivial wrappers - acceptable |
 
 ### Go Test Style

@@ -662,3 +662,78 @@ func TestWhenFunc_nil_false_panics(t *testing.T) {
 	}()
 	WhenFunc[int](false, nil)
 }
+
+// --- ZipWith ---
+
+func TestZipWith(t *testing.T) {
+	add := func(a, b int) int { return a + b }
+
+	t.Run("both ok", func(t *testing.T) {
+		got, ok := ZipWith(Of(3), Of(4), add).Get()
+		if !ok || got != 7 {
+			t.Errorf("got (%d, %v), want (7, true)", got, ok)
+		}
+	})
+
+	t.Run("first not-ok", func(t *testing.T) {
+		if _, ok := ZipWith(NotOk[int](), Of(4), add).Get(); ok {
+			t.Error("expected not-ok")
+		}
+	})
+
+	t.Run("second not-ok", func(t *testing.T) {
+		if _, ok := ZipWith(Of(3), NotOk[int](), add).Get(); ok {
+			t.Error("expected not-ok")
+		}
+	})
+
+	t.Run("both not-ok", func(t *testing.T) {
+		if _, ok := ZipWith(NotOk[int](), NotOk[int](), add).Get(); ok {
+			t.Error("expected not-ok")
+		}
+	})
+}
+
+// --- OrWrap ---
+
+func TestOrWrap(t *testing.T) {
+	t.Run("ok passes through without calling fn", func(t *testing.T) {
+		calls := 0
+		fn := func() int {
+			calls++
+			return 99
+		}
+
+		got, ok := Of(42).OrWrap(fn).Get()
+
+		if !ok || got != 42 {
+			t.Errorf("got (%d, %v), want (42, true)", got, ok)
+		}
+		if calls != 0 {
+			t.Errorf("fn called %d times, want 0", calls)
+		}
+	})
+
+	t.Run("not-ok calls fn", func(t *testing.T) {
+		got, ok := NotOk[int]().OrWrap(func() int { return 99 }).Get()
+		if !ok || got != 99 {
+			t.Errorf("got (%d, %v), want (99, true)", got, ok)
+		}
+	})
+
+	t.Run("nil fn when ok does not panic", func(t *testing.T) {
+		got, ok := Of(42).OrWrap(nil).Get()
+		if !ok || got != 42 {
+			t.Errorf("got (%d, %v), want (42, true)", got, ok)
+		}
+	})
+
+	t.Run("nil fn when not-ok panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expected panic for nil fn on not-ok option")
+			}
+		}()
+		NotOk[int]().OrWrap(nil)
+	})
+}

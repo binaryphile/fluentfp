@@ -19,6 +19,7 @@ func _() {
 	_ = Option[int].OrCall
 	_ = Option[int].OrElse
 	_ = Option[int].OrEmpty
+	_ = Option[int].OrWrap
 	_ = Option[int].OrZero
 	_ = Option[int].RemoveIf
 	_ = Option[int].ToAny
@@ -58,6 +59,7 @@ func _() {
 	_ = OrFalse
 	_ = When[int](false, 0)
 	_ = WhenFunc[int](false, func() int { return 0 })
+	_ = ZipWith(Option[int]{}, Option[int]{}, func(int, int) int { return 0 })
 
 	// pre-declared not-ok values
 	_ = NotOkAny

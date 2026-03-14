@@ -84,3 +84,12 @@ func WhenFunc[T any](cond bool, fn func() T) Option[T] {
 
 	return Of(fn())
 }
+
+// ZipWith returns an ok option of fn(a, b) if both options are ok, or not-ok otherwise.
+func ZipWith[A, B, R any](a Option[A], b Option[B], fn func(A, B) R) (_ Option[R]) {
+	if !a.ok || !b.ok {
+		return
+	}
+
+	return Of(fn(a.t, b.t))
+}

@@ -87,11 +87,14 @@ func _() {
 	_ = Int.Min
 	_ = Int.Sum
 
+	_ = Associate[int, int, int]
 	_ = Chunk[int]
 	_ = NonEmpty
 	_ = NonZero[int]
 	_ = Contains[int]
 	_ = Difference[int]
+	_ = Enumerate[int]
+	_ = FilterMap[int, int]
 	_ = IndexOf[int]
 	_ = FlatMap[int, int]
 	_ = Flatten[int]
@@ -129,10 +132,14 @@ func _() {
 	_ = Fold[int, int]
 	_ = Map[int, int]
 	_ = MapAccum[int, int, int]
+	_ = MaxBy[int, int]
+	_ = MinBy[int, int]
 	_ = PFlatMap[int, int]
 	_ = PMap[int, int]
+	_ = Reduce[int]
 	_ = ToSet[int]
 	_ = ToSetBy[int, int]
+	_ = Unique[int]
 	_ = UniqueBy[int, int]
 	_ = Unzip2[int, int, int]
 	_ = Unzip3[int, int, int, int]

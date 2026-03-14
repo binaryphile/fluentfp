@@ -37,6 +37,7 @@ func _() {
 	_ = FlatMap[int, string]
 	_ = Fold[int, string]
 	_ = Concat[int]
+	_ = Enumerate[int]
 	_ = Zip[int, string]
 	_ = Scan[int, string]
 }

@@ -49,7 +49,7 @@ Useful features with clear demand but existing workarounds.
 
 | Operation | Description | Who has it |
 |-----------|-------------|------------|
-| MapNone | Transform the absent case | mo |
+| ~~MapNone~~ | ~~Transform the absent case~~ | done — `OrWrap` |
 | ~~Match/Fold~~ | ~~Pattern-match dispatch~~ | done — `rslt.Fold`, `either.Fold` |
 
 ### Function Composition

@@ -80,6 +80,9 @@
 - 2i. Developer needs to split a collection into fixed-size batches: System divides the collection into sub-collections of the specified size; the last batch may be smaller.
 - 2j. Developer needs elements in random order: System produces a randomly shuffled copy of the collection.
 - 2k. Developer needs a random subset of elements: System selects count random elements without replacement; if count exceeds length, returns all elements in random order.
+- 2l. Developer needs to filter and transform in one step: System applies a function that returns both a transformed value and a keep/discard signal. Elements where the function signals discard are excluded; kept elements appear transformed in the result.
+- 2m. Developer needs each element paired with its positional index: System pairs each element with its zero-based index, producing a collection of index-element pairs suitable for further transformation.
+- 2n. Developer needs duplicate comparable elements removed while preserving first occurrence: System removes duplicates by element identity. No key function is required.
 - 4a. Developer needs to apply a side effect to each element rather than produce a new collection: System calls the function for every element in order.
 
 **Sub-Variations:**
@@ -91,6 +94,8 @@
 - Concurrent bounding: by item count (uniform cost) or by total cost (weighted)
 - Randomization: full shuffle, random subset without replacement
 - Combinatorial: permutations, combinations, power sets, Cartesian products
+- Filter+transform: combined in single pass with keep/discard signal
+- Index pairing: each element paired with its zero-based position
 
 ---
 
@@ -130,6 +135,9 @@
 - 2j. Developer needs elements indexed by a derived key for O(1) lookup: System produces a map from extracted keys to elements.
 - 2k. Developer needs to efficiently track the minimum or maximum across a growing dataset: System maintains a persistent sorted structure where the extremum is always available in constant time and insertions produce a new structure without modifying the original.
 - 2l. Developer needs a random element from a collection: System returns a random element or indicates absence if the collection is empty.
+- 2m. Developer needs the element with the minimum or maximum value of an extracted key: System extracts a comparable key from each element and returns the element with the smallest or largest key, or indicates absence if the collection is empty.
+- 2n. Developer needs to combine elements without providing an initial value: System uses the first element as the seed and applies the combining function across remaining elements from left to right. Returns absence if the collection is empty.
+- 2o. Developer needs to build a map with both key and value derived from each element: System applies a function that returns a key-value pair for each element, producing a map. If multiple elements produce the same key, the last one wins.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
@@ -137,6 +145,8 @@
 - Condition checks: any match, all match, no match, membership
 - Multi-field extraction: 2, 3, or 4 fields simultaneously
 - Indexing: by extracted key for O(1) lookup
+- Extremum by key: element with smallest or largest extracted key
+- Reduction: combine elements using first element as seed
 
 ---
 
@@ -170,7 +180,9 @@
 - 2b. Developer needs a side effect only when absent: System calls the function only when absent; does nothing when present.
 - 2c. Developer needs to filter an already-present value: System applies filter, converting to absent if not met.
 - 2d. Fallback is expensive to compute: System evaluates fallback only when absent.
-- 2e. Developer needs to chain operations that each may produce absence: System applies each operation in sequence, short-circuiting to absent if any step produces absence. No manual unwrapping between steps.
+- 2e. Developer needs to combine two optional values when both are present: System returns both values together when both are present, or absent if either is absent.
+- 2f. Developer needs a lazily computed default while remaining in the optional context for further chaining: System calls a function only when the value is absent, producing a present result. When already present, the value passes through unchanged.
+- 2g. Developer needs to chain operations that each may produce absence: System applies each operation in sequence, short-circuiting to absent if any step produces absence. No manual unwrapping between steps.
 - 3a. Developer stores optional value in a database column: System maps present to the column value and absent to SQL NULL. Type conversion between Go types and SQL driver types is handled automatically.
 - 3b. Developer serializes optional value to JSON: System maps present to the JSON value and absent to null.
 
@@ -178,6 +190,8 @@
 - Specialized variants for common value types (string, int, bool, error)
 - Construction from: direct value, value-and-presence pair, pointer, zero-value check
 - Create + transform: check presence and map to a new type in one call (zero-value, empty-string, nil-pointer variants)
+- Combining: two optional values via combiner function
+- Recovery: lazily computed default staying in optional context
 
 ---
 
@@ -353,6 +367,7 @@
 - 3b. Developer needs to expand each element into a lazy sub-sequence and flatten: System applies expansion lazily, producing elements from inner sequences on demand.
 - 3c. Developer needs to combine corresponding elements from two lazy sequences: System pairs elements, truncating to the shorter sequence.
 - 3d. Developer needs running accumulator values as a lazy sequence: System produces the initial value followed by each intermediate accumulation.
+- 3e. Developer needs each element paired with its positional index: System lazily pairs each element with its zero-based index as elements are consumed.
 - 4a. Developer needs to bridge to a Go range loop: System provides an iterator compatible with Go's range protocol.
 - 4b. Developer needs to bridge to slice operations: System materializes to a plain slice for use with eager collection operations.
 - 4c. Developer needs iterator-native processing without memoization: System provides lazy pipelines that re-evaluate on each iteration, compatible with Go's range protocol. Unlike memoized sequences, these pipelines do not cache intermediate results.

@@ -163,6 +163,17 @@ func (b Option[T]) OrElse(fn func() Option[T]) (_ Option[T]) {
 	return fn()
 }
 
+// OrWrap returns the original option if ok, or an ok option of fn() if not-ok.
+// Like [Option.OrCall] but stays in Option for further chaining.
+// Like [Option.OrElse] but fn returns T (always wrapped as ok) rather than Option[T].
+func (b Option[T]) OrWrap(fn func() T) Option[T] {
+	if b.ok {
+		return b
+	}
+
+	return Of(fn())
+}
+
 // OrEmpty returns the option's value provided that it is ok, otherwise the zero value for T.
 // It is a more readable alias for OrZero when T is string.
 func (b Option[T]) OrEmpty() (_ T) {
