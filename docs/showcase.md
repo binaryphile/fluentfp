@@ -899,7 +899,7 @@ func (s *Server) invalidateSession(id string, entMeta *acl.EnterpriseMeta) {
 **fluentfp:**
 ```go
 // At server construction — retry policy defined once, applied everywhere
-s.resilientRaftApply = hof.Retry(maxInvalidateAttempts, hof.ExponentialBackoff(invalidateRetryBase), s.leaderRaftApply)
+s.resilientRaftApply = hof.Retry(maxInvalidateAttempts, hof.ExponentialBackoff(invalidateRetryBase), nil, s.leaderRaftApply)
 ```
 
 ```go
@@ -977,7 +977,7 @@ go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
 ```go
 // At construction — compose resilience decorators
 throttledCreate := hof.Throttle(routeConcurrency, rc.routes.CreateRoute)
-createRoute := hof.Retry(maxRetries, hof.ConstantBackoff(retryInterval), throttledCreate)
+createRoute := hof.Retry(maxRetries, hof.ConstantBackoff(retryInterval), nil, throttledCreate)
 ```
 
 ```go
@@ -1050,7 +1050,7 @@ func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.
 }
 ```
 
-**What this shows:** The structural win isn't line count in a single file — it's that 5 provider files each copy-paste the same ~80 lines of retry/throttle/recover ceremony. With function decoration, the ceremony would be defined once — `hof.Retry(maxAttempts, backoff, watchAndProcess)` — and each provider would supply only its watch function. Traefik is already halfway there: it uses a third-party `backoff.RetryNotify` + `safe.OperationWithRecover`. The remaining ceremony (event throttling via channel wrapper, `time.Sleep` for rate limiting, error logging at multiple points) is the part that decoration would further extract. This is a case where the pattern motivates the tool rather than demonstrating a clean 1:1 rewrite — the long-running watch-loop pattern doesn't map directly to `hof.Retry`'s request-response model.
+**What this shows:** The structural win isn't line count in a single file — it's that 5 provider files each copy-paste the same ~80 lines of retry/throttle/recover ceremony. With function decoration, the ceremony would be defined once — `hof.Retry(maxAttempts, backoff, nil, watchAndProcess)` — and each provider would supply only its watch function. Traefik is already halfway there: it uses a third-party `backoff.RetryNotify` + `safe.OperationWithRecover`. The remaining ceremony (event throttling via channel wrapper, `time.Sleep` for rate limiting, error logging at multiple points) is the part that decoration would further extract. This is a case where the pattern motivates the tool rather than demonstrating a clean 1:1 rewrite — the long-running watch-loop pattern doesn't map directly to `hof.Retry`'s request-response model.
 
 ### Retry + token refresh + error classification — etcd-io/etcd
 
@@ -1097,7 +1097,12 @@ func (c *Client) unaryClientInterceptor(ctx context.Context, method string, req,
 
 **fluentfp (conceptual):**
 ```go
-// At interceptor setup — compose retry with error-triggered token refresh
+// At interceptor setup — compose retry with error classification and token refresh
+// isSafeRetry returns true for errors safe to retry.
+isSafeRetry := func(err error) bool {
+    return !isContextError(err) && isSafeRetryError(c, err, callOpts)
+}
+
 // refreshOnAuthErr refreshes the token only for authentication errors.
 refreshOnAuthErr := func(err error) {
     if c.shouldRefreshToken(err, callOpts) {
@@ -1106,10 +1111,10 @@ refreshOnAuthErr := func(err error) {
 }
 
 invokerWithRefresh := hof.OnErr(invoker, refreshOnAuthErr)
-resilientInvoke := hof.Retry(callOpts.max, hof.ExponentialBackoff(retryBase), invokerWithRefresh)
+resilientInvoke := hof.Retry(callOpts.max, hof.ExponentialBackoff(retryBase), isSafeRetry, invokerWithRefresh)
 ```
 
-**What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `hof.Retry` handles the loop and backoff, `hof.OnErr` handles the token refresh trigger with error classification via `func(error)`. One gap remains: `hof.Retry` doesn't support a retry-predicate (can't express `isSafeRetry` or `isContextError` classification).
+**What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `hof.Retry` handles the loop, backoff, and retry classification via `shouldRetry`. `hof.OnErr` handles the token refresh trigger with error classification via `func(error)`.
 
 ---
 

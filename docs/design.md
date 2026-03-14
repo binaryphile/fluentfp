@@ -447,11 +447,17 @@ signature as Throttle and OnErr.
 ```go
 type Backoff func(n int) time.Duration
 
-func Retry[T, R any](maxAttempts int, backoff Backoff, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
+func Retry[T, R any](maxAttempts int, backoff Backoff, shouldRetry func(error) bool, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
 ```
 
 **Function wrapper family:** Retry shares the same signature as Throttle (D15)
-and OnErr (D16). All three compose freely: `Throttle(n, Retry(3, backoff, fn))`.
+and OnErr (D16). All three compose freely: `Throttle(n, Retry(3, backoff, shouldRetry, fn))`.
+
+**Retry predicate:** `shouldRetry func(error) bool` controls which errors trigger
+a retry. When non-nil, errors for which `shouldRetry` returns false are returned
+immediately without backoff. When nil, all errors are retried — this is the only
+nil parameter that doesn't panic, chosen because "retry everything" is the common
+case and requiring a `func(_ error) bool { return true }` for it would be noise.
 
 **Backoff as function type:** `Backoff func(n int) time.Duration` — not an
 interface. Takes the zero-based attempt number, returns a delay. Two built-in
@@ -469,8 +475,9 @@ on both the timer and `ctx.Done()`. Context cancellation during backoff returns
 `ctx.Err()` immediately. Context is also checked before each attempt.
 
 **Stateless:** Unlike Throttle (which captures a channel semaphore), Retry
-captures only `maxAttempts`, `backoff`, and `fn`. Each call to the returned
-function is independent — no shared retry state between concurrent callers.
+captures only `maxAttempts`, `backoff`, `shouldRetry`, and `fn`. Each call to
+the returned function is independent — no shared retry state between concurrent
+callers.
 
 **Panics on invalid args:** `maxAttempts < 1`, `nil backoff`, `nil fn` all
 panic. Same contract as `ExponentialBackoff(initial <= 0)`. These are

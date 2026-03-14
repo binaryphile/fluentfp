@@ -48,8 +48,14 @@ failFast := hof.OnErr(fetchURL, func(_ error) { cancel() })
 
 ```go
 // Retry with exponential backoff — composable with Throttle
-resilientFetch := hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), fetchFromAPI)
+resilientFetch := hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), nil, fetchFromAPI)
 resp, err := resilientFetch(ctx, url)
+```
+
+```go
+// Retry only transient errors — stop immediately on permanent failures
+isTransient := func(err error) bool { return !errors.Is(err, ErrNotFound) }
+resilientFetch := hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), isTransient, fetchFromAPI)
 ```
 
 ## hof vs lof
@@ -81,11 +87,11 @@ resp, err := resilientFetch(ctx, url)
 - `OnErr[T, R](fn func(context.Context, T) (R, error), onErr func(error)) func(context.Context, T) (R, error)` — call handler with error
 
 **Retry**
-- `Retry[T, R](maxAttempts int, backoff Backoff, fn) func(context.Context, T) (R, error)` — retry on error with pluggable backoff
+- `Retry[T, R](maxAttempts int, backoff Backoff, shouldRetry func(error) bool, fn) func(context.Context, T) (R, error)` — retry on error with pluggable backoff and optional predicate
 - `ConstantBackoff(delay time.Duration) Backoff` — fixed delay between retries
 - `ExponentialBackoff(initial time.Duration) Backoff` — full jitter: random in [0, initial * 2^n)
 
-All functions panic on nil inputs. `Throttle`, `ThrottleWeighted`, and `Retry` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity. `ExponentialBackoff` panics if initial <= 0.
+All functions panic on nil inputs (except `Retry`'s `shouldRetry`, where nil means retry all errors). `Throttle`, `ThrottleWeighted`, and `Retry` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity. `ExponentialBackoff` panics if initial <= 0.
 
 `Throttle` and `ThrottleWeighted` return functions that are safe for concurrent use from multiple goroutines. All context-aware wrappers (`Throttle`, `ThrottleWeighted`, `Retry`) return `ctx.Err()` on cancellation rather than blocking indefinitely.
 

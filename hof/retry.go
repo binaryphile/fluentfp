@@ -36,9 +36,14 @@ func ExponentialBackoff(initial time.Duration) Backoff {
 // Retry wraps fn to retry on error up to maxAttempts total times.
 // The first call is immediate; backoff(0) is the delay before the first retry.
 // Returns the result and error from the last attempt.
+//
+// shouldRetry controls which errors trigger a retry. When non-nil, only errors
+// for which shouldRetry returns true are retried; non-retryable errors are
+// returned immediately without backoff. When nil, all errors are retried.
+//
 // Context cancellation is checked before each attempt and during backoff waits.
 // Panics if maxAttempts < 1, backoff is nil, or fn is nil.
-func Retry[T, R any](maxAttempts int, backoff Backoff, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
+func Retry[T, R any](maxAttempts int, backoff Backoff, shouldRetry func(error) bool, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if maxAttempts < 1 {
 		panic("hof.Retry: maxAttempts must be > 0")
 	}
@@ -61,6 +66,9 @@ func Retry[T, R any](maxAttempts int, backoff Backoff, fn func(context.Context, 
 			lastR, lastErr = fn(ctx, t)
 			if lastErr == nil {
 				return lastR, nil
+			}
+			if shouldRetry != nil && !shouldRetry(lastErr) {
+				return lastR, lastErr
 			}
 
 			if attempt < maxAttempts-1 {

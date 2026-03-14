@@ -134,7 +134,7 @@ func ExampleRetry() {
 		return n * 2, nil
 	}
 
-	retried := hof.Retry(3, hof.ConstantBackoff(0), failThenSucceed)
+	retried := hof.Retry(3, hof.ConstantBackoff(0), nil, failThenSucceed)
 	result, err := retried(context.Background(), 5)
 
 	fmt.Println(result, err)

@@ -18,7 +18,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := hof.Retry(3, hof.ConstantBackoff(0), doubleIt)
+		retried := hof.Retry(3, hof.ConstantBackoff(0), nil, doubleIt)
 		got, err := retried(context.Background(), 5)
 
 		if err != nil {
@@ -43,7 +43,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := hof.Retry(3, hof.ConstantBackoff(0), failTwiceThenDouble)
+		retried := hof.Retry(3, hof.ConstantBackoff(0), nil, failTwiceThenDouble)
 		got, err := retried(context.Background(), 5)
 
 		if err != nil {
@@ -65,7 +65,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail %d", calls)
 		}
 
-		retried := hof.Retry(3, hof.ConstantBackoff(0), alwaysFail)
+		retried := hof.Retry(3, hof.ConstantBackoff(0), nil, alwaysFail)
 		_, err := retried(context.Background(), 1)
 
 		if err == nil {
@@ -87,7 +87,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		retried := hof.Retry(1, hof.ConstantBackoff(0), alwaysFail)
+		retried := hof.Retry(1, hof.ConstantBackoff(0), nil, alwaysFail)
 		_, err := retried(context.Background(), 1)
 
 		if err == nil {
@@ -109,7 +109,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := hof.Retry(3, hof.ConstantBackoff(0), doubleIt)
+		retried := hof.Retry(3, hof.ConstantBackoff(0), nil, doubleIt)
 		_, err := retried(ctx, 5)
 
 		if err != context.Canceled {
@@ -133,7 +133,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		retried := hof.Retry(3, hof.ConstantBackoff(10*time.Second), failAndCancel)
+		retried := hof.Retry(3, hof.ConstantBackoff(10*time.Second), nil, failAndCancel)
 		_, err := retried(ctx, 1)
 
 		if err != context.Canceled {
@@ -141,6 +141,75 @@ func TestRetry(t *testing.T) {
 		}
 		if calls != 1 {
 			t.Fatalf("fn called %d times, want 1", calls)
+		}
+	})
+}
+
+func TestRetryShouldRetry(t *testing.T) {
+	errRetryable := fmt.Errorf("retryable")
+	errFatal := fmt.Errorf("fatal")
+
+	t.Run("stops on non-retryable error", func(t *testing.T) {
+		calls := 0
+		// alwaysFatal always returns a non-retryable error.
+		alwaysFatal := func(_ context.Context, _ int) (int, error) {
+			calls++
+			return 0, errFatal
+		}
+		// isRetryable returns true only for retryable errors.
+		isRetryable := func(err error) bool { return err == errRetryable }
+
+		retried := hof.Retry(3, hof.ConstantBackoff(0), isRetryable, alwaysFatal)
+		_, err := retried(context.Background(), 1)
+
+		if err != errFatal {
+			t.Fatalf("got error %v, want %v", err, errFatal)
+		}
+		if calls != 1 {
+			t.Fatalf("fn called %d times, want 1", calls)
+		}
+	})
+
+	t.Run("retries retryable then stops on fatal", func(t *testing.T) {
+		calls := 0
+		// retryableThenFatal returns retryable twice, then fatal.
+		retryableThenFatal := func(_ context.Context, _ int) (int, error) {
+			calls++
+			if calls < 3 {
+				return 0, errRetryable
+			}
+			return 0, errFatal
+		}
+		// isRetryable returns true only for retryable errors.
+		isRetryable := func(err error) bool { return err == errRetryable }
+
+		retried := hof.Retry(5, hof.ConstantBackoff(0), isRetryable, retryableThenFatal)
+		_, err := retried(context.Background(), 1)
+
+		if err != errFatal {
+			t.Fatalf("got error %v, want %v", err, errFatal)
+		}
+		if calls != 3 {
+			t.Fatalf("fn called %d times, want 3", calls)
+		}
+	})
+
+	t.Run("nil predicate retries all errors", func(t *testing.T) {
+		calls := 0
+		// alwaysFail always returns an error.
+		alwaysFail := func(_ context.Context, _ int) (int, error) {
+			calls++
+			return 0, fmt.Errorf("fail %d", calls)
+		}
+
+		retried := hof.Retry(3, hof.ConstantBackoff(0), nil, alwaysFail)
+		_, err := retried(context.Background(), 1)
+
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if calls != 3 {
+			t.Fatalf("fn called %d times, want 3", calls)
 		}
 	})
 }
@@ -155,7 +224,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		hof.Retry[int, int](3, hof.ConstantBackoff(0), nil)
+		hof.Retry[int, int](3, hof.ConstantBackoff(0), nil, nil)
 	})
 
 	t.Run("nil backoff", func(t *testing.T) {
@@ -164,7 +233,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		hof.Retry(3, nil, doubleIt)
+		hof.Retry(3, nil, nil, doubleIt)
 	})
 
 	t.Run("maxAttempts zero", func(t *testing.T) {
@@ -173,7 +242,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		hof.Retry(0, hof.ConstantBackoff(0), doubleIt)
+		hof.Retry(0, hof.ConstantBackoff(0), nil, doubleIt)
 	})
 
 	t.Run("maxAttempts negative", func(t *testing.T) {
@@ -182,7 +251,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		hof.Retry(-1, hof.ConstantBackoff(0), doubleIt)
+		hof.Retry(-1, hof.ConstantBackoff(0), nil, doubleIt)
 	})
 }
 
@@ -254,7 +323,7 @@ func TestRetryComposesWithThrottle(t *testing.T) {
 		return n * 2, nil
 	}
 
-	composed := hof.Retry(3, hof.ConstantBackoff(0), hof.Throttle(1, failOnceThenDouble))
+	composed := hof.Retry(3, hof.ConstantBackoff(0), nil, hof.Throttle(1, failOnceThenDouble))
 	got, err := composed(context.Background(), 5)
 
 	if err != nil {
