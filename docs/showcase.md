@@ -69,29 +69,29 @@ results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 **Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
 
-The original method is 217 lines (L2590–L2806). Each of the 48 fields follows the same 3-line pattern: `if b.Field != zero { rslt.Field = b.Field }` — 144 lines of conditional assignment alone, 48 with fluentfp. The examples below show one representative field per pattern.
+The original method is 217 lines (L2590–L2806). Each of the 48 fields follows the same 3-line pattern: `if b.Field != zero { result.Field = b.Field }` — 144 lines of conditional assignment alone, 48 with fluentfp. The examples below show one representative field per pattern.
 
 **Original** (one field per pattern — `s` is the receiver, `b` is the override):
 ```go
 if b.AuthoritativeRegion != "" {
-    rslt.AuthoritativeRegion = b.AuthoritativeRegion
+    result.AuthoritativeRegion = b.AuthoritativeRegion
 }
 if b.BootstrapExpect > 0 {
-    rslt.BootstrapExpect = b.BootstrapExpect
+    result.BootstrapExpect = b.BootstrapExpect
 }
 if b.RaftProtocol != 0 {
-    rslt.RaftProtocol = b.RaftProtocol
+    result.RaftProtocol = b.RaftProtocol
 }
 ```
 
 **fluentfp:**
 ```go
-rslt.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
-rslt.BootstrapExpect = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
-rslt.RaftProtocol = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
+result.AuthoritativeRegion = value.FirstNonEmpty(b.AuthoritativeRegion, s.AuthoritativeRegion)
+result.BootstrapExpect = value.Of(b.BootstrapExpect).When(b.BootstrapExpect > 0).Or(s.BootstrapExpect)
+result.RaftProtocol = value.FirstNonZero(b.RaftProtocol, s.RaftProtocol)
 ```
 
-**What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the rslt.
+**What changed:** Every field reads as intent: `value.FirstNonEmpty(override, default)` for strings, `value.FirstNonZero(override, default)` for numbers — "use the override if present, otherwise keep the default." When zero genuinely means "absent," these two functions cover all fields. When zero is a valid override, you need `value.Of().When().Or()` as `BootstrapExpect` shows. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
 
 **What's eliminated:** Mechanical duplication — the three-line if-block pattern repeated 48 times. Each field's conditional is now a single expression with a consistent shape: `value.FirstNonEmpty(override, default)` or `value.FirstNonZero(override, default)`. The risk here isn't shadowing — it's copy-paste error and review fatigue across 144 lines of structurally identical code.
 
@@ -147,45 +147,6 @@ addrs := lo.Map(users, getAddr)
 addrs := slice.Map(users, User.Address)
 ```
 Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, User.Address).KeepIf(isLocal)`. lo's standalone functions compose inside-out: `lo.Filter(lo.Map(users, getAddr), isLocal)`. See design constraint [D2](design.md#d2-mapperto-rt-for-arbitrary-type-mapping).
-
----
-
-### Pipeline fluency vs type safety — ruilisi/css-checker
-
-**Source:** [duplication_checker.go#L10-L23](https://github.com/ruilisi/css-checker/blob/6558cfc8474869b4cf0f91ef643ce29329f4fd7f/duplication_checker.go#L10-L23)
-**Library:** go-linq | **Pain point:** `interface{}` callbacks vs fluent method chaining
-
-The original is 19 lines of `interface{}`-based callbacks chained via `GroupBy`, `Where`, `OrderByDescending`, `SelectT`, and `ToSlice`. Every callback requires a type assertion — `script.(StyleSection)` and `group.(linq.Group)` — and returns `interface{}`. The `SelectT` callback contains an inner `for` loop building a `names` slice. Both sides extract the same named functions: `valueHash` extracts the CSS hash for grouping, `hasDuplicates` filters groups with more than one section, `groupSize` returns the count for sorting, and `toSummary` builds the final output. go-linq also needs `identity` for its GroupBy element selector.
-
-**Extracted (go-linq):**
-```go
-valueHash := func(script interface{}) interface{} { return script.(StyleSection).valueHash }
-identity := func(script interface{}) interface{} { return script }
-hasDuplicates := func(group interface{}) bool { return len(group.(linq.Group).Group) > 1 }
-groupSize := func(group interface{}) interface{} { return len(group.(linq.Group).Group) }
-toSummary := func(group linq.Group) interface{} { ... }
-```
-
-The fluentfp extractions are analogous but with concrete types — `func(StyleSection) string`, `func(Group[string, StyleSection]) bool`, etc.
-
-**go-linq:**
-```go
-duplicates := linq.From(styleList).GroupBy(valueHash, identity).Where(hasDuplicates).OrderByDescending(groupSize)
-duplicates.SelectT(toSummary).ToSlice(&summaries)
-```
-
-**fluentfp:**
-```go
-byGroupSizeDesc := slice.Desc(groupSize)
-duplicates := slice.GroupBy(styleList, valueHash).KeepIf(hasDuplicates).Sort(byGroupSizeDesc)
-summaries := slice.Map(duplicates, toSummary)
-```
-
-**What changed:** Once callbacks are extracted, both pipelines do the same thing — group, filter, sort, map. fluentfp collapses this to a single expression: `GroupBy(...).KeepIf(hasDuplicates).Sort(desc)` feeds into `slice.Map`. The cross-type `Map` is standalone (Go methods can't introduce type parameters), but the chain still reads left to right. `GroupBy` returns `Mapper[Group[K, T]]` — groups chain directly without a bridge step, and keys are preserved throughout. go-linq's `interface{}`-based callbacks require type assertions that compile silently even when wrong; fluentfp's concrete-typed functions catch mismatches at compile time. go-linq's `GroupBy` also requires an `identity` element selector — fluentfp's only takes a key function.
-
-**What's eliminated:** The readability is equivalent, so the win is purely type safety. go-linq's `interface{}`-based callbacks sacrifice compile-time safety for full method chaining — a trade-off that made sense before generics existed.
-
-*Historical note: go-linq brought LINQ-style FP to Go before generics existed. Its `interface{}`-based API was the best approach at the time, and it proved the demand that led to generics being added to the language. The pain points above are artifacts of that era, not design failures.*
 
 ---
 
