@@ -1535,6 +1535,71 @@ func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagno
 
 ---
 
+## Lazy Sequences
+
+### Filter-then-sum without intermediate allocation — kubernetes/kubernetes
+
+**Source:** [pkg/controller/deployment/sync.go#L340](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/deployment/sync.go), [pkg/controller/controller_utils.go#L1606](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/controller_utils.go)
+**Pain point:** Full intermediate slice allocated just to sum one field
+
+Kubernetes (121k stars) deployment controller filters active ReplicaSets into a new slice, then iterates that slice to sum replica counts. The filtered slice exists only to be folded — it's never used for anything else at this call site.
+
+**Original:**
+```go
+// FilterActiveReplicaSets allocates []*apps.ReplicaSet
+allRSs := controller.FilterActiveReplicaSets(append(oldRSs, newRS))
+
+// GetReplicaCountForReplicaSets iterates allRSs to sum Spec.Replicas
+allRSsReplicas := deploymentutil.GetReplicaCountForReplicaSets(allRSs)
+```
+
+Where `FilterActiveReplicaSets` is:
+```go
+func FilterActiveReplicaSets(replicaSets []*apps.ReplicaSet) []*apps.ReplicaSet {
+    var activeFilter []*apps.ReplicaSet
+    for i := range replicaSets {
+        if replicaSets[i] != nil && *(replicaSets[i].Spec.Replicas) > 0 {
+            activeFilter = append(activeFilter, replicaSets[i])
+        }
+    }
+    return activeFilter
+}
+```
+
+And `GetReplicaCountForReplicaSets` is:
+```go
+func GetReplicaCountForReplicaSets(replicaSets []*apps.ReplicaSet) int32 {
+    totalReplicas := int32(0)
+    for _, rs := range replicaSets {
+        if rs != nil {
+            totalReplicas += *(rs.Spec.Replicas)
+        }
+    }
+    return totalReplicas
+}
+```
+
+**fluentfp:**
+```go
+rss := append(oldRSs, newRS)
+
+// isActive returns true if the ReplicaSet has replicas.
+isActive := func(rs *apps.ReplicaSet) bool {
+    return rs != nil && *(rs.Spec.Replicas) > 0
+}
+
+// addReplicas accumulates replica counts.
+addReplicas := func(total int32, rs *apps.ReplicaSet) int32 {
+    return total + *(rs.Spec.Replicas)
+}
+
+allRSsReplicas := seq.Fold(seq.From(rss).KeepIf(isActive), int32(0), addReplicas)
+```
+
+**What's eliminated:** The intermediate `[]*apps.ReplicaSet` allocation. The imperative version builds a full filtered slice (`FilterActiveReplicaSets`) only to iterate it once more for the sum (`GetReplicaCountForReplicaSets`). `seq.From` wraps the slice as a lazy iterator — `KeepIf` produces matching elements on demand, and `Fold` consumes them in a single pass. No intermediate slice is allocated. The same filter→count pattern appears in the Job controller (`FilterActivePods` → `countReadyPods`) and ReplicaSet controller (`FilterActiveReplicaSets` → `len()`), each allocating a throwaway slice for a scalar result.
+
+---
+
 ## Map Operations
 
 ### Map inversion — grafana/mimir
