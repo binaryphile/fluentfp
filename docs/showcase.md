@@ -1535,6 +1535,149 @@ func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagno
 
 ---
 
+## Map Operations
+
+### Map inversion — grafana/mimir
+
+**Source:** [pkg/streamingpromql/planning/core/conversions.go#L224-L264](https://github.com/grafana/mimir/blob/main/pkg/streamingpromql/planning/core/conversions.go#L224-L264)
+**Pain point:** 12-line generic helper function to invert a map
+
+Grafana Mimir (5k stars) maps item types to binary operations for its PromQL engine. The reverse lookup is built by a hand-rolled generic `invert[A, B comparable]` function with duplicate detection.
+
+**Original:**
+```go
+var itemTypeToBinaryOperation = map[ItemType]parser.ItemType{
+    // ...
+}
+
+var binaryOperationToItemType = invert(itemTypeToBinaryOperation)
+
+func invert[A, B comparable](original map[A]B) map[B]A {
+    inverted := make(map[B]A, len(original))
+    for k, v := range original {
+        before := len(inverted)
+        inverted[v] = k
+        after := len(inverted)
+        if before == after {
+            panic(fmt.Sprintf("duplicate value %v detected", v))
+        }
+    }
+    return inverted
+}
+```
+
+**fluentfp:**
+```go
+var binaryOperationToItemType = kv.Invert(itemTypeToBinaryOperation)
+```
+
+**What's eliminated:** The entire 12-line generic helper. `kv.Invert` is the operation — the rest was ceremony. HashiCorp Consul has the same pattern ([forwarding.go#L206-L222](https://github.com/hashicorp/consul/blob/main/internal/storage/raft/forwarding.go#L206-L222)) using an IIFE to build a reverse `error`→`codes.Code` lookup, though that case requires `error` keys which aren't `comparable` — a limitation `kv.Invert` honestly can't serve.
+
+---
+
+### Label merging — kubernetes/apimachinery
+
+**Source:** [pkg/labels/labels.go#L124-L134](https://github.com/kubernetes/apimachinery/blob/master/pkg/labels/labels.go#L124-L134)
+**Pain point:** Hand-rolled map merge repeated across the ecosystem
+
+Kubernetes (121k stars) merges label sets throughout controllers, admission webhooks, and scheduling. The `Merge` function copies both maps into a new one with second-argument-wins precedence — two identical iteration loops.
+
+**Original:**
+```go
+func Merge(labels1, labels2 Set) Set {
+    mergedMap := Set{}
+    for k, v := range labels1 {
+        mergedMap[k] = v
+    }
+    for k, v := range labels2 {
+        mergedMap[k] = v
+    }
+    return mergedMap
+}
+```
+
+**fluentfp:**
+```go
+func Merge(labels1, labels2 Set) Set {
+    return kv.Merge(labels1, labels2)
+}
+```
+
+**What's eliminated:** Two iteration loops with identical structure. This is the same code pattern that appears in HashiCorp Nomad (`MergeMapStringString`), Docker, and dozens of other Go projects — each independently reimplementing last-wins map merge. `kv.Merge` accepts variadic maps, so 3-way config layering (`kv.Merge(defaults, fileConfig, envConfig)`) needs no additional code.
+
+---
+
+### Clone-and-remove label — kubernetes/kubernetes
+
+**Source:** [pkg/util/labels/labels.go#L37-L49](https://github.com/kubernetes/kubernetes/blob/master/pkg/util/labels/labels.go#L37-L49)
+**Pain point:** 8-line clone + delete for removing a single label key
+
+Kubernetes controllers frequently strip internal labels before passing data to other components. The utility clones the map and removes one key.
+
+**Original:**
+```go
+func CloneAndRemoveLabel(labels map[string]string, labelKey string) map[string]string {
+    if labelKey == "" {
+        return labels
+    }
+    newLabels := map[string]string{}
+    for key, value := range labels {
+        newLabels[key] = value
+    }
+    delete(newLabels, labelKey)
+    return newLabels
+}
+```
+
+**fluentfp:**
+```go
+func CloneAndRemoveLabel(labels map[string]string, labelKey string) map[string]string {
+    if labelKey == "" {
+        return labels
+    }
+    return kv.OmitByKeys(labels, []string{labelKey})
+}
+```
+
+**What's eliminated:** The manual clone loop and `delete` call. `kv.OmitByKeys` returns a new map excluding the specified keys — clone + remove in one operation. For the multi-key case (common when stripping several internal labels), the savings compound further.
+
+---
+
+## Startup Initialization
+
+### Panic-on-parse in init — prometheus/prometheus
+
+**Source:** [cmd/prometheus/main.go](https://github.com/prometheus/prometheus/blob/main/cmd/prometheus/main.go)
+**Pain point:** Manual `if err != nil { panic(err) }` boilerplate next to built-in Must patterns
+
+Prometheus (56k stars) uses `prometheus.MustRegister` for metrics — a Must wrapper baked into the metrics package. But `model.ParseDuration` has no Must variant, so the same init function falls back to manual panic boilerplate.
+
+**Original:**
+```go
+func init() {
+    prometheus.MustRegister(versioncollector.NewCollector(appName))
+
+    var err error
+    defaultRetentionDuration, err = model.ParseDuration(defaultRetentionString)
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
+**fluentfp:**
+```go
+func init() {
+    prometheus.MustRegister(versioncollector.NewCollector(appName))
+
+    defaultRetentionDuration = must.Get(model.ParseDuration(defaultRetentionString))
+}
+```
+
+**What's eliminated:** The `var err error` declaration, the `if err != nil` check, and the `panic(err)` call — 4 lines of boilerplate for a pattern that means "this cannot fail at runtime; if it does, it's a programmer bug." The stdlib has Must wrappers for `regexp` and `template`. Every other `(T, error)` call at init time requires manual boilerplate. `must.Get` is the generic version.
+
+---
+
 ## Additional Applicability
 
 The following examples were investigated but not showcased above — in each case, the original code is a manual implementation of the exact operation fluentfp provides, making the comparison circular ("we replaced your implementation of X with our X"). They're listed here as evidence of how often these patterns appear in production Go code.  The point is that these are useful constructs that these projects had to write themselves, but you don't have to.
