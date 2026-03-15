@@ -323,7 +323,7 @@
 - 1c. Developer needs to apply separate functions to separate arguments: System applies each function independently via `Cross` and returns the results as a pair.
 - 1d. Developer needs an identity function: System provides `hof.Identity`, which returns its argument unchanged.
 - 1e. Developer needs a predicate that checks equality to a known value: System returns a `func(T) bool` via `Eq` that tests its argument against the captured value.
-- 1f. Developer needs to pass a Go builtin as a higher-order argument: `lof` provides first-class function wrappers for builtins (`Len`, `Println`, `HasPrefix`, `Succ`, etc.).
+- 1f. Developer needs to pass a Go builtin as a higher-order argument: `lof` provides first-class function wrappers for builtins (`Len`, `Println`, `HasPrefix`, `Inc`, etc.).
 - 1g. Developer needs to bound concurrent access to a function: `Throttle` returns a function with the same signature (`func(A) (R, error)`) that blocks callers until a semaphore slot is available. `ThrottleWeighted` bounds by per-call cost rather than count.
 - 1h. Developer needs a side-effect triggered when a function call returns an error: `OnErr` returns a function with the same signature (`func(A) (R, error)`) that calls the original, then invokes the handler if the error is non-nil.
 - 1i. Developer needs to retry a function on failure with configurable delays: `Retry` returns a function with the same signature (`func(context.Context, A) (R, error)`) that retries on error according to a backoff strategy (`ConstantBackoff` or `ExponentialBackoff` with full jitter), respecting context cancellation during waits.
@@ -486,7 +486,7 @@
 - 3b. Developer needs all elements as a sorted slice: System extracts elements in order via `Collect`.
 
 **Sub-Variations:**
-- Construction: `New` (empty), `From` (slice), `Of` (variadic)
+- Construction: `New` (empty), `From` (slice)
 - Operations: `Insert`, `Min`, `DeleteMin`, `Merge`, `Len`, `IsEmpty`
 - Ordering: caller-provided `func(T, T) int` comparator (use `slice.Asc`/`slice.Desc` with a key function for common cases)
 
