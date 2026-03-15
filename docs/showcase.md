@@ -150,56 +150,6 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 
 ---
 
-### Random service instance selection — hashicorp/consul
-
-**Source:** [connect/resolver.go#L101-L117](https://github.com/hashicorp/consul/blob/main/connect/resolver.go#L101-L117)
-**Pain point:** Guard + `rand.Intn` + indexing ceremony repeated for every random-pick site
-
-Consul (28k stars) resolves service connections by querying healthy instances and picking one at random for client-side load balancing. The random selection requires a three-line guard: default `idx := 0`, conditionally overwrite with `rand.Intn` if more than one instance, then index into the slice. This pattern appears twice in the same file — `resolveService` and `resolveQuery` use identical logic.
-
-**Original:**
-```go
-func (cr *ConsulResolver) resolveService(ctx context.Context) (string, connect.CertURI, error) {
-    svcs, _, err := cr.Client.Health().Connect(cr.Name, "", true, cr.queryOptions(ctx))
-    if err != nil {
-        return "", nil, err
-    }
-
-    if len(svcs) < 1 {
-        return "", nil, fmt.Errorf("no healthy instances found")
-    }
-
-    // Services are not shuffled by HTTP API, pick one at (pseudo) random.
-    idx := 0
-    if len(svcs) > 1 {
-        idx = rand.Intn(len(svcs))
-    }
-
-    return cr.resolveServiceEntry(svcs[idx])
-}
-```
-
-**fluentfp:**
-```go
-func (cr *ConsulResolver) resolveService(ctx context.Context) (string, connect.CertURI, error) {
-    svcs, _, err := cr.Client.Health().Connect(cr.Name, "", true, cr.queryOptions(ctx))
-    if err != nil {
-        return "", nil, err
-    }
-
-    svc, ok := slice.From(svcs).Sample().Get()
-    if !ok {
-        return "", nil, fmt.Errorf("no healthy instances found")
-    }
-
-    return cr.resolveServiceEntry(svc)
-}
-```
-
-**What changed:** The empty check and random selection merge into one operation. `Sample()` returns `option.Option[T]` — not-ok when the slice is empty, otherwise a random element. The three-line guard (`idx := 0; if len > 1 { idx = rand.Intn(...) }`) and the separate `len(svcs) < 1` check collapse into `.Sample().Get()`. The comment "pick one at (pseudo) random" becomes the method name.
-
-**What's eliminated:** The index-based selection ceremony. The original needs three lines because `rand.Intn(0)` panics on empty input and `rand.Intn(1)` is always zero for single-element slices — so the code manually handles both edge cases. `Sample()` absorbs this: empty → not-ok, single element → that element, multiple → random. The pattern appears twice in the same file with identical logic — each collapses to a single method call.
-
 ---
 
 ### Five interleaved concerns in gateway service listing — hashicorp/consul
@@ -1516,46 +1466,6 @@ func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagno
 
 ---
 
-## Map Operations
-
-### Map inversion — grafana/mimir
-
-**Source:** [pkg/streamingpromql/planning/core/conversions.go#L224-L264](https://github.com/grafana/mimir/blob/main/pkg/streamingpromql/planning/core/conversions.go#L224-L264)
-**Pain point:** 12-line generic helper function to invert a map
-
-Grafana Mimir (5k stars) maps item types to binary operations for its PromQL engine. The reverse lookup is built by a hand-rolled generic `invert[A, B comparable]` function with duplicate detection.
-
-**Original:**
-```go
-var itemTypeToBinaryOperation = map[ItemType]parser.ItemType{
-    // ...
-}
-
-var binaryOperationToItemType = invert(itemTypeToBinaryOperation)
-
-func invert[A, B comparable](original map[A]B) map[B]A {
-    inverted := make(map[B]A, len(original))
-    for k, v := range original {
-        before := len(inverted)
-        inverted[v] = k
-        after := len(inverted)
-        if before == after {
-            panic(fmt.Sprintf("duplicate value %v detected", v))
-        }
-    }
-    return inverted
-}
-```
-
-**fluentfp:**
-```go
-var binaryOperationToItemType = kv.Invert(itemTypeToBinaryOperation)
-```
-
-**What's eliminated:** The iteration and key/value swap. `kv.Invert` replaces the core logic but not the duplicate detection — Mimir's version panics on duplicate values, while `kv.Invert` silently overwrites (last-wins). If duplicate detection matters, you'd add a validation step. HashiCorp Consul has the same inversion pattern ([forwarding.go#L206-L222](https://github.com/hashicorp/consul/blob/main/internal/storage/raft/forwarding.go#L206-L222)) using an IIFE, though that case uses `error` keys which aren't `comparable` — a limitation `kv.Invert` honestly can't serve.
-
----
-
 ## Startup Initialization
 
 ### Panic-on-parse in init — prometheus/prometheus
@@ -1606,3 +1516,5 @@ The following examples were investigated but not showcased above — in each cas
 | `kv.Merge` | kubernetes (121k) | [labels.go#L124-L134](https://github.com/kubernetes/apimachinery/blob/master/pkg/labels/labels.go#L124-L134) | 7-line two-loop last-wins map merge; same pattern in Nomad `MergeMapStringString` |
 | `kv.OmitByKeys` | kubernetes (121k) | [labels.go#L37-L49](https://github.com/kubernetes/kubernetes/blob/master/pkg/util/labels/labels.go#L37-L49) | 8-line clone + delete for removing a label key |
 | `slice.GroupBy` | grafana (72k) | [alert_rule.go](https://github.com/grafana/grafana/blob/main/pkg/services/ngalert/models/alert_rule.go) | 4-line map+loop+append grouping alert rules by composite key with duplicated `GetGroupKey()` call |
+| `.Sample` | consul (28k) | [connect/resolver.go#L101-L117](https://github.com/hashicorp/consul/blob/main/connect/resolver.go#L101-L117) | 3-line guard (`idx := 0; if len > 1 { idx = rand.Intn(...) }`) + separate empty check for random service instance selection; pattern repeated twice in same file |
+| `kv.Invert` | grafana/mimir (5k) | [conversions.go#L224-L264](https://github.com/grafana/mimir/blob/main/pkg/streamingpromql/planning/core/conversions.go#L224-L264) | 12-line generic `invert[A, B comparable]` helper with duplicate detection; Consul has same pattern in [forwarding.go#L206-L222](https://github.com/hashicorp/consul/blob/main/internal/storage/raft/forwarding.go#L206-L222) |

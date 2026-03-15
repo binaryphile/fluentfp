@@ -318,6 +318,7 @@
 - 1g. Developer needs a function that enforces a concurrency budget when called from multiple goroutines: System returns a function with the same signature that blocks callers until budget is available, bounding by call count or per-call cost.
 - 1h. Developer needs a function that triggers a side-effect when a call fails: System returns a function with the same signature that calls the original, then invokes the handler on error.
 - 1i. Developer needs a function that retries on failure with configurable delays: System returns a function with the same signature that retries the original on error, waiting between attempts according to a backoff strategy, and respecting context cancellation during waits.
+- 1j. Developer needs a function that coalesces rapid calls, executing once after activity stops: System creates a debouncer that stores the latest value and executes the callback after a configurable quiet period. Multiple calls during the quiet period replace the stored value and reset the timer. An optional maximum wait caps how long execution can be deferred under continuous activity.
 
 **Sub-Variations:**
 - Composition: left-to-right (Pipe)
@@ -327,6 +328,7 @@
 - Concurrency control: by count (Throttle), by cost (ThrottleWeighted)
 - Side-effect on error (OnErr)
 - Retry with backoff: constant delay, exponential with full jitter
+- Call coalescing: trailing-edge debounce with optional maximum wait (Debouncer)
 
 ---
 

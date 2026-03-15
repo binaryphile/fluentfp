@@ -510,6 +510,65 @@ callers.
 panic. Same contract as `ExponentialBackoff(initial <= 0)`. These are
 programming errors, not runtime conditions.
 
+### D24: Debouncer as stateful coalescing scheduler
+
+`Debouncer[T]` is the first struct-based API in `hof`, breaking the transparent
+function decorator pattern used by Throttle, OnErr, and Retry.
+
+```go
+type Debouncer[T any] struct { /* unexported */ }
+
+func NewDebouncer[T any](wait time.Duration, fn func(T), opts ...DebounceOption) *Debouncer[T]
+func (d *Debouncer[T]) Call(v T)
+func (d *Debouncer[T]) Cancel() bool
+func (d *Debouncer[T]) Flush() bool
+func (d *Debouncer[T]) Close()
+```
+
+**Why not `func(context.Context, T) (R, error)`:** Debounce collapses many calls
+into one execution. A request/response function implies each call maps to its own
+result — those semantics are fundamentally at odds. Returning `ErrDebounced` for
+swallowed calls makes the decorator non-transparent; blocking callers until eventual
+execution gives earlier callers a result for input they didn't submit; returning
+zero values is silent loss. Breaking the pattern is the honest choice.
+
+**Why `func(T)` not `func()`:** Most debounced work depends on the latest value
+(autosave latest state, search latest query, flush latest config). `func()` forces
+callers to capture mutable external state, which is race-prone and awkward.
+
+**Why a struct not a closure:** The multi-method interface (Call, Cancel, Flush, Close)
+cannot be expressed as a returned function. A struct provides clear lifecycle, better
+discoverability, and room for future extension.
+
+**Owner goroutine architecture:** A single goroutine owns all mutable state — pending
+value, timers, running flag. External methods communicate via channels. This eliminates
+timer races by construction (no stale AfterFunc callbacks), avoids per-Call allocations
+(single reusable `time.Timer` with Reset), and makes Flush/Cancel linearization trivial
+(events processed sequentially in select). Trade-off: requires Close for goroutine
+lifecycle. Benchmarks: 0 allocs/op for Call under both sequential and concurrent load.
+
+**Serialization:** At most one `fn` execution at a time. fn runs in a spawned goroutine
+with deferred completion signaling. Calls during execution queue the latest value for
+a fresh timer cycle after completion.
+
+**MaxWait option:** Without MaxWait, continuous calls defer indefinitely (starvation).
+MaxWait caps the maximum delay — the timer runs from the first call in a burst and
+is not reset by subsequent calls. Fresh MaxWait timer starts on each new burst.
+
+**Flush semantics:** Flush binds to the pending work visible at the moment it is called.
+New Calls that arrive during a flushed execution do not extend the Flush — they are
+scheduled normally via timer. Only one Flush waiter is supported; subsequent calls return
+false immediately. Internally, a `flushTarget` flag tracks whether the currently running
+execution is the one the Flush waiter is waiting for, preventing indefinite cascading.
+
+**Reentrancy:** Call and Cancel are safe from within fn (channel send, owner processes
+while fn is running). Flush and Close from within fn deadlock — fn completion must signal
+before either can proceed. Documented as unsupported.
+
+**Panic behavior:** fn runs in a spawned goroutine. Panics propagate normally (crash
+the process). The deferred doneCh signal preserves owner goroutine state invariants
+before the panic continues.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.

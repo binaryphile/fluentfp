@@ -1,6 +1,7 @@
 // Package hof provides function combinators for composition, partial application,
-// independent application, concurrency control, and side-effect wrapping. Based
-// on Stone's "Algorithms: A Functional Programming Approach" (pipe, sect, cross).
+// independent application, concurrency control, side-effect wrapping, and
+// call coalescing. Based on Stone's "Algorithms: A Functional Programming
+// Approach" (pipe, sect, cross).
 package hof
 
 // Compile-time export verification. Every fluentfp package uses this pattern
@@ -31,4 +32,8 @@ func _() {
 	_ = Backoff(nil)
 	_ = ConstantBackoff
 	_ = ExponentialBackoff
+
+	// Debouncing
+	_ = NewDebouncer[int]
+	_ = MaxWait
 }
