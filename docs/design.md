@@ -74,7 +74,7 @@ Every package uses a `doc.go` containing a `func _()` that references all named 
 type Mapper[T any] []T
 ```
 
-A defined type with underlying type `[]T` — not a struct wrapper, not a type alias.
+A defined type with underlying type `[]T` — not a struct wrapper, not a type alias.  The raison d'etre for the library.
 
 **Why:** Convertible to/from `[]T` without allocation. Callers convert with `[]T(mapper)` when passing to standard functions — one explicit conversion, no copy. A defined type (unlike an alias) allows attaching a method set.
 
