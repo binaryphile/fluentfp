@@ -333,7 +333,7 @@
 - Composition: left-to-right (`Pipe`)
 - Partial application: fix first arg (`Bind`), fix second arg (`BindR`)
 - Building blocks: identity function (`Identity`), equality predicate (`Eq`)
-- Builtin adapters (`lof`): `Len`, `Println`, `HasPrefix`, `HasSuffix`, `Contains`, `Succ`
+- Builtin adapters (`lof`): `Len`, `Println`, `HasPrefix`, `HasSuffix`, `Contains`, `Inc`
 - Concurrency control: by count (`Throttle`), by cost (`ThrottleWeighted`)
 - Side-effect on error (`OnErr`)
 - Retry with backoff: constant delay (`ConstantBackoff`), exponential with full jitter (`ExponentialBackoff`)
@@ -472,7 +472,7 @@
 **Minimal Guarantee:** Original heap is never modified. Empty heap operations return absence, not panic.
 
 **Preconditions:**
-- Developer has comparable elements that need priority ordering
+- Developer has elements that need priority ordering and a comparator function
 
 **Main Scenario:**
 1. Developer creates a heap, optionally from existing elements.
@@ -488,7 +488,7 @@
 **Sub-Variations:**
 - Construction: `New` (empty), `From` (slice), `Of` (variadic)
 - Operations: `Insert`, `Min`, `DeleteMin`, `Merge`, `Len`, `IsEmpty`
-- Ordering: natural order via `cmp.Ordered` constraint
+- Ordering: caller-provided `func(T, T) int` comparator (use `slice.Asc`/`slice.Desc` with a key function for common cases)
 
 ---
 
