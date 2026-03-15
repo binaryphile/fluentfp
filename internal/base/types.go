@@ -141,6 +141,16 @@ func (ss String) ContainsAny(targets []string) bool {
 	return false
 }
 
+// Matches returns true if filter is empty (no constraint) or if ss
+// contains any element in filter. Complement of ContainsAny: empty
+// filter means "everything matches" (allowlist semantics).
+func (ss String) Matches(filter []string) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	return ss.ContainsAny(filter)
+}
+
 // Each calls fn for every element.
 func (ss String) Each(fn func(string)) {
 	for _, s := range ss {
