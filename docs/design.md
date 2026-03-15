@@ -6,34 +6,51 @@ How fluentfp is built. For what it does, see [use-cases.md](use-cases.md). For w
 
 ```mermaid
 flowchart TD
-    base["internal/base"] --> option
-    base --> either
-    slice --> base
-    slice --> result
+    subgraph Utilities
+        must
+        lof
+        hof
+        memo
+    end
+    subgraph Combinatorics
+        combo
+    end
+    subgraph Collections
+        slice
+        kv
+    end
+    subgraph Lazy
+        stream
+        seq
+    end
+    subgraph Structures
+        heap
+        pair["pair (tuple/pair)"]
+    end
+    subgraph Types
+        option
+        either
+        rslt
+    end
+
+    combo --> slice
+    combo --> pair
     slice --> option
+    slice --> either
+    slice --> rslt
     slice --> pair
-    kv --> base
     kv --> pair
-    result
     stream --> option
     stream --> pair
     seq --> option
     seq --> pair
     heap --> option
-    combo --> pair
-    combo --> slice
-    pair["pair (tuple/pair)"]
-    must
-    lof
-    hof
-    memo
 ```
 
 | Package | Role |
 |---------|------|
-| `internal/base` | Core types (`Mapper`, `Entries`, `Float64`, `Int`, `String`) and all their methods. Hidden from external consumers. |
-| `slice` | Type aliases for base types + slice-consuming standalone functions (From, Map, GroupBy, SortBy, Fold, etc.) |
-| `kv` | Type alias for `Entries` + map-consuming standalone functions (From, Map, MapKeys, MapValues, Values, Keys) |
+| `slice` | Core collection type (`Mapper[T]`) with methods + slice-consuming standalone functions (From, Map, GroupBy, SortBy, Fold, etc.). Implementation lives in `internal/base`. |
+| `kv` | Core map type (`Entries[K,V]`) with methods + map-consuming standalone functions (From, Map, MapKeys, MapValues, Values, Keys). Implementation lives in `internal/base`. |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
 | `rslt` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`CollectOkAndErr` collectors |
@@ -220,7 +237,7 @@ A standalone package with zero internal imports — not an alias for `Either[err
 
 **Lift wraps fallible functions:** `Lift[A, R](fn func(A) (R, error)) func(A) Result[R]` converts a Go-idiomatic `(R, error)` function into one returning `Result[R]`. Mirrors `must.Of` (which wraps to panic-on-error). Single-arg arity covers the common case; multi-arg functions use `rslt.Of(fn(a, b))` directly.
 
-**Collectors return `[]R`:** Plain slices, not `Mapper[R]`. Callers wrap with `slice.From()` for chaining. This keeps `rslt` as a standalone package with zero internal imports — cleaner layering than leaking `internal/base` through a public API.
+**Collectors return `[]R`:** Plain slices, not `Mapper[R]`. Callers wrap with `slice.From()` for chaining. This keeps `rslt` as a standalone package with zero internal imports — cleaner layering than adding a `slice` dependency.
 
 ### D12: Stream as lazy memoized linked list
 
@@ -242,7 +259,7 @@ A persistent lazy sequence where each cell's head is eager and tail is lazy, eva
 
 **Head-eager, tail-lazy:** when a cell exists, its head is known. Only the tail is deferred. Simplifies all operations — no "maybe empty" cells. Works well for pure/in-memory sources; inadequate for effectful/blocking sources (deferred to future phase).
 
-**Not in internal/base:** Stream is fundamentally different from Mapper (lazy vs eager, linked list vs slice). Separate top-level package with no dependency on `internal/base` or `slice`.
+**Not in slice:** Stream is fundamentally different from Mapper (lazy vs eager, linked list vs slice). Separate top-level package with no dependency on `slice`.
 
 **Collect returns `[]T`:** Plain slice, not `Mapper[T]`. Keeps stream independent. Users bridge with `slice.From()`.
 
@@ -329,13 +346,13 @@ type Pair[A, B any] struct {
 
 A struct with two generic fields — the simplest possible product type.
 
-**Standalone package, zero dependencies:** pair imports nothing — no `internal/base`,
+**Standalone package, zero dependencies:** pair imports nothing — no `slice`,
 no `option`. This keeps it lightweight and avoids coupling tuple operations to
 collection infrastructure.
 
 **Zip/ZipWith return plain slices:** `Zip` returns `[]Pair[A,B]`, not `Mapper`.
 `ZipWith` returns `[]R`, not `Mapper[R]`. This preserves pair's independence from
-`internal/base`. Callers bridge to fluent chains with `slice.From(pair.Zip(...))`.
+`slice`. Callers bridge to fluent chains with `slice.From(pair.Zip(...))`.
 
 **Panic on length mismatch:** `Zip` and `ZipWith` panic when inputs differ in
 length. This is a precondition violation — the caller asserts the slices
@@ -359,13 +376,12 @@ type Entries[K comparable, V any] = base.Entries[K, V]
 
 A type alias for `base.Entries[K,V]` — same re-export pattern as `slice.Mapper[T]`
 (which aliases `base.Mapper[T]`). The defined type with methods lives in
-`internal/base`; the alias re-exports it so `kv` consumers see the methods without
-importing `internal/base`. Entries IS the map (indexing, ranging, `len` all work).
+`internal/base`; the alias re-exports it so callers see the methods through `kv`.
+Entries IS the map (indexing, ranging, `len` all work).
 
 **Separate from slice:** Map operations take `map[K]V` input, not `[]T`. Neither
-`kv` nor `slice` imports the other; both depend only on `internal/base`. This keeps
-the dependency graph clean — map-consuming code imports `kv`, slice-consuming code
-imports `slice`, and shared types flow through `internal/base`.
+`kv` nor `slice` imports the other. Map-consuming code imports `kv`, slice-consuming
+code imports `slice`. Shared implementation flows through `internal/base`.
 
 **From is a type conversion:** `kv.From(m)` is zero-cost — same D1 pattern as
 `slice.From`. The `Entries` and the original map share backing data. No copy.
@@ -383,10 +399,9 @@ until the caller is ready to extract.
 returning `Entries` for further chaining. Mirrors `Mapper.KeepIf`/`RemoveIf` but
 with both key and value available to the predicate.
 
-**pair dependency:** `ToPairs`/`FromPairs` introduce `kv → pair`. This is the one
-exception to the "kv depends only on internal/base" rule. The dependency is safe —
-`pair` has zero imports and cannot create cycles. The alternative (duplicating Pair
-in `internal/base` or using `[2]any`) is worse than a clean edge to a leaf package.
+**pair dependency:** `ToPairs`/`FromPairs` introduce `kv → pair`. `pair` has zero
+imports and cannot create cycles. The alternative (duplicating Pair in `kv` or using
+`[2]any`) is worse than a clean edge to a leaf package.
 
 ### D19: memo — Memoization as state machine
 
@@ -755,6 +770,6 @@ Where packages depend on each other, and why:
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 | `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
 
-`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `internal/base` and `rslt`; `kv` depends on `internal/base` and `pair` — neither `kv` nor `slice` imports the other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair` — neither `kv` nor `slice` imports the other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.
