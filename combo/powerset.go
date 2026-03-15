@@ -1,8 +1,10 @@
 package combo
 
+import "github.com/binaryphile/fluentfp/slice"
+
 // PowerSet returns all subsets of items.
 // Returns 2^n results — use only for small inputs.
-func PowerSet[T any](items []T) [][]T {
+func PowerSet[T any](items []T) slice.Mapper[[]T] {
 	if len(items) == 0 {
 		return [][]T{{}}
 	}

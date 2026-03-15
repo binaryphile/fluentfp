@@ -2,7 +2,7 @@
 
 Combinatorial constructions: Cartesian products, permutations, combinations, and power sets.
 
-All functions eagerly allocate the full result in memory. `CartesianProduct` returns `pair.Pair` values; use `CartesianProductWith` to produce your own result type directly and avoid intermediate pairs. Bridge with `slice.From()` for fluent chains.
+All functions eagerly allocate the full result in memory. `CartesianProduct` returns `pair.Pair` values; use `CartesianProductWith` to produce your own result type directly and avoid intermediate pairs. Results are `slice.Mapper` — chain directly with `.KeepIf`, `.Convert`, etc.
 
 ```go
 // Before: nested loop to generate all size/color combinations
@@ -68,10 +68,10 @@ Use only for small inputs unless you've computed the result size and memory cost
 
 ## Operations
 
-- `CartesianProduct[A, B any]([]A, []B) []pair.Pair[A, B]` — all pairs
-- `CartesianProductWith[A, B, R any]([]A, []B, func(A, B) R) []R` — all pairs, transformed (avoids intermediate `pair.Pair` allocation)
-- `Permutations[T any]([]T) [][]T` — all orderings
-- `Combinations[T any]([]T, int) [][]T` — k-element subsets, preserving order
-- `PowerSet[T any]([]T) [][]T` — all subsets
+- `CartesianProduct[A, B any]([]A, []B) slice.Mapper[pair.Pair[A, B]]` — all pairs
+- `CartesianProductWith[A, B, R any]([]A, []B, func(A, B) R) slice.Mapper[R]` — all pairs, transformed (avoids intermediate `pair.Pair` allocation)
+- `Permutations[T any]([]T) slice.Mapper[[]T]` — all orderings
+- `Combinations[T any]([]T, int) slice.Mapper[[]T]` — k-element subsets, preserving order
+- `PowerSet[T any]([]T) slice.Mapper[[]T]` — all subsets
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/combo) for complete API documentation and the [main README](../README.md) for installation.

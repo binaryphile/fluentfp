@@ -150,8 +150,6 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 
 ---
 
----
-
 ### Five interleaved concerns in gateway service listing — hashicorp/consul
 
 **Source:** [config_entry_gateways.go#L401-L423](https://github.com/hashicorp/consul/blob/main/agent/structs/config_entry_gateways.go#L401-L423)
@@ -337,16 +335,13 @@ countByStatus := func(g G) string {
 	return fmt.Sprintf("%s(%d)", g.Key, g.Len())
 }
 
-combined := slice.
-	GroupSame(statuses).
-	Sort(byKey).
-	ToString(countByStatus).
-	Join(", ")
+statusGroups := slice.GroupSame(statuses).Sort(byKey)
+combined := statusGroups.ToString(countByStatus).Join(", ")
 ```
 
-**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline: `Tally` (group by value) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. `Tally` names the operation directly — "count occurrences of each distinct value" — instead of requiring the reader to recognize `GroupBy` with an identity function.
+**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline: `GroupSame` (group by value) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. `GroupSame` names the operation directly — "group occurrences of each distinct value" — instead of requiring the reader to recognize `GroupBy` with an identity function.
 
-**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `Tally` separates grouping from ordering, and the pipeline makes each transformation step visible as a named operation.
+**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupSame` separates grouping from ordering, and the pipeline makes each transformation step visible as a named operation.
 
 ---
 
@@ -774,11 +769,11 @@ toCandidate := func(p pair.Pair[string, string]) detectors.Result {
 
 keys := kv.Keys(keyMatches)
 ids := kv.Keys(idMatches)
-candidates := slice.From(combo.CartesianProduct(keys, ids)).KeepIf(isDifferentPair)
+candidates := combo.CartesianProduct(keys, ids).KeepIf(isDifferentPair)
 results := slice.Map(candidates, toCandidate)
 ```
 
-**What this shows:** `kv.Keys` extracts map keys into slices, `combo.CartesianProduct` replaces the nested loop, then the result flows through `slice.From` → `.KeepIf` → `slice.Map` — a pipeline where each stage expresses one concern. The original interleaves iteration, filtering, construction, and accumulation in a single nested block.
+**What this shows:** `kv.Keys` extracts map keys into slices, `combo.CartesianProduct` replaces the nested loop and returns `slice.Mapper` for direct chaining through `.KeepIf` → `slice.Map` — a pipeline where each stage expresses one concern. The original interleaves iteration, filtering, construction, and accumulation in a single nested block.
 
 ---
 

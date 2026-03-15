@@ -1,8 +1,10 @@
 package combo
 
+import "github.com/binaryphile/fluentfp/slice"
+
 // Permutations returns all orderings of items.
 // Returns n! results — use only for small inputs.
-func Permutations[T any](items []T) [][]T {
+func Permutations[T any](items []T) slice.Mapper[[]T] {
 	if len(items) == 0 {
 		return [][]T{{}}
 	}

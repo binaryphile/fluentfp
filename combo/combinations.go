@@ -1,8 +1,10 @@
 package combo
 
+import "github.com/binaryphile/fluentfp/slice"
+
 // Combinations returns all k-element subsets of items, preserving order.
 // Returns C(n,k) results.
-func Combinations[T any](items []T, k int) [][]T {
+func Combinations[T any](items []T, k int) slice.Mapper[[]T] {
 	if k < 0 || k > len(items) {
 		return nil
 	}

@@ -2,10 +2,13 @@
 // permutations, combinations, and power sets.
 package combo
 
-import "github.com/binaryphile/fluentfp/tuple/pair"
+import (
+	"github.com/binaryphile/fluentfp/slice"
+	"github.com/binaryphile/fluentfp/tuple/pair"
+)
 
 // CartesianProduct returns all pairs from a and b.
-func CartesianProduct[A, B any](a []A, b []B) []pair.Pair[A, B] {
+func CartesianProduct[A, B any](a []A, b []B) slice.Mapper[pair.Pair[A, B]] {
 	if len(a) == 0 || len(b) == 0 {
 		return nil
 	}
@@ -23,7 +26,7 @@ func CartesianProduct[A, B any](a []A, b []B) []pair.Pair[A, B] {
 // CartesianProductWith applies fn to every (a, b) pair.
 // Avoids intermediate Pair allocation when the caller transforms immediately.
 // Panics if fn is nil.
-func CartesianProductWith[A, B, R any](a []A, b []B, fn func(A, B) R) []R {
+func CartesianProductWith[A, B, R any](a []A, b []B, fn func(A, B) R) slice.Mapper[R] {
 	if fn == nil {
 		panic("combo.CartesianProductWith: fn must not be nil")
 	}

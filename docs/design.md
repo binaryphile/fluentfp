@@ -10,12 +10,18 @@ flowchart TD
     base --> either
     slice --> base
     slice --> result
+    slice --> option
+    slice --> pair
     kv --> base
+    kv --> pair
     result
     stream --> option
+    stream --> pair
     seq --> option
+    seq --> pair
     heap --> option
     combo --> pair
+    combo --> slice
     pair["pair (tuple/pair)"]
     must
     lof
@@ -427,19 +433,17 @@ A persistent (immutable) priority queue based on Stone's Algorithms for Function
 ### D21: combo — Combinatorial generators
 
 ```go
-func CartesianProduct[A, B any](a []A, b []B) []pair.Pair[A, B]
-func Permutations[T any](items []T) [][]T
-func Combinations[T any](items []T, k int) [][]T
-func PowerSet[T any](items []T) [][]T
+func CartesianProduct[A, B any](a []A, b []B) slice.Mapper[pair.Pair[A, B]]
+func Permutations[T any](items []T) slice.Mapper[[]T]
+func Combinations[T any](items []T, k int) slice.Mapper[[]T]
+func PowerSet[T any](items []T) slice.Mapper[[]T]
 ```
 
-Standalone functions that generate combinatorial constructions as plain slices.
-
-**Plain slices, not Mapper:** These are mathematical constructions, not fluent chains. The caller wraps with `slice.From()` if they need chaining — keeping combo independent of `internal/base`.
+Standalone functions that generate combinatorial constructions as `slice.Mapper`, enabling direct chaining (e.g., `Permutations(items).KeepIf(pred)`).
 
 **CartesianProductWith avoids intermediate allocation:** `CartesianProductWith(a, b, fn)` applies `fn` directly to each (a, b) pair without constructing `pair.Pair` values. More efficient when the caller transforms immediately.
 
-**Depends only on `pair`:** For `CartesianProduct`'s return type. No other fluentfp dependencies.
+**Dependencies:** `pair` for `CartesianProduct`'s element type, `slice` for the `Mapper` return type.
 
 ### D22: seq — Iterator-native fluent chains
 
@@ -751,6 +755,6 @@ Where packages depend on each other, and why:
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 | `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
 
-`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends only on `pair`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `internal/base` and `rslt`; `kv` depends on `internal/base` and `pair` — neither `kv` nor `slice` imports the other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `internal/base` and `rslt`; `kv` depends on `internal/base` and `pair` — neither `kv` nor `slice` imports the other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.
