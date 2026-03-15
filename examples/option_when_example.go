@@ -1,6 +1,6 @@
 //go:build ignore
 
-// Package main demonstrates option.When and option.WhenFunc for conditional value selection.
+// Package main demonstrates option.When and option.WhenCall for conditional value selection.
 package main
 
 import (
@@ -39,10 +39,10 @@ func main() {
 	}
 
 	needsFetch := true
-	result := option.WhenFunc(needsFetch, fetchConfig).Or("default config")
+	result := option.WhenCall(needsFetch, fetchConfig).Or("default config")
 	fmt.Printf("needsFetch=%t, result: %s\n", needsFetch, result)
 
 	needsFetch = false
-	result = option.WhenFunc(needsFetch, fetchConfig).Or("default config")
+	result = option.WhenCall(needsFetch, fetchConfig).Or("default config")
 	fmt.Printf("needsFetch=%t, result: %s\n", needsFetch, result)
 }

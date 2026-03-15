@@ -62,7 +62,7 @@ func NotOk[T any]() (_ Option[T]) {
 // It is the condition-first counterpart of [New] (which mirrors the comma-ok idiom).
 //
 // Note: t is evaluated eagerly by Go's call semantics. For expensive
-// computations that should only run when cond is true, use [WhenFunc].
+// computations that should only run when cond is true, use [WhenCall].
 //
 // Style guidance: prefer When for explicit boolean conditions.
 // Prefer [New] when forwarding a comma-ok result (v, ok := m[k]).
@@ -70,12 +70,12 @@ func When[T any](cond bool, t T) Option[T] {
 	return New(t, cond)
 }
 
-// WhenFunc returns an ok option of fn() if cond is true, or not-ok otherwise.
+// WhenCall returns an ok option of fn() if cond is true, or not-ok otherwise.
 // The function is only called when the condition is true.
 // Panics if fn is nil, even when cond is false.
-func WhenFunc[T any](cond bool, fn func() T) Option[T] {
+func WhenCall[T any](cond bool, fn func() T) Option[T] {
 	if fn == nil {
-		panic("option: WhenFunc called with nil function")
+		panic("option: WhenCall called with nil function")
 	}
 
 	if !cond {

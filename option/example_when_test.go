@@ -19,14 +19,14 @@ func ExampleWhen() {
 	// info
 }
 
-func ExampleWhenFunc() {
+func ExampleWhenCall() {
 	// fetchConfig is only called when needsFetch is true.
 	fetchConfig := func() string { return "fetched" }
 
-	result := option.WhenFunc(true, fetchConfig).Or("default")
+	result := option.WhenCall(true, fetchConfig).Or("default")
 	fmt.Println(result)
 
-	result = option.WhenFunc(false, fetchConfig).Or("default")
+	result = option.WhenCall(false, fetchConfig).Or("default")
 	fmt.Println(result)
 	// Output:
 	// fetched

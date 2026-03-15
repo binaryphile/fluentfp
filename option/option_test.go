@@ -540,7 +540,7 @@ func TestOrFalse(t *testing.T) {
 	})
 }
 
-// --- When / WhenFunc ---
+// --- When / WhenCall ---
 
 func TestWhen(t *testing.T) {
 	t.Run("true returns ok option", func(t *testing.T) {
@@ -584,7 +584,7 @@ func TestWhen_OrCall_lazy_fallback(t *testing.T) {
 	}
 }
 
-func TestWhenFunc(t *testing.T) {
+func TestWhenCall(t *testing.T) {
 	t.Run("true calls fn and returns ok", func(t *testing.T) {
 		callCount := 0
 		fn := func() int {
@@ -592,7 +592,7 @@ func TestWhenFunc(t *testing.T) {
 			return 42
 		}
 
-		result := WhenFunc(true, fn)
+		result := WhenCall(true, fn)
 
 		if callCount != 1 {
 			t.Errorf("fn called %d times, want 1", callCount)
@@ -613,7 +613,7 @@ func TestWhenFunc(t *testing.T) {
 			return 42
 		}
 
-		result := WhenFunc(false, fn)
+		result := WhenCall(false, fn)
 
 		if callCount != 0 {
 			t.Errorf("fn called %d times, want 0", callCount)
@@ -627,7 +627,7 @@ func TestWhenFunc(t *testing.T) {
 	t.Run("true with Or returns value", func(t *testing.T) {
 		fn := func() int { return 42 }
 
-		got := WhenFunc(true, fn).Or(0)
+		got := WhenCall(true, fn).Or(0)
 
 		if got != 42 {
 			t.Errorf("got %d, want 42", got)
@@ -637,7 +637,7 @@ func TestWhenFunc(t *testing.T) {
 	t.Run("false with Or returns fallback", func(t *testing.T) {
 		fn := func() int { return 42 }
 
-		got := WhenFunc(false, fn).Or(99)
+		got := WhenCall(false, fn).Or(99)
 
 		if got != 99 {
 			t.Errorf("got %d, want 99", got)
@@ -645,22 +645,22 @@ func TestWhenFunc(t *testing.T) {
 	})
 }
 
-func TestWhenFunc_nil_panics(t *testing.T) {
+func TestWhenCall_nil_panics(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error("WhenFunc(true, nil) should panic")
+			t.Error("WhenCall(true, nil) should panic")
 		}
 	}()
-	WhenFunc[int](true, nil)
+	WhenCall[int](true, nil)
 }
 
-func TestWhenFunc_nil_false_panics(t *testing.T) {
+func TestWhenCall_nil_false_panics(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error("WhenFunc(false, nil) should panic")
+			t.Error("WhenCall(false, nil) should panic")
 		}
 	}()
-	WhenFunc[int](false, nil)
+	WhenCall[int](false, nil)
 }
 
 // --- ZipWith ---

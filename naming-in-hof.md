@@ -79,19 +79,19 @@ port := hostOpt.ToInt(parsePort)
 
 ### Conditional Value Selection
 
-For conditional values with `option.When` / `option.WhenFunc`, name expensive computations:
+For conditional values with `option.When` / `option.WhenCall`, name expensive computations:
 
 ```go
 // Eager: cached is already computed
 result := option.When(cacheHit, cached).Or(fetchFromDB())
 
 // Lazy: expensiveDefault only called when cache misses
-result := option.WhenFunc(!cacheHit, expensiveDefault).Or(cachedValue)
+result := option.WhenCall(!cacheHit, expensiveDefault).Or(cachedValue)
 
 // Named when computation is complex
 // loadConfig reads and parses the config file.
 loadConfig := func() Config { return must.Get(parseConfigFile(path)) }
-cfg := option.WhenFunc(!useDefault, loadConfig).Or(defaultCfg)
+cfg := option.WhenCall(!useDefault, loadConfig).Or(defaultCfg)
 ```
 
 ### Fold Handlers (either package)

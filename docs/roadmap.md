@@ -52,11 +52,11 @@ Useful features with clear demand but existing workarounds.
 | ~~MapNone~~ | ~~Transform the absent case~~ | done — `OrWrap` |
 | ~~Match/Fold~~ | ~~Pattern-match dispatch~~ | done — `rslt.Fold`, `either.Fold` |
 
-### Function Composition
+### ~~Function Composition~~
 
 | Operation | Description | Who has it |
 |-----------|-------------|------------|
-| Curry | Currying functions | repeale (Curry2-16) |
+| ~~Curry~~ | ~~Currying functions~~ | Skip — only repeale (325 stars) provides it, zero real-world adoption. `Bind`/`BindR` cover practical partial application. |
 
 ### Concurrency
 

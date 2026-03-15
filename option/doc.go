@@ -1,7 +1,7 @@
 // Package option provides types and functions to work with optional values.
 //
 // Option[T] holds a value plus an ok flag. The zero value is not-ok,
-// so it works without initialization. Construct via Of, New, When, WhenFunc,
+// so it works without initialization. Construct via Of, New, When, WhenCall,
 // NonZero, NonEmpty, NonNil, or Env.
 package option
 
@@ -58,7 +58,7 @@ func _() {
 	_ = Of[int]
 	_ = OrFalse
 	_ = When[int](false, 0)
-	_ = WhenFunc[int](false, func() int { return 0 })
+	_ = WhenCall[int](false, func() int { return 0 })
 	_ = ZipWith(Option[int]{}, Option[int]{}, func(int, int) int { return 0 })
 
 	// pre-declared not-ok values

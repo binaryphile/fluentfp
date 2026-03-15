@@ -103,7 +103,7 @@ Go represents absence three different ways: `*T` (nil), zero values (`""`, `0`),
 - `NonNil(ptr)` — pointer-based absence
 - `NonZero(count)`, `NonEmpty(name)` — zero-value absence (use only when zero/empty truly means absent in your domain)
 - `Lookup(m, key)`, `New(val, ok)` — comma-ok absence
-- `When(cond, val)`, `WhenFunc(cond, fn)` — conditional construction (eager/lazy)
+- `When(cond, val)`, `WhenCall(cond, fn)` — conditional construction (eager/lazy)
 - `Env("PORT")` — environment variable absence (unset or empty)
 
 Once you have an `Option[T]`, the same API works regardless of where the value came from: `.Or("default")`, `.KeepIf(valid)`, `.ToString(format)`, `.Get()`.
@@ -112,7 +112,7 @@ Once you have an `Option[T]`, the same API works regardless of where the value c
 
 `Option[T]` holds an optional value — ok or not-ok. Type aliases `String`, `Int`, `Bool`, etc. are shorthand for common types, with pre-declared not-ok values (`NotOkString`, `NotOkInt`, etc.). JSON serialization via `MarshalJSON`/`UnmarshalJSON` (ok → value, not-ok → null). SQL via `Value`/`Scan` (ok → value, not-ok → NULL). Note: both JSON and SQL collapse Ok(nil) and NotOk into the same representation (null/NULL) — a round-trip through serialization may lose the distinction.
 
-- **Create**: `Of`, `New`, `When`, `WhenFunc`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `NonErr`, `Env`, `Lookup`
+- **Create**: `Of`, `New`, `When`, `WhenCall`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `NonErr`, `Env`, `Lookup`
 - **Create + Transform**: `NonZeroCall`, `NonEmptyCall`, `NonNilCall` — check presence and apply fn in one step
 - **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrElse`, `OrZero`, `OrEmpty`, `OrFalse` (standalone for `Option[bool]`)
 - **Transform**: `Convert` (same type), `Map` (cross-type, standalone), `ToString`, `ToInt`, other `To*`, `ToOpt`

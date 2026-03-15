@@ -221,7 +221,7 @@ Packages are independent — import one or all.
 | ------------------- | ----------------------------- | ---------------------------------------------- |
 | [slice](slice/)     | Collection transforms         | `KeepIf`, `RemoveIf`, `Fold`, `FanOutAll`      |
 | [kv](kv/)           | Map transforms                | `KeepIf`, `MapValues`, `Map`, `Values`         |
-| [option](option/)   | Optional values + conditionals | `Of`, `When`, `WhenFunc`, `Or`, `NonZero`      |
+| [option](option/)   | Optional values + conditionals | `Of`, `When`, `WhenCall`, `Or`, `NonZero`      |
 | [either](either/)   | Sum types                     | `Left`, `Right`, `Fold`, `Convert`, `FlatMap`  |
 | [rslt](rslt/)   | Typed error handling          | `Ok`, `Err`, `CollectAll`, `CollectOk`         |
 | [must](must/)       | Invariant enforcement         | `Get`, `BeNil`, `Of`                           |

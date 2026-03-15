@@ -152,16 +152,16 @@ Boolean flag dispatch — Go has no discriminated unions.
 
 ```go
 option.When(cond, v)        // eager — v evaluated by Go call semantics
-option.WhenFunc(cond, fn)   // lazy — fn called only when cond is true
+option.WhenCall(cond, fn)   // lazy — fn called only when cond is true
 ```
 
-Two standalone functions in `option` with different evaluation strategies. `When` delegates to `New(t, cond)` — it's a readability alias that puts the condition first, matching `if cond` reading order. `WhenFunc` guards a function call behind the condition.
+Two standalone functions in `option` with different evaluation strategies. `When` delegates to `New(t, cond)` — it's a readability alias that puts the condition first, matching `if cond` reading order. `WhenCall` guards a function call behind the condition.
 
-**Why two functions:** the caller picks based on evaluation cost. `When` evaluates eagerly (Go call semantics). `WhenFunc` only calls `fn` when the condition is true.
+**Why two functions:** the caller picks based on evaluation cost. `When` evaluates eagerly (Go call semantics). `WhenCall` only calls `fn` when the condition is true.
 
-**Why `When` exists despite being an alias for `New`:** `When` is justified as the eager half of a `When`/`WhenFunc` pair — it makes the eager/lazy distinction discoverable. Without it, callers would need to know that `New` is the eager counterpart to `WhenFunc`, which is not obvious from the names. Style rule: prefer `When` for explicit boolean conditions, `New` for forwarding comma-ok results.
+**Why `When` exists despite being an alias for `New`:** `When` is justified as the eager half of a `When`/`WhenCall` pair — it makes the eager/lazy distinction discoverable. Without it, callers would need to know that `New` is the eager counterpart to `WhenCall`, which is not obvious from the names. Style rule: prefer `When` for explicit boolean conditions, `New` for forwarding comma-ok results.
 
-**Eager nil check in WhenFunc:** panics if `fn` is nil even when `cond` is false. This preserves the contract from the predecessor (`value.LazyOf` panicked on nil identically). Branch-dependent bug detection is worse than fail-fast — a nil function is always programmer error regardless of condition.
+**Eager nil check in WhenCall:** panics if `fn` is nil even when `cond` is false. This preserves the contract from the predecessor (`value.LazyOf` panicked on nil identically). Branch-dependent bug detection is worse than fail-fast — a nil function is always programmer error regardless of condition.
 
 **What was rejected:**
 - *Only `New`*: `New(v, cond)` reads as comma-ok forwarding, not boolean selection. Callers writing `option.New("critical", overdue)` would fight the reading order.
@@ -174,7 +174,7 @@ Two standalone functions in `option` with different evaluation strategies. `When
 | Old | New | Notes |
 |-----|-----|-------|
 | `value.Of(v).When(cond)` | `option.When(cond, v)` | Condition-first; arg order flipped |
-| `value.LazyOf(fn).When(cond)` | `option.WhenFunc(cond, fn)` | Same nil-panic contract |
+| `value.LazyOf(fn).When(cond)` | `option.WhenCall(cond, fn)` | Same nil-panic contract |
 | `value.FirstNonZero(a, b, ...)` | `cmp.Or(a, b, ...)` | Stdlib; requires `comparable` |
 | `value.FirstNonEmpty(a, b, ...)` | `cmp.Or(a, b, ...)` | Stdlib; string-specific variant |
 | `value.FirstNonNilValue(p, q, ...)` | No replacement | Pointer-dereference coalesce; zero usage in showcase |
@@ -205,6 +205,8 @@ Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent
 **Boundary with lof (D8):** `hof` returns functions (higher-order — operates on functions). `lof` returns values (lower-order — wraps builtins as first-class functions for use in chains). `hof.Pipe` *builds* a transform; `lof.Len` *is* a transform.
 
 **Based on:** Stone's "Algorithms: A Functional Programming Approach" — `Pipe` is left-to-right composition, `Bind`/`BindR` are sections (partial application), `Cross` is independent application.
+
+**Not currying:** Automatic currying (`Curry2` through `Curry16`, as in repeale/fp-go) was rejected. Go's type inference breaks with curried returns — callers must annotate every type parameter, defeating the ergonomic purpose. `Bind`/`BindR` cover the practical case (fix one argument of a two-argument function). fp-go's currying has zero adoption in real codebases surveyed.
 
 ### D9: Method vs standalone function boundary
 

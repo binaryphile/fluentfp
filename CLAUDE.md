@@ -166,7 +166,7 @@ The loop forces you to think about *how* (declare, iterate, append, return). flu
 - `option.KeepIf`, `option.RemoveIf` - double conditional (filter)
 - `option.OrWrap` - absent-case recovery staying in Option (lazy evaluation)
 - `option.ZipWith` - combine two Options (both-present gate)
-- `option.WhenFunc` - conditional function call with eager nil check
+- `option.WhenCall` - conditional function call with eager nil check
 - `slice.FilterMap` - combined filter+transform with comma-ok callback
 - `slice.MinBy`, `slice.MaxBy` - extremum by key with cmp.Compare (NaN ordering)
 - `slice.Reduce` - fold without initial, single-element returns without calling fn
