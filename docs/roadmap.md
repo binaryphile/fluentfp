@@ -4,78 +4,44 @@ Competitor gap analysis (March 2026). Compared fluentfp against samber/lo (20.9k
 
 For usage-survey-based prioritization, see [feature-gaps.md](feature-gaps.md).
 
-## High Priority
+## Status: Complete
 
-Features every serious competitor provides and fluentfp lacks.
+All identified competitor gaps have been addressed or explicitly decided against. The only deferred item is FanIn (requires concurrent merge, not sequential Concat).
 
-### ~~Option.FlatMap / Result.FlatMap — monadic bind~~ (done v0.47.0)
+## Delivered
 
-### ~~Set Operations — Intersect, Difference, Union~~ (done v0.48.0)
+| Category | Feature | Version/Package |
+|----------|---------|-----------------|
+| High | Option.FlatMap / Result.FlatMap | v0.47.0 |
+| High | Set Operations (Intersect, Difference, Union) | v0.48.0 |
+| High | Flatten | v0.49.0 |
+| Medium | Iterator-native operations | seq package |
+| Medium | JSON/SQL serialization for Option | JSON v0.14.0, SQL v0.51.0 |
+| Slice | DropLast, DropLastWhile, FindLast, IndexOf, LastIndexOf | slice |
+| Slice | IsSorted, IsSortedBy, Intersperse, Shuffle, Sample, Samples | slice |
+| Slice | Tally (supersedes CountBy), RepeatN | slice |
+| Map | Invert, Merge, PickByKeys, OmitByKeys, ToPairs, FromPairs | kv |
+| Option | OrWrap (MapNone), rslt.Fold, either.Fold | option, rslt, either |
+| Concurrency | Retry with ConstantBackoff/ExponentialBackoff | hof |
+| Concurrency | Throttle, ThrottleWeighted | hof v0.56.0 |
+| Concurrency | Debouncer with MaxWait, Cancel, Flush, Close | hof |
+| Concurrency | FromChannel, ToChannel | seq |
+| Combinatorics | CartesianProduct, Permutations, Combinations, PowerSet | combo |
 
-### ~~Flatten — [][]T to []T~~ (done v0.49.0)
+## Decided Against
 
-## Medium Priority
+| Feature | Reason |
+|---------|--------|
+| Curry | Only repeale (325 stars) provides it, zero real-world adoption. `Bind`/`BindR` cover practical partial application. Go type inference breaks with curried returns. |
+| IO/Reader/State monads | Haskell-ism, not idiomatic Go |
+| Optics (Lens/Prism/Traversal) | Very niche, no evidence of Go adoption |
+| Do-notation (Do/Bind/Let/ApS) | Haskell-ism |
+| Either3-5 sum types | Rarely needed |
+| String case conversion | stdlib territory |
+| Mutable in-place ops | Contradicts immutable FP philosophy |
 
-Useful features with clear demand but existing workarounds.
+## Deferred
 
-### ~~Iterator-Native Operations (Go 1.23+)~~ (done — seq package)
-
-### ~~JSON/SQL Serialization for Option~~ (done — JSON v0.14.0, SQL v0.51.0)
-
-### Slice Operations
-
-| Operation | Description | Who has it |
-|-----------|-------------|------------|
-| ~~DropRight/DropRightWhile~~ | ~~Drop from end~~ | done — `DropLast`, `DropLastWhile` |
-| ~~FindLast~~ | ~~Find from end~~ | done |
-| ~~IndexOf/LastIndexOf~~ | ~~By value, not predicate~~ | done |
-| ~~IsSorted/IsSortedBy~~ | ~~Check sort order~~ | done |
-| ~~Intersperse~~ | ~~Insert separator between elements~~ | done |
-| ~~Shuffle~~ | ~~Randomize order~~ | done — `Mapper.Shuffle` |
-| ~~Sample/Samples~~ | ~~Random element(s)~~ | done — `Mapper.Sample`/`Mapper.Samples` |
-| ~~CountBy~~ | ~~Count per group~~ | Superseded by `Tally` (v0.35.0) |
-| ~~Repeat/RepeatBy~~ | ~~Generate slice by repeating~~ | done — `RepeatN` |
-
-### Map Operations
-
-| Operation | Description | Who has it |
-|-----------|-------------|------------|
-| ~~Invert~~ | ~~Swap keys and values~~ | done |
-| ~~Merge/Assign~~ | ~~Combine maps~~ | done — `Merge` |
-| ~~PickByKeys/OmitByKeys~~ | ~~Filter by key set~~ | done |
-| ~~Entries/FromEntries~~ | ~~Map to/from slice of pairs~~ | done — `ToPairs`, `FromPairs` |
-
-### Option/Result Extras
-
-| Operation | Description | Who has it |
-|-----------|-------------|------------|
-| ~~MapNone~~ | ~~Transform the absent case~~ | done — `OrWrap` |
-| ~~Match/Fold~~ | ~~Pattern-match dispatch~~ | done — `rslt.Fold`, `either.Fold` |
-
-### ~~Function Composition~~
-
-| Operation | Description | Who has it |
-|-----------|-------------|------------|
-| ~~Curry~~ | ~~Currying functions~~ | Skip — only repeale (325 stars) provides it, zero real-world adoption. `Bind`/`BindR` cover practical partial application. |
-
-### Concurrency
-
-| Operation | Description | Who has it |
-|-----------|-------------|------------|
-| ~~Retry/Attempt~~ | ~~Retry with backoff~~ | done — `hof.Retry` with `ConstantBackoff`/`ExponentialBackoff` |
-| ~~Throttle~~ | ~~Rate limiting~~ | done v0.56.0 as `hof.Throttle`/`ThrottleWeighted` |
-| ~~Debounce~~ | ~~Call coalescing~~ | done — `hof.NewDebouncer` with `MaxWait`, `Cancel`, `Flush`, `Close` |
-| ~~Channel ops~~ | ~~Channel ↔ iterator adapters~~ | done — `seq.FromChannel`, `Seq.ToChannel`; FanIn deferred (requires concurrent merge, not sequential Concat) |
-
-## Skip — Academic/Niche
-
-Not idiomatic Go. Excluded by design.
-
-| Feature | Library | Why skip |
-|---------|---------|----------|
-| IO/Reader/State monads | IBM | Haskell-ism, not idiomatic Go |
-| Optics (Lens/Prism/Traversal) | IBM | Very niche, no evidence of Go adoption |
-| Do-notation (Do/Bind/Let/ApS) | IBM | Haskell-ism |
-| Either3-5 sum types | mo | Rarely needed |
-| String case conversion | lo | stdlib territory |
-| Mutable in-place ops | lo | Contradicts immutable FP philosophy |
+| Feature | Reason |
+|---------|--------|
+| FanIn | Requires concurrent merge, not sequential Concat |
