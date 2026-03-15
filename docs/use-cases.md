@@ -70,7 +70,7 @@
 - 1b. Collection source is a map: System extracts the map's values as a collection for further transformation.
 - 1c. Collection source is a set (`map[T]struct{}`): System extracts the set's members as a collection for further transformation.
 - 1d. Developer needs to filter or transform map entries while preserving map structure: System applies predicates or value transforms to entries, returning a map for further map-level operations or value extraction.
-- 1e. Collection source is a combinatorial construction: System generates all permutations, combinations, subsets, or pairwise products from input elements, returning a chainable collection. `CartesianProductWith` applies a mapping function during generation, avoiding intermediate pair allocation.
+- 1e. Collection source is a combinatorial construction: See UC-11. Combinatorial results are chainable `Mapper` collections.
 - 1f. Developer needs map entries as a flat collection of key-value pairs, or needs to construct a map from pairs: System converts between map and pair-slice representations. When constructing from pairs with duplicate keys, the last pair wins.
 - 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order. When the expansion produces a different type, the standalone variant infers both types.
 - 2b. Developer needs duplicates removed by extracted key: System removes duplicates preserving first occurrence, using a caller-provided key function.
@@ -110,7 +110,7 @@
 - Code reviewer: derivation reads as intent, not accumulation mechanics
 
 **Postconditions:**
-- Result correctly summarizes or extracts from the collection
+- Result correctly summarizes, extracts from, or operates on the collection
 - Original collection is unmodified
 
 **Minimal Guarantee:** Original collection is never modified.
@@ -132,7 +132,7 @@
 - 2e. Developer expects exactly one element: System returns it via `Either` — right with the value if exactly one, left with the actual count otherwise.
 - 2f. Developer needs multiple fields extracted simultaneously: System returns one collection per field.
 - 2g. Developer needs to accumulate state while also producing per-element output: System processes elements in order and returns both the final accumulated value and the per-element outputs.
-- 2h. Developer needs to convert the collection to a set for membership checks: System returns a `map[T]struct{}` of the elements or extracted keys.
+- 2h. Developer needs to convert the collection to a set for membership checks: System returns a `map[K]struct{}` of extracted keys (or elements themselves when the element is the key).
 - 2i. Developer checks whether all elements satisfy a criterion: System tests every element and returns true only if all match (short-circuits on first failure).
 - 2j. Developer checks whether a specific comparable value exists in the collection: System tests membership by equality and returns true if found.
 - 2k. Developer checks that no elements satisfy a criterion: System tests every element and returns true only if none match (short-circuits on first match).
@@ -141,7 +141,7 @@
 - 2n. Developer needs the element with the minimum or maximum value of an extracted key: System extracts a comparable key from each element using `cmp.Compare` and returns the element with the smallest or largest key as an option, or not-ok if the collection is empty.
 - 2o. Developer needs to combine elements without providing an initial value: System uses the first element as the seed and applies the combining function across remaining elements from left to right. Returns an option — not-ok if the collection is empty.
 - 2p. Developer needs to build a map with both key and value derived from each element: System applies a function that returns a key-value pair for each element, producing a `map[K]V`. If multiple elements produce the same key, the last one wins.
-- 2q. Developer needs to apply a side effect to each element: System calls the function for every element in order. No new collection is produced.
+- 2q. Developer needs to apply a side effect to each element: System calls the function for every element in order. No result is returned.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
@@ -362,7 +362,7 @@
 **Main Scenario:**
 1. Developer constructs a stream from a source.
 2. Developer specifies transformations: filtering, converting, limiting count, skipping elements, changing element types, expanding and flattening, or concatenating streams.
-3. Developer terminates the pipeline: collecting to a slice, iterating for side effects, or searching for a match.
+3. Developer terminates the pipeline: collecting to a slice, iterating for side effects, searching for a match, checking a condition across all elements, or accumulating a result.
 
 **Extensions:**
 - 1a. Stream is empty: System produces a valid empty result for any terminal operation.
@@ -404,7 +404,7 @@
 
 **Postconditions:**
 - Requested elements have been produced or processed
-- Pipeline is reusable — each iteration re-evaluates from source
+- Pipeline is reusable — each iteration re-evaluates from source (except channel-backed sources, which are consumptive)
 
 **Minimal Guarantee:** Pipelines do not cache intermediate results. Each iteration is independent. A broken iteration (early break) does not corrupt the pipeline.
 
@@ -543,7 +543,7 @@
 - Repeated calls with the same input return the same result without re-executing the original function
 - Original function is unmodified
 
-**Minimal Guarantee:** If the wrapped function panics, no corrupted result is cached. Future calls retry. Concurrent callers for the same key may execute the function multiple times (no single-flight deduplication); all will cache the same eventual result.
+**Minimal Guarantee:** If the wrapped function panics, no corrupted result is cached. Future calls retry. Concurrent callers for the same key may execute the function multiple times (no single-flight deduplication).
 
 **Preconditions:**
 - Developer has a function whose results are safe to cache (pure or idempotent)
