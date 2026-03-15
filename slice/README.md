@@ -120,11 +120,12 @@ See [comparison](../comparison.md) for the full library comparison.
 
 `From` creates `Mapper[T]`. For cross-type mapping, use the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
-- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `TakeWhile`, `Drop`, `DropLast`, `DropWhile`, `DropLastWhile`, `NonZero`
-- **Search**: `Find`, `FindLast`, `IndexOf`, `IndexWhere`, `LastIndexOf`, `LastIndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Single`, `Sample`, `Contains`, `ContainsAny` (`String`)
-- **Transform**: `Convert`, `FlatMap` (method + standalone), `Map` (standalone), `Reverse`, `Shuffle`, `Intersperse`, `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String`), `UniqueBy`, `Samples`, `SortBy`, `SortByDesc`, `IsSorted`, `IsSortedBy`
+- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `TakeWhile`, `Drop`, `DropLast`, `DropWhile`, `DropLastWhile`, `NonZero`, `NonEmpty` (`String`), `Partition` (method + standalone)
+- **Search**: `Find`, `FindLast`, `IndexOf`, `IndexWhere`, `LastIndexOf`, `LastIndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Last`, `Single`, `Sample`, `Contains` (standalone, comparable), `ContainsAny` (`String`)
+- **Transform**: `Convert`, `Sort` (method, `cmp.Ordered`), `FlatMap` (method + standalone), `Map` (standalone), `FilterMap` (standalone), `Flatten` (standalone), `Reverse`, `Shuffle`, `Intersperse`, `Enumerate` (standalone), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String` method + standalone comparable), `UniqueBy`, `Samples`, `SortBy`, `SortByDesc`, `IsSorted`, `IsSortedBy`
 - **Combine**: `Zip`, `ZipWith`
-- **Aggregate**: `Fold`, `Scan`, `MapAccum`, `Len`, `Max` (`int`, `float64`), `Min` (`int`, `float64`), `Sum` (`int`, `float64`), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `Tally`
+- **Set ops**: `Intersect`, `Difference`, `Union`, `FromSet`
+- **Aggregate**: `Fold`, `Reduce`, `Scan`, `MapAccum`, `Len`, `Max` (`int`, `float64`), `Min` (`int`, `float64`), `MaxBy`, `MinBy`, `Sum` (`int`, `float64`), `ToSet`, `ToSetBy`, `Each`, `Unzip2`/`3`/`4`, `GroupBy`, `GroupSame`, `Associate`, `KeyBy`, `KeyByInt`, `KeyByString`, `Join` (`String`)
 - **Generate**: `Range`, `RangeFrom`, `RangeStep` (return `Int` for numeric chaining), `RepeatN`
 - **View**: `Chunk`, `Window` (sliding windows sharing backing array — overlapping windows alias the same memory; mutating one affects adjacent windows; use `.Clone()` for independent copies)
 - **Parallel (no error return)**: `PMap`, `PFlatMap`, `PKeepIf`, `PEach` — bounded concurrent operations for callbacks that do not return errors. Panics in fn are recovered, converted to `*rslt.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Usually only worth using when per-item workload is large enough to amortize the overhead caused by creation and scheduling of goroutines.

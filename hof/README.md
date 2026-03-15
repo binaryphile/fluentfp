@@ -58,6 +58,30 @@ isTransient := func(err error) bool { return !errors.Is(err, ErrNotFound) }
 resilientFetch := hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), isTransient, fetchFromAPI)
 ```
 
+```go
+// Debounce — coalesce rapid calls, execute once after quiet period
+d := hof.NewDebouncer(500*time.Millisecond, saveConfig)
+defer d.Close()  // required — stops owner goroutine
+d.Call(cfg)   // resets timer, stores latest value
+d.Call(cfg2)  // replaces stored value, resets timer again
+// fn fires once with cfg2 after 500ms of quiet
+```
+
+```go
+// MaxWait — cap how long execution can be deferred under continuous activity
+d := hof.NewDebouncer(200*time.Millisecond, saveSearch, hof.MaxWait(2*time.Second))
+defer d.Close()
+// Even if calls arrive every 100ms, fn fires within 2s of the first call
+```
+
+```go
+// Flush — execute pending work synchronously
+d := hof.NewDebouncer(500*time.Millisecond, saveState)
+defer d.Close()
+d.Call(latestState)
+d.Flush()  // blocks until fn completes with latestState
+```
+
 ## hof vs lof
 
 `hof` *builds* functions — it takes functions and returns new functions. `lof` *is* functions — it wraps Go builtins and standard library functions (`len`, `fmt.Println`) as first-class values for use in chains.
@@ -91,8 +115,18 @@ resilientFetch := hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), isT
 - `ConstantBackoff(delay time.Duration) Backoff` — fixed delay between retries
 - `ExponentialBackoff(initial time.Duration) Backoff` — full jitter: random in [0, initial * 2^n)
 
-All functions panic on nil inputs (except `Retry`'s `shouldRetry`, where nil means retry all errors). `Throttle`, `ThrottleWeighted`, and `Retry` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity. `ExponentialBackoff` panics if initial <= 0.
+**Debounce**
+- `NewDebouncer[T any](wait time.Duration, fn func(T), opts ...DebounceOption) *Debouncer[T]` — create trailing-edge debouncer (must not be copied after first use)
+- `(*Debouncer[T]).Call(v T)` — store latest value, reset timer. If fn is running, value is queued for a fresh timer cycle after completion
+- `(*Debouncer[T]).Cancel() bool` — cancel pending execution (true if work was pending)
+- `(*Debouncer[T]).Flush() bool` — execute pending work synchronously, block until fn completes (true if fn executed, false if nothing pending or flush already waiting). When fn is running with pending work queued, blocks until both the current and pending executions complete
+- `(*Debouncer[T]).Close()` — discard pending work, wait for any running fn to complete, stop owner goroutine. Idempotent. After Close, Call/Cancel/Flush panic
+- `MaxWait(d time.Duration) DebounceOption` — cap maximum deferral under continuous activity
 
-`Throttle` and `ThrottleWeighted` return functions that are safe for concurrent use from multiple goroutines. All context-aware wrappers (`Throttle`, `ThrottleWeighted`, `Retry`) return `ctx.Err()` on cancellation rather than blocking indefinitely.
+At most one fn execution runs at a time — executions never overlap. All methods (Call, Cancel, Flush, Close) are safe for concurrent use from multiple goroutines. Call and Cancel are safe from within fn; Flush and Close from within fn will deadlock. fn runs in a spawned goroutine (not the caller's goroutine, including during Flush).
+
+All functions panic on nil inputs (except `Retry`'s `shouldRetry`, where nil means retry all errors). `Throttle`, `ThrottleWeighted`, and `Retry` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity. `ExponentialBackoff` panics if initial <= 0. `NewDebouncer` panics if wait <= 0 or fn is nil. `MaxWait` panics if d < 0.
+
+All context-aware wrappers (`Throttle`, `ThrottleWeighted`, `Retry`) return `ctx.Err()` on cancellation rather than blocking indefinitely.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/hof) for complete API documentation, the [main README](../README.md) for installation, and [lof](../lof/) for builtin adapters.

@@ -189,10 +189,13 @@ for i := range items {
     }
 }
 
-// Channel consumption — not abstracted by this library
+// Channel consumption — direct range is simplest for straightforward use
 for msg := range ch {
     handle(msg)
 }
+
+// Bridge to fluentfp when you want operators on a channel
+seq.FromChannel(ctx, ch).KeepIf(valid).Take(10).Each(handle)
 
 // Complex control flow — early return, labeled break
 for _, item := range items {
@@ -225,7 +228,7 @@ Packages are independent — import one or all.
 | [stream](stream/)   | Lazy memoized sequences       | `Generate`, `Unfold`, `Take`, `Collect`        |
 | [seq](seq/)         | Fluent iter.Seq chains        | `From`, `KeepIf`, `Take`, `Collect`            |
 | [heap](heap/)       | Persistent priority queue     | `New`, `Insert`, `Pop`, `Collect`              |
-| [hof](hof/)         | Function combinators          | `Pipe`, `Bind`, `Throttle`, `OnErr`            |
+| [hof](hof/)         | Function combinators          | `Pipe`, `Bind`, `Throttle`, `Retry`, `Debouncer` |
 | [pair](tuple/pair/) | Zip slices                    | `Zip`, `ZipWith`                               |
 | [combo](combo/)     | Combinatorial constructions   | `CartesianProduct`, `Combinations`, `PowerSet` |
 | [memo](memo/)       | Memoization                   | `Of`, `Fn`, `FnErr`, `NewLRU`                  |

@@ -21,7 +21,6 @@ Features that exist in the codebase but have no evidence of real-world demand.
 
 | Feature | lo lines | Why skip |
 |---------|----------|----------|
-| FilterMap (filter+map in one pass) | 34 | `.KeepIf().Convert()` chain is idiomatic in fluentfp |
 | Times (generate N items) | 23 | Trivial loop, not a collection operation |
 | FromPtr / ToPtr | 26/25 | `option.NonNil` covers the useful case; `&v` is fine |
-| CountBy (count per group) | 16 | `Tally` returns richer `Mapper[Group]`; `GroupBy` + `.Len()` covers counting |
+| CountBy (count per group) | 16 | `GroupBy` + `.Len()` covers counting |

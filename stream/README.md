@@ -137,9 +137,9 @@ All callback-taking functions panic on nil inputs.
 
 **Create**: `From`, `Of`, `Generate`, `Repeat`, `Unfold`, `Paginate`, `Prepend`, `PrependLazy`
 
-**Lazy** (return Stream): `KeepIf`, `Convert`, `Take`, `TakeWhile`, `Drop`, `DropWhile`, `Map` (standalone), `FlatMap` (standalone), `Concat` (standalone), `Zip` (standalone), `Scan` (standalone)
+**Lazy** (return Stream): `KeepIf`, `RemoveIf`, `Convert`, `Take`, `TakeWhile`, `Drop`, `DropWhile`, `Map` (standalone), `FlatMap` (standalone), `Concat` (standalone), `Zip` (standalone), `Scan` (standalone)
 
-**Terminal** (force evaluation): `Each`, `Collect`, `Find`, `Any`, `Seq`, `Fold` (standalone)
+**Terminal** (force evaluation): `Each`, `Collect`, `Find`, `Any`, `Every`, `None`, `Seq`, `Fold` (standalone)
 
 **Access**: `IsEmpty`, `First`, `Tail`
 
