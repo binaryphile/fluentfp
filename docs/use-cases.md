@@ -365,6 +365,7 @@
 - 2e. Source is a step function that always produces an element: System produces an element from each step; an optional next-state controls whether to continue. Every step emits, including the last.
 - 2f. Source is a recursive definition: System accepts a head value and a deferred tail computation, building the sequence lazily.
 - 2g. Developer needs to chain two lazy sequences end-to-end: System produces all elements from the first, then all from the second.
+- 2h. Source is a Go channel: System creates a lazy sequence from a receive channel. Each iteration step blocks on receive. The sequence ends when the channel is closed or the provided context is canceled. Cancellation is best-effort — one additional value may be yielded if channel receive and cancellation are simultaneously ready.
 - 3a. Developer needs cross-type transformation: System transforms elements to a different type.
 - 3b. Developer needs to expand each element into a lazy sub-sequence and flatten: System applies expansion lazily, producing elements from inner sequences on demand.
 - 3c. Developer needs to combine corresponding elements from two lazy sequences: System pairs elements, truncating to the shorter sequence.
@@ -379,9 +380,10 @@
 - 4a. Developer needs to bridge to a Go range loop: System provides an iterator compatible with Go's range protocol.
 - 4b. Developer needs to bridge to slice operations: System materializes to a plain slice for use with eager collection operations.
 - 4c. Developer needs iterator-native processing without memoization: System provides lazy pipelines that re-evaluate on each iteration, compatible with Go's range protocol. Unlike memoized sequences, these pipelines do not cache intermediate results.
+- 4d. Developer needs to bridge a lazy sequence to a Go channel: System sends values from the sequence into a new channel via a spawned goroutine. The channel closes when the sequence is exhausted or the context is canceled. Cancellation is cooperative — if the sequence blocks internally before yielding, cancellation cannot interrupt it.
 
 **Sub-Variations:**
-- Construction: from slice, variadic, generate (infinite), repeat (constant), unfold (step function), paginate (always-emit step function), prepend (eager cons), prepend lazy (deferred cons)
+- Construction: from slice, variadic, generate (infinite), repeat (constant), unfold (step function), paginate (always-emit step function), prepend (eager cons), prepend lazy (deferred cons), from channel (blocking receive with context)
 - Filtering: by predicate, filter+transform (filter-map)
 - Limiting: by count (take), by predicate (take-while)
 - Skipping: by count (drop), by predicate (drop-while)
@@ -394,7 +396,7 @@
 - Pairing: zip (combine corresponding elements)
 - Accumulating: scan (running intermediate values), reduce (no initial value)
 - Membership: contains (short-circuit equality check)
-- Termination: collect, each, find, any, every, none, fold, reduce, contains
+- Termination: collect, each, find, any, every, none, fold, reduce, contains, to-channel (concurrent sink)
 
 ---
 

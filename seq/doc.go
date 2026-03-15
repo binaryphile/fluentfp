@@ -16,6 +16,7 @@ func _() {
 	_ = Repeat[int]
 	_ = Unfold[int, int]
 	_ = FromNext[int]
+	_ = FromChannel[int]
 
 	_ = Seq[int].KeepIf
 	_ = Seq[int].RemoveIf
@@ -34,6 +35,7 @@ func _() {
 	_ = Seq[int].None
 	_ = Seq[int].Each
 	_ = Seq[int].Iter
+	_ = Seq[int].ToChannel
 
 	_ = FilterMap[int, string]
 	_ = Map[int, string]

@@ -569,6 +569,55 @@ before either can proceed. Documented as unsupported.
 the process). The deferred doneCh signal preserves owner goroutine state invariants
 before the panic continues.
 
+### D25: Channel adapters — FromChannel and ToChannel
+
+`FromChannel` and `ToChannel` bridge Go channels and `Seq[T]` iterators.
+
+```go
+func FromChannel[T any](ctx context.Context, ch <-chan T) Seq[T]
+func (s Seq[T]) ToChannel(ctx context.Context, buf int) <-chan T
+```
+
+**Why context on both:** Channels are inherently concurrent. `FromChannel` can block
+forever on an unclosed channel; `ToChannel` spawns a goroutine. Context is the standard
+Go mechanism for cancellation in concurrent code. These are the first `seq` APIs to
+accept `context.Context`, reflecting their concurrent nature. Only adapters that block
+on external concurrent sources or spawn goroutines accept context; pure in-memory
+combinators remain context-free.
+
+**Cancellation is cooperative, not preemptive:** `iter.Seq` is push-based — the producer
+calls `yield` and the consumer can only signal stop by returning false. Context can only
+be checked at yield/send boundaries. If the upstream Seq blocks internally before
+yielding (e.g., a nested `FromChannel` on a slow source), `ToChannel`'s goroutine
+remains blocked until the source yields or terminates. This asymmetry is inherent to
+`iter.Seq`'s protocol.
+
+**Best-effort semantics:** When `ctx.Done()` and a data case are both ready, Go's
+`select` picks pseudo-randomly. This can happen repeatedly across loop iterations, so
+the adapter may yield/send zero, one, or many additional values after cancellation
+before the `ctx.Done()` branch is selected. The only guarantee: once cancellation is
+observed by selecting the `ctx.Done()` branch, iteration stops.
+
+**Context capture in FromChannel:** `FromChannel` captures `ctx` in the returned Seq
+for its lifetime. Unlike most Go APIs, cancellation scope is fixed at construction
+time, not iteration time. A Seq constructed with a request-scoped context and iterated
+later may already be canceled.
+
+**ToChannel as method:** Enables fluent chaining:
+`seq.FromChannel(ctx, ch).KeepIf(pred).Take(10).ToChannel(ctx, 1)`.
+`FromChannel` is a standalone constructor (like `From`, `FromNext`).
+
+**Nil Seq on ToChannel returns closed empty channel:** Consistent with the nil-receiver
+pattern across all Seq methods (`Collect()` → nil, `Find()` → not-ok).
+
+**No FanIn via Concat:** `Concat` is sequential concatenation — it drains the first
+sequence completely before starting the second. This is not fan-in (multiplexing).
+True fan-in requires a distinct combinator with concurrent goroutines, deferred to a
+future release.
+
+**Re-iteration is stateful:** Like `FromNext`, `FromChannel` wraps a stateful source.
+Second iteration continues from whatever channel state exists, not from the beginning.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.

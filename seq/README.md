@@ -97,6 +97,19 @@ if seq.Contains(seq.From(allowed), userRole) {
 }
 ```
 
+```go
+// FromChannel — bridge a channel to a lazy Seq
+events := seq.FromChannel(ctx, eventCh).KeepIf(Event.IsImportant).Take(10).Collect()
+```
+
+```go
+// ToChannel — bridge a Seq pipeline to a channel
+out := seq.From(items).Convert(transform).ToChannel(ctx, 0)
+for v := range out {
+    process(v)
+}
+```
+
 ## Re-Evaluation
 
 Seq pipelines re-evaluate on every terminal call. There is no caching:
@@ -125,6 +138,8 @@ The zero value of `Seq[T]` is nil. It is **not safe for direct range** — use `
 
 All callback-taking functions panic on nil callbacks. `FlatMap` treats nil inner Seqs as empty. `Chunk` panics on size <= 0.
 
+**Channel adapters:** `FromChannel` and `ToChannel` are the only `seq` operations that accept `context.Context`. `FromChannel` captures the context at construction time — cancellation scope is fixed, not per-iteration. `ToChannel` spawns a goroutine that closes the returned channel when done. Cancellation is cooperative: context is checked at yield/send boundaries, not preemptively. A blocked upstream Seq cannot be interrupted by cancellation. See the godoc for full semantics.
+
 **Stateful lazy operations:** `Unique`, `UniqueBy`, `Chunk`, and `Intersperse` allocate state (seen maps, buffers, flags) inside the iteration closure. Each iteration starts fresh — safe for repeated use. However, the source sequence re-evaluates on each iteration.
 
 **Memory growth:** `Unique` and `UniqueBy` maintain a seen-set that grows with the number of distinct elements/keys. On infinite or high-cardinality streams, memory may grow without bound. On infinite repeating streams, they stall once all distinct values have been emitted — requesting more elements than distinct values exist will never terminate (e.g., `Unique(cycle(1,2,3)).Take(4)`). `Chunk` buffers at most `size` elements.
@@ -141,11 +156,11 @@ All callback-taking functions panic on nil callbacks. `FlatMap` treats nil inner
 
 ## Operations
 
-**Create**: `From`, `FromIter`, `Of`, `Generate`, `Repeat`, `Unfold`, `FromNext`, `Empty`
+**Create**: `From`, `FromIter`, `Of`, `Generate`, `Repeat`, `Unfold`, `FromNext`, `FromChannel`, `Empty`
 
 **Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Convert` (same-type), `Intersperse`, `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (cross-type, standalone), `FilterMap` (standalone), `FlatMap` (standalone), `Concat` (standalone), `Enumerate` (standalone), `Zip` (standalone), `Scan` (standalone), `Unique` (standalone), `UniqueBy` (standalone), `Chunk` (standalone)
 
-**Terminal** (force evaluation): `Collect`, `Find` (returns `option.Option[T]`), `Reduce` (returns `option.Option[T]`), `Any`, `Every`, `None`, `Each`, `Fold` (standalone), `Contains` (standalone)
+**Terminal** (force evaluation): `Collect`, `Find` (returns `option.Option[T]`), `Reduce` (returns `option.Option[T]`), `Any`, `Every`, `None`, `Each`, `Fold` (standalone), `Contains` (standalone), `ToChannel` (spawns goroutine)
 
 **Unwrap**: `Iter` — return to `iter.Seq[T]` for stdlib interop
 
