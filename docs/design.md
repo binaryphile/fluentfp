@@ -89,7 +89,7 @@ Extends D1's defined-type approach to terminal slices that need domain-specific 
 ```go
 type Float64 []float64   // Sum, Max, Min
 type Int    []int         // Sum, Max, Min
-type String []string      // Unique, Contains, ContainsAny, Matches, ToSet, NonEmpty
+type String []string      // Unique, Contains, ContainsAny, ToSet, NonEmpty, Join
 ```
 
 Other types remain aliases with no additional methods:
@@ -746,7 +746,7 @@ All exported types are zero-value safe:
 - Zero `Mapper` is a nil slice — valid for `range` and `len`
 - Zero `Option[T]` is not-ok — safe to call `Or`, `OrZero`, `Get`
 - Zero `Either` is Left with zero `L` — safe to call `Get`, `Or`, `IsRight`
-- Zero `Cond`/`LazyCond` produce not-ok from `.When()`
+- Zero `Result` is Ok with zero `R` — safe to call `IsOk`, `Get`, `Or`
 
 ## Cross-Package Connections
 
