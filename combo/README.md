@@ -43,6 +43,13 @@ combo.PowerSet([]int{1, 2})
 // [[] [2] [1] [1 2]]
 ```
 
+```go
+// Fluent chain — results are slice.Mapper, so chain directly
+// Keep only 2-element combinations that sum to at least 5
+combo.Combinations([]int{1, 2, 3, 4}, 2).KeepIf(sumsToAtLeast5)
+// [[1 4] [2 3] [2 4] [3 4]]
+```
+
 ## Growth Rates
 
 All results are fully materialized in memory. Compute the result size before calling:
