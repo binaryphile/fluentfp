@@ -3,16 +3,16 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, lazy sequence processing, optional value handling, typed alternatives, invariant enforcement, conditional value selection, tuple operations, builtin function adapters for higher-order use, function composition, concurrency control, memoization, persistent data structures, combinatorics, iterator-native processing
-**Out of scope:** General concurrency, I/O, serialization, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive.
+**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics
+**Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive.
 
 ## System Invariants
 
 - **Immutability by default** — Operations produce new collections; inputs are never modified
-- **Order preservation** — Transformations preserve element order unless explicitly sorting
-- **Nil safety** — Collection and optional operations on nil/empty inputs produce valid empty results, never panic
-- **Type safety** — All type mismatches are caught before the program runs; no runtime type errors
-- **Interoperability** — Results work seamlessly with standard language constructs and existing code
+- **Order preservation** — Operations preserve encounter order when the source has a defined order, unless explicitly sorting or randomizing. Map and set sources yield iteration order (unspecified by Go).
+- **Nil safety** — Nil or empty collection inputs are handled without library-originated panics. Panics from user-supplied callbacks are outside this guarantee unless explicitly recovered (e.g., FanOut).
+- **Type safety** — APIs use Go's static typing and generic constraints to prevent library-level runtime type mismatches.
+- **Interoperability** — Collection types are convertible to/from standard Go types (`[]T`, `map[K]V`) without allocation. Results work with `range`, `len`, `append`, and standard library functions.
 
 ## System-in-Use Story
 
@@ -33,8 +33,11 @@
 | Enforce invariants during initialization | Blue | med |
 | Select a value conditionally with a fallback | Blue | low |
 | Construct reusable functions from existing ones | Blue | low |
-| Process elements from a sequence on demand | Blue | med |
+| Process a memoized persistent sequence on demand | Blue | med |
+| Process an iterator-native sequence on demand | Blue | med |
+| Generate combinatorial selections from a collection | Blue | low |
 | Cache expensive function results | Blue | low |
+| Maintain a persistent priority queue | Blue | low |
 | Replace manual loop patterns with composable operations across the codebase | White | — |
 
 ## Use Cases
@@ -54,46 +57,45 @@
 **Minimal Guarantee:** Original collection is never modified, regardless of transformation outcome.
 
 **Preconditions:**
-- Developer has a collection
+- Developer has a slice or map
 
 **Main Scenario:**
 1. Developer selects the collection source.
 2. Developer specifies transformations: filtering by criteria, converting elements, changing element types, reordering, expanding, deduplicating, or limiting count.
-3. System applies each transformation in sequence.
+3. System applies each transformation in sequence, returning a chainable collection.
 4. System returns the final collection.
 
 **Extensions:**
 - 1a. Collection is nil or empty: System produces a valid empty collection.
 - 1b. Collection source is a map: System extracts the map's values as a collection for further transformation.
-- 1c. Collection source is a set: System extracts the set's members as a collection for further transformation.
+- 1c. Collection source is a set (`map[T]struct{}`): System extracts the set's members as a collection for further transformation.
 - 1d. Developer needs to filter or transform map entries while preserving map structure: System applies predicates or value transforms to entries, returning a map for further map-level operations or value extraction.
-- 1e. Collection source is a combinatorial construction: System generates all permutations, combinations, subsets, or pairwise products from input elements.
+- 1e. Collection source is a combinatorial construction: System generates all permutations, combinations, subsets, or pairwise products from input elements, returning a chainable collection. `CartesianProductWith` applies a mapping function during generation, avoiding intermediate pair allocation.
 - 1f. Developer needs map entries as a flat collection of key-value pairs, or needs to construct a map from pairs: System converts between map and pair-slice representations. When constructing from pairs with duplicate keys, the last pair wins.
 - 2a. Developer needs to expand each element into multiple: System applies expansion and concatenates in order. When the expansion produces a different type, the standalone variant infers both types.
-- 2b. Developer needs duplicates removed: System removes duplicates preserving first occurrence.
+- 2b. Developer needs duplicates removed by extracted key: System removes duplicates preserving first occurrence, using a caller-provided key function.
 - 2c. Developer needs a sorted copy: System produces sorted collection; original unchanged.
-- 2d. Developer needs elements grouped by a derived key: System groups elements into a chainable collection of groups, each containing a key and the elements sharing that key.
-- 2e. Developer needs to combine corresponding elements from two collections: System combines elements pairwise, either into pairs or through a provided function. If collections differ in length, system signals an error. For lazy sequences, system truncates to the shorter sequence.
-- 2f. Developer needs transformations applied concurrently: System applies transformations concurrently with bounded parallelism, preserving element order in the result. For I/O-bound workloads, system reports success or failure per element, recovers panics as errors, and respects context cancellation.
-- 2g. Developer needs an independent copy of the collection: System produces a copy not affected by changes to the original.
+- 2d. Developer needs elements grouped by a derived key: System groups elements into a chainable collection of groups, each containing a key and the elements sharing that key. Groups are ordered by first occurrence of each key; elements within each group preserve encounter order.
+- 2e. Developer needs to combine corresponding elements from two slices: System combines elements pairwise, either into pairs or through a provided function. Panics if slices differ in length — length correspondence is a caller precondition.
+- 2f. Developer needs transformations applied concurrently: System applies transformations concurrently with bounded parallelism, preserving element order in the result. Reports success or failure per element via `Result`, recovers panics as `PanicError`, and respects context cancellation. Bounding is by item count (uniform cost) or by total cost (weighted).
+- 2g. Developer needs a shallow copy with independent backing array: System produces a copy whose backing array is not shared with the original. Element values are not deep-copied.
 - 2h. Developer needs zero-value elements removed from a collection: System removes all elements equal to their type's zero value and returns the remaining elements. For string collections, the developer may use a string-specific variant that reads as "non-empty" for clarity.
 - 2i. Developer needs to split a collection into fixed-size batches: System divides the collection into sub-collections of the specified size; the last batch may be smaller.
-- 2j. Developer needs elements in random order: System produces a randomly shuffled copy of the collection.
+- 2j. Developer needs elements in random order: System produces a randomly shuffled copy of the collection using `math/rand/v2`.
 - 2k. Developer needs a random subset of elements: System selects count random elements without replacement; if count exceeds length, returns all elements in random order.
-- 2l. Developer needs to filter and transform in one step: System applies a function that returns both a transformed value and a keep/discard signal. Elements where the function signals discard are excluded; kept elements appear transformed in the result.
-- 2m. Developer needs each element paired with its positional index: System pairs each element with its zero-based index, producing a collection of index-element pairs suitable for further transformation.
-- 2n. Developer needs duplicate comparable elements removed while preserving first occurrence: System removes duplicates by element identity. No key function is required.
-- 4a. Developer needs to apply a side effect to each element rather than produce a new collection: System calls the function for every element in order.
+- 2l. Developer needs to filter and transform in one step: System applies a function that returns both a transformed value and a keep/discard signal (`func(T) (R, bool)`). Elements where the function returns false are excluded; kept elements appear transformed in the result.
+- 2m. Developer needs each element paired with its positional index: System pairs each element with its zero-based index, producing a collection of index-element `pair.Pair` values suitable for further transformation.
+- 2n. Developer needs duplicate comparable elements removed while preserving first occurrence: System removes duplicates by comparable equality. No key function is required.
 
 **Sub-Variations:**
 - Filtering: inclusion-based, exclusion-based, zero-value removal, or empty-string removal
 - Type conversion: to built-in types or to arbitrary types
 - Sorting: ascending or descending by extracted key
-- Deduplication: by identity or by extracted key
+- Deduplication: by comparable equality or by extracted key
 - Batching: by fixed size
 - Concurrent bounding: by item count (uniform cost) or by total cost (weighted)
 - Randomization: full shuffle, random subset without replacement
-- Combinatorial: permutations, combinations, power sets, Cartesian products
+- Combinatorial: permutations, combinations, power sets, Cartesian products (with optional mapping during generation)
 - Filter+transform: combined in single pass with keep/discard signal
 - Index pairing: each element paired with its zero-based position
 
@@ -118,35 +120,38 @@
 
 **Main Scenario:**
 1. Developer selects the collection to derive from.
-2. Developer specifies the derivation: combining elements progressively, finding a specific element, checking a condition, counting, summing, or extracting multiple fields simultaneously.
+2. Developer specifies the derivation: combining elements progressively, finding a specific element, checking a condition, counting, or summing.
 3. System processes the collection and returns the result.
 
 **Extensions:**
 - 1a. Collection is empty: System returns the appropriate empty result — zero for sums/counts, absence for lookups, initial value for accumulations, false for any-match checks, true for all-match checks, true for no-match checks, false for membership checks.
-- 2a. Developer searches for first matching element: System returns the match or indicates absence.
-- 2b. Developer searches for the first element matching a specific type: System returns the first type-compatible match or indicates absence.
-- 2c. Developer expects exactly one element: System returns it or indicates the actual count.
-- 2d. Developer needs multiple fields extracted simultaneously: System returns one collection per field.
-- 2e. Developer needs to accumulate state while also producing per-element output: System processes elements in order and returns both the final accumulated value and the per-element outputs.
-- 2f. Developer needs to convert the collection to a set for membership checks: System returns a set of the elements or extracted keys.
-- 2g. Developer checks whether all elements satisfy a criterion: System tests every element and returns true only if all match.
-- 2h. Developer checks whether a specific value exists in the collection: System tests membership and returns true if found.
-- 2i. Developer checks that no elements satisfy a criterion: System tests every element and returns true only if none match.
-- 2j. Developer needs elements indexed by a derived key for O(1) lookup: System produces a map from extracted keys to elements.
-- 2k. Developer needs to efficiently track the minimum or maximum across a growing dataset: System maintains a persistent sorted structure where the extremum is always available in constant time and insertions produce a new structure without modifying the original.
-- 2l. Developer needs a random element from a collection: System returns a random element or indicates absence if the collection is empty.
-- 2m. Developer needs the element with the minimum or maximum value of an extracted key: System extracts a comparable key from each element and returns the element with the smallest or largest key, or indicates absence if the collection is empty.
-- 2n. Developer needs to combine elements without providing an initial value: System uses the first element as the seed and applies the combining function across remaining elements from left to right. Returns absence if the collection is empty.
-- 2o. Developer needs to build a map with both key and value derived from each element: System applies a function that returns a key-value pair for each element, producing a map. If multiple elements produce the same key, the last one wins.
+- 2a. Developer searches for first matching element: System returns the match as an option, or not-ok if absent.
+- 2b. Developer searches for first matching element from the end: System returns the last match as an option, or not-ok if absent.
+- 2c. Developer searches for the position of the first matching element: System returns the index as an option, or not-ok if no element matches.
+- 2d. Developer searches for the position of the last matching element: System returns the index as an option, or not-ok if no element matches.
+- 2e. Developer expects exactly one element: System returns it via `Either` — right with the value if exactly one, left with the actual count otherwise.
+- 2f. Developer needs multiple fields extracted simultaneously: System returns one collection per field.
+- 2g. Developer needs to accumulate state while also producing per-element output: System processes elements in order and returns both the final accumulated value and the per-element outputs.
+- 2h. Developer needs to convert the collection to a set for membership checks: System returns a `map[T]struct{}` of the elements or extracted keys.
+- 2i. Developer checks whether all elements satisfy a criterion: System tests every element and returns true only if all match (short-circuits on first failure).
+- 2j. Developer checks whether a specific comparable value exists in the collection: System tests membership by equality and returns true if found.
+- 2k. Developer checks that no elements satisfy a criterion: System tests every element and returns true only if none match (short-circuits on first match).
+- 2l. Developer needs elements indexed by a derived key for O(1) lookup: System produces a `map[K]T` from extracted keys to elements.
+- 2m. Developer needs a random element from a collection: System returns a random element as an option, or not-ok if the collection is empty. Uses `math/rand/v2`.
+- 2n. Developer needs the element with the minimum or maximum value of an extracted key: System extracts a comparable key from each element using `cmp.Compare` and returns the element with the smallest or largest key as an option, or not-ok if the collection is empty.
+- 2o. Developer needs to combine elements without providing an initial value: System uses the first element as the seed and applies the combining function across remaining elements from left to right. Returns an option — not-ok if the collection is empty.
+- 2p. Developer needs to build a map with both key and value derived from each element: System applies a function that returns a key-value pair for each element, producing a `map[K]V`. If multiple elements produce the same key, the last one wins.
+- 2q. Developer needs to apply a side effect to each element: System calls the function for every element in order. No new collection is produced.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
-- Element search: first element, first matching, first type-compatible, index of first matching, random element
+- Element search: first element, last element, first matching, last matching, index of first matching, index of last matching, random element
 - Condition checks: any match, all match, no match, membership
 - Multi-field extraction: 2, 3, or 4 fields simultaneously
 - Indexing: by extracted key for O(1) lookup
-- Extremum by key: element with smallest or largest extracted key
+- Extremum by key: element with smallest or largest extracted comparable key
 - Reduction: combine elements using first element as seed
+- Map construction: key-value pairs derived from elements
 
 ---
 
@@ -176,22 +181,26 @@
 - 1a. Value comes from a pointer (nil means absent): System extracts the pointed-to value when non-nil.
 - 1b. Value is a zero value that should mean absent: System treats zero as absent.
 - 1c. Value is present but needs transformation to a different type: System checks presence and transforms in one step, returning absence if the original was absent.
+- 1d. Value comes from a map lookup: System wraps the comma-ok result as an option.
+- 1e. Value comes from an environment variable: System treats unset or empty as absent.
 - 2a. Developer needs a side effect only when present: System calls the function only when present; does nothing when absent.
 - 2b. Developer needs a side effect only when absent: System calls the function only when absent; does nothing when present.
 - 2c. Developer needs to filter an already-present value: System applies filter, converting to absent if not met.
 - 2d. Fallback is expensive to compute: System evaluates fallback only when absent.
-- 2e. Developer needs to combine two optional values when both are present: System returns both values together when both are present, or absent if either is absent.
+- 2e. Developer needs to combine two optional values when both are present: System applies a combiner function to both values when both are present, or returns absent if either is absent.
 - 2f. Developer needs a lazily computed default while remaining in the optional context for further chaining: System calls a function only when the value is absent, producing a present result. When already present, the value passes through unchanged.
 - 2g. Developer needs to chain operations that each may produce absence: System applies each operation in sequence, short-circuiting to absent if any step produces absence. No manual unwrapping between steps.
-- 3a. Developer stores optional value in a database column: System maps present to the column value and absent to SQL NULL. Type conversion between Go types and SQL driver types is handled automatically.
-- 3b. Developer serializes optional value to JSON: System maps present to the JSON value and absent to null.
+- 2h. Developer needs a multi-level fallback chain staying in the optional context: System tries each fallback in order, short-circuiting on the first that produces a present value.
+- 3a. Developer stores optional value in a database column: System implements `driver.Valuer` and `sql.Scanner` — present maps to the column value, absent maps to SQL NULL.
+- 3b. Developer serializes optional value to JSON: System implements `json.Marshaler` and `json.Unmarshaler` — present maps to the JSON value, absent maps to `null`. Note: round-tripping collapses `Ok(nil)` and `NotOk` into the same representation.
 
 **Sub-Variations:**
-- Specialized variants for common value types (string, int, bool, error)
-- Construction from: direct value, value-and-presence pair, pointer, zero-value check
-- Create + transform: check presence and map to a new type in one call (zero-value, empty-string, nil-pointer variants)
-- Combining: two optional values via combiner function
-- Recovery: lazily computed default staying in optional context
+- Specialized type aliases for common types: `String`, `Int`, `Bool`, `Error`, etc.
+- Pre-declared not-ok values: `NotOkString`, `NotOkInt`, etc.
+- Construction from: direct value (`Of`), value-and-presence pair (`New`), pointer (`NonNil`), zero-value check (`NonZero`), empty-string check (`NonEmpty`), error check (`NonErr`), map lookup (`Lookup`), environment variable (`Env`), condition (`When`, `WhenCall`)
+- Create + transform: check presence and map to a new type in one call (`NonZeroCall`, `NonEmptyCall`, `NonNilCall`)
+- Combining: two optional values via combiner function (`ZipWith`)
+- Recovery: lazily computed default staying in optional context (`OrWrap`, `OrElse`)
 
 ---
 
@@ -216,14 +225,16 @@
 2. Developer processes: extracting with a default, applying branch-specific logic, or handling both branches to produce a unified result.
 
 **Extensions:**
-- 1a. Developer has a fallible function returning (R, error) and needs it to return Result instead: System wraps the function, producing a new function with the same input that returns a Result.
-- 2a. Developer needs both branches handled with different logic, producing unified result: System applies appropriate branch function.
-- 2b. Developer needs to transform only the success branch: System transforms, passing failure through.
-- 2c. Developer needs to chain operations that each may fail: System applies each operation in sequence, short-circuiting to failure if any step fails. No manual error checking between steps.
+- 1a. Developer has a fallible function returning `(R, error)` and needs it to return `Result` instead: System wraps the function via `rslt.Lift`, producing a new function with the same input that returns a `Result`.
+- 2a. Developer needs both branches handled with different logic, producing unified result: System applies the appropriate branch function via `Fold`.
+- 2b. Developer needs to transform only the success branch: System transforms via `Convert` (same type) or `Map` (cross-type), passing failure through.
+- 2c. Developer needs to chain operations that each may fail: System applies each operation in sequence via `FlatMap`, short-circuiting to failure if any step fails. No manual error checking between steps.
 
 **Sub-Variations:**
-- Convention: left = failure, right = success
-- Extraction: value-and-presence pair, default value, lazy default
+- Either: general two-branch sum type, left = failure convention, right = success convention
+- Result: specialized `Either[error, T]` with `Ok`/`Err` constructors, `PanicError` for recovered panics
+- Collectors: `CollectAll`, `CollectOk`, `CollectErr`, `CollectOkAndErr` — batch result processing returning plain slices
+- Extraction: value-and-presence pair (`Get`), default value (`Or`), lazy default (`OrCall`)
 
 ---
 
@@ -237,22 +248,21 @@
 
 **Postconditions:**
 - All values available without error checking downstream
-- If any precondition violated, program terminated with clear error before operational code
+- If any precondition violated, program panicked with clear error before operational code
 
-**Minimal Guarantee:** A violated precondition always terminates. No silent continuation with invalid state.
+**Minimal Guarantee:** A violated precondition always panics. No silent continuation with invalid state.
 
 **Preconditions:**
-- Developer has initialization steps that each might fail
+- Developer has initialization steps that return `(T, error)` or `error`
 
 **Main Scenario:**
-1. Developer wraps each step to enforce success.
-2. System executes; if any step fails, program terminates immediately with the error.
+1. Developer wraps each step with `must.Get` (for `(T, error)`) or `must.BeNil` (for `error`).
+2. System executes; if any step returns a non-nil error, system panics immediately with that error.
 3. Developer uses resulting values without further error handling.
 
 **Extensions:**
-- 1a. Developer needs to wrap a function for repeated use: System returns a new function enforcing success on every call.
-- 1b. Developer needs to assert an error is nil without extracting a result: System checks, terminates if non-nil.
-- 1c. Developer needs a required environment variable: System reads it, terminates if missing.
+- 1a. Developer needs to wrap a fallible function for repeated use: System returns a new function via `must.Of` that panics on error on every call. Panics immediately if given a nil function.
+- 1b. Developer needs a required environment variable: System reads it via `must.Env`, panics if missing or empty.
 
 ---
 
@@ -272,18 +282,17 @@
 - Developer has a preferred value, a fallback value, and a selection condition
 
 **Main Scenario:**
-1. Developer specifies the preferred value and condition.
-2. Developer specifies the fallback value.
+1. Developer specifies the preferred value and condition via `option.When` (eager) or `option.WhenCall` (lazy).
+2. Developer specifies the fallback value via `.Or` (eager) or `.OrCall` (lazy).
 3. System evaluates: if condition holds, returns preferred value; otherwise returns fallback.
 
 **Extensions:**
-- 1a. Developer needs the first non-zero value from a sequence of candidates: System evaluates candidates in order and returns the first non-zero, or zero if all are zero.
-- 1b. Preferred value is expensive to compute: System defers computation until condition confirmed true. If false, expensive computation never runs.
+- 1a. Preferred value is expensive to compute: System defers computation via `WhenCall` until condition confirmed true. If false, expensive computation never runs.
 
 **Sub-Variations:**
-- Eager: value computed before condition check (cheap values)
-- Lazy: value computed only when condition true (expensive computations)
-- FirstNonZero: first non-zero from candidates (zero = absent)
+- Eager: value computed before condition check — `When(cond, val).Or(fallback)`
+- Lazy: value computed only when condition true — `WhenCall(cond, fn).Or(fallback)`
+- Note: `cmp.Or` (Go 1.22+ stdlib) covers first-non-zero selection for comparable types; fluentfp does not duplicate this.
 
 ---
 
@@ -309,30 +318,30 @@
 2. System returns a new function with the combined behavior.
 
 **Extensions:**
-- 1a. Developer needs left-to-right composition of two transforms: System composes them so the first feeds into the second.
-- 1b. Developer needs to fix one argument of a two-argument function: System returns a one-argument function with the fixed argument captured. Either the first or second argument can be fixed.
-- 1c. Developer needs to apply separate functions to separate arguments: System applies each function independently and returns the results together.
-- 1d. Developer needs a pass-through or identity key extractor: System provides a function that returns its argument unchanged.
-- 1e. Developer needs a predicate that checks equality to a known value: System returns a function that tests its argument against the captured value.
-- 1f. Developer needs to pass a Go builtin as a higher-order argument: System provides a first-class function wrapping the builtin, usable anywhere a function value is expected.
-- 1g. Developer needs a function that enforces a concurrency budget when called from multiple goroutines: System returns a function with the same signature that blocks callers until budget is available, bounding by call count or per-call cost.
-- 1h. Developer needs a function that triggers a side-effect when a call fails: System returns a function with the same signature that calls the original, then invokes the handler on error.
-- 1i. Developer needs a function that retries on failure with configurable delays: System returns a function with the same signature that retries the original on error, waiting between attempts according to a backoff strategy, and respecting context cancellation during waits.
-- 1j. Developer needs a function that coalesces rapid calls, executing once after activity stops: System creates a debouncer that stores the latest value and executes the callback after a configurable quiet period. Multiple calls during the quiet period replace the stored value and reset the timer. An optional maximum wait caps how long execution can be deferred under continuous activity.
+- 1a. Developer needs left-to-right composition of two unary transforms: System composes them via `Pipe` so the first feeds into the second.
+- 1b. Developer needs to fix one argument of a two-argument function: System returns a one-argument function with the fixed argument captured. `Bind` fixes the first argument; `BindR` fixes the second.
+- 1c. Developer needs to apply separate functions to separate arguments: System applies each function independently via `Cross` and returns the results as a pair.
+- 1d. Developer needs an identity function: System provides `hof.Identity`, which returns its argument unchanged.
+- 1e. Developer needs a predicate that checks equality to a known value: System returns a `func(T) bool` via `Eq` that tests its argument against the captured value.
+- 1f. Developer needs to pass a Go builtin as a higher-order argument: `lof` provides first-class function wrappers for builtins (`Len`, `Println`, `HasPrefix`, `Succ`, etc.).
+- 1g. Developer needs to bound concurrent access to a function: `Throttle` returns a function with the same signature (`func(A) (R, error)`) that blocks callers until a semaphore slot is available. `ThrottleWeighted` bounds by per-call cost rather than count.
+- 1h. Developer needs a side-effect triggered when a function call returns an error: `OnErr` returns a function with the same signature (`func(A) (R, error)`) that calls the original, then invokes the handler if the error is non-nil.
+- 1i. Developer needs to retry a function on failure with configurable delays: `Retry` returns a function with the same signature (`func(context.Context, A) (R, error)`) that retries on error according to a backoff strategy (`ConstantBackoff` or `ExponentialBackoff` with full jitter), respecting context cancellation during waits.
+- 1j. Developer needs to coalesce rapid calls, executing once after activity stops: `NewDebouncer` creates a stateful debouncer. `Send` stores the latest value and resets a quiet-period timer. After the quiet period elapses, the callback executes with the stored value. `MaxWait` caps total deferral. The debouncer must be closed via `Close` (or deferred) to release its goroutine.
 
 **Sub-Variations:**
-- Composition: left-to-right (Pipe)
-- Partial application: fix first arg (Bind), fix second arg (BindR)
-- Building blocks: identity function, equality predicate
-- Builtin adapters: length, printing, string predicates, successor
-- Concurrency control: by count (Throttle), by cost (ThrottleWeighted)
-- Side-effect on error (OnErr)
-- Retry with backoff: constant delay, exponential with full jitter
-- Call coalescing: trailing-edge debounce with optional maximum wait (Debouncer)
+- Composition: left-to-right (`Pipe`)
+- Partial application: fix first arg (`Bind`), fix second arg (`BindR`)
+- Building blocks: identity function (`Identity`), equality predicate (`Eq`)
+- Builtin adapters (`lof`): `Len`, `Println`, `HasPrefix`, `HasSuffix`, `Contains`, `Succ`
+- Concurrency control: by count (`Throttle`), by cost (`ThrottleWeighted`)
+- Side-effect on error (`OnErr`)
+- Retry with backoff: constant delay (`ConstantBackoff`), exponential with full jitter (`ExponentialBackoff`)
+- Call coalescing: trailing-edge debounce with optional maximum wait (`NewDebouncer`)
 
 ---
 
-### UC-8: Process a Lazy Sequence
+### UC-8: Process a Memoized Stream
 
 **Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
 
@@ -343,64 +352,186 @@
 **Postconditions:**
 - Requested elements have been produced or processed
 - Full sequence was not required to exist in memory simultaneously
-- Source sequence is unchanged and can be reused (persistence)
+- Source stream is unchanged and can be reused (persistence via structural sharing)
 
-**Minimal Guarantee:** Partially consumed sequences remain valid for further operations. Evaluation failures do not corrupt the sequence.
+**Minimal Guarantee:** Partially consumed streams remain valid for further operations. Panicking thunks reset to pending for retry; no corrupted cell is cached.
 
 **Preconditions:**
-- Developer has a source that is large, infinite, or expensive to compute
+- Developer has a source that is large, infinite, or expensive to compute and benefits from memoized traversal
 
 **Main Scenario:**
-1. Developer selects the sequence source.
-2. Developer constructs a lazy sequence from the source.
-3. Developer specifies transformations: filtering, converting, filter+transform, limiting count, skipping elements, changing element types, expanding and flattening, concatenating sequences, deduplicating, interspersing separators, batching into chunks, pairing corresponding elements, or accumulating intermediate values.
-4. Developer terminates the pipeline: collecting to a slice, iterating for side effects, searching for a match, checking membership, or reducing to a single value.
+1. Developer constructs a stream from a source.
+2. Developer specifies transformations: filtering, converting, limiting count, skipping elements, changing element types, expanding and flattening, or concatenating streams.
+3. Developer terminates the pipeline: collecting to a slice, iterating for side effects, or searching for a match.
 
 **Extensions:**
-- 1a. Sequence is empty: System produces a valid empty result for any terminal operation.
-- 2a. Source is a slice: System wraps it as a lazy sequence; elements are produced on demand from the underlying slice.
-- 2b. Source is an infinite mathematical series: System generates elements from a seed and step function; the sequence never terminates.
-- 2c. Source is a constant value repeated indefinitely: System produces the same value on each access.
-- 2d. Source is a step function with termination: System unfolds from a seed, producing elements until the step function signals stop.
-- 2e. Source is a step function that always produces an element: System produces an element from each step; an optional next-state controls whether to continue. Every step emits, including the last.
-- 2f. Source is a recursive definition: System accepts a head value and a deferred tail computation, building the sequence lazily.
-- 2g. Developer needs to chain two lazy sequences end-to-end: System produces all elements from the first, then all from the second.
-- 2h. Source is a Go channel: System creates a lazy sequence from a receive channel. Each iteration step blocks on receive. The sequence ends when the channel is closed or the provided context is canceled. Cancellation is best-effort — one additional value may be yielded if channel receive and cancellation are simultaneously ready.
-- 3a. Developer needs cross-type transformation: System transforms elements to a different type.
-- 3b. Developer needs to expand each element into a lazy sub-sequence and flatten: System applies expansion lazily, producing elements from inner sequences on demand.
-- 3c. Developer needs to combine corresponding elements from two lazy sequences: System pairs elements, truncating to the shorter sequence.
-- 3d. Developer needs running accumulator values as a lazy sequence: System produces the initial value followed by each intermediate accumulation.
-- 3e. Developer needs each element paired with its positional index: System lazily pairs each element with its zero-based index as elements are consumed.
-- 3f. Developer needs to filter and transform elements in one step from a lazy sequence: System lazily applies a function that returns both a transformed value and a keep/discard signal. Elements where the function signals discard are excluded; kept elements appear transformed as they are consumed.
-- 3g. Developer needs to combine lazy sequence elements without providing an initial value: System uses the first element as the seed and applies the combining function across remaining elements from left to right. Returns absence if the sequence is empty.
-- 3h. Developer needs duplicate elements removed from a lazy sequence while preserving first occurrence: System lazily removes duplicates by element identity or by an extracted key. Elements are emitted as they are consumed; only the seen-key set is retained in memory.
-- 3i. Developer needs to check whether a lazy sequence contains a specific value: System checks membership by equality, short-circuiting on first match.
-- 3j. Developer needs a separator inserted between elements of a lazy sequence: System lazily inserts a separator value between every adjacent pair of elements. Empty and single-element sequences pass through unchanged.
-- 3k. Developer needs to process a lazy sequence in fixed-size batches: System lazily groups elements into slices of the specified size. The last batch may be smaller. Each emitted slice is a stable snapshot safe to retain.
-- 4a. Developer needs to bridge to a Go range loop: System provides an iterator compatible with Go's range protocol.
-- 4b. Developer needs to bridge to slice operations: System materializes to a plain slice for use with eager collection operations.
-- 4c. Developer needs iterator-native processing without memoization: System provides lazy pipelines that re-evaluate on each iteration, compatible with Go's range protocol. Unlike memoized sequences, these pipelines do not cache intermediate results.
-- 4d. Developer needs to bridge a lazy sequence to a Go channel: System sends values from the sequence into a new channel via a spawned goroutine. The channel closes when the sequence is exhausted or the context is canceled. Cancellation is cooperative — if the sequence blocks internally before yielding, cancellation cannot interrupt it.
+- 1a. Stream is empty: System produces a valid empty result for any terminal operation.
+- 2a. Source is a slice: System wraps it; elements are produced on demand from the underlying slice.
+- 2b. Source is an infinite mathematical series: System generates elements from a seed and step function via `Generate`; the stream never terminates.
+- 2c. Source is a constant value repeated indefinitely: System produces the same value on each access via `Repeat`.
+- 2d. Source is a step function with termination: System unfolds from a seed via `Unfold`, producing elements until the step function returns not-ok.
+- 2e. Source is a step function that always produces an element: System produces an element from each step via `Paginate`; an optional next-state controls whether to continue. Every step emits, including the last.
+- 2f. Source is a recursive definition: System accepts a head value and a deferred tail computation via `Prepend`/`PrependLazy`, building the stream lazily.
+- 2g. Developer needs to chain two streams end-to-end: System produces all elements from the first, then all from the second, via `Concat`.
+- 3a. Developer needs cross-type transformation: System transforms elements to a different type via standalone `Map`.
+- 3b. Developer needs to expand each element into a sub-stream and flatten: System applies expansion lazily via standalone `FlatMap`.
+- 3c. Developer needs to combine corresponding elements from two streams: System pairs elements via `Zip`/`ZipWith`, truncating to the shorter stream.
+- 3d. Developer needs running accumulator values as a stream: System produces the initial value followed by each intermediate accumulation via standalone `Scan`.
+- 4a. Developer needs to bridge to a Go range loop: `Stream.All` provides an `iter.Seq[T]` for use with Go's range-over-func protocol.
+- 4b. Developer needs to bridge to slice operations: `Collect` materializes to a `[]T` for use with eager collection operations.
 
 **Sub-Variations:**
-- Construction: from slice, variadic, generate (infinite), repeat (constant), unfold (step function), paginate (always-emit step function), prepend (eager cons), prepend lazy (deferred cons), from channel (blocking receive with context)
-- Filtering: by predicate, filter+transform (filter-map)
-- Limiting: by count (take), by predicate (take-while)
-- Skipping: by count (drop), by predicate (drop-while)
-- Transformation: same-type (method), cross-type (standalone)
-- Deduplication: by identity (unique), by key (unique-by)
-- Expanding: flatmap (expand and flatten sub-sequences)
-- Concatenating: concat (chain sequences end-to-end)
-- Separating: intersperse (insert separator between elements)
-- Batching: chunk (group into fixed-size slices)
-- Pairing: zip (combine corresponding elements)
-- Accumulating: scan (running intermediate values), reduce (no initial value)
-- Membership: contains (short-circuit equality check)
-- Termination: collect, each, find, any, every, none, fold, reduce, contains, to-channel (concurrent sink)
+- Construction: `From` (slice), `Of` (variadic), `Generate` (infinite), `Repeat` (constant), `Unfold` (step function), `Paginate` (always-emit step function), `Prepend` (eager cons), `PrependLazy` (deferred cons)
+- Filtering: `KeepIf`, `RemoveIf`
+- Limiting: `Take` (by count), `TakeWhile` (by predicate)
+- Skipping: `Drop` (by count), `DropWhile` (by predicate)
+- Transformation: `Convert` (same-type method), `Map` (cross-type standalone)
+- Expanding: `FlatMap` (expand and flatten sub-streams)
+- Concatenating: `Concat`
+- Pairing: `Zip`, `ZipWith`
+- Accumulating: `Scan` (running intermediate values)
+- Termination: `Collect`, `Each`, `Find`, `Any`, `Every`, `None`, `Fold`
 
 ---
 
-### UC-9: Memoize Function Results
+### UC-9: Process an Iterator-Native Sequence
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: correct elements processed with minimal overhead
+- Code reviewer: pipeline reads as intent, compatible with Go's range protocol
+
+**Postconditions:**
+- Requested elements have been produced or processed
+- Pipeline is reusable — each iteration re-evaluates from source
+
+**Minimal Guarantee:** Pipelines do not cache intermediate results. Each iteration is independent. A broken iteration (early break) does not corrupt the pipeline.
+
+**Preconditions:**
+- Developer has a source suitable for lightweight, non-memoized lazy processing
+
+**Main Scenario:**
+1. Developer constructs a `Seq` from a source.
+2. Developer specifies transformations: filtering, converting, filter+transform, limiting count, skipping elements, changing element types, expanding and flattening, concatenating sequences, deduplicating, interspersing separators, batching into chunks, pairing corresponding elements, or accumulating intermediate values.
+3. Developer terminates the pipeline: collecting to a slice, iterating for side effects, searching for a match, checking membership, or reducing to a single value.
+
+**Extensions:**
+- 1a. Sequence is empty: System produces a valid empty result for any terminal operation.
+- 2a. Source is a slice: System wraps it via `From`.
+- 2b. Source is an `iter.Seq[T]`: System wraps it via `FromIter`.
+- 2c. Source is a step function with termination: System unfolds from a seed via `Unfold`, producing elements until the step function returns not-ok.
+- 2d. Source is a Go channel: System creates a `Seq` from a receive channel via `FromChannel`. Each iteration step blocks on receive. The sequence ends when the channel is closed or the provided context is canceled. Cancellation is best-effort — one additional value may be yielded if channel receive and cancellation are simultaneously ready.
+- 2e. Developer needs to chain two sequences end-to-end: System produces all elements from the first, then all from the second, via `Concat`.
+- 3a. Developer needs cross-type transformation: System transforms elements to a different type via standalone `Map`.
+- 3b. Developer needs to expand each element into a sub-sequence and flatten: System applies expansion lazily via standalone `FlatMap`.
+- 3c. Developer needs to combine corresponding elements from two sequences: System pairs elements via `Zip`/`ZipWith`, truncating to the shorter sequence.
+- 3d. Developer needs running accumulator values as a sequence: System produces the initial value followed by each intermediate accumulation via standalone `Scan`.
+- 3e. Developer needs each element paired with its positional index: System lazily pairs each element with its zero-based index via `Enumerate`.
+- 3f. Developer needs to filter and transform in one step: System applies a `func(T) (R, bool)` via `FilterMap`. Elements returning false are excluded; kept elements appear transformed.
+- 3g. Developer needs to combine elements without providing an initial value: System uses the first element as the seed via `Reduce`. Returns an option — not-ok if the sequence is empty.
+- 3h. Developer needs duplicate elements removed while preserving first occurrence: System lazily removes duplicates via `Unique` (by comparable equality) or `UniqueBy` (by extracted key).
+- 3i. Developer needs to check whether a sequence contains a specific value: System checks membership via `Contains`, short-circuiting on first match.
+- 3j. Developer needs a separator inserted between elements: System lazily inserts a separator via `Intersperse`. Empty and single-element sequences pass through unchanged.
+- 3k. Developer needs to process a sequence in fixed-size batches: System groups elements via `Chunk` into slices of the specified size. The last batch may be smaller. Each emitted slice is a stable snapshot safe to retain.
+- 4a. Developer needs to bridge to a Go range loop: `Seq.All` provides an `iter.Seq[T]`.
+- 4b. Developer needs to bridge to slice operations: `Collect` materializes to a `[]T`.
+- 4c. Developer needs to bridge a sequence to a Go channel: `ToChannel` sends values into a new channel via a spawned goroutine. The channel closes when the sequence is exhausted or the context is canceled. Cancellation is cooperative — if the sequence blocks internally before yielding, cancellation cannot interrupt it.
+
+**Sub-Variations:**
+- Construction: `From` (slice), `FromIter` (iter.Seq), `Unfold` (step function), `FromChannel` (blocking receive with context)
+- Filtering: `KeepIf`, `RemoveIf`, `FilterMap` (filter+transform)
+- Limiting: `Take` (by count), `TakeWhile` (by predicate)
+- Skipping: `Drop` (by count), `DropWhile` (by predicate)
+- Transformation: `Convert` (same-type method), `Map` (cross-type standalone)
+- Deduplication: `Unique` (by comparable equality), `UniqueBy` (by key)
+- Expanding: `FlatMap`
+- Concatenating: `Concat`
+- Separating: `Intersperse`
+- Batching: `Chunk`
+- Pairing: `Zip`, `ZipWith`
+- Accumulating: `Scan` (running intermediate values), `Reduce` (no initial value)
+- Index pairing: `Enumerate`
+- Membership: `Contains` (short-circuit equality check)
+- Termination: `Collect`, `Each`, `Find`, `Any`, `Every`, `None`, `Fold`, `Reduce`, `Contains`, `ToChannel`
+
+---
+
+### UC-10: Maintain a Persistent Priority Queue
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: always-available minimum element without manual heap management
+- Code reviewer: insertion and extraction read as value operations, not mutable state manipulation
+
+**Postconditions:**
+- A new heap exists with the desired elements
+- Original heap is unmodified (persistence via structural sharing)
+
+**Minimal Guarantee:** Original heap is never modified. Empty heap operations return absence, not panic.
+
+**Preconditions:**
+- Developer has comparable elements that need priority ordering
+
+**Main Scenario:**
+1. Developer creates a heap, optionally from existing elements.
+2. Developer inserts elements, producing new heaps.
+3. Developer queries the minimum or removes it, producing a new heap.
+
+**Extensions:**
+- 1a. Heap is empty: `Min` returns not-ok. `DeleteMin` returns (zero, empty heap).
+- 2a. Developer needs to merge two heaps: System merges in O(1) via `Merge`, producing a new heap.
+- 3a. Developer needs the minimum element without removing it: System returns it as an option via `Min`.
+- 3b. Developer needs all elements as a sorted slice: System extracts elements in order via `Collect`.
+
+**Sub-Variations:**
+- Construction: `New` (empty), `From` (slice), `Of` (variadic)
+- Operations: `Insert`, `Min`, `DeleteMin`, `Merge`, `Len`, `IsEmpty`
+- Ordering: natural order via `cmp.Ordered` constraint
+
+---
+
+### UC-11: Generate Combinatorial Selections
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: correct combinatorial output without manual recursive or loop-based generation
+- Code reviewer: generation reads as a single call, not nested loops
+
+**Postconditions:**
+- A chainable collection exists with all requested combinatorial elements
+- Input collection is unmodified
+
+**Minimal Guarantee:** Input collection is never modified. Results are eagerly materialized — the caller controls input size.
+
+**Preconditions:**
+- Developer has a small collection (combinatorial output grows rapidly)
+
+**Main Scenario:**
+1. Developer selects the combinatorial operation and input.
+2. System generates all results as a chainable `Mapper` collection.
+3. Developer chains further operations (`.KeepIf`, `.Convert`, etc.) on the result.
+
+**Extensions:**
+- 1a. Developer needs all orderings: System generates n! permutations via `Permutations`.
+- 1b. Developer needs k-element subsets: System generates C(n,k) combinations via `Combinations`.
+- 1c. Developer needs all subsets: System generates 2^n subsets via `PowerSet`.
+- 1d. Developer needs all pairs from two collections: System generates the Cartesian product via `CartesianProduct`, returning `Mapper[pair.Pair[A,B]]`.
+- 1e. Developer needs all pairs mapped to a domain type: System generates the Cartesian product and maps via `CartesianProductWith`, avoiding intermediate pair allocation.
+- 2a. Input is nil or empty: `Permutations` and `PowerSet` return `[[]]` (one empty result). `Combinations` returns `[[]]` for k=0, nil for k<0 or k>len. `CartesianProduct` returns nil if either input is empty.
+
+**Sub-Variations:**
+- `Permutations`: all orderings (n! results)
+- `Combinations`: k-element subsets (C(n,k) results)
+- `PowerSet`: all subsets (2^n results)
+- `CartesianProduct`: all pairs from two collections
+- `CartesianProductWith`: all pairs mapped during generation
+
+---
+
+### UC-12: Memoize Function Results
 
 **Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
 
@@ -412,7 +543,7 @@
 - Repeated calls with the same input return the same result without re-executing the original function
 - Original function is unmodified
 
-**Minimal Guarantee:** If the wrapped function panics, no corrupted result is cached. Future calls retry.
+**Minimal Guarantee:** If the wrapped function panics, no corrupted result is cached. Future calls retry. Concurrent callers for the same key may execute the function multiple times (no single-flight deduplication); all will cache the same eventual result.
 
 **Preconditions:**
 - Developer has a function whose results are safe to cache (pure or idempotent)
@@ -423,13 +554,13 @@
 3. Subsequent calls with the same input return the cached result.
 
 **Extensions:**
-- 1a. Function takes no arguments (deferred initialization): System wraps a zero-arg function; first call evaluates and caches; subsequent calls return cached value.
-- 1b. Function is fallible (returns value and error): System caches only successes — errors trigger retry on subsequent calls.
-- 1c. Developer needs bounded cache size: System provides an LRU cache that evicts least recently used entries when capacity is exceeded.
-- 1d. Developer needs a custom caching strategy: System accepts a caller-provided cache implementing Load/Store.
+- 1a. Function takes no arguments (deferred initialization): System wraps a zero-arg function via `memo.Of`; first call evaluates and caches; subsequent calls return cached value. Thread-safe.
+- 1b. Function is fallible (returns value and error): System caches only successes via `memo.FnErr` — errors trigger retry on subsequent calls.
+- 1c. Developer needs bounded cache size: System provides an LRU cache via `memo.NewLRU` that evicts least recently used entries when capacity is exceeded.
+- 1d. Developer needs a custom caching strategy: System accepts a caller-provided cache implementing `memo.Cache` (Load/Store). The caller is responsible for thread-safety of the provided implementation.
 - 2a. Wrapped function panics: System resets to un-cached state; panic propagates; future calls retry the function.
 
 **Sub-Variations:**
-- Zero-arg memoization (Of): deferred initialization, sync.Once replacement with retry
-- Keyed memoization (Fn, FnErr): function caching by input
-- Cache strategies: unbounded map (NewMap), bounded LRU (NewLRU), custom (Cache interface)
+- Zero-arg memoization (`Of`): deferred initialization, `sync.Once` replacement with retry-on-panic
+- Keyed memoization (`Fn`, `FnErr`): function caching by input
+- Cache strategies: unbounded map (`NewMap`), bounded LRU (`NewLRU`), custom (`Cache` interface with `Load`/`Store`)
