@@ -59,6 +59,47 @@ resilientFetch := hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), isT
 ```
 
 ```go
+// Circuit breaker — short-circuit requests to an unhealthy dependency
+b := hof.NewBreaker(hof.BreakerConfig{
+    ResetTimeout: 30 * time.Second,
+    ReadyToTrip:  hof.ConsecutiveFailures(5),
+})
+safeFetch := hof.WithBreaker(b, fetchFromAPI)
+resp, err := safeFetch(ctx, url)  // returns ErrCircuitOpen when open
+```
+
+```go
+// Circuit breaker + retry — breaker wraps retry so it sees one logical operation
+b := hof.NewBreaker(hof.BreakerConfig{
+    ResetTimeout: 30 * time.Second,
+    ReadyToTrip:  hof.ConsecutiveFailures(5),
+})
+resilient := hof.WithBreaker(b,
+    hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), nil, fetchFromAPI))
+```
+
+```go
+// Retry wrapping breaker — filter ErrCircuitOpen to avoid retrying open circuits
+b := hof.NewBreaker(hof.BreakerConfig{
+    ResetTimeout: 30 * time.Second,
+    ReadyToTrip:  hof.ConsecutiveFailures(5),
+})
+shouldRetry := func(err error) bool { return !errors.Is(err, hof.ErrCircuitOpen) }
+resilient := hof.Retry(3, hof.ExponentialBackoff(100*time.Millisecond), shouldRetry,
+    hof.WithBreaker(b, fetchFromAPI))
+```
+
+```go
+// One breaker can protect multiple functions against the same dependency
+b := hof.NewBreaker(hof.BreakerConfig{
+    ResetTimeout: 10 * time.Second,
+    ReadyToTrip:  hof.ConsecutiveFailures(3),
+})
+getUser := hof.WithBreaker(b, fetchUser)
+getOrder := hof.WithBreaker(b, fetchOrder)
+```
+
+```go
 // Debounce — coalesce rapid calls, execute once after quiet period
 d := hof.NewDebouncer(500*time.Millisecond, saveConfig)
 defer d.Close()  // required — stops owner goroutine
@@ -115,6 +156,13 @@ d.Flush()  // blocks until fn completes with latestState
 - `ConstantBackoff(delay time.Duration) Backoff` — fixed delay between retries
 - `ExponentialBackoff(initial time.Duration) Backoff` — full jitter: random in [0, initial * 2^n)
 
+**Circuit Breaking**
+- `NewBreaker(cfg BreakerConfig) *Breaker` — create a circuit breaker (3-state: closed → open → half-open → closed)
+- `WithBreaker[T, R](b *Breaker, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)` — wrap fn with circuit breaker protection
+- `(*Breaker).Snapshot() Snapshot` — point-in-time state and metrics (State, Successes, Failures, ConsecutiveFailures, Rejected, OpenedAt)
+- `ConsecutiveFailures(n int) func(Snapshot) bool` — ReadyToTrip predicate: trip after n consecutive failures
+- `ErrCircuitOpen` — sentinel error returned when the breaker is rejecting requests (open, or half-open with probe in flight)
+
 **Debounce**
 - `NewDebouncer[T any](wait time.Duration, fn func(T), opts ...DebounceOption) *Debouncer[T]` — create trailing-edge debouncer (must not be copied after first use)
 - `(*Debouncer[T]).Call(v T)` — store latest value, reset timer. If fn is running, value is queued for a fresh timer cycle after completion
@@ -125,8 +173,8 @@ d.Flush()  // blocks until fn completes with latestState
 
 At most one fn execution runs at a time — executions never overlap. All methods (Call, Cancel, Flush, Close) are safe for concurrent use from multiple goroutines. Call and Cancel are safe from within fn; Flush and Close from within fn will deadlock. fn runs in a spawned goroutine (not the caller's goroutine, including during Flush).
 
-All functions panic on nil inputs (except `Retry`'s `shouldRetry`, where nil means retry all errors). `Throttle`, `ThrottleWeighted`, and `Retry` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity. `ExponentialBackoff` panics if initial <= 0. `NewDebouncer` panics if wait <= 0 or fn is nil. `MaxWait` panics if d < 0.
+All functions panic on nil inputs (except `Retry`'s `shouldRetry` and `BreakerConfig` callbacks, where nil means use defaults). `Throttle`, `ThrottleWeighted`, and `Retry` panic on non-positive limits. `ThrottleWeighted` also panics per-call if `cost` returns a non-positive value or one exceeding capacity. `ExponentialBackoff` panics if initial <= 0. `NewDebouncer` panics if wait <= 0 or fn is nil. `MaxWait` panics if d < 0. `NewBreaker` panics if ResetTimeout <= 0. `ConsecutiveFailures` panics if n < 1.
 
-All context-aware wrappers (`Throttle`, `ThrottleWeighted`, `Retry`) return `ctx.Err()` on cancellation rather than blocking indefinitely.
+All context-aware wrappers (`Throttle`, `ThrottleWeighted`, `Retry`, `WithBreaker`) return `ctx.Err()` on cancellation rather than blocking indefinitely. `WithBreaker` does not count `context.Canceled` as a failure; `context.DeadlineExceeded` counts as a failure by default (controllable via `ShouldCount`). Pre-cancelled or pre-expired contexts bypass breaker accounting entirely.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/hof) for complete API documentation, the [main README](../README.md) for installation, and [lof](../lof/) for builtin adapters.

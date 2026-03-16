@@ -33,6 +33,19 @@ func _() {
 	_ = ConstantBackoff
 	_ = ExponentialBackoff
 
+	// Circuit breaking
+	_ = NewBreaker
+	_ = WithBreaker[int, int]
+	_ = ConsecutiveFailures
+	_ = ErrCircuitOpen
+	_ = BreakerState(0)
+	_ = StateClosed
+	_ = StateOpen
+	_ = StateHalfOpen
+	_ = Snapshot{}
+	_ = Transition{}
+	_ = BreakerConfig{}
+
 	// Debouncing
 	_ = NewDebouncer[int]
 	_ = MaxWait
