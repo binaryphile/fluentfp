@@ -1,7 +1,9 @@
 package option
 
 import (
+	"math"
 	"os"
+	"strconv"
 )
 
 // Env returns an ok option of the environment variable's value if set and non-empty,
@@ -92,4 +94,80 @@ func ZipWith[A, B, R any](a Option[A], b Option[B], fn func(A, B) R) (_ Option[R
 	}
 
 	return Of(fn(a.t, b.t))
+}
+
+// LiftErr transforms a function returning (B, error) into one returning [Option][B].
+// The returned function returns ok when err is nil, not-ok otherwise.
+// The original error is discarded; use the unwrapped function directly when
+// error details matter.
+// Panics if fn is nil.
+//
+// Use LiftErr to adapt any error-returning function for use with [FlatMap]:
+//
+//	parseDuration := option.LiftErr(time.ParseDuration)
+//	timeout := option.FlatMap(option.Env("TIMEOUT"), parseDuration).Or(5 * time.Second)
+//
+// For multi-argument stdlib functions, wrap in a closure:
+//
+//	parseInt64 := option.LiftErr(func(s string) (int64, error) {
+//	    return strconv.ParseInt(s, 10, 64)
+//	})
+//
+// For common cases, prefer the named helpers [Atoi], [ParseFloat64], [ParseBool].
+func LiftErr[A, B any](fn func(A) (B, error)) func(A) Option[B] {
+	if fn == nil {
+		panic("option: LiftErr called with nil function")
+	}
+
+	return func(a A) Option[B] {
+		return NonErr(fn(a))
+	}
+}
+
+// Atoi parses s as a base-10 integer.
+// Returns ok if [strconv.Atoi] succeeds, not-ok otherwise.
+//
+// Parse failure returns not-ok, not an error. When combined with [Option.Or],
+// malformed input is treated the same as missing input:
+//
+//	option.FlatMap(option.Env("PORT"), option.Atoi).Or(8080)
+//
+// This silently defaults on both missing and non-integer values like "abc".
+// Combined with [Env], unset, empty, and malformed env vars all collapse
+// to the same default. Use [strconv.Atoi] directly when parse errors need
+// distinct handling.
+func Atoi(s string) Int {
+	return NonErr(strconv.Atoi(s))
+}
+
+// ParseFloat64 parses s as a finite 64-bit float using [strconv.ParseFloat].
+// Returns not-ok on syntax errors, range errors, and non-finite results
+// (NaN, Inf). Only finite values return ok.
+//
+// To accept non-finite values, use [LiftErr] with a closure:
+//
+//	parseAnyFloat := option.LiftErr(func(s string) (float64, error) {
+//	    return strconv.ParseFloat(s, 64)
+//	})
+//
+// On parse failure, returns not-ok; when combined with [Option.Or],
+// malformed and missing input are treated the same.
+func ParseFloat64(s string) Option[float64] {
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
+		return NotOk[float64]()
+	}
+
+	return Of(f)
+}
+
+// ParseBool parses s as a boolean using [strconv.ParseBool].
+// Accepts: 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
+// Returns ok if parsing succeeds, not-ok otherwise.
+// Valid "false" input returns Ok(false); invalid input returns not-ok.
+//
+// On parse failure, returns not-ok; when combined with [Option.Or],
+// malformed and missing input are treated the same.
+func ParseBool(s string) Bool {
+	return NonErr(strconv.ParseBool(s))
 }

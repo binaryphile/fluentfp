@@ -3,6 +3,7 @@ package option
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
 )
 
@@ -735,5 +736,287 @@ func TestOrWrap(t *testing.T) {
 			}
 		}()
 		NotOk[int]().OrWrap(nil)
+	})
+}
+
+// --- LiftErr ---
+
+func TestLiftErr(t *testing.T) {
+	// parseInt wraps strconv.Atoi via LiftErr.
+	parseInt := LiftErr(strconv.Atoi)
+
+	t.Run("success returns ok", func(t *testing.T) {
+		got, ok := parseInt("42").Get()
+		if !ok || got != 42 {
+			t.Errorf("parseInt(\"42\") = (%d, %v), want (42, true)", got, ok)
+		}
+	})
+
+	t.Run("error returns not-ok", func(t *testing.T) {
+		if _, ok := parseInt("abc").Get(); ok {
+			t.Error("parseInt(\"abc\") should be not-ok")
+		}
+	})
+
+	t.Run("composable with FlatMap", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_LIFT", "99")
+		got := FlatMap(Env("FLUENTFP_TEST_LIFT"), parseInt).Or(0)
+		if got != 99 {
+			t.Errorf("got %d, want 99", got)
+		}
+	})
+
+	t.Run("nil fn panics", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expected panic for nil fn")
+			}
+		}()
+		LiftErr[string, int](nil)
+	})
+
+	t.Run("multi-arg stdlib via closure", func(t *testing.T) {
+		parseFloat32 := LiftErr(func(s string) (float64, error) {
+			return strconv.ParseFloat(s, 32)
+		})
+		got, ok := parseFloat32("3.14").Get()
+		if !ok {
+			t.Fatal("parseFloat32(\"3.14\") should be ok")
+		}
+		if got < 3.13 || got > 3.15 {
+			t.Errorf("parseFloat32(\"3.14\") = %v, want ~3.14", got)
+		}
+	})
+}
+
+// --- Parse functions ---
+
+func TestAtoi(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		wantOk bool
+		want   int
+	}{
+		{"positive", "42", true, 42},
+		{"negative", "-7", true, -7},
+		{"zero", "0", true, 0},
+		{"leading plus", "+3", true, 3},
+		{"invalid letters", "abc", false, 0},
+		{"decimal", "12.5", false, 0},
+		{"empty", "", false, 0},
+		{"leading space", " 42", false, 0},
+		{"trailing space", "42 ", false, 0},
+		{"overflow", "9999999999999999999", false, 0}, // exceeds max int
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := Atoi(tt.input).Get()
+			if ok != tt.wantOk {
+				t.Errorf("Atoi(%q).IsOk() = %v, want %v", tt.input, ok, tt.wantOk)
+			}
+			if ok && got != tt.want {
+				t.Errorf("Atoi(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseFloat64(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		wantOk bool
+		want   float64
+	}{
+		{"decimal", "3.14", true, 3.14},
+		{"negative", "-2.5", true, -2.5},
+		{"scientific", "1e3", true, 1000},
+		{"scientific negative exp", "-2.5e-4", true, -0.00025},
+		{"zero", "0", true, 0},
+		{"invalid letters", "abc", false, 0},
+		{"double dot", "1.2.3", false, 0},
+		{"empty", "", false, 0},
+		{"leading space", " 3.14", false, 0},
+		{"trailing space", "3.14 ", false, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := ParseFloat64(tt.input).Get()
+			if ok != tt.wantOk {
+				t.Errorf("ParseFloat64(%q).IsOk() = %v, want %v", tt.input, ok, tt.wantOk)
+			}
+			if ok && got != tt.want {
+				t.Errorf("ParseFloat64(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+
+	// Non-finite values are rejected (finite-only policy).
+	nonFinite := []string{"NaN", "nan", "Inf", "+Inf", "-Inf", "Infinity", "infinity", "INF"}
+	for _, s := range nonFinite {
+		t.Run("rejects "+s, func(t *testing.T) {
+			if _, ok := ParseFloat64(s).Get(); ok {
+				t.Errorf("ParseFloat64(%q) should be not-ok (non-finite)", s)
+			}
+		})
+	}
+
+	t.Run("range overflow is not-ok", func(t *testing.T) {
+		if _, ok := ParseFloat64("1e5000").Get(); ok {
+			t.Error("ParseFloat64(\"1e5000\") should be not-ok (range overflow)")
+		}
+	})
+}
+
+func TestParseBool(t *testing.T) {
+	trueInputs := []string{"1", "t", "T", "TRUE", "true", "True"}
+	for _, s := range trueInputs {
+		t.Run("true/"+s, func(t *testing.T) {
+			got, ok := ParseBool(s).Get()
+			if !ok || !got {
+				t.Errorf("ParseBool(%q) = (%v, %v), want (true, true)", s, got, ok)
+			}
+		})
+	}
+
+	falseInputs := []string{"0", "f", "F", "FALSE", "false", "False"}
+	for _, s := range falseInputs {
+		t.Run("false/"+s, func(t *testing.T) {
+			got, ok := ParseBool(s).Get()
+			if !ok || got {
+				t.Errorf("ParseBool(%q) = (%v, %v), want (false, true)", s, got, ok)
+			}
+		})
+	}
+
+	invalidInputs := []string{"yes", "no", "TrUe", "", " true"}
+	for _, s := range invalidInputs {
+		t.Run("invalid/"+s, func(t *testing.T) {
+			if _, ok := ParseBool(s).Get(); ok {
+				t.Errorf("ParseBool(%q) should be not-ok", s)
+			}
+		})
+	}
+
+	t.Run("false is distinguishable from not-ok", func(t *testing.T) {
+		validFalse := ParseBool("false")
+		invalid := ParseBool("invalid")
+		if !validFalse.IsOk() {
+			t.Error("ParseBool(\"false\") should be ok")
+		}
+		if invalid.IsOk() {
+			t.Error("ParseBool(\"invalid\") should be not-ok")
+		}
+	})
+}
+
+// --- Parse composition ---
+
+func TestEnvAtoiComposition(t *testing.T) {
+	t.Run("missing env defaults", func(t *testing.T) {
+		got := FlatMap(Env("FLUENTFP_TEST_MISSING"), Atoi).Or(8080)
+		if got != 8080 {
+			t.Errorf("got %d, want 8080", got)
+		}
+	})
+
+	t.Run("malformed env defaults", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_PORT", "abc")
+		got := FlatMap(Env("FLUENTFP_TEST_PORT"), Atoi).Or(8080)
+		if got != 8080 {
+			t.Errorf("got %d, want 8080", got)
+		}
+	})
+
+	t.Run("valid env parses", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_PORT", "9000")
+		got := FlatMap(Env("FLUENTFP_TEST_PORT"), Atoi).Or(8080)
+		if got != 9000 {
+			t.Errorf("got %d, want 9000", got)
+		}
+	})
+
+	t.Run("empty env defaults", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_PORT", "")
+		got := FlatMap(Env("FLUENTFP_TEST_PORT"), Atoi).Or(8080)
+		if got != 8080 {
+			t.Errorf("got %d, want 8080", got)
+		}
+	})
+}
+
+func TestEnvParseFloat64Composition(t *testing.T) {
+	t.Run("valid env parses", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_RATE", "3.14")
+		got := FlatMap(Env("FLUENTFP_TEST_RATE"), ParseFloat64).Or(1.0)
+		if got != 3.14 {
+			t.Errorf("got %v, want 3.14", got)
+		}
+	})
+
+	t.Run("missing env defaults", func(t *testing.T) {
+		got := FlatMap(Env("FLUENTFP_TEST_MISSING_F"), ParseFloat64).Or(1.0)
+		if got != 1.0 {
+			t.Errorf("got %v, want 1.0", got)
+		}
+	})
+
+	t.Run("malformed env defaults", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_RATE", "abc")
+		got := FlatMap(Env("FLUENTFP_TEST_RATE"), ParseFloat64).Or(1.0)
+		if got != 1.0 {
+			t.Errorf("got %v, want 1.0", got)
+		}
+	})
+}
+
+func TestEnvParseBoolComposition(t *testing.T) {
+	t.Run("false does not trigger default", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_FLAG", "false")
+		got := FlatMap(Env("FLUENTFP_TEST_FLAG"), ParseBool).Or(true)
+		if got {
+			t.Error("got true, want false — valid \"false\" should not trigger default")
+		}
+	})
+
+	t.Run("missing env defaults", func(t *testing.T) {
+		got := FlatMap(Env("FLUENTFP_TEST_MISSING_B"), ParseBool).Or(true)
+		if !got {
+			t.Error("got false, want true (default)")
+		}
+	})
+
+	t.Run("malformed env defaults", func(t *testing.T) {
+		t.Setenv("FLUENTFP_TEST_FLAG", "yes")
+		got := FlatMap(Env("FLUENTFP_TEST_FLAG"), ParseBool).Or(true)
+		if !got {
+			t.Error("got false, want true (default)")
+		}
+	})
+}
+
+func TestLiftErrNonFiniteEscapeHatch(t *testing.T) {
+	parseAnyFloat := LiftErr(func(s string) (float64, error) {
+		return strconv.ParseFloat(s, 64)
+	})
+
+	t.Run("NaN accepted via LiftErr", func(t *testing.T) {
+		got, ok := parseAnyFloat("NaN").Get()
+		if !ok {
+			t.Fatal("should be ok")
+		}
+		if got == got { // NaN != NaN
+			t.Errorf("got %v, want NaN", got)
+		}
+	})
+
+	t.Run("Inf accepted via LiftErr", func(t *testing.T) {
+		_, ok := parseAnyFloat("Inf").Get()
+		if !ok {
+			t.Error("should be ok")
+		}
 	})
 }
