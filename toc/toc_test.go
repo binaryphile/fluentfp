@@ -1261,18 +1261,14 @@ func TestUnbufferedBlockedSubmitFailFast(t *testing.T) {
 	stage.Wait()
 }
 
-func TestDefaultCapacityOne(t *testing.T) {
-	stage := toc.Start(context.Background(), doubleIt, toc.Options[int]{Capacity: -1})
+func TestNegativeCapacityPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for negative Capacity")
+		}
+	}()
 
-	stage.Submit(context.Background(), 1)
-	stage.CloseInput()
-	drain(stage)
-	stage.Wait()
-
-	stats := stage.Stats()
-	if stats.QueueCapacity != 1 {
-		t.Fatalf("QueueCapacity = %d, want 1 (negative defaults to 1)", stats.QueueCapacity)
-	}
+	toc.Start[int, int](context.Background(), doubleIt, toc.Options[int]{Capacity: -1})
 }
 
 func TestDefaultWorkersOne(t *testing.T) {
@@ -1287,6 +1283,16 @@ func TestDefaultWorkersOne(t *testing.T) {
 	if stats.Completed != 1 {
 		t.Fatalf("Completed = %d, want 1", stats.Completed)
 	}
+}
+
+func TestNegativeWorkersPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for negative Workers")
+		}
+	}()
+
+	toc.Start[int, int](context.Background(), doubleIt, toc.Options[int]{Workers: -1})
 }
 
 func TestWeightPanicPropagates(t *testing.T) {
@@ -1544,24 +1550,45 @@ func TestCauseParentCancelDuringHandoff(t *testing.T) {
 
 func TestConcurrentSubmitCloseInput(t *testing.T) {
 	for i := 0; i < 100; i++ {
-		stage := toc.Start(context.Background(), doubleIt, toc.Options[int]{Capacity: 5})
+		release := make(chan struct{})
 
-		var wg sync.WaitGroup
-		wg.Add(10)
+		// blockFn blocks until released, creating backpressure so
+		// submitters are genuinely blocked when CloseInput fires.
+		blockFn := func(_ context.Context, n int) (int, error) {
+			<-release
+
+			return n, nil
+		}
+
+		stage := toc.Start(context.Background(), blockFn, toc.Options[int]{Capacity: 1})
+
+		// Launch submitters that will block on full buffer.
+		var submitWg sync.WaitGroup
 
 		for j := 0; j < 10; j++ {
+			submitWg.Add(1)
 			go func() {
-				defer wg.Done()
+				defer submitWg.Done()
 				stage.Submit(context.Background(), 1)
 			}()
 		}
 
+		// Let submitters hit the blocking select, then close concurrently.
+		runtime.Gosched()
+
+		go stage.CloseInput()
+
+		// Drain concurrently — workers need Out() read to unblock.
+		var drainWg sync.WaitGroup
+		drainWg.Add(1)
 		go func() {
-			wg.Wait()
-			stage.CloseInput()
+			defer drainWg.Done()
+			drain(stage)
 		}()
 
-		drain(stage)
+		close(release)
+		submitWg.Wait()
+		drainWg.Wait()
 		stage.Wait()
 	}
 }
@@ -1570,32 +1597,51 @@ func TestFailFastConcurrentSubmit(t *testing.T) {
 	errBoom := errors.New("boom")
 
 	for i := 0; i < 100; i++ {
-		// failFirst fails on first call.
+		release := make(chan struct{})
+
+		// blockThenFail: first call blocks then fails, rest block until released.
 		var calls atomic.Int32
 
-		failFirst := func(_ context.Context, n int) (int, error) {
-			if calls.Add(1) == 1 {
+		blockThenFail := func(_ context.Context, n int) (int, error) {
+			c := calls.Add(1)
+			if c == 1 {
+				<-release
+
 				return 0, errBoom
 			}
+
+			<-release
 
 			return n, nil
 		}
 
-		stage := toc.Start(context.Background(), failFirst, toc.Options[int]{Capacity: 10})
+		stage := toc.Start(context.Background(), blockThenFail, toc.Options[int]{Capacity: 1, Workers: 2})
 
-		var wg sync.WaitGroup
-		wg.Add(20)
+		// Launch submitters that will block on full buffer.
+		var submitWg sync.WaitGroup
 
-		for j := 0; j < 20; j++ {
+		for j := 0; j < 10; j++ {
+			submitWg.Add(1)
 			go func() {
-				defer wg.Done()
+				defer submitWg.Done()
 				stage.Submit(context.Background(), 1)
 			}()
 		}
 
-		wg.Wait()
+		// Let submitters block, then trigger fail-fast.
+		runtime.Gosched()
+
+		var drainWg sync.WaitGroup
+		drainWg.Add(1)
+		go func() {
+			defer drainWg.Done()
+			drain(stage)
+		}()
+
+		close(release)
+		submitWg.Wait()
 		stage.CloseInput()
-		drain(stage)
+		drainWg.Wait()
 		stage.Wait()
 	}
 }
@@ -1763,6 +1809,48 @@ func TestFinalStatsInvariants(t *testing.T) {
 
 	if stats.InFlightWeight != 0 {
 		t.Fatalf("final InFlightWeight = %d, want 0", stats.InFlightWeight)
+	}
+}
+
+func TestCardinalityProperty(t *testing.T) {
+	// Property: successful submits == len(results), across random interleavings.
+	for i := 0; i < 50; i++ {
+		stage := toc.Start(context.Background(), doubleIt, toc.Options[int]{
+			Capacity: 3,
+			Workers:  2,
+		})
+
+		var results []rslt.Result[int]
+		var drainWg sync.WaitGroup
+		drainWg.Add(1)
+		go func() {
+			defer drainWg.Done()
+			results = drain(stage)
+		}()
+
+		var successes atomic.Int32
+		var submitWg sync.WaitGroup
+		n := 20
+
+		for j := 0; j < n; j++ {
+			submitWg.Add(1)
+			go func(v int) {
+				defer submitWg.Done()
+				if stage.Submit(context.Background(), v) == nil {
+					successes.Add(1)
+				}
+			}(j)
+		}
+
+		submitWg.Wait()
+		stage.CloseInput()
+		drainWg.Wait()
+		stage.Wait()
+
+		if int(successes.Load()) != len(results) {
+			t.Fatalf("iteration %d: %d successful submits but %d results",
+				i, successes.Load(), len(results))
+		}
 	}
 }
 

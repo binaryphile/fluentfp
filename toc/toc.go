@@ -91,7 +91,7 @@ type Options[T any] struct {
 	// Capacity is the number of items the input buffer can hold.
 	// Submit blocks when the buffer is full (the "rope").
 	// Zero means unbuffered: Submit blocks until a worker dequeues.
-	// Negative values are treated as the default: 1.
+	// Negative values panic.
 	Capacity int
 
 	// Weight returns the cost of item t for stats tracking only
@@ -102,7 +102,8 @@ type Options[T any] struct {
 	Weight func(T) int64
 
 	// Workers is the number of concurrent fn invocations.
-	// Default: 1 (serial constraint — the common case).
+	// Zero means default: 1 (serial constraint — the common case).
+	// Negative values panic.
 	Workers int
 
 	// ContinueOnError, when true, keeps processing after fn errors
@@ -129,10 +130,10 @@ type Stats struct {
 	Canceled  int64 // items dequeued but not passed to fn because cancellation was observed first (not in Completed)
 
 	ServiceTime       time.Duration // cumulative time fn was executing
-	IdleTime          time.Duration // cumulative worker time waiting for input
+	IdleTime          time.Duration // cumulative worker time waiting for input (includes startup and tail wait)
 	OutputBlockedTime time.Duration // cumulative worker time blocked handing result to consumer (unbuffered out channel)
 
-	BufferedDepth  int64 // approximate items in queue; 0 when Capacity is 0 (unbuffered)
+	BufferedDepth  int64 // approximate items in queue; may transiently be negative mid-flight; 0 when Capacity is 0 (unbuffered)
 	InFlightWeight int64 // weighted cost of items currently in fn (stats-only, not admission)
 	QueueCapacity  int   // configured capacity
 }
@@ -196,7 +197,7 @@ type Stage[T, R any] struct {
 // when the context is canceled (either parent cancel or fail-fast). This
 // ensures workers always eventually exit.
 //
-// Panics if ctx is nil or fn is nil.
+// Panics if ctx is nil, fn is nil, Capacity is negative, or Workers is negative.
 func Start[T, R any](
 	ctx context.Context,
 	fn func(context.Context, T) (R, error),
@@ -208,11 +209,14 @@ func Start[T, R any](
 
 	capacity := opts.Capacity
 	if capacity < 0 {
-		capacity = 1 // default
+		panic("toc.Start: Capacity must be non-negative")
 	}
 
 	workers := opts.Workers
-	if workers <= 0 {
+	if workers < 0 {
+		panic("toc.Start: Workers must be non-negative")
+	}
+	if workers == 0 {
 		workers = 1
 	}
 
@@ -281,15 +285,21 @@ func Start[T, R any](
 //
 // If cancellation or CloseInput has already occurred before Submit is
 // called, Submit deterministically returns [ErrClosed] without blocking.
-// A Submit that is already blocked when cancellation/CloseInput fires
-// is unblocked promptly, but the exact error ([ErrClosed] vs ctx.Err())
-// is nondeterministic per Go select semantics. A Submit entering
-// concurrently with cancellation may nondeterministically succeed or
-// return [ErrClosed]. Items admitted during this window are processed
-// normally (or canceled if the stage context is already done).
+// A Submit that is blocked or entering concurrently when shutdown fires
+// may nondeterministically succeed or return an error, per Go select
+// semantics — even a blocked Submit can succeed if capacity becomes
+// available at the same instant. Items admitted during this window are
+// processed normally (or canceled if the stage context is already done).
+//
+// The ctx parameter controls only admission blocking — it is NOT passed
+// to fn. The stage's own context (derived from the ctx passed to [Start])
+// is what fn receives. This means canceling a submitter's context does
+// not cancel the item's processing once admitted.
 //
 // Panics if ctx is nil (same as context.Context method calls).
 // Panics if Weight returns a negative value.
+// Note: a panic in Weight propagates to the caller (unlike fn panics,
+// which are recovered and wrapped in [rslt.PanicError]).
 // Safe for concurrent use from multiple goroutines. Safe to call
 // concurrently with [Stage.CloseInput] (will not panic).
 func (s *Stage[T, R]) Submit(ctx context.Context, item T) error {
@@ -356,7 +366,7 @@ func (s *Stage[T, R]) trySend(ctx context.Context, q queued[T]) error {
 // Workers finish processing buffered items, then shut down.
 //
 // Blocks briefly until all in-flight [Stage.Submit] calls exit, then
-// closes the input channel. Typically sub-microsecond.
+// closes the input channel.
 //
 // Idempotent — safe to call multiple times (use defer as safety net).
 // Also called internally on fail-fast or parent context cancellation.
