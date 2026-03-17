@@ -3,7 +3,7 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, constrained stage processing (bounded worker with backpressure and stats)
+**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, constrained stage processing (bounded worker with backpressure and stats), pipeline composition (multi-stage with error passthrough and per-stage observability)
 **Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive. Constrained stage processing (`toc`) is in scope as a pipeline building block — it runs items through a known bottleneck with observability, not a general job queue.
 
 ## System Invariants
@@ -39,6 +39,7 @@
 | Cache expensive function results | Blue | low |
 | Maintain a persistent priority queue | Blue | low |
 | Process items through a known bottleneck with bounded concurrency and observability | Blue | med |
+| Compose multi-stage processing pipelines with per-stage observability and error passthrough | Blue | med |
 | Replace manual loop patterns with composable operations across the codebase | White | — |
 
 ## Use Cases
@@ -611,3 +612,43 @@
 - Error mode: fail-fast (default), continue-on-error
 - Stats: submitted/completed/failed/panicked/canceled counts, service time, idle time, output-blocked time, buffered depth, in-flight weight
 - Shutdown: explicit (CloseInput), fail-fast (automatic), parent cancel (automatic via cancel watcher)
+
+### UC-14: Compose Multi-Stage Processing Pipelines
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: items processed through a chain of constrained stages with per-stage observability, error passthrough, and backpressure
+- Operator: per-stage stats reveal which stage is the bottleneck (the DBR "drum")
+
+**Postconditions:**
+- Every item from the source has been processed or accounted for (completed, forwarded, or dropped)
+- All stages have shut down cleanly — no goroutine leaks, no upstream deadlocks
+- Per-stage stats reflect actual constraint behavior independently
+
+**Minimal Guarantee:** Pipeline always shuts down if the tail consumer drains output. Source ownership rule: every library-owned operator drains its upstream to completion, preventing deadlocks on unbuffered channels.
+
+**Preconditions:**
+- Developer has multiple processing stages with different concurrency or resource profiles
+- Developer knows the constraint topology (which stages are CPU-bound, I/O-bound, serial)
+
+**Main Scenario:**
+1. Developer starts a head stage with Start, submitting items from a producer goroutine.
+2. Developer creates intermediate stages with Pipe (or NewBatcher for accumulation), each reading from the previous stage's Out().
+3. Each Pipe stage's feeder reads upstream results: Ok values go to workers, Err values pass through directly to the output.
+4. Developer drains the tail stage's Out() to receive final results (successes and forwarded errors).
+5. Developer calls Wait on each stage in reverse order to confirm clean shutdown.
+
+**Extensions:**
+- 3a. Upstream error in a Pipe stage: Error bypasses workers and appears directly in the output (data-plane error). The stage continues processing subsequent items. Wait returns nil — forwarded errors do not trigger fail-fast.
+- 3b. Pipe stage's fn returns an error (fail-fast mode): Stage cancels its own workers. Upstream stages continue until backpressure stalls them or parent context is canceled. Feeder continues draining source (source ownership rule).
+- 3c. Parent context canceled mid-pipeline: All stages observe cancellation. Pipe feeders and Batchers switch to discard mode — continue draining source but discard items. Partial Batcher batches are discarded (not flushed). Stats reflect all drops.
+- 2a. Batcher between stages: Batcher accumulates up to n Ok items. Errors act as batch boundaries — flush partial batch, forward error, start fresh accumulator.
+- 5a. Wait called in forward order: Also valid — Wait may be called in any order after tail Out() is drained. Reverse order is recommended but not required.
+
+**Sub-Variations:**
+- Pipeline shape: Start → Pipe, Start → Batcher → Pipe, Start → Batcher → Pipe → Pipe (4-handle)
+- Per-stage workers: different worker counts per stage (e.g., N chunkers, E embedders, 1 writer)
+- Error modes: per-stage fail-fast or continue-on-error (independent per stage)
+- Pipe stats: Received = Submitted + Forwarded + Dropped
+- Batcher stats: Received = Emitted + Forwarded + Dropped

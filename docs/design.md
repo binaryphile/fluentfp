@@ -673,6 +673,42 @@ func (s *Stage[T, R]) Cause() error
 
 **Not an abstraction over errgroup:** Different concern. errgroup manages N goroutines with shared error. toc manages a bounded queue + worker pool with per-item results, stats, and lifecycle. `FanOut` in slice covers the errgroup-shaped case.
 
+### D27: Pipeline composition via free functions (Pipe, Batcher)
+
+```go
+func Pipe[T, R any](ctx context.Context, src <-chan rslt.Result[T],
+    fn func(context.Context, T) (R, error), opts Options[T]) *Stage[T, R]
+func NewBatcher[T any](ctx context.Context, src <-chan rslt.Result[T], n int) *Batcher[T]
+```
+
+**Context:** Composing multiple toc stages requires manual channel wiring — goroutine management, error forwarding, lifecycle coordination. Evaluated 6 alternatives on Go generics feasibility, type safety, ergonomics, per-stage backpressure, per-stage stats, and lifecycle complexity.
+
+| | Hetero chains | Type safety | Ergonomics | Per-stage BP | Per-stage stats | Lifecycle |
+|---|---|---|---|---|---|---|
+| Manual wiring | yes | high | low | yes | no | high |
+| Fluent builder | blocked (Go ≤1.26) | high | high | yes | yes | medium |
+| Binary Compose | yes | high | medium | yes | yes | high |
+| hof.PipeErr | yes | high | high | no | no | low |
+| **Pipe + Batcher** | **yes** | **high** | **medium** | **yes** | **yes** | **medium** |
+
+**Decision:** Free-function composition. Pipe creates stages from upstream Result channels with error passthrough (upstream Err bypasses fn, flows directly to output). Batcher accumulates items between stages with error-as-batch-boundary semantics. Internal `start` constructor registers all out-senders (workers + feeder) in WaitGroup before any goroutine launches.
+
+**Two error planes:** Data-plane errors (per-item `rslt.Err` in Out()) vs control-plane errors (Wait()/Cause()). Forwarded upstream errors are always data-plane — they never trigger fail-fast in the downstream stage.
+
+**Alternatives evaluated:**
+- Pipeline builder (5 variants: fluent method, free-function chain, interface-erased, codegen, homogeneous-only — all blocked by Go type system or unacceptable tradeoffs)
+- Binary Compose (insufficient incremental value + temporal ownership complexity where stage2 was usable before compose, creating validity window — deferred to v2)
+- fn-only hof.PipeErr (complementary for cheap transforms where per-stage observability is unnecessary — separate task)
+- Existing libraries: rill, go-streams, splunk/pipelines, conduit (all own execution internally, conflicting with toc's worker pool + stats)
+- Bidirectional flow (different problem — request/response needs correlation, deferred)
+- Manual wiring (baseline — Pipe standardizes error passthrough, source drain, stats accounting)
+
+**Consequences:**
+- Pipe returns `*Stage[T, R]`, exposing Submit/CloseInput which are misuse on Pipe stages. Both handled gracefully (no panic, no deadlock). Narrower type can be added in v2.
+- Stats struct grows 24 bytes for Received/Forwarded/Dropped atomics (always zero for Start-created stages).
+- Batcher introduces n-1 items of hidden buffering. Downstream capacity counts batches, not original items.
+- Cancellation is stage-local by policy. Pipeline-wide shutdown requires shared parent context cancellation. Source ownership rule: operators drain src to completion, provided consumer drains Out or ctx is canceled and src eventually closes. Error passthrough during shutdown is best-effort (cancel-aware sends may race).
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.
@@ -807,6 +843,8 @@ Where packages depend on each other, and why:
 | `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
 | `Stage.Out` → `rslt.Result[R]` | Per-item results for constrained stage processing. Results carry success values, fn errors, panic errors, or cancel causes. |
 | `Stage.safeCall` → `rslt.PanicError` | Same pattern as `FanOut` — recovered panics wrapped as errors with stack trace. |
+| `Pipe` feeder → `rslt.Result[T]` | Reads upstream Result channel, unwraps Ok for workers, forwards Err directly to output (error passthrough). |
+| `Batcher.Out` → `rslt.Result[[]T]` | Emits batches as Ok results, forwards upstream errors as batch boundaries. |
 
 `hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair`; `toc` depends on `rslt` — none of these import each other.
 

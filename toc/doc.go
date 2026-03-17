@@ -1,5 +1,6 @@
 // Package toc provides a constrained stage runner inspired by
-// Drum-Buffer-Rope (Theory of Constraints).
+// Drum-Buffer-Rope (Theory of Constraints), with pipeline composition
+// via [Pipe] and [NewBatcher].
 //
 // A Stage owns a bounded input queue and one or more workers with bounded
 // concurrency. Producers submit items via [Stage.Submit]; the stage
@@ -12,7 +13,8 @@
 // acting as the constraint and whether downstream backpressure is
 // suppressing throughput.
 //
-// Lifecycle:
+// # Single-Stage Lifecycle
+//
 //  1. Start a stage with [Start]
 //  2. Submit items with [Stage.Submit] from one or more goroutines
 //  3. Call [Stage.CloseInput] when all submissions are done (see below)
@@ -42,6 +44,21 @@
 // terminal-status semantics (Wait vs Cause). See [Stage.Wait] for
 // completion semantics.
 //
+// # Pipeline Composition
+//
+// [Pipe] composes stages by reading from an upstream Result channel,
+// forwarding Ok values to workers and passing Err values directly to the
+// output (error passthrough). [NewBatcher] accumulates items into batches
+// between stages.
+//
+// Pipelines have two error planes: data-plane errors (per-item rslt.Err
+// in [Stage.Out]) and control-plane errors ([Stage.Wait] / [Stage.Cause]).
+// Forwarded upstream errors are data-plane only — they never trigger
+// fail-fast in the downstream stage.
+//
+// See the package README for pipeline lifecycle contract, cancellation
+// topology, and selection rubric (hof.PipeErr vs toc.Pipe).
+//
 // This package is for pipelines with a known bottleneck stage. If you
 // don't know your constraint, profile first.
 package toc
@@ -54,6 +71,7 @@ import "github.com/binaryphile/fluentfp/rslt"
 func _() {
 	// Stage lifecycle
 	_ = Start[int, string]
+	_ = Pipe[int, string]
 	_ = ErrClosed
 
 	// Options fields
@@ -67,6 +85,7 @@ func _() {
 	// Stats fields
 	_ = Stats{
 		Submitted: 0, Completed: 0, Failed: 0, Panicked: 0, Canceled: 0,
+		Received: 0, Forwarded: 0, Dropped: 0,
 		ServiceTime: 0, IdleTime: 0, OutputBlockedTime: 0,
 		BufferedDepth: 0, InFlightWeight: 0, QueueCapacity: 0,
 	}
@@ -81,6 +100,21 @@ func _() {
 	_ = s.DiscardAndWait
 	_ = s.DiscardAndCause
 	_ = s.Stats
+
+	// Batcher lifecycle
+	_ = NewBatcher[int]
+
+	// BatcherStats fields
+	_ = BatcherStats{
+		Received: 0, Emitted: 0, Forwarded: 0, Dropped: 0,
+		BufferedDepth: 0, BatchCount: 0, OutputBlockedTime: 0,
+	}
+
+	// Batcher methods
+	var b *Batcher[int]
+	_ = b.Out
+	_ = b.Wait
+	_ = b.Stats
 
 	// rslt dependency (used by Out return type)
 	var _ rslt.Result[string]

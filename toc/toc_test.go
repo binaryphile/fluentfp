@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1872,4 +1873,499 @@ func TestUndrainedOutBlocksWait(t *testing.T) {
 	// Clean up: drain so the test doesn't leak.
 	drain(stage)
 	<-done
+}
+
+// --- Pipe tests ---
+
+// feedResults sends results to a channel and closes it.
+func feedResults[T any](results ...rslt.Result[T]) <-chan rslt.Result[T] {
+	ch := make(chan rslt.Result[T], len(results))
+	for _, r := range results {
+		ch <- r
+	}
+	close(ch)
+
+	return ch
+}
+
+// tripleIt triples its input.
+func tripleIt(_ context.Context, n int) (int, error) { return n * 3, nil }
+
+func TestPipeHappyPath(t *testing.T) {
+	// Start → Pipe: double then triple.
+	stage1 := toc.Start(context.Background(), doubleIt, toc.Options[int]{Capacity: 5})
+
+	for i := 1; i <= 5; i++ {
+		stage1.Submit(context.Background(), i)
+	}
+	stage1.CloseInput()
+
+	stage2 := toc.Pipe(context.Background(), stage1.Out(), tripleIt, toc.Options[int]{})
+
+	var results []int
+	for r := range stage2.Out() {
+		v, err := r.Unpack()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		results = append(results, v)
+	}
+
+	if len(results) != 5 {
+		t.Fatalf("got %d results, want 5", len(results))
+	}
+
+	// With Workers=1, order is preserved.
+	for i, v := range results {
+		want := (i + 1) * 2 * 3
+		if v != want {
+			t.Errorf("result[%d] = %d, want %d", i, v, want)
+		}
+	}
+
+	if err := stage2.Wait(); err != nil {
+		t.Fatalf("stage2.Wait: %v", err)
+	}
+	if err := stage1.Wait(); err != nil {
+		t.Fatalf("stage1.Wait: %v", err)
+	}
+}
+
+func TestPipeErrorPassthrough(t *testing.T) {
+	testErr := errors.New("upstream error")
+	src := feedResults(
+		rslt.Ok(1),
+		rslt.Err[int](testErr),
+		rslt.Ok(2),
+	)
+
+	// callCount tracks how many times fn is called.
+	var callCount atomic.Int32
+	fn := func(_ context.Context, n int) (int, error) {
+		callCount.Add(1)
+
+		return n * 10, nil
+	}
+
+	stage := toc.Pipe(context.Background(), src, fn, toc.Options[int]{})
+
+	var oks []int
+	var errs []error
+	for r := range stage.Out() {
+		if v, err := r.Unpack(); err != nil {
+			errs = append(errs, err)
+		} else {
+			oks = append(oks, v)
+		}
+	}
+
+	if len(oks) != 2 {
+		t.Fatalf("got %d ok results, want 2", len(oks))
+	}
+	if len(errs) != 1 {
+		t.Fatalf("got %d errors, want 1", len(errs))
+	}
+	if !errors.Is(errs[0], testErr) {
+		t.Fatalf("got error %v, want %v", errs[0], testErr)
+	}
+
+	// fn should only be called for Ok values.
+	if c := callCount.Load(); c != 2 {
+		t.Fatalf("fn called %d times, want 2", c)
+	}
+
+	if err := stage.Wait(); err != nil {
+		t.Fatalf("Wait: %v", err)
+	}
+}
+
+func TestPipeMixedResults(t *testing.T) {
+	testErr := errors.New("mid-stream error")
+	src := feedResults(
+		rslt.Ok(1),
+		rslt.Ok(2),
+		rslt.Err[int](testErr),
+		rslt.Ok(3),
+	)
+
+	stage := toc.Pipe(context.Background(), src, doubleIt, toc.Options[int]{})
+
+	var oks []int
+	var errs int
+	for r := range stage.Out() {
+		if v, err := r.Unpack(); err != nil {
+			errs++
+		} else {
+			oks = append(oks, v)
+		}
+	}
+
+	// Forwarded errors bypass the worker queue, so order is not guaranteed
+	// even with Workers=1. Verify all items are present.
+	if errs != 1 {
+		t.Errorf("got %d errors, want 1", errs)
+	}
+
+	sort.Ints(oks)
+	wantOks := []int{2, 4, 6}
+	if len(oks) != len(wantOks) {
+		t.Fatalf("got %d ok results, want %d", len(oks), len(wantOks))
+	}
+	for i, v := range oks {
+		if v != wantOks[i] {
+			t.Errorf("ok[%d] = %d, want %d", i, v, wantOks[i])
+		}
+	}
+
+	stage.Wait()
+}
+
+func TestPipeMultiWorker(t *testing.T) {
+	src := feedResults(
+		rslt.Ok(1), rslt.Ok(2), rslt.Ok(3), rslt.Ok(4), rslt.Ok(5),
+	)
+
+	stage := toc.Pipe(context.Background(), src, doubleIt, toc.Options[int]{
+		Workers:  3,
+		Capacity: 5,
+	})
+
+	var results []int
+	for r := range stage.Out() {
+		v, err := r.Unpack()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		results = append(results, v)
+	}
+
+	if len(results) != 5 {
+		t.Fatalf("got %d results, want 5", len(results))
+	}
+
+	stage.Wait()
+}
+
+func TestPipeCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Slow upstream — gives time to cancel.
+	slowFn := func(ctx context.Context, n int) (int, error) {
+		time.Sleep(50 * time.Millisecond)
+
+		return n, nil
+	}
+
+	stage1 := toc.Start(ctx, slowFn, toc.Options[int]{Capacity: 20})
+	for i := 0; i < 20; i++ {
+		stage1.Submit(ctx, i)
+	}
+	stage1.CloseInput()
+
+	stage2 := toc.Pipe(ctx, stage1.Out(), doubleIt, toc.Options[int]{})
+
+	// Let some items flow, then cancel.
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+
+	// Must complete without deadlock (drain finishes).
+	for range stage2.Out() {
+	}
+
+	stage2.Wait()
+	stage1.Wait()
+}
+
+func TestPipePanicRecovery(t *testing.T) {
+	src := feedResults(rslt.Ok(1))
+
+	panicFn := func(_ context.Context, _ int) (int, error) {
+		panic("boom")
+	}
+
+	stage := toc.Pipe(context.Background(), src, panicFn, toc.Options[int]{})
+
+	results := drain(stage)
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+
+	_, err := results[0].Unpack()
+	if err == nil {
+		t.Fatal("expected error from panic")
+	}
+
+	var pe *rslt.PanicError
+	if !errors.As(err, &pe) {
+		t.Fatalf("expected PanicError, got %T: %v", err, err)
+	}
+
+	if pe.Value != "boom" {
+		t.Fatalf("panic value = %v, want boom", pe.Value)
+	}
+}
+
+func TestPipeStats(t *testing.T) {
+	testErr := errors.New("err")
+	src := feedResults(
+		rslt.Ok(1),
+		rslt.Err[int](testErr),
+		rslt.Ok(2),
+		rslt.Ok(3),
+	)
+
+	stage := toc.Pipe(context.Background(), src, doubleIt, toc.Options[int]{})
+	for range stage.Out() {
+	}
+	stage.Wait()
+
+	stats := stage.Stats()
+	if stats.Received != 4 {
+		t.Errorf("Received = %d, want 4", stats.Received)
+	}
+	if stats.Submitted != 3 {
+		t.Errorf("Submitted = %d, want 3", stats.Submitted)
+	}
+	if stats.Forwarded != 1 {
+		t.Errorf("Forwarded = %d, want 1", stats.Forwarded)
+	}
+	if stats.Dropped != 0 {
+		t.Errorf("Dropped = %d, want 0", stats.Dropped)
+	}
+
+	// Invariant: Received = Submitted + Forwarded + Dropped
+	if stats.Received != stats.Submitted+stats.Forwarded+stats.Dropped {
+		t.Errorf("invariant violated: %d != %d + %d + %d",
+			stats.Received, stats.Submitted, stats.Forwarded, stats.Dropped)
+	}
+}
+
+func TestPipeForwardedErrorNoFailFast(t *testing.T) {
+	testErr := errors.New("upstream error")
+	src := feedResults(
+		rslt.Err[int](testErr),
+		rslt.Ok(1),
+	)
+
+	stage := toc.Pipe(context.Background(), src, doubleIt, toc.Options[int]{})
+
+	var errs int
+	for r := range stage.Out() {
+		if _, err := r.Unpack(); err != nil {
+			errs++
+		}
+	}
+
+	if errs != 1 {
+		t.Fatalf("got %d errors, want 1", errs)
+	}
+
+	// Wait should return nil — forwarded errors don't trigger fail-fast.
+	if err := stage.Wait(); err != nil {
+		t.Fatalf("Wait returned %v, want nil (forwarded errors are data-plane)", err)
+	}
+}
+
+func TestPipeSourceDrain(t *testing.T) {
+	// Create a stage that will fail-fast on the first item.
+	failFn := func(_ context.Context, n int) (int, error) {
+		return 0, errors.New("always fail")
+	}
+
+	// Unbuffered src — upstream will block if feeder doesn't drain.
+	src := make(chan rslt.Result[int])
+
+	stage := toc.Pipe(context.Background(), src, failFn, toc.Options[int]{})
+
+	// Feed items. The feeder must drain even after fail-fast.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 5; i++ {
+			src <- rslt.Ok(i)
+		}
+		close(src)
+	}()
+
+	for range stage.Out() {
+	}
+	stage.Wait()
+
+	// If feeder didn't drain, the sender goroutine would be stuck.
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("sender goroutine stuck — feeder didn't drain src")
+	}
+
+	stats := stage.Stats()
+	if stats.Received != 5 {
+		t.Errorf("Received = %d, want 5", stats.Received)
+	}
+}
+
+func TestPipeNilSrcPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for nil src")
+		}
+	}()
+
+	toc.Pipe(context.Background(), nil, doubleIt, toc.Options[int]{})
+}
+
+func TestPipeWaitAnyOrder(t *testing.T) {
+	stage1 := toc.Start(context.Background(), doubleIt, toc.Options[int]{Capacity: 5})
+	for i := 0; i < 5; i++ {
+		stage1.Submit(context.Background(), i)
+	}
+	stage1.CloseInput()
+
+	stage2 := toc.Pipe(context.Background(), stage1.Out(), tripleIt, toc.Options[int]{})
+
+	for range stage2.Out() {
+	}
+
+	// Wait in forward order (not recommended, but must not deadlock).
+	if err := stage1.Wait(); err != nil {
+		t.Fatalf("stage1.Wait: %v", err)
+	}
+	if err := stage2.Wait(); err != nil {
+		t.Fatalf("stage2.Wait: %v", err)
+	}
+}
+
+func TestPipeForwardedErrorsDuringShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Source that sends errors while stage is canceling.
+	src := make(chan rslt.Result[int])
+
+	stage := toc.Pipe(ctx, src, doubleIt, toc.Options[int]{})
+
+	// Send some items then cancel.
+	src <- rslt.Ok(1)
+	cancel()
+
+	// Send errors after cancel — feeder should handle gracefully.
+	go func() {
+		for i := 0; i < 3; i++ {
+			src <- rslt.Err[int](errors.New("late error"))
+		}
+		close(src)
+	}()
+
+	for range stage.Out() {
+	}
+	stage.Wait()
+
+	stats := stage.Stats()
+	// All 4 items should be received.
+	if stats.Received != 4 {
+		t.Errorf("Received = %d, want 4", stats.Received)
+	}
+
+	// Invariant must hold.
+	if stats.Received != stats.Submitted+stats.Forwarded+stats.Dropped {
+		t.Errorf("invariant violated: %d != %d + %d + %d",
+			stats.Received, stats.Submitted, stats.Forwarded, stats.Dropped)
+	}
+}
+
+func TestPipeRace(t *testing.T) {
+	// Exercise concurrent feeder + multi-worker under -race.
+	src := make(chan rslt.Result[int], 100)
+	for i := 0; i < 100; i++ {
+		if i%10 == 0 {
+			src <- rslt.Err[int](errors.New("err"))
+		} else {
+			src <- rslt.Ok(i)
+		}
+	}
+	close(src)
+
+	stage := toc.Pipe(context.Background(), src, doubleIt, toc.Options[int]{
+		Workers:  4,
+		Capacity: 10,
+	})
+
+	count := 0
+	for range stage.Out() {
+		count++
+	}
+
+	if count != 100 {
+		t.Fatalf("got %d results, want 100", count)
+	}
+
+	stage.Wait()
+}
+
+func TestPipeComposedPipelineCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// slowFn simulates slow processing.
+	slowFn := func(ctx context.Context, n int) (int, error) {
+		time.Sleep(10 * time.Millisecond)
+
+		return n, nil
+	}
+
+	stage1 := toc.Start(ctx, slowFn, toc.Options[int]{Capacity: 20})
+	for i := 0; i < 20; i++ {
+		stage1.Submit(ctx, i)
+	}
+	stage1.CloseInput()
+
+	batched := toc.NewBatcher(ctx, stage1.Out(), 3)
+	stage3 := toc.Pipe(ctx, batched.Out(), func(_ context.Context, batch []int) (int, error) {
+		sum := 0
+		for _, v := range batch {
+			sum += v
+		}
+
+		return sum, nil
+	}, toc.Options[[]int]{})
+
+	// Cancel mid-flight.
+	time.Sleep(25 * time.Millisecond)
+	cancel()
+
+	// Must complete without deadlock.
+	for range stage3.Out() {
+	}
+
+	stage3.Wait()
+	batched.Wait()
+	stage1.Wait()
+}
+
+func TestPipeDownstreamFailUpstreamContinues(t *testing.T) {
+	ctx := context.Background()
+
+	stage1 := toc.Start(ctx, doubleIt, toc.Options[int]{Capacity: 10})
+	for i := 0; i < 10; i++ {
+		stage1.Submit(ctx, i)
+	}
+	stage1.CloseInput()
+
+	// Stage2 fails on first item — fail-fast cancels stage2 only.
+	failOnce := func(_ context.Context, n int) (int, error) {
+		return 0, errors.New("fail")
+	}
+
+	stage2 := toc.Pipe(ctx, stage1.Out(), failOnce, toc.Options[int]{})
+
+	for range stage2.Out() {
+	}
+
+	// stage2 should have a fail-fast error.
+	if err := stage2.Wait(); err == nil {
+		t.Fatal("stage2.Wait should return fail-fast error")
+	}
+
+	// stage1 should complete cleanly — fail-fast is stage-local.
+	if err := stage1.Wait(); err != nil {
+		t.Fatalf("stage1.Wait: %v (should be nil — upstream unaffected)", err)
+	}
 }

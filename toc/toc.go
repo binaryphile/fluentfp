@@ -63,6 +63,12 @@ type Stats struct {
 	Panicked  int64 // subset of Failed where fn panicked
 	Canceled  int64 // items dequeued but not passed to fn because cancellation was observed first (not in Completed)
 
+	// Pipe-specific counters. Zero for Start-created stages.
+	// Invariant (after Wait): Received = Submitted + Forwarded + Dropped.
+	Received  int64 // items consumed from src by feeder (any Result)
+	Forwarded int64 // upstream Err items sent directly to out (bypassed fn)
+	Dropped   int64 // items seen but neither submitted nor forwarded (shutdown/cancel)
+
 	ServiceTime       time.Duration // cumulative time fn was executing
 	IdleTime          time.Duration // cumulative worker time waiting for input (includes startup and tail wait)
 	OutputBlockedTime time.Duration // cumulative worker time blocked handing result to consumer (unbuffered out channel)
@@ -101,6 +107,9 @@ type Stage[T, R any] struct {
 	panicked      atomic.Int64
 	canceled      atomic.Int64
 	bufferedDepth atomic.Int64
+	received      atomic.Int64 // Pipe feeder: items consumed from src
+	forwarded     atomic.Int64 // Pipe feeder: upstream Err items sent to out
+	dropped       atomic.Int64 // Pipe feeder: items neither submitted nor forwarded
 
 	serviceNs       atomic.Int64
 	idleNs          atomic.Int64
@@ -125,30 +134,29 @@ type Stage[T, R any] struct {
 	cause error
 }
 
-// Start launches a constrained stage that processes items through fn.
-//
-// The stage starts a cancel watcher goroutine that calls [Stage.CloseInput]
-// when the context is canceled (either parent cancel or fail-fast). This
-// ensures workers always eventually exit.
-//
-// Panics if ctx is nil, fn is nil, Capacity is negative, or Workers is negative.
-func Start[T, R any](
+// feederFunc is the signature for Pipe's feeder goroutine.
+// The feeder reads from an upstream source and feeds items into the stage.
+// It is registered in wg before launch and must defer wg.Done().
+type feederFunc[T, R any] func(s *Stage[T, R], stageCtx context.Context)
+
+// start is the internal constructor shared by Start and Pipe.
+// All goroutines that send to out (workers + optional feeder) are registered
+// in wg before any goroutine launches. Invariant: out closes only after
+// every possible sender is done (wg.Wait returns).
+func start[T, R any](
 	ctx context.Context,
 	fn func(context.Context, T) (R, error),
 	opts Options[T],
+	feeder feederFunc[T, R],
 ) *Stage[T, R] {
-	if fn == nil {
-		panic("toc.Start: fn must not be nil")
-	}
-
 	capacity := opts.Capacity
 	if capacity < 0 {
-		panic("toc.Start: Capacity must be non-negative")
+		panic("toc: Capacity must be non-negative")
 	}
 
 	workers := opts.Workers
 	if workers < 0 {
-		panic("toc.Start: Workers must be non-negative")
+		panic("toc: Workers must be non-negative")
 	}
 	if workers == 0 {
 		workers = 1
@@ -174,10 +182,21 @@ func Start[T, R any](
 		weight:    weight,
 	}
 
-	s.wg.Add(workers)
+	// INVARIANT: every goroutine that sends to s.out must be counted here.
+	// close(s.out) happens only after wg.Wait returns. Adding a new sender
+	// without incrementing this count causes a send-on-closed-channel race.
+	senders := workers
+	if feeder != nil {
+		senders++
+	}
+	s.wg.Add(senders)
 
 	for i := 0; i < workers; i++ {
 		go s.worker(stageCtx, fn, failFast)
+	}
+
+	if feeder != nil {
+		go feeder(s, stageCtx)
 	}
 
 	// Cancel watcher: ensures input closes on any cancellation
@@ -187,30 +206,105 @@ func Start[T, R any](
 		s.CloseInput()
 	}()
 
-	// Closer: waits for all workers, latches terminal cause, cleans up.
-	// The stage is "complete" when close(s.done) fires. Parent context
-	// state is sampled here — if parent cancels between wg.Wait and
-	// the latch, Cause() reports parent cancellation (the stage had not
-	// yet published completion).
+	// Closer: waits for all senders (workers + feeder), latches terminal
+	// cause, cleans up. The stage is "complete" when close(s.done) fires.
 	go func() {
 		s.wg.Wait()
 
 		// Latch terminal cause before signaling completion.
-		// After this point, Cause() returns a stable, idempotent value.
 		s.errMu.Lock()
 		if s.err != nil {
 			s.cause = s.err
 		} else if ctx.Err() != nil {
-			s.cause = context.Cause(ctx) // ctx is parent, captured by closure
+			s.cause = context.Cause(ctx)
 		}
 		s.errMu.Unlock()
 
-		s.cancel(nil) // release context resources; triggers cancel watcher exit
+		s.cancel(nil)
 		close(s.out)
 		close(s.done)
 	}()
 
 	return s
+}
+
+// Start launches a constrained stage that processes items through fn.
+//
+// The stage starts a cancel watcher goroutine that calls [Stage.CloseInput]
+// when the context is canceled (either parent cancel or fail-fast). This
+// ensures workers always eventually exit.
+//
+// Panics if ctx is nil, fn is nil, Capacity is negative, or Workers is negative.
+func Start[T, R any](
+	ctx context.Context,
+	fn func(context.Context, T) (R, error),
+	opts Options[T],
+) *Stage[T, R] {
+	if fn == nil {
+		panic("toc.Start: fn must not be nil")
+	}
+
+	return start(ctx, fn, opts, nil)
+}
+
+// Pipe creates a stage that reads from an upstream Result channel,
+// forwarding Ok values to fn via workers and passing Err values directly
+// to the output (error passthrough). The feeder goroutine drains src
+// to completion, provided the consumer drains [Stage.Out] or ctx is
+// canceled, and src eventually closes. Cancellation unblocks output
+// sends but does not force-close src.
+//
+// Error passthrough is best-effort during shutdown: if ctx is canceled
+// or fail-fast fires, upstream Err values may be dropped instead of
+// forwarded (reflected in [Stats.Dropped]). During normal operation,
+// all upstream errors are forwarded.
+//
+// The returned stage's input side is owned by the feeder — do not call
+// [Stage.Submit] or [Stage.CloseInput] directly. Both are handled gracefully
+// (no panic, no deadlock) but are misuse. External Submit calls void the
+// stats invariant (Received will not account for externally submitted items).
+//
+// Stats: [Stats.Received] = [Stats.Submitted] + [Stats.Forwarded] + [Stats.Dropped].
+// Forwarded errors do not trigger fail-fast and do not affect [Stage.Wait].
+//
+// Panics if ctx is nil, src is nil, or fn is nil.
+func Pipe[T, R any](
+	ctx context.Context,
+	src <-chan rslt.Result[T],
+	fn func(context.Context, T) (R, error),
+	opts Options[T],
+) *Stage[T, R] {
+	if fn == nil {
+		panic("toc.Pipe: fn must not be nil")
+	}
+	if src == nil {
+		panic("toc.Pipe: src must not be nil")
+	}
+
+	feeder := func(s *Stage[T, R], stageCtx context.Context) {
+		defer s.wg.Done()
+		defer s.CloseInput()
+
+		for r := range src {
+			s.received.Add(1)
+
+			if v, err := r.Unpack(); err != nil {
+				// Error passthrough: forward to out, bypass workers.
+				select {
+				case s.out <- rslt.Err[R](err):
+					s.forwarded.Add(1)
+				case <-stageCtx.Done():
+					s.dropped.Add(1)
+				}
+			} else {
+				if submitErr := s.Submit(stageCtx, v); submitErr != nil {
+					s.dropped.Add(1)
+				}
+			}
+		}
+	}
+
+	return start(ctx, fn, opts, feeder)
 }
 
 // Submit sends item into the stage for processing. Blocks when the
@@ -438,6 +532,9 @@ func (s *Stage[T, R]) Stats() Stats {
 		Failed:            s.failed.Load(),
 		Panicked:          s.panicked.Load(),
 		Canceled:          s.canceled.Load(),
+		Received:          s.received.Load(),
+		Forwarded:         s.forwarded.Load(),
+		Dropped:           s.dropped.Load(),
 		ServiceTime:       time.Duration(s.serviceNs.Load()),
 		IdleTime:          time.Duration(s.idleNs.Load()),
 		OutputBlockedTime: time.Duration(s.outputBlockedNs.Load()),
