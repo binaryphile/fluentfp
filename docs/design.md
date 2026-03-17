@@ -32,6 +32,9 @@ flowchart TD
         either
         rslt
     end
+    subgraph Pipeline
+        toc
+    end
 
     combo --> slice
     combo --> pair
@@ -45,6 +48,7 @@ flowchart TD
     seq --> option
     seq --> pair
     heap --> option
+    toc --> rslt
 ```
 
 | Package | Role |
@@ -63,6 +67,7 @@ flowchart TD
 | `heap` | Persistent (immutable) pairing heap parameterized by comparator. Based on Stone Ch 4. O(1) insert/merge, O(log n) amortized delete-min. |
 | `combo` | Combinatorial generators — `CartesianProduct`, `Permutations`, `Combinations`, `PowerSet` |
 | `seq` | Iterator-native lazy chains wrapping `iter.Seq[T]`. Method chaining via defined type. Re-evaluates (vs stream's memoization). |
+| `toc` | Constrained stage runner — bounded input queue, serial/parallel workers, fail-fast default, atomic stats (service/idle/output-blocked time, weight-tracked InFlightWeight). Inspired by Drum-Buffer-Rope (Theory of Constraints). |
 
 Every package uses a `doc.go` containing a `func _()` that references all named exports. This is a compile-time proof that the exports exist — if any are renamed or removed, the build breaks.
 
@@ -639,6 +644,35 @@ future release.
 **Re-iteration is stateful:** Like `FromNext`, `FromChannel` wraps a stateful source.
 Second iteration continues from whatever channel state exists, not from the beginning.
 
+### D26: toc — Constrained stage runner
+
+Bounded input queue with serial/parallel workers, inspired by Drum-Buffer-Rope (Theory of Constraints).
+
+```go
+type Stage[T, R any] struct { /* unexported */ }
+
+func Start[T, R any](ctx context.Context, fn func(context.Context, T) (R, error), opts Options[T]) *Stage[T, R]
+func (s *Stage[T, R]) Submit(ctx context.Context, item T) error
+func (s *Stage[T, R]) CloseInput()
+func (s *Stage[T, R]) Out() <-chan rslt.Result[R]
+func (s *Stage[T, R]) Wait() error
+func (s *Stage[T, R]) Cause() error
+```
+
+**Why a stage runner over raw channels:** Go's `chan T` + `errgroup` can wire a bounded pipeline, but they don't give you: constraint-centric stats (starvation, utilization, output-blocked time), standard lifecycle contract (Submit → CloseInput → drain Out → Wait), or panic recovery. You re-invent the same 80 lines every time you have a known bottleneck.
+
+**RWMutex-based send coordination:** Senders hold RLock in `trySend`; `CloseInput` acquires Lock after closing a signal channel. This eliminates send-on-closed-channel panics without panic/recover. Prior approaches: (1) panic/recover — race detector flags concurrent close+send; (2) WaitGroup for sender tracking — `Add(1)` concurrent with `Wait()` when counter is 0 violates WaitGroup contract.
+
+**Unbuffered output channel:** Workers block on `s.out <- result` if nobody reads. This preserves downstream backpressure and makes output-blocked time measurable. The tradeoff is a liveness contract: callers MUST drain Out to prevent goroutine leaks.
+
+**Submit ctx is admission-only:** The `ctx` parameter to Submit controls only admission blocking — it is not passed to fn. The stage's own context (derived from Start's ctx) is what fn receives. This prevents items from being processed under a context that may be canceled before the worker picks them up.
+
+**Latched terminal cause:** The closer goroutine writes `cause` exactly once before `close(done)`. Wait/Cause read without lock after `<-done` per Go memory model (channel close synchronizes before zero-value receive). Cause distinguishes success, fail-fast error, and parent cancellation.
+
+**Fail-fast default:** First fn error cancels remaining work. Workers that already dequeued items and passed the ctx.Err() check may still call fn — cancellation is cooperative. ContinueOnError mode is opt-in.
+
+**Not an abstraction over errgroup:** Different concern. errgroup manages N goroutines with shared error. toc manages a bounded queue + worker pool with per-item results, stats, and lifecycle. `FanOut` in slice covers the errgroup-shaped case.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.
@@ -771,7 +805,9 @@ Where packages depend on each other, and why:
 | `Seq.Reduce` → `option.Option[T]` | Same pattern — empty sequence is normal, not exceptional. |
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 | `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
+| `Stage.Out` → `rslt.Result[R]` | Per-item results for constrained stage processing. Results carry success values, fn errors, panic errors, or cancel causes. |
+| `Stage.safeCall` → `rslt.PanicError` | Same pattern as `FanOut` — recovered panics wrapped as errors with stack trace. |
 
-`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair` — neither `kv` nor `slice` imports the other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair`; `toc` depends on `rslt` — none of these import each other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.

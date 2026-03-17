@@ -217,6 +217,15 @@ When multiple methods share **identical logic**, test ONE representative:
 Run tests: `go test ./...`
 Run with coverage: `go test -cover ./...`
 
+## Documentation Updates
+
+When adding or changing packages, always update these docs as part of the same commit:
+
+1. **Use cases** (`docs/use-cases.md`) — Cockburn-style, use the `use-case-skill` skill for format. Update scope line, actor-goal list, and add/modify use cases. Use cases come first — they define what the package does before design explains how.
+2. **Design** (`docs/design.md`) — Package structure table, mermaid diagram, design decisions (D-numbered).
+3. **README** (`README.md`) — Packages table, package highlights if warranted.
+4. **Package README** (`pkg/README.md`) — Per-package README following existing patterns.
+
 ## Branching Strategy: Trunk-Based Development
 
 - **Single trunk**: `main` is the only long-lived branch

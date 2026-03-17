@@ -232,6 +232,7 @@ Packages are independent — import one or all.
 | [pair](tuple/pair/) | Zip slices                    | `Zip`, `ZipWith`                               |
 | [combo](combo/)     | Combinatorial constructions   | `CartesianProduct`, `Combinations`, `PowerSet` |
 | [memo](memo/)       | Memoization                   | `Of`, `Fn`, `FnErr`, `NewLRU`                  |
+| [toc](toc/)         | Constrained stage runner      | `Start`, `Submit`, `CloseInput`, `Wait`        |
 | [lof](lof/)         | Lower-order function wrappers | `Len`, `Println`, `Identity`, `Inc`            |
 
 ## Package Highlights

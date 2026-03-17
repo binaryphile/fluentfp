@@ -735,48 +735,43 @@ func TestCanceledResultCarriesFailFastCause(t *testing.T) {
 
 func TestInFlightSuccessAfterFailFast(t *testing.T) {
 	errBoom := errors.New("boom")
-	worker1Started := make(chan struct{})
-	worker2Started := make(chan struct{})
-	worker1Release := make(chan struct{})
+	successStarted := make(chan struct{})
+	failStarted := make(chan struct{})
+	successRelease := make(chan struct{})
 
-	var callCount atomic.Int32
-
-	// fn: first call blocks until released (succeeds), second call fails immediately.
+	// fn: item 1 blocks until released (succeeds), item 2 fails immediately.
 	fn := func(_ context.Context, n int) (int, error) {
-		c := callCount.Add(1)
-		if c == 1 {
-			close(worker1Started)
-			<-worker1Release
+		if n == 1 {
+			close(successStarted)
+			<-successRelease
 
 			return n * 10, nil // success even after fail-fast
 		}
 
-		close(worker2Started)
+		close(failStarted)
 
 		return 0, errBoom
 	}
 
 	stage := toc.Start(context.Background(), fn, toc.Options[int]{Capacity: 5, Workers: 2})
 
-	stage.Submit(context.Background(), 1) // worker 1
-	stage.Submit(context.Background(), 2) // worker 2
+	stage.Submit(context.Background(), 1) // success worker
+	stage.Submit(context.Background(), 2) // fail worker
 
-	<-worker1Started
-	<-worker2Started
+	<-successStarted
+	<-failStarted
 
-	// Worker 2 has failed, triggering fail-fast.
-	// Release worker 1 to return success.
+	// Fail worker has failed, triggering fail-fast.
+	// Release success worker to return.
 	time.Sleep(10 * time.Millisecond) // let fail-fast propagate
-	close(worker1Release)
+	close(successRelease)
 
 	stage.CloseInput()
 
 	var successes int
 	for r := range stage.Out() {
-		if val, err := r.Unpack(); err == nil {
-			if val == 10 {
-				successes++
-			}
+		if _, err := r.Unpack(); err == nil {
+			successes++
 		}
 	}
 

@@ -3,8 +3,8 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics
-**Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive.
+**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, constrained stage processing (bounded worker with backpressure and stats)
+**Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive. Constrained stage processing (`toc`) is in scope as a pipeline building block — it runs items through a known bottleneck with observability, not a general job queue.
 
 ## System Invariants
 
@@ -38,6 +38,7 @@
 | Generate combinatorial selections from a collection | Blue | low |
 | Cache expensive function results | Blue | low |
 | Maintain a persistent priority queue | Blue | low |
+| Process items through a known bottleneck with bounded concurrency and observability | Blue | med |
 | Replace manual loop patterns with composable operations across the codebase | White | — |
 
 ## Use Cases
@@ -564,3 +565,49 @@
 - Zero-arg memoization (`Of`): deferred initialization, `sync.Once` replacement with retry-on-panic
 - Keyed memoization (`Fn`, `FnErr`): function caching by input
 - Cache strategies: unbounded map (`NewMap`), bounded LRU (`NewLRU`), custom (`Cache` interface with `Load`/`Store`)
+
+---
+
+### UC-13: Process Items Through a Constrained Stage
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: items processed through a known bottleneck with bounded concurrency and backpressure
+- Operator: constraint utilization visible via stats — can verify the bottleneck is real and detect downstream shifts
+
+**Postconditions:**
+- Every submitted item has a corresponding result
+- Stage has shut down cleanly — no goroutine leaks, no abandoned resources
+- Stats reflect actual constraint behavior (service time, idle time, output-blocked time)
+
+**Minimal Guarantee:** Stage always shuts down if the consumer drains output. No goroutine leaks on normal completion, fail-fast, or parent cancellation. Panics in the processing function are recovered as error results, not process crashes.
+
+**Preconditions:**
+- Developer has a processing function and a known bottleneck stage in a pipeline
+- Developer knows the constraint's concurrency limit (often 1 for serial resources)
+
+**Main Scenario:**
+1. Developer starts a stage with a processing function and options (capacity, workers).
+2. Developer submits items from one or more goroutines; the stage buffers them up to capacity.
+3. Workers dequeue items, process them through the function, and emit results.
+4. Developer reads results from the output channel until it closes.
+5. Developer calls Wait to confirm clean shutdown and retrieve any stage-level error.
+
+**Extensions:**
+- 2a. Buffer is full: Submit blocks the caller until capacity is available (backpressure / "rope").
+- 2b. Stage is shut down: Submit returns an error without blocking.
+- 2c. Caller's context is canceled while Submit is blocked: Submit returns the context error.
+- 3a. Processing function returns an error (fail-fast mode): Stage cancels remaining work, drains buffered items as canceled results, and shuts down. Wait returns the triggering error.
+- 3b. Processing function returns an error (continue-on-error mode): Stage continues processing remaining items. The error appears in the individual result.
+- 3c. Processing function panics: Stage recovers the panic and emits an error result with the panic value and stack trace. Stage continues processing (or shuts down if fail-fast).
+- 3d. Parent context is canceled: Stage stops accepting new items, drains buffered items as canceled results, and shuts down. Wait returns nil; Cause returns the parent's cancel cause.
+- 4a. Developer does not need individual results: Developer calls DiscardAndWait or DiscardAndCause to drain and retrieve stage-level status in one step.
+- 5a. Developer needs to distinguish success, fail-fast error, and parent cancellation: Developer calls Cause instead of Wait for the latched terminal cause.
+
+**Sub-Variations:**
+- Capacity: zero (unbuffered — Submit blocks until a worker dequeues), positive (buffered queue)
+- Workers: 1 (serial constraint), N (limited concurrency)
+- Error mode: fail-fast (default), continue-on-error
+- Stats: submitted/completed/failed/panicked/canceled counts, service time, idle time, output-blocked time, buffered depth, in-flight weight
+- Shutdown: explicit (CloseInput), fail-fast (automatic), parent cancel (automatic via cancel watcher)
