@@ -644,6 +644,7 @@
 - 3b. Pipe stage's fn returns an error (fail-fast mode): Stage cancels its own workers. Upstream stages continue until backpressure stalls them or parent context is canceled. Feeder continues draining source (source ownership rule).
 - 3c. Parent context canceled mid-pipeline: All stages observe cancellation. Pipe feeders and Batchers switch to discard mode — continue draining source but discard items. Partial Batcher batches are discarded (not flushed). Stats reflect all drops.
 - 2a. Batcher between stages: Batcher accumulates up to n Ok items. Errors act as batch boundaries — flush partial batch, forward error, start fresh accumulator.
+- 2b. WeightedBatcher between stages: accumulates items by weight or count (whichever reaches threshold first), preventing unbounded accumulation of zero/low-weight items. Same error-as-batch-boundary semantics.
 - 5a. Wait called in forward order: Also valid — Wait may be called in any order after tail Out() is drained. Reverse order is recommended but not required.
 
 **Sub-Variations:**
@@ -652,3 +653,4 @@
 - Error modes: per-stage fail-fast or continue-on-error (independent per stage)
 - Pipe stats: Received = Submitted + Forwarded + Dropped
 - Batcher stats: Received = Emitted + Forwarded + Dropped
+- WeightedBatcher stats: Received = Emitted + Forwarded + Dropped, BufferedWeight tracks accumulated cost

@@ -48,8 +48,10 @@
 //
 // [Pipe] composes stages by reading from an upstream Result channel,
 // forwarding Ok values to workers and passing Err values directly to the
-// output (error passthrough). [NewBatcher] accumulates items into batches
-// between stages.
+// output (error passthrough). [NewBatcher] accumulates items into
+// fixed-count batches between stages. [NewWeightedBatcher] accumulates
+// items into weight-based batches (flush when accumulated weight reaches
+// threshold).
 //
 // Pipelines have two error planes: data-plane errors (per-item rslt.Err
 // in [Stage.Out]) and control-plane errors ([Stage.Wait] / [Stage.Cause]).
@@ -115,6 +117,21 @@ func _() {
 	_ = b.Out
 	_ = b.Wait
 	_ = b.Stats
+
+	// WeightedBatcher lifecycle
+	_ = NewWeightedBatcher[int]
+
+	// WeightedBatcherStats fields
+	_ = WeightedBatcherStats{
+		Received: 0, Emitted: 0, Forwarded: 0, Dropped: 0,
+		BufferedDepth: 0, BufferedWeight: 0, BatchCount: 0, OutputBlockedTime: 0,
+	}
+
+	// WeightedBatcher methods
+	var wb *WeightedBatcher[int]
+	_ = wb.Out
+	_ = wb.Wait
+	_ = wb.Stats
 
 	// rslt dependency (used by Out return type)
 	var _ rslt.Result[string]

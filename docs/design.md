@@ -706,7 +706,7 @@ func NewBatcher[T any](ctx context.Context, src <-chan rslt.Result[T], n int) *B
 **Consequences:**
 - Pipe returns `*Stage[T, R]`, exposing Submit/CloseInput which are misuse on Pipe stages. Both handled gracefully (no panic, no deadlock). Narrower type can be added in v2.
 - Stats struct grows 24 bytes for Received/Forwarded/Dropped atomics (always zero for Start-created stages).
-- Batcher introduces n-1 items of hidden buffering. Downstream capacity counts batches, not original items.
+- Batcher introduces n-1 items of hidden buffering. Downstream capacity counts batches, not original items. WeightedBatcher adds dual flush (weight OR item count reaches threshold) for variable-cost items — prevents unbounded accumulation of zero/low-weight items. Same cancel patterns. Negative weights panic.
 - Cancellation is stage-local by policy. Pipeline-wide shutdown requires shared parent context cancellation. Source ownership rule: operators drain src to completion, provided consumer drains Out or ctx is canceled and src eventually closes. Error passthrough during shutdown is best-effort (cancel-aware sends may race).
 
 ## Allocation Model
@@ -845,6 +845,7 @@ Where packages depend on each other, and why:
 | `Stage.safeCall` → `rslt.PanicError` | Same pattern as `FanOut` — recovered panics wrapped as errors with stack trace. |
 | `Pipe` feeder → `rslt.Result[T]` | Reads upstream Result channel, unwraps Ok for workers, forwards Err directly to output (error passthrough). |
 | `Batcher.Out` → `rslt.Result[[]T]` | Emits batches as Ok results, forwards upstream errors as batch boundaries. |
+| `WeightedBatcher.Out` → `rslt.Result[[]T]` | Same as Batcher, weight-based flush condition. |
 
 `hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair`; `toc` depends on `rslt` — none of these import each other.
 

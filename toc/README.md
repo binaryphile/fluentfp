@@ -125,9 +125,17 @@ Batcher stats: `Received = Emitted + Forwarded + Dropped`.
 
 Batcher introduces up to n-1 items of hidden buffering. Downstream capacity counts batches, not original items.
 
+### WeightedBatcher
+
+`NewWeightedBatcher` flushes when accumulated weight OR item count reaches `threshold` — whichever comes first. Each Ok item's weight is determined by `weightFn func(T) int`. The item-count fallback prevents unbounded accumulation of zero/low-weight items. `weightFn` must return non-negative values (negative panics).
+
+Useful when items have variable cost (e.g., files with different text counts — batch until total texts >= 64, but also cap at 64 files regardless of weight).
+
+WeightedBatcher stats: same as Batcher plus `BufferedWeight` (accumulated weight in partial batch). Invariant: `Received = Emitted + Forwarded + Dropped`.
+
 ### Lifecycle Contract
 
-**Source ownership:** Pipe and Batcher drain their source to completion. This requires two conditions: (1) the consumer drains `Out()` or ctx is canceled (downstream liveness), and (2) the upstream source eventually closes (upstream completion). Cancellation solves downstream liveness — it unblocks output sends so the operator can continue draining. It does not force-close the source. If the source never closes, the operator blocks in drain/discard mode indefinitely. After cancellation, both switch to discard mode (continue reading source, discard items). If the consumer stops reading and ctx is never canceled, the operator blocks on output delivery and cannot drain its source.
+**Source ownership:** Pipe, Batcher, and WeightedBatcher drain their source to completion. This requires two conditions: (1) the consumer drains `Out()` or ctx is canceled (downstream liveness), and (2) the upstream source eventually closes (upstream completion). Cancellation solves downstream liveness — it unblocks output sends so the operator can continue draining. It does not force-close the source. If the source never closes, the operator blocks in drain/discard mode indefinitely. After cancellation, all switch to discard mode (continue reading source, discard items). If the consumer stops reading and ctx is never canceled, the operator blocks on output delivery and cannot drain its source.
 
 **Cancellation:** Fail-fast is stage-local — it cancels only the stage, not upstream. For pipeline-wide shutdown, cancel the shared parent context. This favors deterministic draining over aggressive abort.
 
