@@ -2,7 +2,7 @@
 
 **Fluent functional programming for Go.**
 
-A thin abstraction that removes common loop-scaffolding bugs from Go. Chain type-safe operations on slices, options, and sum types — no loop scaffolding, no intermediate variables.
+Type-safe collection chains, composable resilience (retry, circuit breaker, throttle), bounded concurrency pipelines, typed HTTP handlers, and optional/result types — all on standard Go, no framework required.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for API docs and the **[showcase](docs/showcase.md)** for 16 before/after rewrites from real GitHub projects.
 
@@ -217,25 +217,65 @@ for _, v := range input {
 
 Packages are independent — import one or all.
 
-| Package             | Purpose                       | Key Functions                                  |
-| ------------------- | ----------------------------- | ---------------------------------------------- |
-| [slice](slice/)     | Collection transforms         | `KeepIf`, `RemoveIf`, `Fold`, `FanOutAll`      |
-| [kv](kv/)           | Map transforms                | `KeepIf`, `MapValues`, `Map`, `Values`         |
-| [option](option/)   | Optional values + conditionals | `Of`, `When`, `WhenCall`, `Or`, `NonZero`      |
-| [either](either/)   | Sum types                     | `Left`, `Right`, `Fold`, `Convert`, `FlatMap`  |
-| [rslt](rslt/)   | Typed error handling          | `Ok`, `Err`, `CollectAll`, `CollectOk`         |
-| [must](must/)       | Invariant enforcement         | `Get`, `BeNil`, `Of`                           |
-| [stream](stream/)   | Lazy memoized sequences       | `Generate`, `Unfold`, `Take`, `Collect`        |
-| [seq](seq/)         | Fluent iter.Seq chains        | `From`, `KeepIf`, `Take`, `Collect`            |
-| [heap](heap/)       | Persistent priority queue     | `New`, `Insert`, `Pop`, `Collect`              |
-| [hof](hof/)         | Function combinators          | `Pipe`, `Bind`, `Throttle`, `Retry`, `Debouncer` |
-| [pair](tuple/pair/) | Zip slices                    | `Zip`, `ZipWith`                               |
-| [combo](combo/)     | Combinatorial constructions   | `CartesianProduct`, `Combinations`, `PowerSet` |
-| [memo](memo/)       | Memoization                   | `Of`, `Fn`, `FnErr`, `NewLRU`                  |
-| [toc](toc/)         | Constrained stage runner with pipeline composition | `Start`, `Pipe`, `NewBatcher`, `NewWeightedBatcher`, `Submit`, `CloseInput`, `Wait` |
-| [lof](lof/)         | Lower-order function wrappers | `Len`, `Println`, `Identity`, `Inc`            |
+| Package             | Purpose                          | Key Functions                                  |
+| ------------------- | -------------------------------- | ---------------------------------------------- |
+| [slice](slice/)     | Collection transforms            | `KeepIf`, `RemoveIf`, `Fold`, `FanOutAll`      |
+| [kv](kv/)           | Map transforms                   | `KeepIf`, `MapValues`, `Map`, `Values`         |
+| [seq](seq/)         | Fluent iter.Seq chains           | `From`, `KeepIf`, `Take`, `Collect`            |
+| [stream](stream/)   | Lazy memoized sequences          | `Generate`, `Unfold`, `Take`, `Collect`        |
+| [option](option/)   | Optional values + conditionals   | `Of`, `When`, `Or`, `NonZero`, `Env`           |
+| [either](either/)   | Sum types                        | `Left`, `Right`, `Fold`, `Convert`, `FlatMap`  |
+| [rslt](rslt/)       | Typed error handling             | `Ok`, `Err`, `CollectAll`, `CollectOkAndErr`   |
+| [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
+| [hof](hof/)         | Resilience + function combinators | `Retry`, `WithBreaker`, `Throttle`, `MapErr`  |
+| [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`                  |
+| [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
+| [web](web/)         | Typed HTTP handlers              | `Adapt`, `DecodeJSON`, `Steps`                 |
+| [memo](memo/)       | Memoization                      | `Of`, `Fn`, `FnErr`, `NewLRU`                  |
+| [heap](heap/)       | Persistent priority queue        | `New`, `Insert`, `Pop`, `Collect`              |
+| [pair](tuple/pair/) | Zip slices                       | `Zip`, `ZipWith`                               |
+| [combo](combo/)     | Combinatorial constructions      | `CartesianProduct`, `Combinations`, `PowerSet` |
+| [lof](lof/)         | Lower-order function wrappers    | `Len`, `Println`, `Identity`, `Inc`            |
 
 ## Package Highlights
+
+**[hof](hof/)** — composable resilience decorators:
+
+```go
+// Retry with exponential backoff, only for transient errors
+backoff := hof.ExponentialBackoff(100 * time.Millisecond)
+fetcher := hof.Retry(3, backoff, isTransient, fetchData)
+
+// Circuit breaker — trips after 5 consecutive failures, resets after 30s
+cfg := hof.BreakerConfig{ResetTimeout: 30 * time.Second}
+breaker := hof.NewBreaker(cfg)
+protected := hof.WithBreaker(breaker, fetcher)
+
+// All decorators share func(ctx, T) (R, error) — stack freely
+throttled := hof.Throttle(10, protected)
+```
+
+**[web](web/)** — typed HTTP handlers on net/http:
+
+```go
+// Handlers return Result[Response] — no ResponseWriter, no manual status codes
+var createUser web.Handler = func(r *http.Request) rslt.Result[web.Response] {
+    req := rslt.Of(web.DecodeJSON[CreateReq](r))
+    return rslt.Map(req, createAndRespond)
+}
+
+// Adapt bridges to http.HandlerFunc; WithErrorMapper translates domain errors
+endpoint := web.Adapt(createUser, web.WithErrorMapper(domainToHTTP))
+mux.HandleFunc("POST /users", endpoint)
+```
+
+**[ctxval](ctxval/)** — typed context values without type assertions:
+
+```go
+type RequestID string
+ctx = ctxval.With(ctx, RequestID("abc-123"))
+reqID := ctxval.From[RequestID](ctx)  // Option[RequestID]
+```
 
 **[rslt](rslt/)** — typed error handling as values:
 
@@ -256,6 +296,36 @@ active := seq.FromIter(maps.Keys(configs)).KeepIf(isActive).Collect()
 naturals := stream.Generate(0, lof.Inc)
 first10Squares := stream.Map(naturals, square).Take(10).Collect()
 ```
+
+## Capability Map
+
+| If you need to... | Use | Package |
+| --- | --- | --- |
+| Filter, map, or fold a slice | `slice.From(s).KeepIf(f).ToString(g)` | slice |
+| Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
+| Retry on failure with backoff | `hof.Retry(3, backoff, shouldRetry, fn)` | hof |
+| Circuit-break an unhealthy dependency | `hof.WithBreaker(breaker, fn)` | hof |
+| Throttle concurrent access | `hof.Throttle(n, fn)` | hof |
+| Transform errors in a decorator chain | `hof.MapErr(fn, mapper)` | hof |
+| Debounce rapid calls | `hof.NewDebouncer(wait, fn)` | hof |
+| Represent optional values | `option.Of(v)`, `option.NonZero(v)`, `option.Env("KEY")` | option |
+| Inline conditional (no ternary in Go) | `option.When(cond, val).Or(fallback)` | option |
+| Handle (value, error) as a single value | `rslt.Of(strconv.Atoi(s))` | rslt |
+| Collect per-item outcomes from FanOut | `rslt.CollectOkAndErr(results)` | rslt |
+| Exhaustive two-branch dispatch | `either.Fold(e, onLeft, onRight)` | either |
+| Panic on invariant violation | `must.Get(fn())`, `must.BeNil(err)` | must |
+| Store typed values in context.Context | `ctxval.With(ctx, val)` / `ctxval.From[T](ctx)` | ctxval |
+| Build typed HTTP handlers on net/http | `web.Adapt(handler, web.WithErrorMapper(m))` | web |
+| Decode JSON request bodies | `web.DecodeJSON[T](r)` | web |
+| Run a bounded pipeline with backpressure | `toc.Start` → `toc.Pipe` → `toc.Pipe` | toc |
+| Batch items by count or weight | `toc.NewBatcher(ctx, src, n)` | toc |
+| Lazy iterate with memoization | `stream.Generate(seed, fn).Take(10).Collect()` | stream |
+| Lazy iterate without memoization | `seq.From(s).KeepIf(f).Take(10).Collect()` | seq |
+| Memoize a function | `memo.Of(fn)` or `memo.Fn(cache, fn)` | memo |
+| Work with maps functionally | `kv.Keys(m)`, `kv.MapValues(m, fn)` | kv |
+| Generate combinations/permutations | `combo.Combinations(items, k)` | combo |
+| Use a persistent priority queue | `heap.New(cmp).Insert(v)` | heap |
+| Zip two slices into pairs | `pair.Zip(as, bs)` or `pair.ZipWith(as, bs, fn)` | pair |
 
 ## Further Reading
 

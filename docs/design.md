@@ -35,6 +35,12 @@ flowchart TD
     subgraph Pipeline
         toc
     end
+    subgraph Context
+        ctxval
+    end
+    subgraph Web
+        web
+    end
 
     combo --> slice
     combo --> pair
@@ -49,6 +55,8 @@ flowchart TD
     seq --> pair
     heap --> option
     toc --> rslt
+    ctxval --> option
+    web --> rslt
 ```
 
 | Package | Role |
@@ -62,12 +70,14 @@ flowchart TD
 | `must` | Panic-on-error enforcement for initialization invariants |
 | `pair` | Tuple construction and pairwise slice operations |
 | `lof` | Adapters that make Go builtins usable as higher-order function arguments |
-| `hof` | Function combinators — composition, partial application, predicates, concurrency control, retry/backoff, debouncing, side-effect wrappers |
+| `hof` | Function combinators — composition, partial application, resilience (retry/backoff, circuit breaker, throttle), debouncing, error mapping, side-effect wrappers |
 | `memo` | Memoization — zero-arg lazy evaluation (`Of`), keyed function caching (`Fn`/`FnErr`), pluggable `Cache` interface with unbounded (`NewMap`) and LRU (`NewLRU`) strategies |
 | `heap` | Persistent (immutable) pairing heap parameterized by comparator. Based on Stone Ch 4. O(1) insert/merge, O(log n) amortized delete-min. |
 | `combo` | Combinatorial generators — `CartesianProduct`, `Permutations`, `Combinations`, `PowerSet` |
 | `seq` | Iterator-native lazy chains wrapping `iter.Seq[T]`. Method chaining via defined type. Re-evaluates (vs stream's memoization). |
 | `toc` | Constrained stage runner — bounded input queue, serial/parallel workers, fail-fast default, atomic stats (service/idle/output-blocked time, weight-tracked InFlightWeight). Inspired by Drum-Buffer-Rope (Theory of Constraints). |
+| `ctxval` | Typed context value storage — `With[T]`/`From[T]` keyed by type, `Key[T]` for named keys. Returns `Option[T]`. |
+| `web` | Typed HTTP handler composition on net/http — `Handler` returns `Result[Response]`, `Adapt` bridges to `http.HandlerFunc`, `WithErrorMapper` for domain→HTTP errors, `DecodeJSON` with configurable policy, `Steps` for same-type pipeline chains. |
 
 Every package uses a `doc.go` containing a `func _()` that references all named exports. This is a compile-time proof that the exports exist — if any are renamed or removed, the build breaks.
 
