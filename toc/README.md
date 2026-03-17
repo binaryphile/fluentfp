@@ -4,15 +4,15 @@ Constrained stage runner inspired by Drum-Buffer-Rope (Theory of Constraints). P
 
 ```go
 stage := toc.Start(ctx, processChunk, toc.Options[Chunk]{Capacity: 10})
-defer stage.CloseInput()
 
 go func() {
+    defer stage.CloseInput() // submitter owns closing input
+
     for _, chunk := range chunks {
         if err := stage.Submit(ctx, chunk); err != nil {
             break
         }
     }
-    stage.CloseInput()
 }()
 
 for result := range stage.Out() {
@@ -22,6 +22,26 @@ for result := range stage.Out() {
 
 err := stage.Wait()
 ```
+
+## DBR Background
+
+*If you already know DBR, skip to [What It Adds](#what-it-adds-over-raw-channels).*
+
+In Goldratt's *The Goal*, a scout troop hike illustrates the constraint problem: the slowest hiker (Herbie) determines throughput for the whole group. Steps before the constraint can produce work faster than it can consume, so without limits the gap grows unboundedly.
+
+Drum-Buffer-Rope (DBR) is the operational policy derived from this insight: the constraint's pace is the **drum** that sets the system's rhythm, a protective queue (the **buffer**) sits in front of the constraint so upstream stalls don't starve it, and a WIP limit (the **rope**) prevents upstream from outrunning the constraint.
+
+**DBR-inspired analogues in toc** (approximate software analogues, not a literal factory-floor DBR implementation):
+
+| DBR Concept | toc Analogue |
+|---|---|
+| Constraint (bottleneck) | The stage's processing capacity — `fn` execution bounded by `Workers` |
+| Drum (constraint's pace) | The stage's processing pace, primarily shaped by `fn` and `Workers` (actual throughput also depends on downstream consumption) |
+| Buffer (protective queue) | `Capacity` — bounded input queue in front of the constrained step |
+| Rope (WIP limit) | Bounded admission to the stage — `Submit` blocks when total WIP (`Capacity` + `Workers`) is saturated |
+| Constraint monitoring | `Stats` — ServiceTime, IdleTime, OutputBlockedTime indicate constraint utilization and downstream pressure |
+
+*The hiking analogy is from Goldratt, Eliyahu M. The Goal. North River Press, 1984. DBR applied to software in Tendon, Steve and Wolfram Müller. Hyper-Productive Knowledge Work Performance, Ch 18. J. Ross Publishing, 2015.*
 
 ## What It Adds Over Raw Channels
 

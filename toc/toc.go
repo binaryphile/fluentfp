@@ -1,73 +1,3 @@
-// Package toc provides a constrained stage runner inspired by
-// Drum-Buffer-Rope (Theory of Constraints).
-//
-// A Stage owns a bounded input queue and a serial (or limited-concurrency)
-// worker. Producers submit items via [Stage.Submit]; the stage processes
-// them through fn and emits results on [Stage.Out]. When the queue is
-// full, Submit blocks — this is the "rope" limiting upstream WIP.
-//
-// The stage tracks constraint utilization, idle time, and output-blocked
-// time via [Stage.Stats], enabling operators to verify the constraint is
-// real and detect when the bottleneck shifts downstream.
-//
-// Lifecycle:
-//  1. Start a stage with [Start]
-//  2. Submit items with [Stage.Submit] from one or more goroutines
-//  3. Call [Stage.CloseInput] when done submitting (use defer as safety net)
-//  4. Read results from [Stage.Out] until closed — MUST drain to completion
-//  5. Call [Stage.Wait] (or [Stage.Cause]) to block until shutdown completes
-//     Or combine steps 4-5: [Stage.DiscardAndWait] / [Stage.DiscardAndCause]
-//
-// CloseInput is also called internally on fail-fast error or parent context
-// cancellation, so the stage always shuts down cleanly. Callers should still
-// defer CloseInput for the normal-completion path.
-//
-// Cardinality: every [Stage.Submit] that returns nil yields exactly one
-// [rslt.Result] on [Stage.Out]. Submit calls that return an error produce
-// no result.
-//
-// Output draining: callers MUST read Out() until it closes (e.g.,
-// for result := range stage.Out()). See Liveness below for consequences
-// of not draining.
-//
-// Cancellation and fail-fast are cooperative: items already dequeued by a
-// worker may still call fn with a canceled context. See [Stage.Submit] for
-// admission-closure race semantics.
-//
-// Terminal status — [Stage.Wait] vs [Stage.Cause]:
-//
-//	Scenario                          Wait()       Cause()
-//	─────────────────────────────────────────────────────────
-//	All items succeed                 nil          nil
-//	Worker error (fail-fast)          error        error
-//	Parent cancel, no worker error    nil          parent cause
-//	Worker error + parent cancel      error*       error*
-//	Success, parent cancel after done nil          nil
-//
-//	* nondeterministic: whichever is observed first by the closer
-//
-// Completion boundary: the stage is "complete" when the closer goroutine
-// latches terminal cause and closes the done channel. This happens after
-// all workers exit. Workers exit after the input channel closes and all
-// dequeued items are processed and sent to [Stage.Out].
-//
-// Liveness: [Stage.Wait], [Stage.Cause], and the closer goroutine depend
-// on all workers exiting. Two conditions can prevent worker exit:
-//
-//  1. Consumer stops reading Out — workers block on result handoff.
-//  2. fn blocks forever or ignores context — the worker never returns.
-//
-// In either case, the closer never runs, [Stage.Wait] hangs, goroutines
-// leak, context resources are retained, and the stage is effectively
-// abandoned. fn must eventually return; honoring ctx.Done() is strongly
-// recommended. Always drain Out or use [Stage.DiscardAndWait] /
-// [Stage.DiscardAndCause].
-//
-// Total stage WIP is up to Capacity (buffered) + Workers (in-flight).
-// With Capacity 0 (unbuffered), WIP equals Workers.
-//
-// This package is for pipelines with a known bottleneck stage. If you
-// don't know your constraint, profile first.
 package toc
 
 import (
@@ -87,6 +17,10 @@ import (
 var ErrClosed = errors.New("toc: stage closed")
 
 // Options configures a [Stage].
+//
+// Total stage WIP (item count) is up to Capacity (buffered) + Workers
+// (in-flight). Capacity is always an item-count bound; [Options.Weight]
+// affects stats only, not admission.
 type Options[T any] struct {
 	// Capacity is the number of items the input buffer can hold.
 	// Submit blocks when the buffer is full (the "rope").
@@ -416,6 +350,8 @@ func (s *Stage[T, R]) Out() <-chan rslt.Result[R] { return s.out }
 // Wait does not initiate shutdown — call [Stage.CloseInput] first.
 // Without CloseInput, Wait blocks forever if no more items are submitted.
 // Requires that Out is drained concurrently (see [Stage.Out]).
+// The stage is complete when all workers have finished, terminal status
+// is latched, and the done channel closes.
 //
 // Returns the first observed fail-fast error, or nil. Specifically:
 //   - In fail-fast mode: returns the first fn error that caused shutdown
