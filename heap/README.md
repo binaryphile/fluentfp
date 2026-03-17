@@ -26,6 +26,26 @@ sorted := h.Collect()  // [1 2 3]
 combined := h.Merge(h2)
 ```
 
+## When to Use heap
+
+```go
+// TopK returns the k largest items without sorting the full slice.
+// Uses a min-heap of size k: insert each item, evict the smallest
+// when the heap exceeds k. O(n log k) vs O(n log n) for full sort.
+func TopK(items []int, k int) []int {
+    h := heap.New(lof.IntAsc)
+    for _, v := range items {
+        h = h.Insert(v)
+        if h.Len() > k {
+            h = h.DeleteMin()
+        }
+    }
+    return h.Collect()
+}
+```
+
+Other common uses: merging K sorted sources (log files, database shards) and priority scheduling. For ephemeral priority queues where mutation is fine, use `container/heap`. This package is for when you need persistence — undo, branching, or concurrent readers with no locking.
+
 ## Comparator Contract
 
 The comparator determines priority: `cmp(a, b) < 0` means `a` has higher priority than `b`. Use `slice.Asc` / `slice.Desc` or `lof.IntAsc` / `lof.IntDesc` to build comparators, or provide a custom `func(T, T) int`.

@@ -15,6 +15,8 @@ must.BeNil(err)
 
 `must.BeNil` replaces the three-line `if err != nil { panic(err) }` block with one line. `must.Get` goes further — four lines (declare, call, check, panic) become one.
 
+Reach for `must` at initialization boundaries — package-level vars (`must.Get(template.New("page").Parse(html))`), test fixtures (`must.Get(os.CreateTemp(...))`), CLI setup (`must.BeNil(os.MkdirAll(...))`). The pattern: if failure here means a programmer error or broken environment, not a runtime condition the user can fix, it's a `must` call. If you're writing `_ = fn()` or `if err != nil { panic(err) }`, that's `must` in disguise.
+
 ## What It Looks Like
 
 ```go

@@ -49,6 +49,17 @@ v, err = fetch("key")   // cached (if first call succeeded)
 lookup := memo.FnWith(expensiveLookup, memo.NewLRU[string, Result](1000))
 ```
 
+## Choosing a Variant
+
+| Need | Use | Why |
+|------|-----|-----|
+| One-shot initialization | `Of` | Single-flight, retries on panic — like `sync.Once` but recoverable |
+| Cache by input | `Fn` | Unbounded, successes cached permanently |
+| Cache by input, errors retry | `FnErr` | Only successes cached — transient failures get another chance |
+| Bounded cache | `FnWith` + `NewLRU` | LRU eviction at capacity |
+
+Most real-world uses are `FnErr` (API clients, database lookups) or `Of` (config loading, connection setup).
+
 ## Concurrency Semantics
 
 **`Of` guarantees single evaluation.** Concurrent callers wait for the in-flight evaluation — only one goroutine computes the rslt. This is true single-flight behavior.

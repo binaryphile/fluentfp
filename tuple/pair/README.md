@@ -8,6 +8,14 @@ Generic two-element tuple and parallel-slice zipping.
 pairs := pair.Zip(names, scores)  // []Pair[string, int]
 ```
 
+```go
+// Correlate servers with their health check results
+statuses := pair.Zip(servers, healthCheck(servers))
+// statuses[i].First is the server, statuses[i].Second is its status
+```
+
+Two slices that correspond element-by-element are a natural Zip — no index juggling, no off-by-one.
+
 ## What It Looks Like
 
 ```go
@@ -35,6 +43,13 @@ The zero value of `Pair[A, B]` is usable: `First` and `Second` hold the zero val
 `Zip` and `ZipWith` return a non-nil empty slice when both inputs have length 0, including when one or both inputs are nil. No nil preservation is performed.
 
 `Zip` and `ZipWith` panic if the input slices have different lengths. `ZipWith` also panics if `fn` is nil and the inputs are non-empty.
+
+## Useful Idioms
+
+- **Enumerate** — `slice.Enumerate(items)` returns `[]Pair[int, T]`, pairing each element with its index
+- **Multi-field extraction** — the inverse: `slice.Unzip2(users, User.Name, User.Age)` splits a slice into two parallel slices in one pass
+- **Pipeline filtering** — pairs are values, so they flow through `KeepIf`/`RemoveIf`: `slice.From(pairs).KeepIf(bothNonEmpty)`
+- **Cartesian product** — `combo.CartesianProduct(as, bs)` returns `Mapper[Pair[A, B]]` for all combinations
 
 ## Operations
 
