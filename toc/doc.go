@@ -1,6 +1,6 @@
 // Package toc provides a constrained stage runner inspired by
 // Drum-Buffer-Rope (Theory of Constraints), with pipeline composition
-// via [Pipe], [NewBatcher], and [NewTee].
+// via [Pipe], [NewBatcher], [NewTee], and [NewMerge].
 //
 // A Stage owns a bounded input queue and one or more workers with bounded
 // concurrency. Producers submit items via [Stage.Submit]; the stage
@@ -52,7 +52,9 @@
 // fixed-count batches between stages. [NewWeightedBatcher] accumulates
 // items into weight-based batches (flush when accumulated weight reaches
 // threshold). [NewTee] broadcasts each item to N branches (synchronous
-// lockstep — slowest consumer governs pace).
+// lockstep — slowest consumer governs pace). [NewMerge] recombines
+// multiple upstream Result channels into a single nondeterministic
+// stream (fan-in).
 //
 // Pipelines have two error planes: data-plane errors (per-item rslt.Err
 // in [Stage.Out]) and control-plane errors ([Stage.Wait] / [Stage.Cause]).
@@ -151,6 +153,21 @@ func _() {
 	_ = tee.Branch
 	_ = tee.Wait
 	_ = tee.Stats
+
+	// Merge lifecycle
+	_ = NewMerge[int]
+
+	// MergeStats fields
+	_ = MergeStats{
+		Received: 0, Forwarded: 0, Dropped: 0,
+		SourceReceived: nil, SourceForwarded: nil, SourceDropped: nil,
+	}
+
+	// Merge methods
+	var mg *Merge[int]
+	_ = mg.Out
+	_ = mg.Wait
+	_ = mg.Stats
 
 	// rslt dependency (used by Out return type)
 	var _ rslt.Result[string]

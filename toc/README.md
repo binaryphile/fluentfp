@@ -203,9 +203,36 @@ ftsRebuilder.Wait(); hnswFinalizer.Wait(); tee.Wait(); chunker.Wait()
 
 **When to use Tee vs manual channel wiring:** Use Tee when you need broadcast with stats and lifecycle management. Use manual channels when branches have different types or when you need custom routing logic.
 
+### Merge
+
+`NewMerge` recombines multiple upstream Result channels into a single nondeterministic stream (fan-in). One goroutine per source, all forwarding to a shared unbuffered output channel.
+
+```go
+chunker  := toc.Start(ctx, chunkFile, Options{Workers: N, Capacity: N*2})
+tee      := toc.NewTee(ctx, chunker.Out(), 2)
+ftsPipe  := toc.Pipe(ctx, tee.Branch(0), rebuildFTS, Options{Workers: 1})
+hnswPipe := toc.Pipe(ctx, tee.Branch(1), finalizeHNSW, Options{Workers: 1})
+merged   := toc.NewMerge(ctx, ftsPipe.Out(), hnswPipe.Out())
+storer   := toc.Pipe(ctx, merged.Out(), storeBatch, Options{Workers: 1})
+
+// feed, drain tail, wait reverse order
+```
+
+**Not the inverse of Tee.** Tee broadcasts identical items to all branches. Merge interleaves distinct items from independent sources. `Tee → ... → Merge` does not restore original ordering and does not correlate outputs from sibling branches.
+
+**Per-source order preserved.** Items from each individual source appear in the merged output in the same order they were received from that source. Cross-source order is nondeterministic.
+
+**Source ownership:** Each source must be distinct and exclusively owned by the Merge. Passing the same channel twice creates two goroutines racing on one source. Each source is drained to completion by its own goroutine. Sources may close at different times — early closure of one does not affect others.
+
+**Cancellation:** Advisory, not a hard stop. At most 1 item per source may forward after cancel, then discard mode. `Wait()` blocks until all sources close — cancellation alone does not guarantee prompt return. `Wait()` may return nil even after cancellation if no goroutine observed it on a checked path.
+
+**Liveness:** Consumer must drain `Out()` or cancel the shared context. If the consumer stops reading without canceling, all source goroutines block on the shared output send.
+
+**Per-source stats:** `SourceReceived[i]`, `SourceForwarded[i]`, `SourceDropped[i]` track each source's contribution. Aggregates are derived by summing per-source slices. Invariant (after Wait): `Received = Forwarded + Dropped`.
+
 ### Lifecycle Contract
 
-**Source ownership:** Pipe, Batcher, WeightedBatcher, and Tee drain their source to completion. This requires two conditions: (1) the consumer drains `Out()` or ctx is canceled (downstream liveness), and (2) the upstream source eventually closes (upstream completion). Cancellation solves downstream liveness — it unblocks output sends so the operator can continue draining. It does not force-close the source. If the source never closes, the operator blocks in drain/discard mode indefinitely. After cancellation, all switch to discard mode (continue reading source, discard items). If the consumer stops reading and ctx is never canceled, the operator blocks on output delivery and cannot drain its source.
+**Source ownership:** Pipe, Batcher, WeightedBatcher, Tee, and Merge drain their source(s) to completion. This requires two conditions: (1) the consumer drains `Out()` or ctx is canceled (downstream liveness), and (2) the upstream source eventually closes (upstream completion). Cancellation solves downstream liveness — it unblocks output sends so the operator can continue draining. It does not force-close the source. If the source never closes, the operator blocks in drain/discard mode indefinitely. After cancellation, all switch to discard mode (continue reading source, discard items). If the consumer stops reading and ctx is never canceled, the operator blocks on output delivery and cannot drain its source.
 
 **Cancellation:** Fail-fast is stage-local — it cancels only the stage, not upstream. For pipeline-wide shutdown, cancel the shared parent context. This favors deterministic draining over aggressive abort.
 
@@ -213,7 +240,7 @@ ftsRebuilder.Wait(); hnswFinalizer.Wait(); tee.Wait(); chunker.Wait()
 
 **Construction order (Tee):** NewTee starts immediately. All branch consumers should be wired before upstream produces items. With unbuffered branch channels, if a branch is not yet being read, Tee blocks on that branch's send.
 
-**Drain order:** Drain only the tail stage's Out(). Each Pipe/Batcher/Tee drains its upstream internally. After tail Out() closes, Wait() may be called in any order. Reverse order is recommended.
+**Drain order:** Drain only the tail stage's Out(). Each Pipe/Batcher/Tee/Merge drains its upstream internally. After tail Out() closes, Wait() may be called in any order. Reverse order is recommended.
 
 **Ordering:** No ordering guarantee with Workers > 1. With Workers == 1, worker results preserve encounter order. However, forwarded errors bypass the worker queue, so in Pipe stages they may arrive before buffered worker results regardless of worker count.
 

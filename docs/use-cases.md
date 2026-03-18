@@ -3,7 +3,7 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, constrained stage processing (bounded worker with backpressure and stats), pipeline composition (multi-stage with error passthrough and per-stage observability)
+**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, constrained stage processing (bounded worker with backpressure and stats), pipeline composition (multi-stage with error passthrough, fan-out/fan-in, and per-stage observability)
 **Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive. Constrained stage processing (`toc`) is in scope as a pipeline building block — it runs items through a known bottleneck with observability, not a general job queue.
 
 ## System Invariants
@@ -636,7 +636,7 @@
 
 **Main Scenario:**
 1. Developer starts a head stage with Start, submitting items from a producer goroutine.
-2. Developer creates intermediate stages with Pipe (or NewBatcher for accumulation, or NewTee for broadcast), each reading from the previous stage's Out().
+2. Developer creates intermediate stages with Pipe (or NewBatcher for accumulation, or NewTee for broadcast, or NewMerge for fan-in), each reading from the previous stage's Out().
 3. Each Pipe stage's feeder reads upstream results: Ok values go to workers, Err values pass through directly to the output.
 4. Developer drains the tail stage's Out() to receive final results (successes and forwarded errors).
 5. Developer calls Wait on each stage in reverse order to confirm clean shutdown.
@@ -648,6 +648,7 @@
 - 2a. Batcher between stages: Batcher accumulates up to n Ok items. Errors act as batch boundaries — flush partial batch, forward error, start fresh accumulator.
 - 2b. WeightedBatcher between stages: accumulates items by weight or count (whichever reaches threshold first), preventing unbounded accumulation of zero/low-weight items. Same error-as-batch-boundary semantics.
 - 2c. Tee between stages: Developer fans out one stream to multiple downstream paths. All branches observe the same logical sequence. Backpressure is preserved across the fan-out.
+- 2d. Merge between stages: Developer recombines multiple upstream paths into a single stream for downstream processing. Items from all sources appear in the merged output.
 - 5a. Wait called in forward order: Also valid — Wait may be called in any order after tail Out() is drained. Reverse order is recommended but not required.
 
 **Sub-Variations:**
@@ -659,3 +660,5 @@
 - Batcher stats: Received = Emitted + Forwarded + Dropped
 - WeightedBatcher stats: Received = Emitted + Forwarded + Dropped, BufferedWeight tracks accumulated cost
 - Tee stats: Received = FullyDelivered + PartiallyDelivered + Undelivered, per-branch BranchDelivered/BranchBlockedTime
+- DAG shape: Start → Tee → (Pipe, Pipe) → Merge → Pipe — fan-out then fan-in with independent downstream processing
+- Merge stats: per-source received, forwarded, dropped

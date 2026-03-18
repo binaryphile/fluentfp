@@ -683,7 +683,7 @@ func (s *Stage[T, R]) Cause() error
 
 **Not an abstraction over errgroup:** Different concern. errgroup manages N goroutines with shared error. toc manages a bounded queue + worker pool with per-item results, stats, and lifecycle. `FanOut` in slice covers the errgroup-shaped case.
 
-### D27: Pipeline composition via free functions (Pipe, Batcher, Tee)
+### D27: Pipeline composition via free functions (Pipe, Batcher, Tee, Merge)
 
 ```go
 func Pipe[T, R any](ctx context.Context, src <-chan rslt.Result[T],
@@ -782,6 +782,36 @@ func NewTee[T any](ctx context.Context, src <-chan rslt.Result[T], n int) *Tee[T
 **`ctxErr` synchronization:** `ctxErr` is written only in the run goroutine (before closing `done`) and read only in `Wait()` (after `<-done`). No concurrent access — happens-before via channel close.
 
 **Construction order:** NewTee starts immediately. All branch consumers should be wired before upstream produces items. With unbuffered outputs, if a branch is not yet being read, Tee blocks on that branch's send.
+
+### D30: Nondeterministic fan-in via Merge
+
+```go
+func NewMerge[T any](ctx context.Context, sources ...<-chan rslt.Result[T]) *Merge[T]
+```
+
+**Operator semantics:** Nondeterministic interleaving fan-in. One goroutine per source, all forwarding to a shared unbuffered output channel. Go runtime scheduler determines send order. No cross-source ordering guarantee, no fairness guarantee, no provenance tracking. Per-source order IS preserved: items from each individual source appear in the merged output in the same order they were received from that source (follows from one goroutine per source with sequential receive/send).
+
+**Not the inverse of Tee.** Tee broadcasts identical items to all branches. Merge interleaves distinct items from independent sources. `Tee → ... → Merge` does not restore original ordering, does not correlate outputs from sibling branches, and does not pair items across sources. Merge only interleaves values from homogeneous streams.
+
+**Why observational cancellation:** Cancellation is advisory — each source goroutine observes it at its next checkpoint rather than being preempted. Two checkpoints per iteration: a non-blocking pre-send check (bounds post-cancel forwarding to at most 1 item per source) and a blocking send-select (prevents deadlock when downstream stops reading). The goroutine cannot observe cancellation while blocked in `range src` — only when the source produces an item or closes. This means `Wait()` requires all sources to close, even after cancellation. The alternative (force-closing sources) would violate the source ownership contract and leave upstream senders blocked.
+
+**Why drain-after-cancel:** After observing cancellation, each goroutine continues draining its source to completion rather than abandoning it. This prevents upstream senders from blocking on sends into channels nobody reads. The cost is that `Wait()` may block until slow sources close. The alternative (abandon source, let upstream block) creates harder-to-diagnose deadlocks.
+
+**Why per-source atomics (not shared aggregates):** Each source goroutine writes only its own index — no cross-goroutine contention on the hot path (2 atomic ops per item instead of 4). Aggregates are derived by summing per-source slices in `Stats()`. Some cache-line false sharing may occur on adjacent atomic slots, but there is no logical write-sharing. This design prioritizes throughput over snapshot convenience.
+
+**Why sync.Once for ctxErr:** Unlike Tee (single goroutine that can write ctxErr directly), Merge has N source goroutines that may independently observe cancellation. `ctxErr` is latched by the first goroutine to take a cancel path via `sync.Once`. The closer goroutine does NOT write ctxErr — it only waits, closes output, and closes done. This prevents a late cancel (after natural completion) from falsely making `Wait()` return `context.Canceled`. Happens-before: `sync.Once` → `wg.Done()` → `wg.Wait()` → `close(out)` → `close(done)` → `<-done`.
+
+**Wait() nil-return after cancellation:** `Wait()` returns the latched context error only if a goroutine actually entered a cancel path. It may return nil even after cancellation — when all sources close before any goroutine loops back to the pre-send check, or when a goroutine is blocked in `range src` when cancel fires and the source closes without sending. This is intentional: the operator completed its work, cancellation had no observable effect, and reporting it would be a false positive.
+
+**No SourceOutputBlockedTime:** Unlike Tee's BranchBlockedTime (which reflects consumer speed per branch), Merge's output blocked time reflects shared downstream consumer speed plus scheduler contention — not attributable to individual sources. Dropped to avoid misleading metrics.
+
+**No provenance tracking:** Merge discards source identity. If downstream needs to know which source produced an item, the caller must tag items before merging. Deliberate non-goal — Merge is a stream combiner, not a correlator.
+
+**Distinct sources required:** Each source channel must be exclusively owned by the Merge. Duplicate channels create two goroutines racing on one source, breaking per-source ordering and stats. The constructor does not enforce this — while channels are comparable (O(N) map dedup is possible), it adds constructor complexity for a contract trivially satisfied by correct pipeline wiring. Expected N is 2-4; duplicate sources are a programming error, not a runtime condition.
+
+**Expected N:** Small (2-4 for typical DAG pipeline recombination). One goroutine per source is O(N). Not designed for large or unbounded N.
+
+**Acyclic pipelines only:** Same constraint as Tee/Pipe/Batcher.
 
 ## Allocation Model
 
@@ -921,6 +951,7 @@ Where packages depend on each other, and why:
 | `Batcher.Out` → `rslt.Result[[]T]` | Emits batches as Ok results, forwards upstream errors as batch boundaries. |
 | `WeightedBatcher.Out` → `rslt.Result[[]T]` | Same as Batcher, weight-based flush condition. |
 | `Tee.Branch` → `rslt.Result[T]` | Synchronous lockstep broadcast — same Result sent to all N branches. Shared references, read-only contract. |
+| `Merge.Out` → `rslt.Result[T]` | Nondeterministic interleaving fan-in — items from N sources forwarded as-is to single output. |
 
 `hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair`; `toc` depends on `rslt` — none of these import each other.
 
