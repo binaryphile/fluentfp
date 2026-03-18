@@ -719,6 +719,34 @@ func NewBatcher[T any](ctx context.Context, src <-chan rslt.Result[T], n int) *B
 - Batcher introduces n-1 items of hidden buffering. Downstream capacity counts batches, not original items. WeightedBatcher adds dual flush (weight OR item count reaches threshold) for variable-cost items — prevents unbounded accumulation of zero/low-weight items. Same cancel patterns. Negative weights panic.
 - Cancellation is stage-local by policy. Pipeline-wide shutdown requires shared parent context cancellation. Source ownership rule: operators drain src to completion, provided consumer drains Out or ctx is canceled and src eventually closes. Error passthrough during shutdown is best-effort (cancel-aware sends may race).
 
+### D28: Per-stage allocation tracking
+
+```go
+type Options[T any] struct {
+    TrackAllocations bool // opt-in; samples runtime/metrics around each fn call
+}
+type Stats struct {
+    ObservedAllocBytes   uint64 // cumulative heap bytes observed during fn windows
+    ObservedAllocObjects uint64 // cumulative heap objects observed during fn windows
+}
+```
+
+**Why `runtime/metrics`:** `/gc/heap/allocs:bytes` and `/gc/heap/allocs:objects` are the only production-suitable cumulative allocation counters in the Go standard library. `runtime.ReadMemStats` is heavier and stops-the-world on some paths. `runtime.MemProfile` is sampled, not exact, and suited for offline diagnostics. There is no per-goroutine allocation counter in the Go runtime.
+
+**Per-invocation sampling vs stage-active-window:** Per-invocation (sample before/after each `safeCall`) was chosen for consistency with the existing `serviceNs` timing pattern and implementation simplicity. Stage-active-window (sample on 0→1/1→0 active-worker transitions) would reduce intra-stage double-counting when workers overlap, but adds mutex/CAS on the hot path and loses per-call granularity. Both approaches still include cross-stage process noise — the fundamental limitation is process-global counters.
+
+**Semantic caveats:** These counters are not exclusive to the stage. They capture all process-wide heap allocations during each fn execution window. With Workers > 1, overlapping execution windows can capture the same unrelated allocation in multiple workers — per-stage totals can exceed actual process allocations over the same period. Long-running fn calls are biased upward simply because they keep the observation window open longer. Not additive across stages. Best used as a directional signal under stable workload where the stage dominates allocations.
+
+**Opt-in default:** On the order of 1µs overhead per item in single-worker throughput benchmarks (two `metrics.Read` calls at ~320ns each, plus counter extraction and atomic accumulation). Multi-worker contention on shared atomic counters may increase this. The ~2x throughput regression for no-op fns means default-on would penalize all users for an inherently approximate metric. Opt-in lets users who need allocation visibility accept the cost explicitly. Benchmarks: `metrics.Read` is allocation-free (0 allocs/op, confirmed via escape analysis and `AllocsPerRun`); per-worker `[2]metrics.Sample` array stays on the stack.
+
+**Runtime contract validation:** Both metric names and their `KindUint64` type are validated once on first use via `sync.Once` + `metrics.All()`. The probe (`allocMetricsProbe`) is a pure function taking `[]metrics.Description`, table-tested with synthetic inputs (missing names, wrong kinds, duplicates). If either metric is absent, has a different kind, or appears more than once, tracking is disabled. `Stats.AllocTrackingActive` reports the effective state so callers can distinguish "unsupported" from "not requested" from "active but zero allocations."
+
+**Counter regression guard:** If the post-sample is less than the pre-sample (theoretically possible on runtime counter wrap), the delta is silently skipped rather than accumulating a huge spurious value.
+
+**Panic path:** `safeCall` returns normally even when fn panics (named return + defer/recover), so the post-sample always fires. `debug.Stack()` allocations from panic recovery fall within the measurement window — acceptable since the panic is directly caused by the user's fn.
+
+**Stats accounting with tracking enabled:** Allocation sampling sits outside the `serviceNs` window but inside the `inFlightWeight` window. This is intentional: `ServiceTime` reflects only fn execution cost (comparable across tracked and untracked runs), while `InFlightWeight` reflects total worker occupancy including instrumentation overhead. `Completed` is also incremented after sampling, so in-progress snapshots during a tracked stage show slightly higher occupancy-to-completion ratios than untracked. Final stats after Wait are consistent.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.

@@ -4,12 +4,53 @@ import (
 	"context"
 	"errors"
 	"runtime/debug"
+	"runtime/metrics"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/binaryphile/fluentfp/rslt"
 )
+
+// Metric names for runtime/metrics allocation sampling.
+const (
+	metricAllocBytes   = "/gc/heap/allocs:bytes"
+	metricAllocObjects = "/gc/heap/allocs:objects"
+)
+
+// allocMetricsProbe checks whether both allocation metric names exist
+// exactly once with KindUint64 in the given descriptions. Pure function
+// for testability; called once via allocMetricsOnce.
+func allocMetricsProbe(descs []metrics.Description) bool {
+	var haveBytes, haveObjects bool
+	for _, d := range descs {
+		switch d.Name {
+		case metricAllocBytes:
+			if d.Kind != metrics.KindUint64 || haveBytes {
+				return false // wrong kind or duplicate
+			}
+			haveBytes = true
+		case metricAllocObjects:
+			if d.Kind != metrics.KindUint64 || haveObjects {
+				return false // wrong kind or duplicate
+			}
+			haveObjects = true
+		}
+	}
+	return haveBytes && haveObjects
+}
+
+var (
+	allocMetricsOnce      sync.Once
+	allocMetricsSupported bool
+)
+
+func isAllocMetricsSupported() bool {
+	allocMetricsOnce.Do(func() {
+		allocMetricsSupported = allocMetricsProbe(metrics.All())
+	})
+	return allocMetricsSupported
+}
 
 // ErrClosed is returned by [Stage.Submit] when the stage is no longer
 // accepting input — after [Stage.CloseInput], fail-fast shutdown, or
@@ -43,6 +84,31 @@ type Options[T any] struct {
 	// ContinueOnError, when true, keeps processing after fn errors
 	// instead of cancelling the stage. Default: false (fail-fast).
 	ContinueOnError bool
+
+	// TrackAllocations, when true, samples process-wide heap allocation
+	// counters (runtime/metrics /gc/heap/allocs:bytes and :objects) before
+	// and after each fn invocation and accumulates the deltas into
+	// [Stats.ObservedAllocBytes] and [Stats.ObservedAllocObjects].
+	//
+	// Scope: each sample captures the invocation window of a single fn
+	// call. Counters are process-global — they include allocations by any
+	// goroutine during that window, not just the stage's own work.
+	//
+	// Concurrent over-attribution: with Workers > 1, overlapping
+	// invocation windows can each capture the same unrelated allocation,
+	// so per-stage totals can exceed actual process allocations. Totals
+	// are also not additive across stages for the same reason.
+	//
+	// Overhead: on the order of 1µs per item in single-worker throughput
+	// benchmarks (two runtime/metrics.Read calls plus counter extraction
+	// and atomic accumulation). Negligible when fn does real work;
+	// roughly doubles overhead for no-op or sub-microsecond fns.
+	// Multi-worker contention on shared atomic counters may add cost.
+	//
+	// Default: false (disabled). Enable when diagnosing allocation-heavy
+	// stages. Silently disabled if the runtime does not support the
+	// required metrics (validated once at package init).
+	TrackAllocations bool
 }
 
 // Stats holds approximate metrics for a [Stage].
@@ -76,6 +142,30 @@ type Stats struct {
 	BufferedDepth  int64 // approximate items in queue; may transiently be negative mid-flight; 0 when Capacity is 0 (unbuffered)
 	InFlightWeight int64 // weighted cost of items currently in fn (stats-only, not admission)
 	QueueCapacity  int   // configured capacity
+
+	// AllocTrackingActive reports whether allocation sampling is
+	// effectively enabled for this stage. False when
+	// [Options.TrackAllocations] was not set, or when the runtime does
+	// not support the required metrics. Allows callers to distinguish
+	// "tracking requested but unsupported" from "tracking not requested"
+	// or "tracking active but fn allocated zero."
+	AllocTrackingActive bool
+
+	// ObservedAllocBytes and ObservedAllocObjects are cumulative heap
+	// allocation counters sampled via runtime/metrics around each fn
+	// invocation. Zero when AllocTrackingActive is false.
+	//
+	// Process-global, not stage-exclusive: includes allocations by any
+	// goroutine during each fn invocation window. With Workers > 1,
+	// overlapping windows can capture the same unrelated allocation in
+	// multiple workers, so per-stage totals can exceed actual process
+	// allocations over the same period. Not additive across stages.
+	// Biased upward by longer service times (more background noise).
+	// Best used as a directional signal under stable workload where the
+	// stage dominates allocations, not for precise attribution. For
+	// exact allocation profiling, use go tool pprof.
+	ObservedAllocBytes   uint64
+	ObservedAllocObjects uint64
 }
 
 // queued wraps an item with its pre-computed weight.
@@ -116,7 +206,11 @@ type Stage[T, R any] struct {
 	outputBlockedNs atomic.Int64
 
 	inFlightWeight atomic.Int64
-	capacity       int
+	allocBytes     atomic.Uint64
+	allocObjects   atomic.Uint64
+
+	trackAllocs bool
+	capacity    int
 
 	weight func(T) int64
 
@@ -172,14 +266,15 @@ func start[T, R any](
 	stageCtx, cancel := context.WithCancelCause(ctx)
 
 	s := &Stage[T, R]{
-		in:        make(chan queued[T], capacity),
-		out:       make(chan rslt.Result[R]),
-		done:      make(chan struct{}),
-		closing:   make(chan struct{}),
-		stageDone: stageCtx.Done(),
-		cancel:    cancel,
-		capacity:  capacity,
-		weight:    weight,
+		in:          make(chan queued[T], capacity),
+		out:         make(chan rslt.Result[R]),
+		done:        make(chan struct{}),
+		closing:     make(chan struct{}),
+		stageDone:   stageCtx.Done(),
+		cancel:      cancel,
+		trackAllocs: opts.TrackAllocations && isAllocMetricsSupported(),
+		capacity:    capacity,
+		weight:      weight,
 	}
 
 	// INVARIANT: every goroutine that sends to s.out must be counted here.
@@ -527,20 +622,23 @@ func (s *Stage[T, R]) Stats() Stats {
 	}
 
 	return Stats{
-		Submitted:         s.submitted.Load(),
-		Completed:         s.completed.Load(),
-		Failed:            s.failed.Load(),
-		Panicked:          s.panicked.Load(),
-		Canceled:          s.canceled.Load(),
-		Received:          s.received.Load(),
-		Forwarded:         s.forwarded.Load(),
-		Dropped:           s.dropped.Load(),
-		ServiceTime:       time.Duration(s.serviceNs.Load()),
-		IdleTime:          time.Duration(s.idleNs.Load()),
-		OutputBlockedTime: time.Duration(s.outputBlockedNs.Load()),
-		BufferedDepth:     depth,
-		InFlightWeight:    s.inFlightWeight.Load(),
-		QueueCapacity:     s.capacity,
+		Submitted:            s.submitted.Load(),
+		Completed:            s.completed.Load(),
+		Failed:               s.failed.Load(),
+		Panicked:             s.panicked.Load(),
+		Canceled:             s.canceled.Load(),
+		Received:             s.received.Load(),
+		Forwarded:            s.forwarded.Load(),
+		Dropped:              s.dropped.Load(),
+		ServiceTime:          time.Duration(s.serviceNs.Load()),
+		IdleTime:             time.Duration(s.idleNs.Load()),
+		OutputBlockedTime:    time.Duration(s.outputBlockedNs.Load()),
+		BufferedDepth:        depth,
+		InFlightWeight:       s.inFlightWeight.Load(),
+		QueueCapacity:        s.capacity,
+		AllocTrackingActive:  s.trackAllocs,
+		ObservedAllocBytes:   s.allocBytes.Load(),
+		ObservedAllocObjects: s.allocObjects.Load(),
 	}
 }
 
@@ -556,6 +654,12 @@ func (s *Stage[T, R]) worker(
 	failFast bool,
 ) {
 	defer s.wg.Done()
+
+	var samples [2]metrics.Sample
+	if s.trackAllocs {
+		samples[0].Name = metricAllocBytes
+		samples[1].Name = metricAllocObjects
+	}
 
 	for {
 		idleStart := time.Now()
@@ -581,9 +685,31 @@ func (s *Stage[T, R]) worker(
 
 		s.inFlightWeight.Add(q.weight)
 
+		var bytesBefore, objsBefore uint64
+		if s.trackAllocs {
+			metrics.Read(samples[:])
+			bytesBefore = samples[0].Value.Uint64()
+			objsBefore = samples[1].Value.Uint64()
+		}
+
 		serviceStart := time.Now()
 		result := s.safeCall(ctx, fn, q.item)
 		s.serviceNs.Add(int64(time.Since(serviceStart)))
+
+		if s.trackAllocs {
+			metrics.Read(samples[:])
+			bytesAfter := samples[0].Value.Uint64()
+			objsAfter := samples[1].Value.Uint64()
+			// Defensive: skip if counter regressed. With init-time
+			// validation this is only reachable on uint64 wrap
+			// (astronomically unlikely for cumulative alloc counters).
+			if bytesAfter >= bytesBefore {
+				s.allocBytes.Add(bytesAfter - bytesBefore)
+			}
+			if objsAfter >= objsBefore {
+				s.allocObjects.Add(objsAfter - objsBefore)
+			}
+		}
 
 		s.inFlightWeight.Add(-q.weight)
 		s.completed.Add(1)

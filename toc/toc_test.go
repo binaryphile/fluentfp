@@ -757,9 +757,9 @@ func TestInFlightSuccessAfterFailFast(t *testing.T) {
 	stage := toc.Start(context.Background(), fn, toc.Options[int]{Capacity: 5, Workers: 2})
 
 	stage.Submit(context.Background(), 1) // success worker
-	stage.Submit(context.Background(), 2) // fail worker
+	<-successStarted                      // guarantee item 1 is inside fn before item 2 can trigger fail-fast
 
-	<-successStarted
+	stage.Submit(context.Background(), 2) // fail worker
 	<-failStarted
 
 	// Fail worker has failed, triggering fail-fast.
@@ -2369,3 +2369,275 @@ func TestPipeDownstreamFailUpstreamContinues(t *testing.T) {
 		t.Fatalf("stage1.Wait: %v (should be nil — upstream unaffected)", err)
 	}
 }
+
+// allocSink prevents the compiler from optimizing away heap allocations.
+// Using atomic.Value to avoid data races with concurrent workers.
+var allocSink atomic.Value
+
+// allocatingFn forces a heap allocation and escapes it to allocSink.
+func allocatingFn(_ context.Context, n int) (int, error) {
+	buf := make([]byte, 1<<20) // 1 MiB — large enough to be visible in process-wide counters
+	allocSink.Store(buf)
+	return n, nil
+}
+
+func TestAllocTrackingEnabled(t *testing.T) {
+	stage := toc.Start(context.Background(), allocatingFn, toc.Options[int]{
+		TrackAllocations: true,
+	})
+
+	go func() {
+		defer stage.CloseInput()
+		for i := 0; i < 10; i++ {
+			if err := stage.Submit(context.Background(), i); err != nil {
+				return
+			}
+		}
+	}()
+
+	drain(stage)
+	stage.Wait()
+
+	stats := stage.Stats()
+	if !stats.AllocTrackingActive {
+		t.Fatal("AllocTrackingActive = false, want true")
+	}
+	if stats.ObservedAllocBytes == 0 {
+		t.Fatal("ObservedAllocBytes = 0, want > 0")
+	}
+	if stats.ObservedAllocObjects == 0 {
+		t.Fatal("ObservedAllocObjects = 0, want > 0")
+	}
+}
+
+func TestAllocTrackingDisabled(t *testing.T) {
+	stage := toc.Start(context.Background(), allocatingFn, toc.Options[int]{
+		// TrackAllocations defaults to false.
+	})
+
+	go func() {
+		defer stage.CloseInput()
+		for i := 0; i < 10; i++ {
+			if err := stage.Submit(context.Background(), i); err != nil {
+				return
+			}
+		}
+	}()
+
+	drain(stage)
+	stage.Wait()
+
+	stats := stage.Stats()
+	if stats.AllocTrackingActive {
+		t.Fatal("AllocTrackingActive = true, want false when disabled")
+	}
+	if stats.ObservedAllocBytes != 0 {
+		t.Fatalf("ObservedAllocBytes = %d, want 0", stats.ObservedAllocBytes)
+	}
+	if stats.ObservedAllocObjects != 0 {
+		t.Fatalf("ObservedAllocObjects = %d, want 0", stats.ObservedAllocObjects)
+	}
+}
+
+func TestAllocTrackingMultipleWorkers(t *testing.T) {
+	stage := toc.Start(context.Background(), allocatingFn, toc.Options[int]{
+		Workers:          4,
+		TrackAllocations: true,
+	})
+
+	go func() {
+		defer stage.CloseInput()
+		for i := 0; i < 40; i++ {
+			if err := stage.Submit(context.Background(), i); err != nil {
+				return
+			}
+		}
+	}()
+
+	drain(stage)
+	stage.Wait()
+
+	stats := stage.Stats()
+	if stats.ObservedAllocBytes == 0 {
+		t.Fatal("ObservedAllocBytes = 0, want > 0 with multiple workers")
+	}
+	if stats.ObservedAllocObjects == 0 {
+		t.Fatal("ObservedAllocObjects = 0, want > 0 with multiple workers")
+	}
+}
+
+func TestAllocTrackingPanic(t *testing.T) {
+	// panicAllocFn allocates then panics. The post-sample should still
+	// fire because safeCall returns normally via defer/recover.
+	panicAllocFn := func(_ context.Context, _ int) (int, error) {
+		buf := make([]byte, 1<<20) // 1 MiB
+		allocSink.Store(buf)
+		panic("boom")
+	}
+
+	stage := toc.Start(context.Background(), panicAllocFn, toc.Options[int]{
+		ContinueOnError:  true,
+		TrackAllocations: true,
+	})
+
+	go func() {
+		defer stage.CloseInput()
+		for i := 0; i < 5; i++ {
+			if err := stage.Submit(context.Background(), i); err != nil {
+				return
+			}
+		}
+	}()
+
+	drain(stage)
+	stage.Wait()
+
+	stats := stage.Stats()
+	if stats.ObservedAllocBytes == 0 {
+		t.Fatal("ObservedAllocBytes = 0 after panics, want > 0")
+	}
+}
+
+func TestAllocTrackingError(t *testing.T) {
+	errAllocFn := func(_ context.Context, _ int) (int, error) {
+		buf := make([]byte, 1<<20) // 1 MiB
+		allocSink.Store(buf)
+		return 0, errors.New("test error")
+	}
+
+	stage := toc.Start(context.Background(), errAllocFn, toc.Options[int]{
+		ContinueOnError:  true,
+		TrackAllocations: true,
+	})
+
+	go func() {
+		defer stage.CloseInput()
+		for i := 0; i < 5; i++ {
+			if err := stage.Submit(context.Background(), i); err != nil {
+				return
+			}
+		}
+	}()
+
+	drain(stage)
+	stage.Wait()
+
+	stats := stage.Stats()
+	if stats.ObservedAllocBytes == 0 {
+		t.Fatal("ObservedAllocBytes = 0 after errors, want > 0")
+	}
+}
+
+func TestAllocTrackingCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	stage := toc.Start(ctx, allocatingFn, toc.Options[int]{
+		Capacity:         10,
+		TrackAllocations: true,
+	})
+
+	// Submit may or may not succeed — context is already canceled.
+	// Use a separate goroutine to avoid blocking.
+	go func() {
+		defer stage.CloseInput()
+		_ = stage.Submit(context.Background(), 1)
+	}()
+
+	drain(stage)
+	stage.Wait()
+
+	stats := stage.Stats()
+	// Canceled items skip fn entirely, so no allocation sampling occurs.
+	if stats.ObservedAllocBytes != 0 {
+		t.Fatalf("ObservedAllocBytes = %d, want 0 for canceled items", stats.ObservedAllocBytes)
+	}
+}
+
+func TestAllocTrackingConcurrentStats(t *testing.T) {
+	// slowAllocFn allocates and takes some time.
+	slowAllocFn := func(_ context.Context, n int) (int, error) {
+		buf := make([]byte, 1<<20) // 1 MiB
+		allocSink.Store(buf)
+		runtime.Gosched()
+		return n, nil
+	}
+
+	stage := toc.Start(context.Background(), slowAllocFn, toc.Options[int]{
+		Workers:          4,
+		Capacity:         10,
+		TrackAllocations: true,
+	})
+
+	// Read Stats concurrently with work.
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			_ = stage.Stats() // must not panic
+			runtime.Gosched()
+		}
+	}()
+
+	go func() {
+		defer stage.CloseInput()
+		for i := 0; i < 20; i++ {
+			if err := stage.Submit(context.Background(), i); err != nil {
+				return
+			}
+		}
+	}()
+
+	drain(stage)
+	stage.Wait()
+	wg.Wait()
+
+	// No panic is the primary assertion. Also check final stats are sane.
+	stats := stage.Stats()
+	if stats.ObservedAllocBytes == 0 {
+		t.Fatal("ObservedAllocBytes = 0 after concurrent Stats reads, want > 0")
+	}
+}
+
+func TestAllocTrackingPostSampleAfterCancel(t *testing.T) {
+	// Verify that allocations made before fn returns are still observed
+	// even when the context is canceled during fn execution. This tests
+	// that the post-sample fires after safeCall regardless of cancellation.
+	fnStarted := make(chan struct{})
+	fnRelease := make(chan struct{})
+
+	midCancelFn := func(ctx context.Context, _ int) (int, error) {
+		buf := make([]byte, 1<<20) // 1 MiB
+		allocSink.Store(buf)
+		close(fnStarted)
+		<-fnRelease
+		return 0, ctx.Err()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stage := toc.Start(ctx, midCancelFn, toc.Options[int]{
+		ContinueOnError:  true,
+		TrackAllocations: true,
+	})
+
+	go func() {
+		defer stage.CloseInput()
+		_ = stage.Submit(context.Background(), 1)
+	}()
+
+	<-fnStarted
+	cancel()        // cancel while fn is in-flight
+	close(fnRelease) // let fn return
+
+	drain(stage)
+	stage.Wait()
+
+	stats := stage.Stats()
+	if stats.ObservedAllocBytes == 0 {
+		t.Fatal("ObservedAllocBytes = 0 after mid-flight cancel, want > 0")
+	}
+}
+

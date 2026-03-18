@@ -72,6 +72,35 @@ fmt.Printf("utilization: %v service / %v total\n",
 
 Stats are approximate mid-flight (independent atomics, not a snapshot). Reliable as final values after Wait returns.
 
+### Allocation Tracking
+
+Enable `TrackAllocations` to sample process-wide heap allocation counters around each fn invocation:
+
+```go
+stage := toc.Start(ctx, processChunk, toc.Options[Chunk]{
+    Capacity:         10,
+    TrackAllocations: true,
+})
+// ... submit, drain, wait ...
+stats := stage.Stats()
+if stats.AllocTrackingActive {
+    fmt.Printf("observed alloc bytes: %d, objects: %d\n",
+        stats.ObservedAllocBytes, stats.ObservedAllocObjects)
+}
+```
+
+`ObservedAllocBytes` and `ObservedAllocObjects` are cumulative heap allocation counters sampled via `runtime/metrics` before and after each fn call. They are **approximate directional signals**, not precise attribution:
+
+- **Process-global:** includes allocations by any goroutine during each fn window, not just the stage's own work.
+- **Not additive:** overlapping workers within the same stage can capture the same unrelated allocation. Per-stage totals can exceed actual process allocations.
+- **Biased by service time:** longer fn calls observe more background noise.
+- **Zero when inactive:** Both fields are zero when `AllocTrackingActive` is false — either because `TrackAllocations` was not set, or because the runtime does not support the required metrics.
+- **Discoverability:** Check `Stats.AllocTrackingActive` to distinguish "tracking not requested" from "tracking requested but unsupported" from "tracking active but fn allocated zero."
+
+Best used to identify allocation-heavy stages under stable workload where the stage dominates allocations. For precise attribution, use `go tool pprof` with allocation profiling.
+
+Overhead: on the order of 1µs per item in single-worker throughput benchmarks (two `runtime/metrics.Read` calls plus counter extraction and atomic accumulation). Negligible when fn does real work; roughly doubles overhead for no-op or sub-microsecond fns. Multi-worker contention on shared atomic counters may add cost. Silently disabled if the runtime does not support the required metrics.
+
 ## Pipeline Composition
 
 `Pipe` and `NewBatcher` compose stages into multi-stage pipelines with per-stage observability, error passthrough, and backpressure.

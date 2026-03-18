@@ -78,10 +78,11 @@ func _() {
 
 	// Options fields
 	_ = Options[int]{
-		Capacity:        1,
-		Weight:          nil,
-		Workers:         1,
-		ContinueOnError: false,
+		Capacity:         1,
+		Weight:           nil,
+		Workers:          1,
+		ContinueOnError:  false,
+		TrackAllocations: false,
 	}
 
 	// Stats fields
@@ -90,6 +91,8 @@ func _() {
 		Received: 0, Forwarded: 0, Dropped: 0,
 		ServiceTime: 0, IdleTime: 0, OutputBlockedTime: 0,
 		BufferedDepth: 0, InFlightWeight: 0, QueueCapacity: 0,
+		AllocTrackingActive: false,
+		ObservedAllocBytes: 0, ObservedAllocObjects: 0,
 	}
 
 	// Stage methods

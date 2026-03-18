@@ -580,7 +580,7 @@
 **Postconditions:**
 - Every submitted item has a corresponding result
 - Stage has shut down cleanly — no goroutine leaks, no abandoned resources
-- Stats reflect actual constraint behavior (service time, idle time, output-blocked time)
+- Stats reflect actual constraint behavior (service time, idle time, output-blocked time, and optionally observed allocation bytes/objects)
 
 **Minimal Guarantee:** Stage always shuts down if the consumer drains output. No goroutine leaks on normal completion, fail-fast, or parent cancellation. Panics in the processing function are recovered as error results, not process crashes.
 
@@ -605,12 +605,14 @@
 - 3d. Parent context is canceled: Stage stops accepting new items, drains buffered items as canceled results, and shuts down. Wait returns nil; Cause returns the parent's cancel cause.
 - 4a. Developer does not need individual results: Developer calls DiscardAndWait or DiscardAndCause to drain and retrieve stage-level status in one step.
 - 5a. Developer needs to distinguish success, fail-fast error, and parent cancellation: Developer calls Cause instead of Wait for the latched terminal cause.
+- 5b. Developer enables TrackAllocations and checks AllocTrackingActive to confirm the runtime supports it, then reads ObservedAllocBytes/ObservedAllocObjects from Stats as a directional signal for allocation-heavy stages. These are process-global counters sampled around each fn invocation — not exclusive to the stage, not additive across stages.
 
 **Sub-Variations:**
 - Capacity: zero (unbuffered — Submit blocks until a worker dequeues), positive (buffered queue)
 - Workers: 1 (serial constraint), N (limited concurrency)
 - Error mode: fail-fast (default), continue-on-error
 - Stats: submitted/completed/failed/panicked/canceled counts, service time, idle time, output-blocked time, buffered depth, in-flight weight
+- Allocation tracking: disabled (default), enabled via TrackAllocations
 - Shutdown: explicit (CloseInput), fail-fast (automatic), parent cancel (automatic via cancel watcher)
 
 ### UC-14: Compose Multi-Stage Processing Pipelines
