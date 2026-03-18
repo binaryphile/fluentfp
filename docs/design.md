@@ -719,7 +719,7 @@ func NewBatcher[T any](ctx context.Context, src <-chan rslt.Result[T], n int) *B
 - Batcher introduces n-1 items of hidden buffering. Downstream capacity counts batches, not original items. WeightedBatcher adds dual flush (weight OR item count reaches threshold) for variable-cost items — prevents unbounded accumulation of zero/low-weight items. Same cancel patterns. Negative weights panic.
 - Cancellation is stage-local by policy. Pipeline-wide shutdown requires shared parent context cancellation. Source ownership rule: operators drain src to completion, provided consumer drains Out or ctx is canceled and src eventually closes. Error passthrough during shutdown is best-effort (cancel-aware sends may race).
 
-### D28: Per-stage allocation tracking
+### D28: Approximate allocation observation (process-global counters)
 
 ```go
 type Options[T any] struct {

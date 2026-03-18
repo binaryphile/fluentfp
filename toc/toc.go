@@ -107,7 +107,7 @@ type Options[T any] struct {
 	//
 	// Default: false (disabled). Enable when diagnosing allocation-heavy
 	// stages. Silently disabled if the runtime does not support the
-	// required metrics (validated once at package init).
+	// required metrics (validated on first use via sync.Once).
 	TrackAllocations bool
 }
 
@@ -700,7 +700,7 @@ func (s *Stage[T, R]) worker(
 			metrics.Read(samples[:])
 			bytesAfter := samples[0].Value.Uint64()
 			objsAfter := samples[1].Value.Uint64()
-			// Defensive: skip if counter regressed. With init-time
+			// Defensive: skip if counter regressed. With probe
 			// validation this is only reachable on uint64 wrap
 			// (astronomically unlikely for cumulative alloc counters).
 			if bytesAfter >= bytesBefore {
