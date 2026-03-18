@@ -1,6 +1,6 @@
 // Package toc provides a constrained stage runner inspired by
 // Drum-Buffer-Rope (Theory of Constraints), with pipeline composition
-// via [Pipe] and [NewBatcher].
+// via [Pipe], [NewBatcher], and [NewTee].
 //
 // A Stage owns a bounded input queue and one or more workers with bounded
 // concurrency. Producers submit items via [Stage.Submit]; the stage
@@ -51,7 +51,8 @@
 // output (error passthrough). [NewBatcher] accumulates items into
 // fixed-count batches between stages. [NewWeightedBatcher] accumulates
 // items into weight-based batches (flush when accumulated weight reaches
-// threshold).
+// threshold). [NewTee] broadcasts each item to N branches (synchronous
+// lockstep — slowest consumer governs pace).
 //
 // Pipelines have two error planes: data-plane errors (per-item rslt.Err
 // in [Stage.Out]) and control-plane errors ([Stage.Wait] / [Stage.Cause]).
@@ -135,6 +136,21 @@ func _() {
 	_ = wb.Out
 	_ = wb.Wait
 	_ = wb.Stats
+
+	// Tee lifecycle
+	_ = NewTee[int]
+
+	// TeeStats fields
+	_ = TeeStats{
+		Received: 0, FullyDelivered: 0, PartiallyDelivered: 0, Undelivered: 0,
+		BranchDelivered: nil, BranchBlockedTime: nil,
+	}
+
+	// Tee methods
+	var tee *Tee[int]
+	_ = tee.Branch
+	_ = tee.Wait
+	_ = tee.Stats
 
 	// rslt dependency (used by Out return type)
 	var _ rslt.Result[string]

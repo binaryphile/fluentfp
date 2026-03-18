@@ -683,7 +683,7 @@ func (s *Stage[T, R]) Cause() error
 
 **Not an abstraction over errgroup:** Different concern. errgroup manages N goroutines with shared error. toc manages a bounded queue + worker pool with per-item results, stats, and lifecycle. `FanOut` in slice covers the errgroup-shaped case.
 
-### D27: Pipeline composition via free functions (Pipe, Batcher)
+### D27: Pipeline composition via free functions (Pipe, Batcher, Tee)
 
 ```go
 func Pipe[T, R any](ctx context.Context, src <-chan rslt.Result[T],
@@ -746,6 +746,42 @@ type Stats struct {
 **Panic path:** `safeCall` returns normally even when fn panics (named return + defer/recover), so the post-sample always fires. `debug.Stack()` allocations from panic recovery fall within the measurement window — acceptable since the panic is directly caused by the user's fn.
 
 **Stats accounting with tracking enabled:** Allocation sampling sits outside the `serviceNs` window but inside the `inFlightWeight` window. This is intentional: `ServiceTime` reflects only fn execution cost (comparable across tracked and untracked runs), while `InFlightWeight` reflects total worker occupancy including instrumentation overhead. `Completed` is also incremented after sampling, so in-progress snapshots during a tracked stage show slightly higher occupancy-to-completion ratios than untracked. Final stats after Wait are consistent.
+
+### D29: Synchronous broadcast via Tee
+
+```go
+func NewTee[T any](ctx context.Context, src <-chan rslt.Result[T], n int) *Tee[T]
+```
+
+**Operator semantics:** Synchronous lockstep broadcast. Single goroutine sends to each branch sequentially. Slowest consumer governs pace. No branch isolation, no fairness (branch 0 gets first send), no independent progress.
+
+**No deep copy:** Tee does not clone payloads. Channel sends copy values, but reference-containing payloads (pointers, slices, maps, structs containing these) alias across branches. Consumers must treat received values as immutable; mutation after receipt is a data race. No clone hook in v1 — immutability contract is doc-enforced.
+
+**Liveness contract (downstream):** All branch consumers must continuously read until channel close, or cancel the shared context promptly. Tee cannot enforce this — it is caller convention. An abandoned branch without ctx cancel wedges Tee and stalls all branches.
+
+**Liveness contract (upstream):** On cancellation, Tee drains src until src is closed. Upstream must eventually close src, including on cancellation paths. Branch channels and `done` do not close until src closes. Same source ownership rule as Batcher/Pipe.
+
+**Fail-fast-all:** Not Tee-enforced. Tee reacts to ctx cancellation but does not create or supervise downstream stages. Fail-fast-all requires the caller to wire downstream stages with a shared cancellable context. Documented as a wiring pattern, not a Tee guarantee.
+
+**Partial delivery and cancellation:** Cancellation is best-effort (Go select nondeterminism). After ctx cancel, the current item may still reach additional branches whose receivers happen to be ready. PartiallyDelivered means "≥1 and <N branches received before the goroutine stopped trying," not a precise cutoff. Branch 0 is systematically favored. Stats distinguish FullyDelivered, PartiallyDelivered, and Undelivered. PartiallyDelivered is at most 1 per Tee lifetime: once cancellation interrupts delivery mid-item, the goroutine enters discard mode and does not attempt delivery on subsequent items.
+
+**Downstream buffering absorbs branch skew:** Tee itself provides no buffering — branches are unbuffered channels. Any decoupling between branches comes from downstream consumers. When a branch feeds a Pipe stage with Capacity > 0, the Pipe's feeder accepts items into the stage's input buffer. The Tee's branch send unblocks as soon as the Pipe's feeder dequeues — it does not wait for fn to complete. With `Pipe(ctx, tee.Branch(0), fn, Options{Capacity: 10})`, the Tee gets up to 10 items of slack on that branch before blocking. For raw channel consumers with no internal buffering, coupling is maximal — a slow receiver directly stalls the Tee. Downstream buffering (via Pipe Capacity or other means) is the tuning knob, not a Tee feature.
+
+**Alternatives considered:**
+- Per-branch goroutines with buffer(1) internal channels: decouples branches by one item, adds N+1 goroutines + N channels. Redundant when downstream Pipe stages already provide buffering via Capacity. Complicates stats accounting (split between coordinator and senders). Deferred to AsyncTee if needed.
+- Clone hook (`func(T) T`): prevents aliasing but adds allocation cost per branch per item. Deferred — doc-enforced immutability is sufficient for era's use case (StoredVector is a value type with defensively-copied Vec).
+
+**Per-branch observability:** BranchDelivered[i] and BranchBlockedTime[i] expose which branch is the bottleneck. Aggregate stats (FullyDelivered etc.) show system-level health. Per-branch stats show where skew or stalls originate. BranchBlockedTime[i] measures direct send-wait time on branch i, not end-to-end latency imposed by other branches. Because branches are sent in index order, earlier branches' blocked time reflects their consumer's speed directly; later branches' blocked time is near zero even if they are throttled by earlier branches.
+
+**Acyclic pipelines only:** Tee (like Pipe and Batcher) assumes acyclic DAG topologies. Cycles (feeding a Tee branch back to its own upstream) will deadlock because the single run goroutine cannot simultaneously send and receive.
+
+**Non-copyable:** Tee contains atomic fields and must not be copied after first use. Returned as `*Tee[T]`. Godoc will state this.
+
+**Measurement overhead:** Per-branch blocked time calls `time.Now()` before and `time.Since()` after each branch send. This is always-on, not opt-in (unlike TrackAllocations). Acceptable for v1 — Tee items are typically coarser-grained than Stage items (batches, not individual records). If profiling shows overhead matters, a future version can make timing opt-in.
+
+**`ctxErr` synchronization:** `ctxErr` is written only in the run goroutine (before closing `done`) and read only in `Wait()` (after `<-done`). No concurrent access — happens-before via channel close.
+
+**Construction order:** NewTee starts immediately. All branch consumers should be wired before upstream produces items. With unbuffered outputs, if a branch is not yet being read, Tee blocks on that branch's send.
 
 ## Allocation Model
 
@@ -884,6 +920,7 @@ Where packages depend on each other, and why:
 | `Pipe` feeder → `rslt.Result[T]` | Reads upstream Result channel, unwraps Ok for workers, forwards Err directly to output (error passthrough). |
 | `Batcher.Out` → `rslt.Result[[]T]` | Emits batches as Ok results, forwards upstream errors as batch boundaries. |
 | `WeightedBatcher.Out` → `rslt.Result[[]T]` | Same as Batcher, weight-based flush condition. |
+| `Tee.Branch` → `rslt.Result[T]` | Synchronous lockstep broadcast — same Result sent to all N branches. Shared references, read-only contract. |
 
 `hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair`; `toc` depends on `rslt` — none of these import each other.
 

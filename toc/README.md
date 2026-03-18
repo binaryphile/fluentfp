@@ -162,15 +162,58 @@ Useful when items have variable cost (e.g., files with different text counts —
 
 WeightedBatcher stats: same as Batcher plus `BufferedWeight` (accumulated weight in partial batch). Invariant: `Received = Emitted + Forwarded + Dropped`.
 
+### Tee
+
+`NewTee` broadcasts each item from a source channel to N branches (synchronous lockstep). The slowest consumer governs pace — this is intentional, not a limitation.
+
+```go
+chunker := toc.Start(ctx, chunkFile, Options{Workers: N, Capacity: N*2})
+
+tee := toc.NewTee(ctx, chunker.Out(), 2)
+
+ftsRebuilder := toc.Pipe(ctx, tee.Branch(0), rebuildFTS, Options{Workers: 1})
+hnswFinalizer := toc.Pipe(ctx, tee.Branch(1), finalizeHNSW, Options{Workers: 1})
+
+go func() {
+    defer chunker.CloseInput()
+    for _, file := range files {
+        if err := chunker.Submit(ctx, file); err != nil {
+            break
+        }
+    }
+}()
+
+// drain both tails
+go func() { for range hnswFinalizer.Out() {} }()
+for r := range ftsRebuilder.Out() { ... }
+
+// wait — reverse order
+ftsRebuilder.Wait(); hnswFinalizer.Wait(); tee.Wait(); chunker.Wait()
+```
+
+**Contract:** Synchronous lockstep broadcast, not independent fan-out. No branch isolation — one branch stalling stalls all branches. No fairness — branch 0 always gets first send.
+
+**No deep copy:** Tee does not clone payloads. Reference-containing payloads (pointers, slices, maps) may alias across branches. Consumers must treat received values as **read-only**; mutation after receipt is a data race.
+
+**Liveness (downstream):** All branch consumers must drain their branch or cancel the shared context. An undrained branch blocks Tee and stalls all branches.
+
+**Liveness (upstream):** On cancellation, Tee drains `src` until `src` is closed. Branch channels stay open until upstream closes. Same source ownership rule as Batcher and Pipe.
+
+**Per-branch stats:** `BranchDelivered[i]` and `BranchBlockedTime[i]` identify which branch is the bottleneck. Aggregate stats: `Received = FullyDelivered + PartiallyDelivered + Undelivered` (after Wait).
+
+**When to use Tee vs manual channel wiring:** Use Tee when you need broadcast with stats and lifecycle management. Use manual channels when branches have different types or when you need custom routing logic.
+
 ### Lifecycle Contract
 
-**Source ownership:** Pipe, Batcher, and WeightedBatcher drain their source to completion. This requires two conditions: (1) the consumer drains `Out()` or ctx is canceled (downstream liveness), and (2) the upstream source eventually closes (upstream completion). Cancellation solves downstream liveness — it unblocks output sends so the operator can continue draining. It does not force-close the source. If the source never closes, the operator blocks in drain/discard mode indefinitely. After cancellation, all switch to discard mode (continue reading source, discard items). If the consumer stops reading and ctx is never canceled, the operator blocks on output delivery and cannot drain its source.
+**Source ownership:** Pipe, Batcher, WeightedBatcher, and Tee drain their source to completion. This requires two conditions: (1) the consumer drains `Out()` or ctx is canceled (downstream liveness), and (2) the upstream source eventually closes (upstream completion). Cancellation solves downstream liveness — it unblocks output sends so the operator can continue draining. It does not force-close the source. If the source never closes, the operator blocks in drain/discard mode indefinitely. After cancellation, all switch to discard mode (continue reading source, discard items). If the consumer stops reading and ctx is never canceled, the operator blocks on output delivery and cannot drain its source.
 
 **Cancellation:** Fail-fast is stage-local — it cancels only the stage, not upstream. For pipeline-wide shutdown, cancel the shared parent context. This favors deterministic draining over aggressive abort.
 
 **Best-effort passthrough:** Error passthrough and batch emission use cancel-aware sends (`select` on ctx). During shutdown, a send may race with cancellation — either branch may win. This means: (1) output may still appear on `Out()` after cancellation if the send case wins, and (2) upstream errors may be dropped instead of forwarded if the cancel case wins. All drops are reflected in stats. During normal operation, all items are delivered.
 
-**Drain order:** Drain only the tail stage's Out(). Each Pipe/Batcher drains its upstream internally. After tail Out() closes, Wait() may be called in any order. Reverse order is recommended.
+**Construction order (Tee):** NewTee starts immediately. All branch consumers should be wired before upstream produces items. With unbuffered branch channels, if a branch is not yet being read, Tee blocks on that branch's send.
+
+**Drain order:** Drain only the tail stage's Out(). Each Pipe/Batcher/Tee drains its upstream internally. After tail Out() closes, Wait() may be called in any order. Reverse order is recommended.
 
 **Ordering:** No ordering guarantee with Workers > 1. With Workers == 1, worker results preserve encounter order. However, forwarded errors bypass the worker queue, so in Pipe stages they may arrive before buffered worker results regardless of worker count.
 

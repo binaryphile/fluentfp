@@ -636,7 +636,7 @@
 
 **Main Scenario:**
 1. Developer starts a head stage with Start, submitting items from a producer goroutine.
-2. Developer creates intermediate stages with Pipe (or NewBatcher for accumulation), each reading from the previous stage's Out().
+2. Developer creates intermediate stages with Pipe (or NewBatcher for accumulation, or NewTee for broadcast), each reading from the previous stage's Out().
 3. Each Pipe stage's feeder reads upstream results: Ok values go to workers, Err values pass through directly to the output.
 4. Developer drains the tail stage's Out() to receive final results (successes and forwarded errors).
 5. Developer calls Wait on each stage in reverse order to confirm clean shutdown.
@@ -647,12 +647,15 @@
 - 3c. Parent context canceled mid-pipeline: All stages observe cancellation. Pipe feeders and Batchers switch to discard mode — continue draining source but discard items. Partial Batcher batches are discarded (not flushed). Stats reflect all drops.
 - 2a. Batcher between stages: Batcher accumulates up to n Ok items. Errors act as batch boundaries — flush partial batch, forward error, start fresh accumulator.
 - 2b. WeightedBatcher between stages: accumulates items by weight or count (whichever reaches threshold first), preventing unbounded accumulation of zero/low-weight items. Same error-as-batch-boundary semantics.
+- 2c. Tee between stages: Developer fans out one stream to multiple downstream paths. All branches observe the same logical sequence. Backpressure is preserved across the fan-out.
 - 5a. Wait called in forward order: Also valid — Wait may be called in any order after tail Out() is drained. Reverse order is recommended but not required.
 
 **Sub-Variations:**
 - Pipeline shape: Start → Pipe, Start → Batcher → Pipe, Start → Batcher → Pipe → Pipe (4-handle)
+- Fan-out shape: Start → Tee → (Pipe, Pipe) — broadcast to N branches with independent downstream processing
 - Per-stage workers: different worker counts per stage (e.g., N chunkers, E embedders, 1 writer)
 - Error modes: per-stage fail-fast or continue-on-error (independent per stage)
 - Pipe stats: Received = Submitted + Forwarded + Dropped
 - Batcher stats: Received = Emitted + Forwarded + Dropped
 - WeightedBatcher stats: Received = Emitted + Forwarded + Dropped, BufferedWeight tracks accumulated cost
+- Tee stats: Received = FullyDelivered + PartiallyDelivered + Undelivered, per-branch BranchDelivered/BranchBlockedTime
