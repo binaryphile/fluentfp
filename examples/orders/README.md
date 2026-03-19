@@ -191,18 +191,16 @@ handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
         return rslt.Err[web.Response](web.BadRequest("missing order id"))
     }
 
-    return rslt.Map(
-        option.New(s.get(id)).OkOr(web.NotFound("order not found")),
-        web.OK[Order],
-    )
+    found := option.New(s.get(id)).OkOr(web.NotFound("order not found"))
+    return rslt.Map(found, web.OK[Order])
 }
 ```
 
-Three operations, no intermediate variables:
+Three operations compose into two lines:
 
 1. `option.New(s.get(id))` — wraps Go's `(Order, bool)` return into `Option[Order]`
 2. `.OkOr(web.NotFound(...))` — present → `Ok(order)`, absent → `Err(404)`
-3. `rslt.Map(..., web.OK[Order])` — wraps the Ok value in a 200 response
+3. `rslt.Map(found, web.OK[Order])` — wraps the Ok value in a 200 response
 
 If the lookup missed, the 404 propagates through `Map` untouched.
 

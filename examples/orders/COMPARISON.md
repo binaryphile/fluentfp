@@ -550,11 +550,9 @@ Two branches, identical boilerplate.
 <td>
 
 ```go
-return rslt.Map(
-  option.New(s.get(id)).
-    OkOr(web.NotFound("order not found")),
-  web.OK[Order],
-)
+found := option.New(s.get(id)).
+  OkOr(web.NotFound("order not found"))
+return rslt.Map(found, web.OK[Order])
 ```
 
 `option.New` wraps `(Order, bool)` → `Option`. `.OkOr` bridges to `Result`: present → Ok, absent → Err(404). `rslt.Map` wraps Ok in a 200 response. The 404 propagates through `Map` untouched.
@@ -685,15 +683,13 @@ if hasMinTotal {
 <td>
 
 ```go
-orders := slice.SortBy(
-    s.list(), Order.GetID).
-  KeepIfWhen(hasStatus,
-    hasMatchingStatus).
-  KeepIfWhen(hasMinTotal,
-    totalAtLeast)
+sorted := slice.SortBy(s.list(), Order.GetID)
+orders := sorted.
+  KeepIfWhen(hasStatus, hasMatchingStatus).
+  KeepIfWhen(hasMinTotal, totalAtLeast)
 ```
 
-3 lines. Method expression for sort key. `KeepIfWhen` skips the filter when condition is false — optional filters chain without `if` blocks.
+`SortBy` takes a method expression as the sort key — "sort by ID" is the entire call. `KeepIfWhen` applies the filter only when the condition is true, so optional filters chain without `if` blocks.
 
 </td>
 </tr>

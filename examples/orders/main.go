@@ -347,10 +347,8 @@ func main() {
 			return rslt.Err[web.Response](web.BadRequest("missing order id"))
 		}
 
-		return rslt.Map(
-			option.New(s.get(id)).OkOr(web.NotFound("order not found")),
-			web.OK[Order],
-		)
+		found := option.New(s.get(id)).OkOr(web.NotFound("order not found"))
+		return rslt.Map(found, web.OK[Order])
 	}
 
 	// --- GET /orders?status=X&min_total=Y (cents) ---
