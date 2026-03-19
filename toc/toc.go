@@ -618,7 +618,7 @@ func (s *Stage[T, R]) DiscardAndCause() error {
 func (s *Stage[T, R]) Stats() Stats {
 	var depth int64
 	if s.capacity > 0 {
-		depth = s.bufferedDepth.Load()
+		depth = max(0, s.bufferedDepth.Load())
 	}
 
 	return Stats{
