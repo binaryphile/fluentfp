@@ -67,26 +67,22 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 
 ```go
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
-    validated := rslt.FlatMap(web.DecodeJSON[Order](req), validateOrder)
-    order, err := validated.Unpack()
-    if err != nil {
-        return rslt.Err[web.Response](err)
-    }
+    reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-    order.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
-    order.Status = "pending"
+    // named functions: assignID, enrich, logFailure, storeAndNotify (defined above)
 
-    enriched, err := enrichWithBreaker(req.Context(), order)
-    if err != nil {
-        return rslt.Err[web.Response](err)
-    }
-
-    s.put(enriched)
-    return rslt.Ok(web.Created(enriched))
+    order := web.DecodeJSON[Order](req)
+    validatedOrder := rslt.FlatMap(order, validateOrder)
+    assignedOrder := validatedOrder.Convert(withNewID)
+    enrichedOrder := rslt.FlatMap(assignedOrder, enrich)
+    storedOrder := enrichedOrder.MapErr(logFailure).Convert(storeAndNotify)
+    return rslt.Map(storedOrder, web.Created[Order])
 }
 ```
 
-The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering — headers, status codes, JSON encoding, error formatting — happens once in `web.Adapt`. The handler just says what happened: `Created(enriched)` or an error.
+No `if err != nil`. The handler is a pipeline: each line is one operation on a `Result`. `FlatMap` chains operations that can fail (decode→validate, enrich). `Convert` transforms the Ok value (assign ID, store+notify). `MapErr` handles the Err side (log failure). `Map` wraps the final value in a response.
+
+The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering — headers, status codes, JSON encoding, error formatting — happens once in `web.Adapt`.
 
 That's the core idea. Everything below builds on it.
 
@@ -123,12 +119,13 @@ Decoding a JSON body correctly in Go requires:
 `web.DecodeJSON[Order](req)` does steps 1-4 in one call, returning `Result[Order]`. Then `rslt.FlatMap` chains it into validation:
 
 ```go
-validated := rslt.FlatMap(web.DecodeJSON[Order](req), validateOrder)
+order := web.DecodeJSON[Order](req)
+validatedOrder := rslt.FlatMap(order, validateOrder)
 ```
 
 `FlatMap` takes a `Result` and a function that also returns a `Result`. If the input is `Ok`, it unwraps the value and passes it to the function. If the input is `Err`, it skips the function entirely and returns the error. The "flat" part: since `validateOrder` itself returns `Result[Order]`, a plain `Map` would give you `Result[Result[Order]]` — nested results. `FlatMap` flattens that to a single `Result[Order]`.
 
-In practice: if decoding fails (wrong Content-Type → 415, malformed JSON → 400), validation is never called. If validation fails, that error propagates. One line replaces 20 lines of decode-check-validate-check.
+In practice: if decoding fails (wrong Content-Type → 415, malformed JSON → 400), validation is never called. If validation fails, that error propagates. Two lines replace 20 lines of decode-check-validate-check.
 
 The validation chain is a list of named functions:
 

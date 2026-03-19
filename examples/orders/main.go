@@ -302,8 +302,8 @@ func main() {
 	handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
 		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-		// assignID sets the order ID and initial status.
-		assignID := func(o Order) Order {
+		// withNewID sets the order ID and initial status.
+		withNewID := func(o Order) Order {
 			o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
 			o.Status = "pending"
 			return o
@@ -332,11 +332,12 @@ func main() {
 			return o
 		}
 
-		validated := rslt.FlatMap(web.DecodeJSON[Order](req), validateOrder)
-		assigned := validated.Convert(assignID)
-		enriched := rslt.FlatMap(assigned, enrich)
-		stored := enriched.MapErr(logFailure).Convert(storeAndNotify)
-		return rslt.Map(stored, web.Created[Order])
+		order := web.DecodeJSON[Order](req)
+		validatedOrder := rslt.FlatMap(order, validateOrder)
+		assignedOrder := validatedOrder.Convert(withNewID)
+		enrichedOrder := rslt.FlatMap(assignedOrder, enrich)
+		storedOrder := enrichedOrder.MapErr(logFailure).Convert(storeAndNotify)
+		return rslt.Map(storedOrder, web.Created[Order])
 	}
 
 	// --- GET /orders/{id} ---
@@ -358,27 +359,37 @@ func main() {
 	handleListOrders := func(req *http.Request) rslt.Result[web.Response] {
 		q := req.URL.Query()
 
-		// Parse query params. Invalid min_total returns 400.
-		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
-		minTotalOption := option.FlatMap(option.NonEmpty(q.Get("min_total")), option.Atoi)
-		if raw, ok := option.NonEmpty(q.Get("min_total")).Get(); ok {
-			if _, ok := minTotalOption.Get(); !ok {
-				return rslt.Err[web.Response](web.BadRequest(
-					fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
+		// parseIntParam parses a query param as an integer.
+		// Returns Ok(Option[int]): absent → Ok(NotOk), valid → Ok(Of(n)), invalid → Err(400).
+		parseIntParam := func(raw string) rslt.Result[option.Int] {
+			if raw == "" {
+				return rslt.Ok(option.NotOk[int]())
 			}
+			return rslt.Map(
+				option.Atoi(raw).OkOr(web.BadRequest(
+					fmt.Sprintf("min_total must be an integer (cents), got %q", raw))),
+				option.Of[int],
+			)
 		}
-		mt, hasMinTotal := minTotalOption.Get()
 
-		// hasMatchingStatus checks if order status matches the filter.
-		hasMatchingStatus := func(o Order) bool { return o.Status == status }
-		// totalAtLeast checks if order total meets the minimum.
-		totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
+		// filterOrders applies optional status and min_total filters.
+		filterOrders := func(mtOption option.Int) rslt.Result[web.Response] {
+			status, hasStatus := option.NonEmpty(q.Get("status")).Get()
+			mt, hasMinTotal := mtOption.Get()
 
-		orders := slice.SortBy(s.list(), Order.GetID).
-			KeepIfWhen(hasStatus, hasMatchingStatus).
-			KeepIfWhen(hasMinTotal, totalAtLeast)
+			// hasMatchingStatus checks if order status matches the filter.
+			hasMatchingStatus := func(o Order) bool { return o.Status == status }
+			// totalAtLeast checks if order total meets the minimum.
+			totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
-		return rslt.Ok(web.OK(orders))
+			orders := slice.SortBy(s.list(), Order.GetID).
+				KeepIfWhen(hasStatus, hasMatchingStatus).
+				KeepIfWhen(hasMinTotal, totalAtLeast)
+
+			return rslt.Ok(web.OK(orders))
+		}
+
+		return rslt.FlatMap(parseIntParam(q.Get("min_total")), filterOrders)
 	}
 
 	// --- Middleware: inject request ID via ctxval ---

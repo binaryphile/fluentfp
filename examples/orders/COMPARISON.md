@@ -2,7 +2,45 @@
 
 This document shows every place the orders example uses fluentfp, paired with the conventional Go equivalent. Read the [README](README.md) first for the narrative walkthrough.
 
+## Request Lifecycle
+
+```mermaid
+flowchart TD
+    A["Decode JSON body"] --> B["Validate fields"]
+    B --> C["Assign ID"]
+    C --> D["Enrich via pricing service"]
+    D --> E{"Success?"}
+    E -->|Yes| F["Store order"]
+    E -->|No| G["Log failure"]
+    F --> H["Send to post-processing"]
+    H --> I["Return 201 Created"]
+    G --> J["Return error response"]
+
+    style A fill:#e3f2fd,stroke:#1976d2
+    style B fill:#e3f2fd,stroke:#1976d2
+    style C fill:#fff3e0,stroke:#f57c00
+    style D fill:#e8f5e9,stroke:#388e3c
+    style F fill:#fff3e0,stroke:#f57c00
+    style H fill:#f3e5f5,stroke:#7b1fa2
+    style I fill:#e3f2fd,stroke:#1976d2
+    style G fill:#ffebee,stroke:#c62828
+    style J fill:#e3f2fd,stroke:#1976d2
+```
+
+| Step | Conventional Go | fluentfp | What changes |
+|------|----------------|----------|--------------|
+| **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
+| **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `rslt.FlatMap(order, validateOrder)` where `validateOrder = web.Steps(...)` (1 line) | Composable list of named validators, each carrying its HTTP status |
+| **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Convert(withNewID)` — pure transform on Ok value (1 line) | Mutation wrapped in named function |
+| **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `rslt.FlatMap(assignedOrder, enrich)` where `enrich` wraps `enrichWithBreaker` (1 line) | Breaker is a decorator — invisible to caller |
+| **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.MapErr(logFailure)` — error-side transform in pipeline (1 line) | Logging separated from response rendering |
+| **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Convert(storeAndNotify)` — side effects in named function (1 line) | Side effects named and composable |
+| **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(storedOrder, web.Created[Order])` (1 line) | `Adapt` renders once |
+| **Error → HTTP** | `if errors.Is(err, ...)` + response block, repeated per handler | `web.WithErrorMapper(mapDomainError)` defined once at boundary | One mapping function for all handlers |
+
 ## The Complete POST Handler
+
+The conventional version on the left is what you'd write with the standard library. The fluentfp version on the right has the same behavior. Look at the *shape* — the left is a tree of `if` branches, the right is a linear pipeline.
 
 <table>
 <tr>
@@ -82,6 +120,7 @@ func handleCreateOrder(
     req.Context(), order)
   if err != nil {
     breaker.recordFailure()
+    log.Printf("enrichment failed: %v", err)
     w.Header().Set("Content-Type",
       "application/json")
     w.WriteHeader(500)
@@ -94,6 +133,12 @@ func handleCreateOrder(
 
   // --- store + respond ---
   store.put(enriched)
+  log.Printf("created order %s", enriched.ID)
+  select {
+  case postCh <- enriched:
+  default:
+    log.Printf("channel full, skipping")
+  }
   w.Header().Set("Content-Type",
     "application/json")
   w.WriteHeader(201)
@@ -108,48 +153,55 @@ func handleCreateOrder(
 handleCreateOrder := func(
   req *http.Request,
 ) rslt.Result[web.Response] {
+  reqID := ctxval.From[RequestID](
+    req.Context()).Or("unknown")
 
-  // --- decode + validate ---
-  validated := rslt.FlatMap(
-    web.DecodeJSON[Order](req),
-    validateOrder,
-  )
-  order, err := validated.Unpack()
-  if err != nil {
-    return rslt.Err[web.Response](err)
+  // --- named operations ---
+
+  withNewID := func(o Order) Order {
+    o.ID = fmt.Sprintf("ord-%d",
+      idCounter.Add(1))
+    o.Status = "pending"
+    return o
   }
 
-
-
-
-
-
-
-
-
-
-  // --- assign ID ---
-  order.ID = fmt.Sprintf("ord-%d",
-    idCounter.Add(1))
-  order.Status = "pending"
-
-  // --- enrich (breaker is invisible) ---
-  enriched, err := enrichWithBreaker(
-    req.Context(), order)
-  if err != nil {
-    return rslt.Err[web.Response](err)
+  enrich := func(o Order) rslt.Result[Order] {
+    return rslt.Of(
+      enrichWithBreaker(req.Context(), o))
   }
 
+  logFailure := func(err error) error {
+    log.Printf("[%s] enrichment failed: %v",
+      reqID, err)
+    return err
+  }
 
+  storeAndNotify := func(o Order) Order {
+    s.put(o)
+    log.Printf("[%s] created order %s",
+      reqID, o.ID)
+    select {
+    case postCh <- o:
+    default:
+      log.Printf("[%s] channel full", reqID)
+    }
+    return o
+  }
 
+  // --- pipeline ---
 
-
-
-
-
-  // --- store + respond ---
-  s.put(enriched)
-  return rslt.Ok(web.Created(enriched))
+  order := web.DecodeJSON[Order](req)
+  validatedOrder :=
+    rslt.FlatMap(order, validateOrder)
+  assignedOrder :=
+    validatedOrder.Convert(withNewID)
+  enrichedOrder :=
+    rslt.FlatMap(assignedOrder, enrich)
+  storedOrder := enrichedOrder.
+    MapErr(logFailure).
+    Convert(storeAndNotify)
+  return rslt.Map(
+    storedOrder, web.Created[Order])
 }
 ```
 
@@ -157,15 +209,18 @@ handleCreateOrder := func(
 </tr>
 </table>
 
-The blank lines on the right aren't padding — they show where the code *isn't*. Six response-writing blocks on the left, zero on the right. The `web.Adapt` wrapper (not shown) handles all response rendering once, outside the handler.
+The left side is a tree: six `if` branches, each ending in 3-4 lines of response-writing, then `return`. The right side is a line: each step feeds the next, and errors propagate automatically. The named operations (top half) define *what* each step does; the pipeline (bottom half) defines *when*.
 
-What disappeared:
+What the pipeline eliminates:
 
-- **Content-Type / MaxBytesReader / DisallowUnknownFields** — `web.DecodeJSON` does it all
-- **Validation error blocks** — `rslt.FlatMap` chains decode into validation; errors propagate
-- **Breaker state management** — `enrichWithBreaker` has the same signature as `enrichOrder`
-- **Error-to-503 mapping** — defined once at the adapter boundary, not in the handler
-- **Response mutation** — `web.Created(enriched)` replaces 3 lines of `Set`/`WriteHeader`/`Encode`
+| Conventional | fluentfp | Why it's gone |
+|---|---|---|
+| 6× `w.Header().Set` / `WriteHeader` / `Encode` blocks | Zero | `web.Adapt` renders all responses once |
+| Content-Type check + MaxBytesReader + DisallowUnknownFields | `web.DecodeJSON` | One call does all three |
+| Separate decode and validate error blocks | `rslt.FlatMap` | Chains them; errors propagate |
+| `breaker.allow()` / `recordSuccess()` / `recordFailure()` | `enrichWithBreaker` | Decorator — same signature, breaker invisible |
+| `if errors.Is(err, errCircuitOpen)` in handler | `web.WithErrorMapper` | Defined once at adapter boundary |
+| `log.Printf` on error scattered in branches | `MapErr(logFailure)` | Error-side transform in the pipeline |
 
 The conventional version also excludes the 40+ lines needed to implement `circuitBreaker` itself.
 
@@ -209,10 +264,10 @@ if err := dec.Decode(&order); err != nil {
 <td>
 
 ```go
-web.DecodeJSON[Order](req)
+order := web.DecodeJSON[Order](req)
 ```
 
-Returns `Result[Order]` — the decoded order or a structured error (415, 413, 400).
+Returns `Result[Order]` — the decoded order or a structured error (415, 413, 400). Content-type, body size limit, unknown fields — all handled.
 
 </td>
 </tr>
@@ -242,7 +297,7 @@ func validateOrder(o Order) error {
 }
 ```
 
-One monolithic function. Bare `error` return loses the HTTP status code.
+One monolithic function. Bare `error` loses the HTTP status code.
 
 </td>
 <td>
@@ -255,7 +310,7 @@ validateOrder := web.Steps(
 )
 ```
 
-A list of named functions. Each carries its own HTTP status code:
+A list of named functions. Each carries its own status code:
 
 ```go
 func itemsHavePositiveQty(
@@ -270,11 +325,15 @@ func itemsHavePositiveQty(
 }
 ```
 
+Adding a validation = adding a name to the list.
+
 </td>
 </tr>
 </table>
 
-### Chaining Decode into Validation
+### Chaining Decode → Validate → Transform
+
+This is where `FlatMap` and `Convert` replace `if err != nil` blocks.
 
 <table>
 <tr><th>Conventional</th><th>fluentfp</th></tr>
@@ -282,33 +341,38 @@ func itemsHavePositiveQty(
 <td>
 
 ```go
+// decode
 if err := dec.Decode(&order); err != nil {
-  // write 400 response...
+  // write 400...
   return
 }
+// validate
 if err := validateOrder(order); err != nil {
-  // write 400 response...
+  // write 400...
   return
 }
+// assign
+order.ID = fmt.Sprintf("ord-%d",
+  idCounter.Add(1))
+order.Status = "pending"
 ```
 
-Two error blocks. A third step means a third block.
+Three blocks. Each fallible step needs its own error check and response. The assignment mutates `order` in place.
 
 </td>
 <td>
 
 ```go
-validated := rslt.FlatMap(
-  web.DecodeJSON[Order](req),
-  validateOrder,
-)
-order, err := validated.Unpack()
-if err != nil {
-  return rslt.Err[web.Response](err)
-}
+order := web.DecodeJSON[Order](req)
+validatedOrder :=
+  rslt.FlatMap(order, validateOrder)
+assignedOrder :=
+  validatedOrder.Convert(withNewID)
 ```
 
-`FlatMap` unwraps the `Ok` value and passes it to the next function. If either step returns `Err`, the chain stops and that error propagates — no nesting, no second error block. It's called "flat" because `validateOrder` itself returns `Result[Order]`: a plain `Map` would nest that into `Result[Result[Order]]`, but `FlatMap` keeps it one level deep. Adding a third step is another `FlatMap` call, not another error block.
+Three lines. `FlatMap` chains fallible operations — if `order` is Err, `validateOrder` is never called. `Convert` transforms the Ok value — `withNewID` returns a new Order with ID assigned.
+
+`FlatMap` is called "flat" because `validateOrder` returns `Result[Order]`: a plain `Map` would nest that into `Result[Result[Order]]`. FlatMap keeps it one level deep.
 
 </td>
 </tr>
@@ -360,7 +424,7 @@ Three concerns tangled: state checking, result recording, response writing. The 
 <td>
 
 ```go
-// Setup (5 lines):
+// Setup (5 lines, once):
 breaker := hof.NewBreaker(hof.BreakerConfig{
   ResetTimeout: 10 * time.Second,
   ReadyToTrip:  hof.ConsecutiveFailures(3),
@@ -368,18 +432,24 @@ breaker := hof.NewBreaker(hof.BreakerConfig{
 enrichWithBreaker := hof.WithBreaker(
   breaker, enrichOrder)
 
-// In handler (1 line):
-enriched, err := enrichWithBreaker(
-  req.Context(), order)
+// In handler (defined as named function):
+enrich := func(o Order) rslt.Result[Order] {
+  return rslt.Of(
+    enrichWithBreaker(req.Context(), o))
+}
+
+// In pipeline (1 line):
+enrichedOrder :=
+  rslt.FlatMap(assignedOrder, enrich)
 ```
 
-Same signature as `enrichOrder`. The handler doesn't know a breaker exists. Probe gating, panic recovery, cancellation, and concurrent transitions are handled.
+Same signature as `enrichOrder`. The handler doesn't know a breaker exists. Probe gating, panic recovery, cancellation handled.
 
 </td>
 </tr>
 </table>
 
-### Error Mapping
+### Error Logging + Error Mapping
 
 <table>
 <tr><th>Conventional</th><th>fluentfp</th></tr>
@@ -387,49 +457,63 @@ Same signature as `enrichOrder`. The handler doesn't know a breaker exists. Prob
 <td>
 
 ```go
-// Repeated in every handler:
-if errors.Is(err, errCircuitOpen) {
+// In handler — logging + error mapping tangled:
+enriched, err := enrichOrder(
+  req.Context(), order)
+if err != nil {
+  log.Printf("enrichment failed: %v", err)
+  if errors.Is(err, errCircuitOpen) {
+    w.Header().Set("Content-Type",
+      "application/json")
+    w.WriteHeader(503)
+    json.NewEncoder(w).Encode(
+      map[string]string{
+        "error": "pricing unavailable"})
+    return
+  }
   w.Header().Set("Content-Type",
     "application/json")
-  w.WriteHeader(503)
+  w.WriteHeader(500)
   json.NewEncoder(w).Encode(
     map[string]string{
-      "error": "pricing unavailable"})
+      "error": "internal error"})
   return
 }
-w.Header().Set("Content-Type",
-  "application/json")
-w.WriteHeader(500)
-json.NewEncoder(w).Encode(
-  map[string]string{
-    "error": "internal error"})
-return
 ```
+
+Logging, error classification, and response rendering — all in one `if err` block. Repeated per handler.
 
 </td>
 <td>
 
 ```go
-// Defined once:
-func mapDomainError(
+// Error logging (in pipeline):
+logFailure := func(err error) error {
+  log.Printf("[%s] enrichment failed: %v",
+    reqID, err)
+  return err
+}
+storedOrder := enrichedOrder.
+  MapErr(logFailure).
+  Convert(storeAndNotify)
+
+// Error mapping (defined once, at boundary):
+mapDomainError := func(
   err error,
 ) (*web.Error, bool) {
   if errors.Is(err, hof.ErrCircuitOpen) {
     return &web.Error{
-      Status:  503,
+      Status: 503,
       Message: "pricing unavailable",
     }, true
   }
   return nil, false
 }
-
-errorMapper := web.WithErrorMapper(
-  mapDomainError)
-mux.HandleFunc("POST /orders",
-  web.Adapt(handleCreateOrder, errorMapper))
+web.Adapt(handler, web.WithErrorMapper(
+  mapDomainError))
 ```
 
-One mapping, applied at the boundary.
+Three concerns, three locations: `MapErr` logs in the pipeline, `WithErrorMapper` classifies at the boundary, `Adapt` renders.
 
 </td>
 </tr>
@@ -473,7 +557,7 @@ return rslt.Map(
 )
 ```
 
-`option.New` wraps comma-ok. `.OkOr` bridges to Result. `rslt.Map` wraps in a response. The 404 propagates through `Map` untouched.
+`option.New` wraps `(Order, bool)` → `Option`. `.OkOr` bridges to `Result`: present → Ok, absent → Err(404). `rslt.Map` wraps Ok in a 200 response. The 404 propagates through `Map` untouched.
 
 </td>
 </tr>
@@ -497,7 +581,8 @@ if !ok {
 <td>
 
 ```go
-price := option.Lookup(prices, item.SKU).Or(100)
+price := option.Lookup(
+  prices, item.SKU).Or(100)
 ```
 
 </td>
@@ -543,14 +628,18 @@ Mutable variables declared before the conditional, assigned inside it.
 ```go
 status, hasStatus :=
   option.NonEmpty(q.Get("status")).Get()
-minTotalOption := option.FlatMap(
-  option.NonEmpty(q.Get("min_total")),
-  option.Atoi,
-)
-mt, hasMinTotal := minTotalOption.Get()
+
+// parseIntParam: absent → Ok(NotOk),
+// valid → Ok(Of(n)), invalid → Err(400)
+minTotalResult :=
+  parseIntParam(q.Get("min_total"))
+
+// filterOrders uses the parsed params
+return rslt.FlatMap(
+  minTotalResult, filterOrders)
 ```
 
-Parse pipeline: empty → skip, non-empty → parse. No mutable variables.
+Parse pipeline: empty → skip, non-empty → parse. Invalid → 400 via `OkOr`. The list handler chains parsing into filtering with `FlatMap` — no `if err != nil`.
 
 </td>
 </tr>
@@ -596,12 +685,15 @@ if hasMinTotal {
 <td>
 
 ```go
-orders := slice.SortBy(s.list(), Order.GetID).
-  KeepIfWhen(hasStatus, hasMatchingStatus).
-  KeepIfWhen(hasMinTotal, totalAtLeast)
+orders := slice.SortBy(
+    s.list(), Order.GetID).
+  KeepIfWhen(hasStatus,
+    hasMatchingStatus).
+  KeepIfWhen(hasMinTotal,
+    totalAtLeast)
 ```
 
-3 lines. Method expression for sort key. `KeepIfWhen` skips the filter when condition is false.
+3 lines. Method expression for sort key. `KeepIfWhen` skips the filter when condition is false — optional filters chain without `if` blocks.
 
 </td>
 </tr>
@@ -667,7 +759,8 @@ json.NewEncoder(w).Encode(enriched)
 <td>
 
 ```go
-return rslt.Ok(web.Created(enriched))
+return rslt.Map(
+  storedOrder, web.Created[Order])
 ```
 
 1 expression. Status + body travel as data. `Adapt` renders once.
@@ -705,7 +798,7 @@ go func() {
 
 go func() {
   for o := range inventoryCh {
-    log.Printf("inventory: %d", len(o.Items))
+    log.Printf("inv: %d", len(o.Items))
   }
 }()
 ```
