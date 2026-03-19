@@ -357,14 +357,14 @@ func main() {
 
 		// Parse query params. Invalid min_total returns 400.
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
-		minTotalOpt := option.FlatMap(option.NonEmpty(q.Get("min_total")), option.Atoi)
+		minTotalOption := option.FlatMap(option.NonEmpty(q.Get("min_total")), option.Atoi)
 		if raw, ok := option.NonEmpty(q.Get("min_total")).Get(); ok {
-			if _, ok := minTotalOpt.Get(); !ok {
+			if _, ok := minTotalOption.Get(); !ok {
 				return rslt.Err[web.Response](web.BadRequest(
 					fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 			}
 		}
-		mt, hasMinTotal := minTotalOpt.Get()
+		mt, hasMinTotal := minTotalOption.Get()
 
 		// hasMatchingStatus checks if order status matches the filter.
 		hasMatchingStatus := func(o Order) bool { return o.Status == status }
