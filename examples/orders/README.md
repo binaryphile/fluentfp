@@ -239,16 +239,20 @@ mt, hasMinTotal := minTotalOption.Get()
 hasMatchingStatus := func(o Order) bool { return o.Status == status }
 totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
-orders := slice.SortBy(s.list(), orderNum).
-    KeepIfWhen(hasStatus, hasMatchingStatus).
-    KeepIfWhen(hasMinTotal, totalAtLeast)
+orders := slice.SortBy(s.list(), orderNum)
+if hasStatus {
+    orders = orders.KeepIf(hasMatchingStatus)
+}
+if hasMinTotal {
+    orders = orders.KeepIf(totalAtLeast)
+}
 ```
 
 `option.NonEmpty` → `option.FlatMap` → `option.Atoi` chains empty-check into integer parsing. The option handles the absent case automatically at every step. Invalid `min_total` values (present but not an integer) return 400.
 
-`slice.SortBy(list, orderNum)` sorts by a key function — `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. The result chains directly into `KeepIfWhen(cond, fn)`, which applies a filter only when the condition is true. Two optional filters chain without `if` blocks breaking the pipeline.
+`slice.SortBy(list, orderNum)` sorts by a key function — `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. The conditional `KeepIf` filters are plain Go `if` statements — no special API needed when you're not inside a chain that would break.
 
-The conventional equivalent: `var filtered []Order` declared twice, two `for` loops with `append`, and `sort.Slice` with an `i, j` closure that accesses the outer slice by index.
+The conventional equivalent uses `sort.Slice` with an `i, j` closure that accesses the outer slice by index, and `var filtered []Order` with `append` inside a `for` loop for each filter. The fluentfp version uses `SortBy` with a key function and `KeepIf` with named predicates — same structure, less scaffolding.
 
 ### Type-safe context values (ctxval)
 

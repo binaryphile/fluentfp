@@ -32,10 +32,10 @@ flowchart TD
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
 | **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `rslt.FlatMap(order, validateOrder)` where `validateOrder = web.Steps(...)` (1 line) | Composable list of named validators, each carrying its HTTP status |
 | **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` — pure transform on Ok value (1 line) | Mutation wrapped in named function |
-| **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `rslt.FlatMap(assignedOrder, enrich)` where `enrich` wraps `enrichWithBreaker` (1 line) | Breaker is a decorator — invisible to caller |
+| **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `.FlatMap(enrich)` in the chain (1 line) | Breaker is a decorator — invisible to caller |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` — error-side side effect in pipeline (1 line) | Logging separated from response rendering |
 | **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` — side effects in named function (1 line) | Side effects named and composable |
-| **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(storedOrder, web.Created[Order])` (1 line) | `Adapt` renders once |
+| **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(stored, web.Created[Order])` (1 line) | `Adapt` renders once |
 | **Error → HTTP** | `if errors.Is(err, ...)` + response block, repeated per handler | `web.WithErrorMapper(mapDomainError)` defined once at boundary | One mapping function for all handlers |
 
 ## The Complete POST Handler
@@ -360,13 +360,12 @@ Three blocks. Each fallible step needs its own error check and response. The ass
 
 ```go
 order := web.DecodeJSON[Order](req)
-validatedOrder :=
-  rslt.FlatMap(order, validateOrder)
-assignedOrder :=
-  validatedOrder.Transform(withNewID)
+assigned := order.
+  FlatMap(validateOrder).
+  Transform(withNewID)
 ```
 
-Three lines. `FlatMap` chains fallible operations — if `order` is Err, `validateOrder` is never called. `Transform` transforms the Ok value — `withNewID` returns a new Order with ID assigned.
+A chain. `FlatMap` passes the Ok value to `validateOrder`; if it returns Err, the chain stops. `Transform` applies `withNewID` to the Ok value. Each method returns a `Result`, so the chain continues.
 
 `FlatMap` is called "flat" because `validateOrder` returns `Result[Order]`: a plain `Map` would nest that into `Result[Result[Order]]`. FlatMap keeps it one level deep.
 
@@ -434,9 +433,8 @@ enrich := func(o Order) rslt.Result[Order] {
     enrichWithBreaker(req.Context(), o))
 }
 
-// In pipeline (1 line):
-enrichedOrder :=
-  rslt.FlatMap(assignedOrder, enrich)
+// In the chain (1 line):
+.FlatMap(enrich)
 ```
 
 Same signature as `enrichOrder`. The handler doesn't know a breaker exists. Probe gating, panic recovery, cancellation handled.
@@ -489,9 +487,9 @@ logFailure := func(err error) error {
     reqID, err)
   return err
 }
-storedOrder := enrichedOrder.
-  TapErr(logFailure).
-  Tap(storeAndNotify)
+// In the chain:
+.TapErr(logFailure).
+.Tap(storeAndNotify)
 
 // Error mapping (defined once, at boundary):
 mapDomainError := func(
@@ -695,13 +693,16 @@ if hasMinTotal {
 <td>
 
 ```go
-sorted := slice.SortBy(s.list(), Order.GetID)
-orders := sorted.
-  KeepIfWhen(hasStatus, hasMatchingStatus).
-  KeepIfWhen(hasMinTotal, totalAtLeast)
+orders := slice.SortBy(s.list(), orderNum)
+if hasStatus {
+  orders = orders.KeepIf(hasMatchingStatus)
+}
+if hasMinTotal {
+  orders = orders.KeepIf(totalAtLeast)
+}
 ```
 
-`SortBy` takes a method expression as the sort key — "sort by ID" is the entire call. `KeepIfWhen` applies the filter only when the condition is true, so optional filters chain without `if` blocks.
+`SortBy` takes a key function — `orderNum` extracts the numeric suffix for correct ordering. `KeepIf` with named predicates replaces the `for`/`append` loop. The `if` guards are plain Go — no special API needed for conditional filtering outside a chain.
 
 </td>
 </tr>
@@ -767,8 +768,7 @@ json.NewEncoder(w).Encode(enriched)
 <td>
 
 ```go
-return rslt.Map(
-  storedOrder, web.Created[Order])
+return rslt.Map(stored, web.Created[Order])
 ```
 
 1 expression. Status + body travel as data. `Adapt` renders once.

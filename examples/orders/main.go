@@ -384,9 +384,13 @@ func main() {
 		// totalAtLeast checks if order total meets the minimum.
 		totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
-		orders := slice.SortBy(s.list(), orderNum).
-			KeepIfWhen(hasStatus, hasMatchingStatus).
-			KeepIfWhen(hasMinTotal, totalAtLeast)
+		orders := slice.SortBy(s.list(), orderNum)
+		if hasStatus {
+			orders = orders.KeepIf(hasMatchingStatus)
+		}
+		if hasMinTotal {
+			orders = orders.KeepIf(totalAtLeast)
+		}
 
 		return rslt.Ok(web.OK(orders))
 	}
