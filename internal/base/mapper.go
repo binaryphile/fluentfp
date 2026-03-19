@@ -248,6 +248,16 @@ func (ts Mapper[T]) KeepIf(fn func(T) bool) Mapper[T] {
 	return results
 }
 
+// KeepIfWhen conditionally filters: when cond is true, behaves like KeepIf;
+// when cond is false, returns ts unchanged. This preserves method chaining
+// when a filter should only apply based on an external condition (e.g., an optional query parameter).
+func (ts Mapper[T]) KeepIfWhen(cond bool, fn func(T) bool) Mapper[T] {
+	if !cond {
+		return ts
+	}
+	return ts.KeepIf(fn)
+}
+
 // Len returns the length of the slice.
 func (ts Mapper[T]) Len() int {
 	return len(ts)
@@ -274,6 +284,16 @@ func (ts Mapper[T]) RemoveIf(fn func(T) bool) Mapper[T] {
 	}
 
 	return results
+}
+
+// RemoveIfWhen conditionally filters: when cond is true, behaves like RemoveIf;
+// when cond is false, returns ts unchanged. This preserves method chaining
+// when a filter should only apply based on an external condition.
+func (ts Mapper[T]) RemoveIfWhen(cond bool, fn func(T) bool) Mapper[T] {
+	if !cond {
+		return ts
+	}
+	return ts.RemoveIf(fn)
 }
 
 // Partition splits ts into two slices: elements where fn returns true, and elements where it returns false.

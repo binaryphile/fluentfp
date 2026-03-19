@@ -937,3 +937,79 @@ func TestIsSortedBy(t *testing.T) {
 		})
 	}
 }
+
+func TestKeepIfWhen(t *testing.T) {
+	isEven := func(n int) bool { return n%2 == 0 }
+
+	tests := []struct {
+		name  string
+		cond  bool
+		input []int
+		want  []int
+	}{
+		{
+			name:  "cond true filters",
+			cond:  true,
+			input: []int{1, 2, 3, 4, 5},
+			want:  []int{2, 4},
+		},
+		{
+			name:  "cond false returns unchanged",
+			cond:  false,
+			input: []int{1, 2, 3, 4, 5},
+			want:  []int{1, 2, 3, 4, 5},
+		},
+		{
+			name:  "cond true empty slice",
+			cond:  true,
+			input: []int{},
+			want:  []int{},
+		},
+		{
+			name:  "cond false empty slice",
+			cond:  false,
+			input: []int{},
+			want:  []int{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).KeepIfWhen(tt.cond, isEven)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("KeepIfWhen() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRemoveIfWhen(t *testing.T) {
+	isEven := func(n int) bool { return n%2 == 0 }
+
+	tests := []struct {
+		name  string
+		cond  bool
+		input []int
+		want  []int
+	}{
+		{
+			name:  "cond true removes",
+			cond:  true,
+			input: []int{1, 2, 3, 4, 5},
+			want:  []int{1, 3, 5},
+		},
+		{
+			name:  "cond false returns unchanged",
+			cond:  false,
+			input: []int{1, 2, 3, 4, 5},
+			want:  []int{1, 2, 3, 4, 5},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := From(tt.input).RemoveIfWhen(tt.cond, isEven)
+			if !reflect.DeepEqual([]int(got), tt.want) {
+				t.Errorf("RemoveIfWhen() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
