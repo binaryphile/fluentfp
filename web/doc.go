@@ -28,6 +28,7 @@ func _() {
 	_ = NotFound
 	_ = Conflict
 	_ = Forbidden
+	_ = TooManyRequests
 	_ = StatusError
 
 	// Decode

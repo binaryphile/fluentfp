@@ -110,10 +110,56 @@ Handlers don't write errors — they return them. Adapt decides how to render.
 
 **Errors**
 - `BadRequest(msg) error` — 400
+- `Forbidden(msg) error` — 403
 - `NotFound(msg) error` — 404
 - `Conflict(msg) error` — 409
-- `Forbidden(msg) error` — 403
+- `TooManyRequests(msg) error` — 429
 - `StatusError(status, code, msg) error` — custom status
+
+## Rate Limiting Pattern
+
+Rate limiting lives in middleware, not in fluentfp. The web package provides the error constructor; your middleware provides the logic:
+
+```go
+// Rate limit middleware using golang.org/x/time/rate
+func withRateLimit(limit rate.Limit, burst int, next http.Handler) http.Handler {
+    limiter := rate.NewLimiter(limit, burst)
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if !limiter.Allow() {
+            // Return a web.Error — Adapt's error rendering handles the rest
+            writeRateLimitError(w)
+            return
+        }
+        next.ServeHTTP(w, r)
+    })
+}
+
+func writeRateLimitError(w http.ResponseWriter) {
+    w.Header().Set("Content-Type", "application/json")
+    w.Header().Set("Retry-After", "1")
+    w.WriteHeader(http.StatusTooManyRequests)
+    json.NewEncoder(w).Encode(web.ClientError{
+        Error: "rate limit exceeded",
+        Code:  "TOO_MANY_REQUESTS",
+    })
+}
+```
+
+For handlers that return `Result[Response]`, use `web.TooManyRequests` in an error mapper:
+
+```go
+mapRateLimit := func(err error) (*web.Error, bool) {
+    if errors.Is(err, errRateLimited) {
+        return &web.Error{
+            Status:  429,
+            Message: "rate limit exceeded",
+            Code:    "TOO_MANY_REQUESTS",
+            Headers: http.Header{"Retry-After": {"1"}},
+        }, true
+    }
+    return nil, false
+}
+```
 
 This package is for the transport boundary — JSON in, JSON out. Domain logic belongs in separate functions that handlers call. Not a web framework.
 

@@ -61,6 +61,11 @@ func Forbidden(msg string) error {
 	return &Error{Status: http.StatusForbidden, Message: msg, Code: "FORBIDDEN"}
 }
 
+// TooManyRequests returns a 429 error.
+func TooManyRequests(msg string) error {
+	return &Error{Status: http.StatusTooManyRequests, Message: msg, Code: "TOO_MANY_REQUESTS"}
+}
+
 // StatusError returns an error with the given status, code, and message.
 func StatusError(status int, code, msg string) error {
 	return &Error{Status: status, Message: msg, Code: code}
