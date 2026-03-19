@@ -4,11 +4,26 @@ import "github.com/binaryphile/fluentfp/rslt"
 
 // OkOr returns Ok(value) if opt is ok, or Err(err) if opt is not-ok.
 // Bridges Option into Result when absence is an error.
-// Panics if err is nil (same contract as [rslt.Err]).
-func OkOr[T any](opt Option[T], err error) rslt.Result[T] {
-	if v, ok := opt.Get(); ok {
+// Panics if opt is not-ok and err is nil (same contract as [rslt.Err]).
+func (b Option[T]) OkOr(err error) rslt.Result[T] {
+	if v, ok := b.Get(); ok {
 		return rslt.Ok(v)
 	}
 
 	return rslt.Err[T](err)
+}
+
+// OkOrCall returns Ok(value) if opt is ok, or Err(fn()) if opt is not-ok.
+// The error function is only called when the option is not-ok.
+// Panics if fn is nil. Panics if fn returns nil (same contract as [rslt.Err]).
+func (b Option[T]) OkOrCall(fn func() error) rslt.Result[T] {
+	if fn == nil {
+		panic("option: OkOrCall called with nil function")
+	}
+
+	if v, ok := b.Get(); ok {
+		return rslt.Ok(v)
+	}
+
+	return rslt.Err[T](fn())
 }
