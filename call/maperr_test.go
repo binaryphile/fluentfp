@@ -1,4 +1,4 @@
-package cb_test
+package call_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/binaryphile/fluentfp/cb"
+	"github.com/binaryphile/fluentfp/call"
 )
 
 func TestMapErrSuccess(t *testing.T) {
@@ -21,7 +21,7 @@ func TestMapErrSuccess(t *testing.T) {
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
-	wrapped := cb.MapErr(doubleIt, trackMapper)
+	wrapped := call.MapErr(doubleIt, trackMapper)
 	got, err := wrapped(context.Background(), 5)
 
 	if err != nil {
@@ -43,7 +43,7 @@ func TestMapErrTransformsError(t *testing.T) {
 	// alwaysFail always returns errOriginal.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errOriginal }
 
-	wrapped := cb.MapErr(alwaysFail, addPrefix)
+	wrapped := call.MapErr(alwaysFail, addPrefix)
 	_, err := wrapped(context.Background(), 0)
 
 	if err == nil {
@@ -67,7 +67,7 @@ func TestMapErrPassesExactErrorToMapper(t *testing.T) {
 	// alwaysFail always returns errOriginal.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errOriginal }
 
-	wrapped := cb.MapErr(alwaysFail, captureMapper)
+	wrapped := call.MapErr(alwaysFail, captureMapper)
 	wrapped(context.Background(), 0)
 
 	if received != errOriginal {
@@ -83,7 +83,7 @@ func TestMapErrPreservesResultOnError(t *testing.T) {
 	// identity returns err unchanged.
 	identity := func(err error) error { return err }
 
-	wrapped := cb.MapErr(failWithValue, identity)
+	wrapped := call.MapErr(failWithValue, identity)
 	got, _ := wrapped(context.Background(), 0)
 
 	if got != 42 {
@@ -99,7 +99,7 @@ func TestMapErrPreservesErrorIdentity(t *testing.T) {
 	// alwaysFail always returns errSentinel.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errSentinel }
 
-	wrapped := cb.MapErr(alwaysFail, wrapWithContext)
+	wrapped := call.MapErr(alwaysFail, wrapWithContext)
 	_, err := wrapped(context.Background(), 0)
 
 	if !errors.Is(err, errSentinel) {
@@ -127,8 +127,8 @@ func TestMapErrOuterSeesRetryFinalError(t *testing.T) {
 		return fmt.Errorf("mapped: %w", err)
 	}
 
-	retried := cb.Retry(3, cb.ConstantBackoff(0), nil, alwaysFail)
-	composed := cb.MapErr(retried, countingWrapper)
+	retried := call.Retry(3, call.ConstantBackoff(0), nil, alwaysFail)
+	composed := call.MapErr(retried, countingWrapper)
 	_, err := composed(context.Background(), 0)
 
 	if err == nil {
@@ -155,7 +155,7 @@ func TestMapErrInnerMapsPerRetryAttempt(t *testing.T) {
 	// alwaysFail always returns errBoom.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
 
-	composed := cb.Retry(3, cb.ConstantBackoff(0), nil, cb.MapErr(alwaysFail, countingWrapper))
+	composed := call.Retry(3, call.ConstantBackoff(0), nil, call.MapErr(alwaysFail, countingWrapper))
 	_, err := composed(context.Background(), 0)
 
 	if err == nil {
@@ -178,7 +178,7 @@ func TestMapErrOuterOnErrSeesMapping(t *testing.T) {
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errOriginal }
 
 	// OnErr(MapErr(fn, m), obs) — observer sees mapped error.
-	composed := cb.OnErr(cb.MapErr(alwaysFail, addPrefix), observeErr)
+	composed := call.OnErr(call.MapErr(alwaysFail, addPrefix), observeErr)
 	composed(context.Background(), 0)
 
 	if observed == nil {
@@ -201,7 +201,7 @@ func TestMapErrInnerOnErrSeesOriginal(t *testing.T) {
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errOriginal }
 
 	// MapErr(OnErr(fn, obs), m) — observer sees original error.
-	composed := cb.MapErr(cb.OnErr(alwaysFail, observeErr), addPrefix)
+	composed := call.MapErr(call.OnErr(alwaysFail, observeErr), addPrefix)
 	composed(context.Background(), 0)
 
 	if observed != errOriginal {
@@ -221,11 +221,11 @@ func TestMapErrValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "nil_fn",
-			fn:   func() { cb.MapErr[int, int](nil, dummyMapper) },
+			fn:   func() { call.MapErr[int, int](nil, dummyMapper) },
 		},
 		{
 			name: "nil_mapper",
-			fn:   func() { cb.MapErr(dummyFn, nil) },
+			fn:   func() { call.MapErr(dummyFn, nil) },
 		},
 	}
 
@@ -247,7 +247,7 @@ func TestMapErrMapperReturnsNilPanics(t *testing.T) {
 	// alwaysFail always returns an error.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errors.New("fail") }
 
-	wrapped := cb.MapErr(alwaysFail, nilMapper)
+	wrapped := call.MapErr(alwaysFail, nilMapper)
 
 	defer func() {
 		if recover() == nil {

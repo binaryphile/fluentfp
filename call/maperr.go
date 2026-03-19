@@ -1,4 +1,4 @@
-package cb
+package call
 
 import "context"
 
@@ -12,7 +12,7 @@ import "context"
 //	annotateGetUser := func(err error) error {
 //	    return fmt.Errorf("get user: %w", err)
 //	}
-//	annotated := cb.MapErr(repo.GetUser, annotateGetUser)
+//	annotated := call.MapErr(repo.GetUser, annotateGetUser)
 //
 // mapper is only called for non-nil errors. For any non-nil input, mapper
 // must return a non-nil error; the returned function panics otherwise because
@@ -25,10 +25,10 @@ import "context"
 // Panics at construction time if fn is nil or mapper is nil.
 func MapErr[T, R any](fn func(context.Context, T) (R, error), mapper func(error) error) func(context.Context, T) (R, error) {
 	if fn == nil {
-		panic("cb.MapErr: fn must not be nil")
+		panic("call.MapErr: fn must not be nil")
 	}
 	if mapper == nil {
-		panic("cb.MapErr: mapper must not be nil")
+		panic("call.MapErr: mapper must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {
@@ -36,7 +36,7 @@ func MapErr[T, R any](fn func(context.Context, T) (R, error), mapper func(error)
 		if err != nil {
 			mapped := mapper(err)
 			if mapped == nil {
-				panic("cb.MapErr: mapper must not return nil")
+				panic("call.MapErr: mapper must not return nil")
 			}
 
 			return r, mapped

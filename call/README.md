@@ -1,14 +1,14 @@
-# cb
+# call
 
-Resilience decorators for communicating with runtime dependencies. Named after citizen band radio — communication over unreliable channels. "Breaker, breaker."
+Resilience decorators for communicating with runtime dependencies. Named after effectful call decorators — communication over unreliable channels. "Breaker, breaker."
 
 All decorators wrap `func(context.Context, T) (R, error)` and return the same signature, so they compose by stacking:
 
 ```go
 // Classify → retry → circuit break — each wraps the previous
-classified := cb.MapErr(fetchUser, classifyError)
-retried := cb.Retry(3, cb.ExponentialBackoff(100*time.Millisecond), isTransient, classified)
-safeFetch := cb.WithBreaker(breaker, retried)
+classified := call.MapErr(fetchUser, classifyError)
+retried := call.Retry(3, call.ExponentialBackoff(100*time.Millisecond), isTransient, classified)
+safeFetch := call.WithBreaker(breaker, retried)
 
 // Caller sees the same signature as fetchUser
 resp, err := safeFetch(ctx, url)
@@ -18,43 +18,43 @@ resp, err := safeFetch(ctx, url)
 
 ```go
 // Retry with exponential backoff, only for transient errors
-backoff := cb.ExponentialBackoff(100 * time.Millisecond)
-fetcher := cb.Retry(3, backoff, isTransient, fetchData)
+backoff := call.ExponentialBackoff(100 * time.Millisecond)
+fetcher := call.Retry(3, backoff, isTransient, fetchData)
 ```
 
 ```go
 // Circuit breaker — trips after 5 consecutive failures, resets after 30s
-breaker := cb.NewBreaker(cb.BreakerConfig{
+breaker := call.NewBreaker(call.BreakerConfig{
     ResetTimeout: 30 * time.Second,
-    ReadyToTrip:  cb.ConsecutiveFailures(5),
+    ReadyToTrip:  call.ConsecutiveFailures(5),
 })
-safeFetch := cb.WithBreaker(breaker, fetchFromAPI)
-resp, err := safeFetch(ctx, url)  // returns cb.ErrOpen when tripped
+safeFetch := call.WithBreaker(breaker, fetchFromAPI)
+resp, err := safeFetch(ctx, url)  // returns call.ErrOpen when tripped
 ```
 
 ```go
 // Bound concurrency — at most 5 in-flight API calls
-callAPI := cb.Throttle(5, fetchFromAPI)
+callAPI := call.Throttle(5, fetchFromAPI)
 ```
 
 ```go
 // Bound by total cost — large items consume more budget
-fetchData := cb.ThrottleWeighted(100, estimateSize, fetchFromAPI)
+fetchData := call.ThrottleWeighted(100, estimateSize, fetchFromAPI)
 ```
 
 ```go
 // Cancel remaining work on first error
-failFast := cb.OnErr(fetchURL, func(_ error) { cancel() })
+failFast := call.OnErr(fetchURL, func(_ error) { cancel() })
 ```
 
 ```go
 // Transform errors without changing the function signature
-annotated := cb.MapErr(fetchUser, classifyError)
+annotated := call.MapErr(fetchUser, classifyError)
 ```
 
 ```go
 // Debounce rapid calls, execute once after quiet period
-d := cb.NewDebouncer(500*time.Millisecond, saveConfig)
+d := call.NewDebouncer(500*time.Millisecond, saveConfig)
 defer d.Close()
 d.Call(cfg)
 ```
@@ -86,4 +86,4 @@ d.Call(cfg)
 
 All context-aware wrappers return `ctx.Err()` on cancellation. `WithBreaker` does not count `context.Canceled` as a failure. All functions panic on nil inputs.
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/cb) for complete API documentation and the [orders example](../examples/orders/) for a full integration demo.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/call) for complete API documentation and the [orders example](../examples/orders/) for a full integration demo.

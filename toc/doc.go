@@ -64,7 +64,7 @@
 // fail-fast in the downstream stage.
 //
 // See the package README for pipeline lifecycle contract, cancellation
-// topology, and selection rubric (cb.MapErr vs toc.Pipe).
+// topology, and selection rubric (call.MapErr vs toc.Pipe).
 //
 // This package is for pipelines with a known bottleneck stage. If you
 // don't know your constraint, profile first.

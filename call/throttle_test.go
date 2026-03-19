@@ -1,4 +1,4 @@
-package cb_test
+package call_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/binaryphile/fluentfp/cb"
+	"github.com/binaryphile/fluentfp/call"
 )
 
 // --- Throttle ---
@@ -16,7 +16,7 @@ func TestThrottleBasic(t *testing.T) {
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
-	throttled := cb.Throttle(3, doubleIt)
+	throttled := call.Throttle(3, doubleIt)
 	got, err := throttled(context.Background(), 5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -32,7 +32,7 @@ func TestThrottleError(t *testing.T) {
 		return 0, fmt.Errorf("fail")
 	}
 
-	throttled := cb.Throttle(1, failAlways)
+	throttled := call.Throttle(1, failAlways)
 	_, err := throttled(context.Background(), 1)
 	if err == nil || err.Error() != "fail" {
 		t.Fatalf("expected 'fail' error, got %v", err)
@@ -58,7 +58,7 @@ func TestThrottleConcurrencyBound(t *testing.T) {
 		return 0, nil
 	}
 
-	throttled := cb.Throttle(maxConcurrent, trackConcurrency)
+	throttled := call.Throttle(maxConcurrent, trackConcurrency)
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {
@@ -85,7 +85,7 @@ func TestThrottleContextCancelled(t *testing.T) {
 	}
 
 	// Fill all slots.
-	throttled := cb.Throttle(1, blockForever)
+	throttled := call.Throttle(1, blockForever)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go throttled(ctx, 0) //nolint:errcheck
@@ -110,7 +110,7 @@ func TestThrottlePreCancelledContext(t *testing.T) {
 		return 0, nil
 	}
 
-	throttled := cb.Throttle(1, neverCalled)
+	throttled := call.Throttle(1, neverCalled)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -133,7 +133,7 @@ func TestThrottlePanicReleasesSlot(t *testing.T) {
 		return 42, nil
 	}
 
-	throttled := cb.Throttle(1, maybePanic)
+	throttled := call.Throttle(1, maybePanic)
 
 	// First call: panics. Recover it.
 	func() {
@@ -169,15 +169,15 @@ func TestThrottleValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "n_zero",
-			fn:   func() { cb.Throttle(0, dummyFn) },
+			fn:   func() { call.Throttle(0, dummyFn) },
 		},
 		{
 			name: "n_negative",
-			fn:   func() { cb.Throttle(-1, dummyFn) },
+			fn:   func() { call.Throttle(-1, dummyFn) },
 		},
 		{
 			name: "nil_fn",
-			fn:   func() { cb.Throttle[int, int](1, nil) },
+			fn:   func() { call.Throttle[int, int](1, nil) },
 		},
 	}
 
@@ -201,7 +201,7 @@ func TestThrottleWeightedBasic(t *testing.T) {
 	// unitCost returns 1 for any input.
 	unitCost := func(_ int) int { return 1 }
 
-	throttled := cb.ThrottleWeighted(10, unitCost, doubleIt)
+	throttled := call.ThrottleWeighted(10, unitCost, doubleIt)
 	got, err := throttled(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -235,7 +235,7 @@ func TestThrottleWeightedConcurrencyBound(t *testing.T) {
 	// fixedCost returns costPerItem for any input.
 	fixedCost := func(_ int) int { return costPerItem }
 
-	throttled := cb.ThrottleWeighted(capacity, fixedCost, trackCost)
+	throttled := call.ThrottleWeighted(capacity, fixedCost, trackCost)
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {
@@ -276,7 +276,7 @@ func TestThrottleWeightedVariableCosts(t *testing.T) {
 	// itemCost returns the item itself as cost.
 	itemCost := func(n int) int { return n }
 
-	throttled := cb.ThrottleWeighted(capacity, itemCost, trackCost)
+	throttled := call.ThrottleWeighted(capacity, itemCost, trackCost)
 
 	costs := []int{1, 2, 3, 1, 2, 3, 1, 2}
 	done := make(chan struct{})
@@ -326,7 +326,7 @@ func TestThrottleWeightedPartialAcquireRollback(t *testing.T) {
 		return n
 	}
 
-	throttled := cb.ThrottleWeighted(capacity, variableCost, holderOrNoop)
+	throttled := call.ThrottleWeighted(capacity, variableCost, holderOrNoop)
 	holderCtx, holderCancel := context.WithCancel(context.Background())
 
 	// Occupy 4 tokens (cost-1 holders).
@@ -374,7 +374,7 @@ func TestThrottleWeightedContextCancelled(t *testing.T) {
 	// unitCost returns 1 for any input.
 	unitCost := func(_ int) int { return 1 }
 
-	throttled := cb.ThrottleWeighted(1, unitCost, blockForever)
+	throttled := call.ThrottleWeighted(1, unitCost, blockForever)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go throttled(ctx, 0) //nolint:errcheck
@@ -400,7 +400,7 @@ func TestThrottleWeightedPreCancelledContext(t *testing.T) {
 	// unitCost returns 1 for any input.
 	unitCost := func(_ int) int { return 1 }
 
-	throttled := cb.ThrottleWeighted(1, unitCost, neverCalled)
+	throttled := call.ThrottleWeighted(1, unitCost, neverCalled)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -427,7 +427,7 @@ func TestThrottleWeightedPanicReleasesSlot(t *testing.T) {
 	// fixedCost returns 3 (full capacity) for any input.
 	fixedCost := func(_ int) int { return capacity }
 
-	throttled := cb.ThrottleWeighted(capacity, fixedCost, maybePanic)
+	throttled := call.ThrottleWeighted(capacity, fixedCost, maybePanic)
 
 	// First call: panics with all 3 tokens acquired. Recover it.
 	func() {
@@ -465,26 +465,26 @@ func TestThrottleWeightedValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "capacity_zero",
-			fn:   func() { cb.ThrottleWeighted(0, unitCost, dummyFn) },
+			fn:   func() { call.ThrottleWeighted(0, unitCost, dummyFn) },
 		},
 		{
 			name: "capacity_negative",
-			fn:   func() { cb.ThrottleWeighted(-1, unitCost, dummyFn) },
+			fn:   func() { call.ThrottleWeighted(-1, unitCost, dummyFn) },
 		},
 		{
 			name: "nil_cost",
-			fn:   func() { cb.ThrottleWeighted[int, int](1, nil, dummyFn) },
+			fn:   func() { call.ThrottleWeighted[int, int](1, nil, dummyFn) },
 		},
 		{
 			name: "nil_fn",
-			fn:   func() { cb.ThrottleWeighted(1, unitCost, (func(context.Context, int) (int, error))(nil)) },
+			fn:   func() { call.ThrottleWeighted(1, unitCost, (func(context.Context, int) (int, error))(nil)) },
 		},
 		{
 			name: "cost_zero",
 			fn: func() {
 				// zeroCost returns 0 for any input.
 				zeroCost := func(_ int) int { return 0 }
-				throttled := cb.ThrottleWeighted(10, zeroCost, dummyFn)
+				throttled := call.ThrottleWeighted(10, zeroCost, dummyFn)
 				throttled(context.Background(), 0) //nolint:errcheck
 			},
 		},
@@ -493,7 +493,7 @@ func TestThrottleWeightedValidationPanics(t *testing.T) {
 			fn: func() {
 				// negativeCost returns -1 for any input.
 				negativeCost := func(_ int) int { return -1 }
-				throttled := cb.ThrottleWeighted(10, negativeCost, dummyFn)
+				throttled := call.ThrottleWeighted(10, negativeCost, dummyFn)
 				throttled(context.Background(), 0) //nolint:errcheck
 			},
 		},
@@ -502,7 +502,7 @@ func TestThrottleWeightedValidationPanics(t *testing.T) {
 			fn: func() {
 				// bigCost returns 11 for any input.
 				bigCost := func(_ int) int { return 11 }
-				throttled := cb.ThrottleWeighted(10, bigCost, dummyFn)
+				throttled := call.ThrottleWeighted(10, bigCost, dummyFn)
 				throttled(context.Background(), 0) //nolint:errcheck
 			},
 		},

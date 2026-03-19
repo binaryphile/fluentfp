@@ -71,12 +71,12 @@ mux.HandleFunc("GET /users/{id}", web.Adapt(handleGetUser))
 
 ```go
 // Circuit breaker wraps a function — same signature, breaker invisible
-breaker := cb.NewBreaker(cb.BreakerConfig{
+breaker := call.NewBreaker(call.BreakerConfig{
     ResetTimeout: 10 * time.Second,
-    ReadyToTrip:  cb.ConsecutiveFailures(3),
+    ReadyToTrip:  call.ConsecutiveFailures(3),
 })
-safeFetch := cb.WithBreaker(breaker, fetchFromAPI)
-resp, err := safeFetch(ctx, url)  // returns cb.ErrOpen when tripped
+safeFetch := call.WithBreaker(breaker, fetchFromAPI)
+resp, err := safeFetch(ctx, url)  // returns call.ErrCircuitOpen when tripped
 ```
 
 ```go
@@ -260,8 +260,8 @@ Packages are independent — import one or all.
 | [either](either/)   | Sum types                        | `Left`, `Right`, `Fold`, `Transform`, `FlatMap`  |
 | [rslt](rslt/)       | Typed error handling             | `Ok`, `Err`, `CollectAll`, `CollectOkAndErr`   |
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
-| [hof](hof/)         | Function combinators               | `Pipe`, `Bind`, `BindR`, `Cross`, `Eq`         |
-| [cb](cb/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
+| [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
+| [call](call/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
 | [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin` |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
 | [web](web/)         | Typed HTTP handlers              | `Adapt`, `DecodeJSON`, `Steps`                 |
@@ -273,20 +273,20 @@ Packages are independent — import one or all.
 
 ## Package Highlights
 
-**[cb](cb/) — composable resilience decorators:
+**[call](call/) — composable resilience decorators:
 
 ```go
 // Retry with exponential backoff, only for transient errors
-backoff := cb.ExponentialBackoff(100 * time.Millisecond)
-fetcher := cb.Retry(3, backoff, isTransient, fetchData)
+backoff := call.ExponentialBackoff(100 * time.Millisecond)
+fetcher := call.Retry(3, backoff, isTransient, fetchData)
 
 // Circuit breaker — trips after 5 consecutive failures, resets after 30s
-cfg := cb.BreakerConfig{ResetTimeout: 30 * time.Second}
-breaker := cb.NewBreaker(cfg)
-protected := cb.WithBreaker(breaker, fetcher)
+cfg := call.BreakerConfig{ResetTimeout: 30 * time.Second}
+breaker := call.NewBreaker(cfg)
+protected := call.WithBreaker(breaker, fetcher)
 
 // All decorators share func(ctx, T) (R, error) — stack freely
-throttled := cb.Throttle(10, protected)
+throttled := call.Throttle(10, protected)
 ```
 
 **[web](web/)** — typed HTTP handlers on net/http:
@@ -338,11 +338,11 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Filter, map, or fold a slice | `slice.From(s).KeepIf(f).ToString(g)` | slice |
 | Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
-| Retry on failure with backoff | `cb.Retry(3, backoff, shouldRetry, fn)` | cb |
-| Circuit-break an unhealthy dependency | `cb.WithBreaker(breaker, fn)` | cb |
-| Throttle concurrent access | `cb.Throttle(n, fn)` | cb |
-| Transform errors in a decorator chain | `cb.MapErr(fn, mapper)` | cb |
-| Debounce rapid calls | `cb.NewDebouncer(wait, fn)` | cb |
+| Retry on failure with backoff | `call.Retry(3, backoff, shouldRetry, fn)` | call |
+| Circuit-break an unhealthy dependency | `call.WithBreaker(breaker, fn)` | call |
+| Throttle concurrent access | `call.Throttle(n, fn)` | call |
+| Transform errors in a decorator chain | `call.MapErr(fn, mapper)` | call |
+| Debounce rapid calls | `call.NewDebouncer(wait, fn)` | call |
 | Represent optional values | `option.Of(v)`, `option.NonZero(v)`, `option.Env("KEY")` | option |
 | Inline conditional (no ternary in Go) | `option.When(cond, val).Or(fallback)` | option |
 | Handle (value, error) as a single value | `rslt.Of(strconv.Atoi(s))` | rslt |
@@ -369,11 +369,11 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 
 | Example | Packages | Description |
 |---------|----------|-------------|
-| [orders](examples/orders/) | web, toc, cb, ctxval, option, rslt, slice | Curl-testable order processing service — full cross-package composition demo |
-| [resilient_client](examples/resilient_client.go) | cb | Circuit breaker + retry + error classification in 20 lines |
+| [orders](examples/orders/) | web, toc, call, ctxval, option, rslt, slice | Curl-testable order processing service — full cross-package composition demo |
+| [resilient_client](examples/resilient_client.go) | call | Circuit breaker + retry + error classification in 20 lines |
 | [pipeline_fanout](examples/pipeline_fanout.go) | toc, rslt | CSV ingest → parse → validate → Tee to DB + audit log with stats |
 | [tee_join_wal](examples/tee_join_wal.go) | toc, rslt | Write-ahead log + primary store dual-write via Tee/Join |
-| [middleware_stack](examples/middleware_stack.go) | web, cb, ctxval, option, rslt | HTTP middleware stack with breaker, request ID, and error mapping |
+| [middleware_stack](examples/middleware_stack.go) | web, call, ctxval, option, rslt | HTTP middleware stack with breaker, request ID, and error mapping |
 
 Run with `go run ./examples/orders/` or `go run examples/<file>.go`.
 

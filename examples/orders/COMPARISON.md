@@ -421,11 +421,11 @@ Three concerns tangled: state checking, result recording, response writing. The 
 
 ```go
 // Setup (5 lines, once):
-breaker := cb.NewBreaker(cb.BreakerConfig{
+breaker := call.NewBreaker(call.BreakerConfig{
   ResetTimeout: 10 * time.Second,
-  ReadyToTrip:  cb.ConsecutiveFailures(3),
+  ReadyToTrip:  call.ConsecutiveFailures(3),
 })
-enrichWithBreaker := cb.WithBreaker(
+enrichWithBreaker := call.WithBreaker(
   breaker, enrichOrder)
 
 // In handler (defined as named function):
@@ -497,7 +497,7 @@ storedOrder := enrichedOrder.
 mapDomainError := func(
   err error,
 ) (*web.Error, bool) {
-  if errors.Is(err, cb.ErrOpen) {
+  if errors.Is(err, call.ErrCircuitOpen) {
     return &web.Error{
       Status: 503, Message: "unavailable",
     }, true

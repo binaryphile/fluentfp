@@ -38,7 +38,7 @@ import (
 	"time"
 
 	"github.com/binaryphile/fluentfp/ctxval"
-	"github.com/binaryphile/fluentfp/cb"
+	"github.com/binaryphile/fluentfp/call"
 	"github.com/binaryphile/fluentfp/option"
 	"github.com/binaryphile/fluentfp/rslt"
 	"github.com/binaryphile/fluentfp/slice"
@@ -191,7 +191,7 @@ func itemsHavePositiveQty(o Order) rslt.Result[Order] {
 
 // mapDomainError maps domain errors to HTTP errors at the adapter boundary.
 func mapDomainError(err error) (*web.Error, bool) {
-	if errors.Is(err, cb.ErrOpen) {
+	if errors.Is(err, call.ErrCircuitOpen) {
 		return &web.Error{
 			Status:  http.StatusServiceUnavailable,
 			Message: "pricing service unavailable",
@@ -296,14 +296,14 @@ func main() {
 
 	// --- Circuit breaker for pricing enrichment ---
 
-	breaker := cb.NewBreaker(cb.BreakerConfig{
+	breaker := call.NewBreaker(call.BreakerConfig{
 		ResetTimeout: 10 * time.Second,
-		ReadyToTrip:  cb.ConsecutiveFailures(3),
-		OnStateChange: func(t cb.Transition) {
+		ReadyToTrip:  call.ConsecutiveFailures(3),
+		OnStateChange: func(t call.Transition) {
 			log.Printf("breaker: %s → %s", t.From, t.To)
 		},
 	})
-	enrichWithBreaker := cb.WithBreaker(breaker, enrichOrder)
+	enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
 
 	// --- Best-effort post-processing pipeline ---
 

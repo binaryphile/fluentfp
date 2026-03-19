@@ -1,4 +1,4 @@
-package cb
+package hof
 
 import (
 	"sync"
@@ -21,7 +21,7 @@ type DebounceOption func(*debounceConfig)
 // Panics if d < 0.
 func MaxWait(d time.Duration) DebounceOption {
 	if d < 0 {
-		panic("cb.MaxWait: duration must be >= 0")
+		panic("hof.MaxWait: duration must be >= 0")
 	}
 
 	return func(c *debounceConfig) {
@@ -68,10 +68,10 @@ type Debouncer[T any] struct {
 // Panics if wait <= 0 or fn is nil.
 func NewDebouncer[T any](wait time.Duration, fn func(T), opts ...DebounceOption) *Debouncer[T] {
 	if wait <= 0 {
-		panic("cb.NewDebouncer: wait must be > 0")
+		panic("hof.NewDebouncer: wait must be > 0")
 	}
 	if fn == nil {
-		panic("cb.NewDebouncer: fn must not be nil")
+		panic("hof.NewDebouncer: fn must not be nil")
 	}
 
 	var cfg debounceConfig
@@ -99,7 +99,7 @@ func NewDebouncer[T any](wait time.Duration, fn func(T), opts ...DebounceOption)
 func (d *Debouncer[T]) Call(v T) {
 	select {
 	case <-d.done:
-		panic("cb.Debouncer: Call after Close")
+		panic("hof.Debouncer: Call after Close")
 	case d.callCh <- v:
 	}
 }
@@ -113,7 +113,7 @@ func (d *Debouncer[T]) Cancel() bool {
 
 	select {
 	case <-d.done:
-		panic("cb.Debouncer: Cancel after Close")
+		panic("hof.Debouncer: Cancel after Close")
 	case d.cancelCh <- resp:
 	}
 
@@ -138,7 +138,7 @@ func (d *Debouncer[T]) Flush() bool {
 
 	select {
 	case <-d.done:
-		panic("cb.Debouncer: Flush after Close")
+		panic("hof.Debouncer: Flush after Close")
 	case d.flushCh <- resp:
 	}
 

@@ -1,4 +1,4 @@
-package cb_test
+package call_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/binaryphile/fluentfp/cb"
+	"github.com/binaryphile/fluentfp/call"
 )
 
 func TestRetry(t *testing.T) {
@@ -18,7 +18,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := cb.Retry(3, cb.ConstantBackoff(0), nil, doubleIt)
+		retried := call.Retry(3, call.ConstantBackoff(0), nil, doubleIt)
 		got, err := retried(context.Background(), 5)
 
 		if err != nil {
@@ -43,7 +43,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := cb.Retry(3, cb.ConstantBackoff(0), nil, failTwiceThenDouble)
+		retried := call.Retry(3, call.ConstantBackoff(0), nil, failTwiceThenDouble)
 		got, err := retried(context.Background(), 5)
 
 		if err != nil {
@@ -65,7 +65,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail %d", calls)
 		}
 
-		retried := cb.Retry(3, cb.ConstantBackoff(0), nil, alwaysFail)
+		retried := call.Retry(3, call.ConstantBackoff(0), nil, alwaysFail)
 		_, err := retried(context.Background(), 1)
 
 		if err == nil {
@@ -87,7 +87,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		retried := cb.Retry(1, cb.ConstantBackoff(0), nil, alwaysFail)
+		retried := call.Retry(1, call.ConstantBackoff(0), nil, alwaysFail)
 		_, err := retried(context.Background(), 1)
 
 		if err == nil {
@@ -109,7 +109,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := cb.Retry(3, cb.ConstantBackoff(0), nil, doubleIt)
+		retried := call.Retry(3, call.ConstantBackoff(0), nil, doubleIt)
 		_, err := retried(ctx, 5)
 
 		if err != context.Canceled {
@@ -133,7 +133,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		retried := cb.Retry(3, cb.ConstantBackoff(10*time.Second), nil, failAndCancel)
+		retried := call.Retry(3, call.ConstantBackoff(10*time.Second), nil, failAndCancel)
 		_, err := retried(ctx, 1)
 
 		if err != context.Canceled {
@@ -159,7 +159,7 @@ func TestRetryShouldRetry(t *testing.T) {
 		// isRetryable returns true only for retryable errors.
 		isRetryable := func(err error) bool { return err == errRetryable }
 
-		retried := cb.Retry(3, cb.ConstantBackoff(0), isRetryable, alwaysFatal)
+		retried := call.Retry(3, call.ConstantBackoff(0), isRetryable, alwaysFatal)
 		_, err := retried(context.Background(), 1)
 
 		if err != errFatal {
@@ -183,7 +183,7 @@ func TestRetryShouldRetry(t *testing.T) {
 		// isRetryable returns true only for retryable errors.
 		isRetryable := func(err error) bool { return err == errRetryable }
 
-		retried := cb.Retry(5, cb.ConstantBackoff(0), isRetryable, retryableThenFatal)
+		retried := call.Retry(5, call.ConstantBackoff(0), isRetryable, retryableThenFatal)
 		_, err := retried(context.Background(), 1)
 
 		if err != errFatal {
@@ -202,7 +202,7 @@ func TestRetryShouldRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail %d", calls)
 		}
 
-		retried := cb.Retry(3, cb.ConstantBackoff(0), nil, alwaysFail)
+		retried := call.Retry(3, call.ConstantBackoff(0), nil, alwaysFail)
 		_, err := retried(context.Background(), 1)
 
 		if err == nil {
@@ -224,7 +224,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		cb.Retry[int, int](3, cb.ConstantBackoff(0), nil, nil)
+		call.Retry[int, int](3, call.ConstantBackoff(0), nil, nil)
 	})
 
 	t.Run("nil backoff", func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		cb.Retry(3, nil, nil, doubleIt)
+		call.Retry(3, nil, nil, doubleIt)
 	})
 
 	t.Run("maxAttempts zero", func(t *testing.T) {
@@ -242,7 +242,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		cb.Retry(0, cb.ConstantBackoff(0), nil, doubleIt)
+		call.Retry(0, call.ConstantBackoff(0), nil, doubleIt)
 	})
 
 	t.Run("maxAttempts negative", func(t *testing.T) {
@@ -251,12 +251,12 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		cb.Retry(-1, cb.ConstantBackoff(0), nil, doubleIt)
+		call.Retry(-1, call.ConstantBackoff(0), nil, doubleIt)
 	})
 }
 
 func TestConstantBackoff(t *testing.T) {
-	backoff := cb.ConstantBackoff(500 * time.Millisecond)
+	backoff := call.ConstantBackoff(500 * time.Millisecond)
 
 	for _, n := range []int{0, 1, 5, 10} {
 		got := backoff(n)
@@ -268,7 +268,7 @@ func TestConstantBackoff(t *testing.T) {
 
 func TestExponentialBackoff(t *testing.T) {
 	t.Run("returns values in expected range", func(t *testing.T) {
-		backoff := cb.ExponentialBackoff(100 * time.Millisecond)
+		backoff := call.ExponentialBackoff(100 * time.Millisecond)
 
 		for n := 0; n < 10; n++ {
 			max := 100 * time.Millisecond << n
@@ -283,7 +283,7 @@ func TestExponentialBackoff(t *testing.T) {
 	})
 
 	t.Run("overflow guard returns non-negative", func(t *testing.T) {
-		backoff := cb.ExponentialBackoff(time.Second)
+		backoff := call.ExponentialBackoff(time.Second)
 
 		for range 100 {
 			got := backoff(62)
@@ -299,7 +299,7 @@ func TestExponentialBackoff(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		cb.ExponentialBackoff(0)
+		call.ExponentialBackoff(0)
 	})
 
 	t.Run("panics on negative initial", func(t *testing.T) {
@@ -308,7 +308,7 @@ func TestExponentialBackoff(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		cb.ExponentialBackoff(-time.Second)
+		call.ExponentialBackoff(-time.Second)
 	})
 }
 
@@ -323,7 +323,7 @@ func TestRetryComposesWithThrottle(t *testing.T) {
 		return n * 2, nil
 	}
 
-	composed := cb.Retry(3, cb.ConstantBackoff(0), nil, cb.Throttle(1, failOnceThenDouble))
+	composed := call.Retry(3, call.ConstantBackoff(0), nil, call.Throttle(1, failOnceThenDouble))
 	got, err := composed(context.Background(), 5)
 
 	if err != nil {

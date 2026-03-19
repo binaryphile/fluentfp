@@ -1,4 +1,4 @@
-package cb
+package call
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// ErrOpen is returned when the circuit breaker is rejecting requests.
+// ErrCircuitOpen is returned when the circuit breaker is rejecting requests.
 // This occurs when the breaker is open, or when half-open with a probe already in flight.
-var ErrOpen = errors.New("cb: circuit breaker is open")
+var ErrCircuitOpen = errors.New("call: circuit breaker is open")
 
 // BreakerState represents the current state of a circuit breaker.
 type BreakerState int
@@ -101,7 +101,7 @@ type BreakerConfig struct {
 // Panics if n < 1.
 func ConsecutiveFailures(n int) func(Snapshot) bool {
 	if n < 1 {
-		panic("cb.ConsecutiveFailures: n must be > 0")
+		panic("call.ConsecutiveFailures: n must be > 0")
 	}
 
 	return func(s Snapshot) bool {
@@ -115,7 +115,7 @@ func ConsecutiveFailures(n int) func(Snapshot) bool {
 //
 // The breaker uses a standard three-state model:
 //   - Closed: requests pass through, failures are counted
-//   - Open: requests fail immediately with ErrOpen
+//   - Open: requests fail immediately with ErrCircuitOpen
 //   - HalfOpen: one probe request is admitted; success closes, failure reopens,
 //     uncounted error (context.Canceled or ShouldCount→false) releases the probe
 //     slot without changing state
@@ -154,7 +154,7 @@ type Breaker struct {
 // Panics if ResetTimeout <= 0.
 func NewBreaker(cfg BreakerConfig) *Breaker {
 	if cfg.ResetTimeout <= 0 {
-		panic("cb.NewBreaker: ResetTimeout must be > 0")
+		panic("call.NewBreaker: ResetTimeout must be > 0")
 	}
 
 	readyToTrip := cfg.ReadyToTrip
@@ -216,10 +216,10 @@ func (b *Breaker) snapshotLocked() Snapshot {
 // Panics if b or fn is nil.
 func WithBreaker[T, R any](b *Breaker, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if b == nil {
-		panic("cb.WithBreaker: breaker must not be nil")
+		panic("call.WithBreaker: breaker must not be nil")
 	}
 	if fn == nil {
-		panic("cb.WithBreaker: fn must not be nil")
+		panic("call.WithBreaker: fn must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {
@@ -232,7 +232,7 @@ func WithBreaker[T, R any](b *Breaker, fn func(context.Context, T) (R, error)) f
 		// Admission check (defer-protected against Clock panics).
 		gen, admitted, isProbe, admitTransition := b.admit()
 		if !admitted {
-			return zero, ErrOpen
+			return zero, ErrCircuitOpen
 		}
 
 		// Probe finalization guard: ensures the probe slot is cleaned up
