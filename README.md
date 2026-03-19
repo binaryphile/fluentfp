@@ -368,9 +368,13 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 
 | Example | Packages | Description |
 |---------|----------|-------------|
-| [orders](examples/orders/) | web, toc, hof, ctxval, option, rslt, slice | Curl-testable order processing service — synchronous HTTP handlers with circuit-broken pricing, background audit/inventory pipeline |
+| [orders](examples/orders/) | web, toc, hof, ctxval, option, rslt, slice | Curl-testable order processing service — full cross-package composition demo |
+| [resilient_client](examples/resilient_client.go) | hof | Circuit breaker + retry + error classification in 20 lines |
+| [pipeline_fanout](examples/pipeline_fanout.go) | toc, rslt | CSV ingest → parse → validate → Tee to DB + audit log with stats |
+| [tee_join_wal](examples/tee_join_wal.go) | toc, rslt | Write-ahead log + primary store dual-write via Tee/Join |
+| [middleware_stack](examples/middleware_stack.go) | web, hof, ctxval, option, rslt | HTTP middleware stack with breaker, request ID, and error mapping |
 
-Run with `go run ./examples/orders/`.
+Run with `go run ./examples/orders/` or `go run examples/<file>.go`.
 
 ## Further Reading
 
