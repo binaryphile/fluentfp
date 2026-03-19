@@ -84,9 +84,16 @@ func hasCustomer(o Order) rslt.Result[Order] {
     }
     return rslt.Ok(o)
 }
+
+func itemsHavePositiveQty(o Order) rslt.Result[Order] {
+    if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
+        return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
+    }
+    return rslt.Ok(o)
+}
 ```
 
-`web.Steps` composes them into a single function that runs each in order and short-circuits on the first error.
+`web.Steps` composes them into a single function that runs each in order and short-circuits on the first error. `slice.From(o.Items).Every(LineItem.HasPositiveQty)` replaces a manual loop with a method expression — the intent reads directly as "every line item has positive quantity."
 
 **Conventional:**
 ```go
@@ -106,7 +113,7 @@ func validateOrder(o Order) error {
 }
 ```
 
-The conventional version is one monolithic function. Adding a new validation means editing the function body. The fluentfp version is a list — adding a validator means adding a name to `web.Steps(...)`. Each validator is independently testable and reusable.
+The conventional version is one monolithic function. Adding a new validation means editing the function body. The fluentfp version is a list — adding a validator means adding a name to `web.Steps(...)`. Each validator is independently testable and reusable. The quantity check replaces a `for`/`if` loop with `Every` and a method expression — no iteration variable, no negated condition.
 
 Note: the conventional validator also loses the HTTP status code. To return 400 vs 422 vs 409 for different validations, you'd need a custom error type and a switch statement in the handler. `web.BadRequest` and `web.Conflict` carry the status code with the error.
 
