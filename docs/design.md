@@ -70,14 +70,15 @@ flowchart TD
 | `must` | Panic-on-error enforcement for initialization invariants |
 | `pair` | Tuple construction and pairwise slice operations |
 | `lof` | Adapters that make Go builtins usable as higher-order function arguments |
-| `hof` | Function combinators — composition, partial application, resilience (retry/backoff, circuit breaker, throttle), debouncing, error mapping, side-effect wrappers |
+| `hof` | Higher-order functions over plain signatures — composition, partial application, debouncing |
+| `call` | Decorators over `func(context.Context, T) (R, error)` — retry/backoff, circuit breaker, throttle, error mapping, side-effect wrappers |
 | `memo` | Memoization — zero-arg lazy evaluation (`Of`), keyed function caching (`Fn`/`FnErr`), pluggable `Cache` interface with unbounded (`NewMap`) and LRU (`NewLRU`) strategies |
 | `heap` | Persistent (immutable) pairing heap parameterized by comparator. Based on Stone Ch 4. O(1) insert/merge, O(log n) amortized delete-min. |
 | `combo` | Combinatorial generators — `CartesianProduct`, `Permutations`, `Combinations`, `PowerSet` |
 | `seq` | Iterator-native lazy chains wrapping `iter.Seq[T]`. Method chaining via defined type. Re-evaluates (vs stream's memoization). |
 | `toc` | Constrained stage runner — bounded input queue, serial/parallel workers, fail-fast default, atomic stats (service/idle/output-blocked time, weight-tracked InFlightWeight). Inspired by Drum-Buffer-Rope (Theory of Constraints). |
 | `ctxval` | Typed context value storage — `With[T]`/`From[T]` keyed by type, `Key[T]` for named keys. Returns `Option[T]`. |
-| `web` | Typed HTTP handler composition on net/http — `Handler` returns `Result[Response]`, `Adapt` bridges to `http.HandlerFunc`, `WithErrorMapper` for domain→HTTP errors, `DecodeJSON` with configurable policy, `Steps` for same-type pipeline chains. |
+| `web` | Typed HTTP handler composition on net/http — `Handler` returns `Result[Response]`, `Adapt` bridges to `http.HandlerFunc`, `WithErrorMapper` for domain→HTTP errors, `DecodeJSON` with configurable policy, `Steps` for same-type pipeline chains. Error constructors: `BadRequest`, `Forbidden`, `NotFound`, `Conflict`, `TooManyRequests`, `StatusError`. |
 
 Every package uses a `doc.go` containing a `func _()` that references all named exports. This is a compile-time proof that the exports exist — if any are renamed or removed, the build breaks.
 
@@ -211,11 +212,15 @@ Wraps Go builtins (`len`, `fmt.Println`) as first-class functions for higher-ord
 
 Also provides `lof.IsNonEmpty` as a predicate for `KeepIf` (filtering non-empty strings), and `lof.IfNonEmpty` which bridges the "empty string = absent" convention to `(string, bool)` for `option.New`.
 
-### D14: hof as function combinators
+### D14: hof and call — split by function shape
 
-Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), a standard building block (`Eq`), concurrency control (`Throttle`/`ThrottleWeighted`), side-effect wrappers (`OnErr`), and retry with backoff (`Retry` with `ConstantBackoff`/`ExponentialBackoff`).
+The `hof` package provides higher-order functions over plain signatures: composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), predicate factory (`Eq`), and call coalescing (`NewDebouncer`).
 
-**Why needed:** Go functions are values but lack composition operators. `hof` provides the glue that lets developers build new functions from existing ones — for use in fluentfp chains or standalone. `Pipe(trim, toLower)` builds a transform; `Bind(add, 5)` fixes an argument; `Eq(target)` builds a predicate.
+The `call` package provides decorators over the context-aware call shape `func(context.Context, T) (R, error)`: retry with backoff (`Retry`), circuit breaking (`WithBreaker`/`NewBreaker`), concurrency control (`Throttle`/`ThrottleWeighted`), error transformation (`MapErr`), and side-effect wrappers (`OnErr`).
+
+**The seam is the function signature.** hof operates on plain signatures (`func(A) B`, `func(T)`). call operates on the context-aware error-returning call shape. This is a type-shaped split, not a domain-shaped split — callers can predict package placement from the function signature they're wrapping.
+
+**Why split:** The original `hof` mixed pure combinators with stateful resilience decorators. Users wanting `Pipe` had to import circuit breaker code. The split separates audiences: `hof` is for FP composition, `call` is for operational resilience.
 
 **Boundary with lof (D8):** `hof` returns functions (higher-order — operates on functions). `lof` returns values (lower-order — wraps builtins as first-class functions for use in chains). `hof.Pipe` *builds* a transform; `lof.Len` *is* a transform.
 

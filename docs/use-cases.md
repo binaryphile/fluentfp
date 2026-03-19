@@ -323,25 +323,26 @@
 1. Developer combines functions using composition, partial application, or standard building blocks.
 2. System returns a new function with the combined behavior.
 
-**Extensions:**
+**Extensions (hof — plain function signatures):**
 - 1a. Developer needs left-to-right composition of two unary transforms: System composes them via `Pipe` so the first feeds into the second.
 - 1b. Developer needs to fix one argument of a two-argument function: System returns a one-argument function with the fixed argument captured. `Bind` fixes the first argument; `BindR` fixes the second.
 - 1c. Developer needs to apply separate functions to separate arguments: System applies each function independently via `Cross` and returns the results as a pair.
 - 1d. Developer needs an identity function: System provides `hof.Identity`, which returns its argument unchanged.
 - 1e. Developer needs a predicate that checks equality to a known value: System returns a `func(T) bool` via `Eq` that tests its argument against the captured value.
 - 1f. Developer needs to pass a Go builtin as a higher-order argument: `lof` provides first-class function wrappers for builtins (`Len`, `Println`, `HasPrefix`, `Inc`, etc.).
-- 1g. Developer needs to bound concurrent access to a function: `Throttle` returns a function with the same signature (`func(A) (R, error)`) that blocks callers until a semaphore slot is available. `ThrottleWeighted` bounds by per-call cost rather than count.
-- 1h. Developer needs a side-effect triggered when a function call returns an error: `OnErr` returns a function with the same signature (`func(A) (R, error)`) that calls the original, then invokes the handler if the error is non-nil.
-- 1i. Developer needs to retry a function on failure with configurable delays: `Retry` returns a function with the same signature (`func(context.Context, A) (R, error)`) that retries on error according to a backoff strategy (`ConstantBackoff` or `ExponentialBackoff` with full jitter), respecting context cancellation during waits.
-- 1j. Developer needs to coalesce rapid calls, executing once after activity stops: `NewDebouncer` creates a stateful debouncer. `Send` stores the latest value and resets a quiet-period timer. After the quiet period elapses, the callback executes with the stored value. `MaxWait` caps total deferral. The debouncer must be closed via `Close` (or deferred) to release its goroutine.
+- 1g. Developer needs to coalesce rapid calls, executing once after activity stops: `hof.NewDebouncer` creates a stateful debouncer. `Call` stores the latest value and resets a quiet-period timer. After the quiet period elapses, the callback executes with the stored value. `MaxWait` caps total deferral. The debouncer must be closed via `Close` (or deferred) to release its goroutine.
+
+**Extensions (call — context-aware call shape `func(ctx, T) (R, error)`):**
+- 1h. Developer needs to bound concurrent access to a function: `call.Throttle` returns a function with the same signature that blocks callers until a semaphore slot is available. `call.ThrottleWeighted` bounds by per-call cost rather than count.
+- 1i. Developer needs a side-effect triggered when a function call returns an error: `call.OnErr` returns a function with the same signature that calls the original, then invokes the handler if the error is non-nil.
+- 1j. Developer needs to retry a function on failure with configurable delays: `call.Retry` returns a function with the same signature that retries on error according to a backoff strategy (`ConstantBackoff` or `ExponentialBackoff` with full jitter), respecting context cancellation during waits.
+- 1k. Developer needs to short-circuit calls to an unhealthy dependency: `call.WithBreaker` returns a function with the same signature that tracks failures and rejects calls when a threshold is reached, returning `call.ErrCircuitOpen`.
+- 1l. Developer needs to transform errors from a function without changing its signature: `call.MapErr` returns a function with the same signature that passes results through but transforms errors via a mapping function.
 
 **Sub-Variations:**
-- Composition: left-to-right (`Pipe`)
-- Partial application: fix first arg (`Bind`), fix second arg (`BindR`)
-- Building blocks: identity function (`Identity`), equality predicate (`Eq`)
+- hof — Composition: `Pipe`; Partial application: `Bind`, `BindR`; Building blocks: `Eq`; Debouncing: `NewDebouncer`
+- call — Retry: `Retry`; Circuit breaking: `WithBreaker`/`NewBreaker`; Throttle: `Throttle`, `ThrottleWeighted`; Error: `MapErr`, `OnErr`
 - Builtin adapters (`lof`): `Len`, `Println`, `HasPrefix`, `HasSuffix`, `Contains`, `Inc`
-- Concurrency control: by count (`Throttle`), by cost (`ThrottleWeighted`)
-- Side-effect on error (`OnErr`)
 - Retry with backoff: constant delay (`ConstantBackoff`), exponential with full jitter (`ExponentialBackoff`)
 - Call coalescing: trailing-edge debounce with optional maximum wait (`NewDebouncer`)
 
