@@ -150,33 +150,26 @@ func handleCreateOrder(
 <td>
 
 ```go
-handleCreateOrder := func(
-  req *http.Request,
-) rslt.Result[web.Response] {
-  reqID := ctxval.From[RequestID](
-    req.Context()).Or("unknown")
+handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
+  reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
   // --- named operations ---
 
   withNewID := func(o Order) Order {
-    o.ID = fmt.Sprintf("ord-%d",
-      idCounter.Add(1))
+    o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
     o.Status = "pending"
     return o
   }
 
-  enrich := rslt.LiftCtx(
-    req.Context(), enrichWithBreaker)
+  enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
   logFailure := func(err error) {
-    log.Printf("[%s] enrichment failed: %v",
-      reqID, err)
+    log.Printf("[%s] enrichment failed: %v", reqID, err)
   }
 
   storeAndNotify := func(o Order) {
     s.put(o)
-    log.Printf("[%s] created order %s",
-      reqID, o.ID)
+    log.Printf("[%s] created order %s", reqID, o.ID)
     select {
     case postCh <- o:
     default:
@@ -295,23 +288,15 @@ One monolithic function. Bare `error` loses the HTTP status code.
 <td>
 
 ```go
-validateOrder := web.Steps(
-  hasCustomer,
-  hasItems,
-  itemsHavePositiveQty,
-)
+validateOrder := web.Steps(hasCustomer, hasItems, itemsHavePositiveQty)
 ```
 
 A list of named functions. Each carries its own status code:
 
 ```go
-func itemsHavePositiveQty(
-  o Order,
-) rslt.Result[Order] {
-  if !slice.From(o.Items).
-      Every(LineItem.HasPositiveQty) {
-    return rslt.Err[Order](
-      web.BadRequest("positive qty required"))
+func itemsHavePositiveQty(o Order) rslt.Result[Order] {
+  if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
+    return rslt.Err[Order](web.BadRequest("positive qty required"))
   }
   return rslt.Ok(o)
 }
@@ -420,16 +405,12 @@ breaker := call.NewBreaker(call.BreakerConfig{
   ResetTimeout: 10 * time.Second,
   ReadyToTrip:  call.ConsecutiveFailures(3),
 })
-enrichWithBreaker := call.WithBreaker(
-  breaker, enrichOrder)
+enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
 
-// In handler (defined as named function):
-enrich := func(o Order) rslt.Result[Order] {
-  return rslt.Of(
-    enrichWithBreaker(req.Context(), o))
-}
+// In handler:
+enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
-// In the chain (1 line):
+// In the chain:
 .FlatMap(enrich)
 ```
 
@@ -479,30 +460,20 @@ Logging, error classification, and response rendering — all in one `if err` bl
 ```go
 // Error logging (in the chain):
 logFailure := func(err error) {
-  log.Printf("[%s] enrichment failed: %v",
-    reqID, err)
+  log.Printf("[%s] enrichment failed: %v", reqID, err)
 }
-// ... chain includes:
-//   .TapErr(logFailure).Tap(storeAndNotify)
+// ... chain includes: .TapErr(logFailure).Tap(storeAndNotify)
 
 // Error mapping (defined once, at boundary):
-mapDomainError := func(
-  err error,
-) (*web.Error, bool) {
+func mapDomainError(err error) (*web.Error, bool) {
   if errors.Is(err, call.ErrCircuitOpen) {
-    return &web.Error{
-      Status: 503, Message: "unavailable",
-    }, true
+    return &web.Error{Status: 503, Message: "unavailable"}, true
   }
   if errors.Is(err, errPricingFailure) {
-    return &web.Error{
-      Status: 502, Message: "pricing error",
-    }, true
+    return &web.Error{Status: 502, Message: "pricing error"}, true
   }
   if errors.Is(err, errUnknownSKU) {
-    return &web.Error{
-      Status: 422, Message: err.Error(),
-    }, true
+    return &web.Error{Status: 422, Message: err.Error()}, true
   }
   return nil, false
 }
@@ -547,8 +518,7 @@ Two branches, identical boilerplate.
 <td>
 
 ```go
-id := web.PathParam(req, "id").
-  OkOr(web.BadRequest("missing order id"))
+id := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
 found := rslt.FlatMap(id, findOrder)
 return rslt.Map(found, web.OK[Order])
 ```
@@ -609,15 +579,10 @@ Mutable variables declared before the conditional, assigned inside it.
 <td>
 
 ```go
-status, hasStatus :=
-  option.NonEmpty(q.Get("status")).Get()
-rawMinTotal :=
-  option.NonEmpty(q.Get("min_total"))
-minTotalResult :=
-  option.FlatMapResult(rawMinTotal,
-    parseMinTotal)
-mtOption, err := minTotalResult.Unpack()
-// err → 400 if present but invalid
+status, hasStatus := option.NonEmpty(q.Get("status")).Get()
+rawMinTotal := option.NonEmpty(q.Get("min_total"))
+minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
+mtOption, err := minTotalResult.Unpack()  // err → 400 if present but invalid
 mt, hasMinTotal := mtOption.Get()
 ```
 
@@ -709,11 +674,9 @@ Sentinel key type + type assertion + nil check.
 <td>
 
 ```go
-ctx := ctxval.With(
-  r.Context(), RequestID("req-1"))
+ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
-reqID := ctxval.From[RequestID](
-  req.Context()).Or("unknown")
+reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 ```
 
 Go type is the key. `Option` fallback.
@@ -791,14 +754,9 @@ go func() {
 <td>
 
 ```go
-tee := toc.NewTee(ctx,
-  toc.FromChan(postCh), 2)
-auditPipe := toc.Pipe(ctx,
-  tee.Branch(0), logOrder,
-  toc.Options[Order]{})
-inventoryPipe := toc.Pipe(ctx,
-  tee.Branch(1), countItems,
-  toc.Options[Order]{})
+tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
+auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
+inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
 
 `toc.FromChan` bridges `chan Order` → `chan rslt.Result[Order]` — no passthrough stage needed. Backpressure, cancellation, shutdown ordering, and `Stats()` built in.
