@@ -235,11 +235,11 @@ func startPipeline(ctx context.Context, postCh <-chan Order) {
 	// drainResults logs each result or error from a branch.
 	drainResults := func(name string, ch <-chan rslt.Result[any]) {
 		for r := range ch {
-			v, err := r.Unpack()
-			if err != nil {
+			if err := r.Err(); err != nil {
 				log.Printf("  postprocess: %s error: %v", name, err)
 				continue
 			}
+			v, _ := r.Get()
 			log.Printf("  postprocess: %s result: %v", name, v)
 		}
 	}
@@ -342,12 +342,10 @@ func main() {
 			return rslt.Err[web.Response](web.BadRequest("missing order id"))
 		}
 
-		order, ok := s.get(id)
-		if !ok {
-			return rslt.Err[web.Response](web.NotFound("order not found"))
-		}
-
-		return rslt.Ok(web.OK(order))
+		return rslt.Map(
+			option.New(s.get(id)).OkOr(web.NotFound("order not found")),
+			web.OK[Order],
+		)
 	}
 
 	// --- GET /orders?status=X&min_total=Y (cents) ---

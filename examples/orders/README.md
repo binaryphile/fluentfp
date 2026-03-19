@@ -59,6 +59,17 @@ order, err := validated.Unpack()
 
 `Unpack()` converts back to Go's `(T, error)` convention when you need to branch.
 
+`rslt.Map` transforms the Ok value while propagating errors. The GET handler uses it to convert a store lookup result into a response:
+
+```go
+return rslt.Map(
+    option.New(s.get(id)).OkOr(web.NotFound("order not found")),
+    web.OK[Order],
+)
+```
+
+`option.New` wraps the `(Order, bool)` return into an `Option[Order]`. `.OkOr(err)` bridges it to `Result[Order]` — present becomes `Ok`, absent becomes `Err(404)`. `rslt.Map` then wraps the Ok value in `web.OK` to produce a `Result[web.Response]`. If the lookup failed, the 404 error passes through `Map` untouched.
+
 ### hof — Circuit Breaker
 
 The `hof` package provides higher-order functions that wrap existing functions with cross-cutting behavior.

@@ -230,6 +230,42 @@ if err != nil {
 
 The fluentfp version defines the mapping once, at the adapter boundary. Every handler behind that adapter gets the same error-to-HTTP translation. The conventional version duplicates the error checking and response writing in every handler that could encounter that error.
 
+## Option→Result Bridge (Store Lookup)
+
+**fluentfp:**
+```go
+return rslt.Map(
+    option.New(s.get(id)).OkOr(web.NotFound("order not found")),
+    web.OK[Order],
+)
+```
+
+Three operations compose without intermediate variables:
+1. `option.New(s.get(id))` — wraps the `(Order, bool)` return into `Option[Order]`
+2. `.OkOr(web.NotFound(...))` — converts the Option to a Result: present → `Ok(order)`, absent → `Err(404)`
+3. `rslt.Map(..., web.OK[Order])` — transforms the Ok value into a `web.Response`
+
+If the store lookup fails, the 404 error propagates through `rslt.Map` untouched.
+
+**Conventional:**
+```go
+order, ok := s.get(id)
+if !ok {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusNotFound)
+    json.NewEncoder(w).Encode(map[string]string{"error": "order not found", "code": "NOT_FOUND"})
+    return
+}
+
+w.Header().Set("Content-Type", "application/json")
+w.WriteHeader(http.StatusOK)
+json.NewEncoder(w).Encode(order)
+```
+
+The conventional version has two branches with identical response-writing boilerplate. The fluentfp version treats "lookup, handle absence, transform" as a pipeline — each step does one thing, and errors propagate automatically.
+
+`option.New` bridges Go's comma-ok pattern (`val, ok`) into `Option[T]`. `OkOr` bridges `Option[T]` into `Result[T]`. These two bridges connect Go's native error representations to fluentfp's composable types.
+
 ## Query Parameter Parsing
 
 **fluentfp:**
