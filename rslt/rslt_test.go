@@ -588,3 +588,27 @@ func TestStandaloneFlatMap(t *testing.T) {
 		}
 	})
 }
+
+func TestResultErr(t *testing.T) {
+	t.Run("ok returns nil", func(t *testing.T) {
+		r := rslt.Ok(42)
+		if r.Err() != nil {
+			t.Errorf("Ok.Err() = %v, want nil", r.Err())
+		}
+	})
+
+	t.Run("err returns the error", func(t *testing.T) {
+		sentinelErr := errors.New("fail")
+		r := rslt.Err[int](sentinelErr)
+		if r.Err() != sentinelErr {
+			t.Errorf("Err.Err() = %v, want %v", r.Err(), sentinelErr)
+		}
+	})
+
+	t.Run("zero value returns nil", func(t *testing.T) {
+		var r rslt.Result[int]
+		if r.Err() != nil {
+			t.Errorf("zero Result.Err() = %v, want nil", r.Err())
+		}
+	})
+}

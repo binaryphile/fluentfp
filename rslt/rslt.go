@@ -94,6 +94,11 @@ func (r Result[R]) GetErr() (_ error, _ bool) {
 	return r.err, true
 }
 
+// Err returns the error if r is Err, or nil if r is Ok.
+func (r Result[R]) Err() error {
+	return r.err
+}
+
 // Convert returns the result of applying fn to the value if r is Ok, or r unchanged if r is Err.
 // For cross-type mapping (R -> S), use the standalone [Map] function.
 // Convert is the same-type method form; Go does not allow generic methods with
