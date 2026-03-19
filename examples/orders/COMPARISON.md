@@ -308,7 +308,7 @@ if err != nil {
 }
 ```
 
-One chain. A third step is another `FlatMap`.
+`FlatMap` unwraps the `Ok` value and passes it to the next function. If either step returns `Err`, the chain stops and that error propagates — no nesting, no second error block. It's called "flat" because `validateOrder` itself returns `Result[Order]`: a plain `Map` would nest that into `Result[Result[Order]]`, but `FlatMap` keeps it one level deep. Adding a third step is another `FlatMap` call, not another error block.
 
 </td>
 </tr>

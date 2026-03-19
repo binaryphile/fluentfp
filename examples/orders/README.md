@@ -126,7 +126,9 @@ Decoding a JSON body correctly in Go requires:
 validated := rslt.FlatMap(web.DecodeJSON[Order](req), validateOrder)
 ```
 
-If decoding fails (wrong Content-Type → 415, malformed JSON → 400), validation is never called. If validation fails, the error propagates. One line replaces 20.
+`FlatMap` takes a `Result` and a function that also returns a `Result`. If the input is `Ok`, it unwraps the value and passes it to the function. If the input is `Err`, it skips the function entirely and returns the error. The "flat" part: since `validateOrder` itself returns `Result[Order]`, a plain `Map` would give you `Result[Result[Order]]` — nested results. `FlatMap` flattens that to a single `Result[Order]`.
+
+In practice: if decoding fails (wrong Content-Type → 415, malformed JSON → 400), validation is never called. If validation fails, that error propagates. One line replaces 20 lines of decode-check-validate-check.
 
 The validation chain is a list of named functions:
 
