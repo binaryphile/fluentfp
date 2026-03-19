@@ -120,7 +120,7 @@ See [comparison](../comparison.md) for the full library comparison.
 
 `From` creates `Mapper[T]`. For cross-type mapping, use the standalone `Map(ts, fn)` which infers all types and returns `Mapper[R]` for chaining. `String` (`[]string`), `Int` (`[]int`), and `Float64` (`[]float64`) are separate defined types with additional methods.
 
-- **Filter**: `KeepIf`, `RemoveIf`, `Take`, `TakeLast`, `TakeWhile`, `Drop`, `DropLast`, `DropWhile`, `DropLastWhile`, `NonZero`, `NonEmpty` (`String`), `Partition` (method + standalone)
+- **Filter**: `KeepIf`, `KeepIfWhen`, `RemoveIf`, `RemoveIfWhen`, `Take`, `TakeLast`, `TakeWhile`, `Drop`, `DropLast`, `DropWhile`, `DropLastWhile`, `NonZero`, `NonEmpty` (`String`), `Partition` (method + standalone)
 - **Search**: `Find`, `FindLast`, `IndexOf`, `IndexWhere`, `LastIndexOf`, `LastIndexWhere`, `FindAs`, `Any`, `Every`, `None`, `First`, `Last`, `Single`, `Sample`, `Contains` (standalone, comparable), `ContainsAny` (`String`)
 - **Transform**: `Convert`, `Sort` (method, `cmp.Ordered`), `FlatMap` (method + standalone), `Map` (standalone), `FilterMap` (standalone), `Flatten` (standalone), `Reverse`, `Shuffle`, `Intersperse`, `Enumerate` (standalone), `ToString`, `ToInt`, other `To*`, `Clone`, `Unique` (`String` method + standalone comparable), `UniqueBy`, `Samples`, `SortBy`, `SortByDesc`, `IsSorted`, `IsSortedBy`
 - **Combine**: `Zip`, `ZipWith`

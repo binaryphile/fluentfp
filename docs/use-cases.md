@@ -90,7 +90,7 @@
 - 2n. Developer needs duplicate comparable elements removed while preserving first occurrence: System removes duplicates by comparable equality. No key function is required.
 
 **Sub-Variations:**
-- Filtering: inclusion-based, exclusion-based, zero-value removal, or empty-string removal
+- Filtering: inclusion-based, exclusion-based, conditional (`KeepIfWhen`/`RemoveIfWhen` — no-op when condition is false), zero-value removal, or empty-string removal
 - Type conversion: to built-in types or to arbitrary types
 - Sorting: ascending or descending by extracted key
 - Deduplication: by comparable equality or by extracted key

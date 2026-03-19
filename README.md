@@ -302,6 +302,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | If you need to... | Use | Package |
 | --- | --- | --- |
 | Filter, map, or fold a slice | `slice.From(s).KeepIf(f).ToString(g)` | slice |
+| Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
 | Retry on failure with backoff | `hof.Retry(3, backoff, shouldRetry, fn)` | hof |
 | Circuit-break an unhealthy dependency | `hof.WithBreaker(breaker, fn)` | hof |

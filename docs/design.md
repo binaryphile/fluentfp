@@ -225,7 +225,7 @@ Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent
 
 ### D9: Method vs standalone function boundary
 
-Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `Convert`, `Find`, `FlatMap`, etc.
+Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `KeepIfWhen`, `Convert`, `Find`, `FlatMap`, etc.
 
 Standalone functions for operations needing extra type parameters or custom traversal: `Map`, `FlatMap`, `PFlatMap`, `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`, `GroupBy`, `KeyBy`, `Partition`. `GroupBy` lives in the `slice` package — it returns `Mapper[Group[K, T]]` for direct chaining. Map-consuming standalone functions live in `kv` (`kv.Map`, `kv.Values`).
 
