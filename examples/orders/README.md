@@ -302,9 +302,12 @@ After storing the order, the handler sends it to a background pipeline for audit
 With toc, the pipeline is three lines:
 
 ```go
+// Bridge plain channel, broadcast to 2 branches
 tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
+// Branch 0: audit log
 auditPipe := toc.Pipe(
     ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
+// Branch 1: inventory count
 inventoryPipe := toc.Pipe(
     ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
@@ -325,7 +328,7 @@ HTTP request (synchronous):
   decode (web) → validate (web.Steps) → enrich (call.WithBreaker) → store → 201
 
 Background (fire-and-forget):
-  postCh → toc.Start → toc.Tee(2) → [audit Pipe | inventory Pipe]
+  postCh → toc.FromChan → toc.Tee(2) → [audit Pipe | inventory Pipe]
 ```
 
 The HTTP path is fully synchronous: the order is validated, enriched, and stored before the response is sent. Validation errors return 400, pricing failures return 502, unknown SKUs return 422, and a tripped circuit breaker returns 503.

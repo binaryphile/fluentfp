@@ -755,9 +755,12 @@ go func() {
 <td>
 
 ```go
+// Bridge plain channel, broadcast to 2 branches
 tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
+// Branch 0: audit log
 auditPipe := toc.Pipe(
   ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
+// Branch 1: inventory count
 inventoryPipe := toc.Pipe(
   ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
