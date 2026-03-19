@@ -7,16 +7,16 @@
 //
 // Then:
 //
-//	curl -s -X POST http://localhost:8080/orders \
+//	curl -s -X POST http://localhost:3000/orders \
 //	  -H 'Content-Type: application/json' \
 //	  -d '{"customer":"Alice","items":[{"sku":"WIDGET-1","quantity":3}]}'
 //
 // Trip the circuit breaker with SKU "FAIL-PRICE":
 //
-//	for i in 1 2 3; do curl -s -X POST http://localhost:8080/orders \
+//	for i in 1 2 3; do curl -s -X POST http://localhost:3000/orders \
 //	  -H 'Content-Type: application/json' \
 //	  -d '{"customer":"Bob","items":[{"sku":"FAIL-PRICE","quantity":1}]}'; done
-//	curl -s -X POST http://localhost:8080/orders \
+//	curl -s -X POST http://localhost:3000/orders \
 //	  -H 'Content-Type: application/json' \
 //	  -d '{"customer":"Carol","items":[{"sku":"WIDGET-1","quantity":1}]}'
 //	# → 503: circuit breaker open
@@ -55,6 +55,9 @@ type LineItem struct {
 	SKU      string `json:"sku"`
 	Quantity int    `json:"quantity"`
 }
+
+// HasPositiveQty returns true if the line item has quantity > 0.
+func (li LineItem) HasPositiveQty() bool { return li.Quantity > 0 }
 
 // Order is the core domain object. TotalCents uses integer cents to avoid
 // floating-point currency errors.
@@ -132,10 +135,7 @@ func enrichOrder(_ context.Context, o Order) (Order, error) {
 		if item.SKU == "FAIL-PRICE" {
 			return o, errPricingFailure
 		}
-		price, ok := prices[item.SKU]
-		if !ok {
-			price = 100 // unknown SKU fallback: $1.00
-		}
+		price := option.Lookup(prices, item.SKU).Or(100) // unknown SKU: $1.00
 		total += price * item.Quantity
 	}
 	o.TotalCents = total
@@ -165,10 +165,8 @@ func hasItems(o Order) rslt.Result[Order] {
 
 // itemsHavePositiveQty validates all items have quantity > 0.
 func itemsHavePositiveQty(o Order) rslt.Result[Order] {
-	for _, item := range o.Items {
-		if item.Quantity <= 0 {
-			return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
-		}
+	if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
+		return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
 	}
 	return rslt.Ok(o)
 }
@@ -399,7 +397,7 @@ func main() {
 	mux.HandleFunc("GET /orders", web.Adapt(handleListOrders, errorMapper))
 
 	server := &http.Server{
-		Addr:              ":8080",
+		Addr:              ":3000",
 		Handler:           withRequestID(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -416,7 +414,7 @@ func main() {
 		close(postCh)
 	}()
 
-	log.Println("listening on :8080")
+	log.Println("listening on :3000")
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
