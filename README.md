@@ -331,6 +331,14 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Use a persistent priority queue | `heap.New(cmp).Insert(v)` | heap |
 | Zip two slices into pairs | `pair.Zip(as, bs)` or `pair.ZipWith(as, bs, fn)` | pair |
 
+## Examples
+
+| Example | Packages | Description |
+|---------|----------|-------------|
+| [orders](examples/orders/) | web, toc, hof, ctxval, option, rslt, slice | Curl-testable order processing service — synchronous HTTP handlers with circuit-broken pricing, background audit/inventory pipeline |
+
+Run with `go run ./examples/orders/`.
+
 ## Further Reading
 
 - [Full Analysis](analysis.md) - Technical deep-dive with examples
