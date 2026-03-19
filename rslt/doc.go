@@ -22,6 +22,7 @@ func _() {
 	_ = FlatMap[int, string]
 	_ = Fold[int, string]
 	_ = Lift[string, int]
+	_ = LiftCtx[string, int]
 	_ = CollectAll[int]
 	_ = CollectErr[int]
 	_ = CollectOk[int]

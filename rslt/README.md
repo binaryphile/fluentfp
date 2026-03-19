@@ -91,7 +91,7 @@ If the panic value was an `error`, `PanicError.Unwrap()` returns it — enabling
 
 **Extract**: `Get`, `Err`, `Unpack` (to `(R, error)` pair), `Or`, `OrCall`, `GetErr`, `IsOk`, `IsErr`, `MustGet`
 
-**Transform**: `Convert` (same type), `FlatMap` (method + standalone), `MapErr` (transform error), `Map` (cross-type, standalone), `Fold` (standalone), `Lift` (wrap `func(A)(R, error)` → `func(A) Result[R]`)
+**Transform**: `Transform` (same type), `FlatMap` (method + standalone), `MapErr` (transform error), `Map` (cross-type, standalone), `Fold` (standalone), `Lift` (wrap `func(A)(R, error)`), `LiftCtx` (wrap `func(ctx, T)(R, error)` with partial context application)
 
 **Side effects**: `IfOk`, `IfErr`, `Tap` (chainable Ok side effect), `TapErr` (chainable Err side effect)
 

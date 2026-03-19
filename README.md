@@ -352,6 +352,10 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Store typed values in context.Context | `ctxval.With(ctx, val)` / `ctxval.From[T](ctx)` | ctxval |
 | Build typed HTTP handlers on net/http | `web.Adapt(handler, web.WithErrorMapper(m))` | web |
 | Decode JSON request bodies | `web.DecodeJSON[T](r)` | web |
+| Extract path parameters as Option | `web.PathParam(req, "id")` | web |
+| Partially apply context to a call | `rslt.LiftCtx(ctx, fn)` | rslt |
+| Apply fallible fn to Option (absent=ok, invalid=err) | `option.FlatMapResult(opt, fn)` | option |
+| Bridge chan T to chan Result[T] for toc | `toc.FromChan(ch)` | toc |
 | Run a bounded pipeline with backpressure | `toc.Start` → `toc.Pipe` → `toc.Pipe` | toc |
 | Batch items by count or weight | `toc.NewBatcher(ctx, src, n)` | toc |
 | Broadcast to N branches | `toc.NewTee(ctx, src, n)` | toc |

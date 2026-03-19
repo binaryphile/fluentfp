@@ -95,6 +95,9 @@ Handlers don't write errors — they return them. Adapt decides how to render.
 - `Adapt(h Handler, opts ...AdaptOption) http.HandlerFunc` — bridge to stdlib
 - `WithErrorMapper(fn func(error) (*Error, bool)) AdaptOption` — map domain errors to HTTP errors
 
+**Params**
+- `PathParam(req, name) Option[string]` — named path parameter, not-ok if missing/empty
+
 **Decode**
 - `DecodeJSON[T](req) Result[T]` — decode with defaults (1 MB limit, reject unknown fields, require `application/json`)
 - `DecodeJSONWith[T](req, opts) Result[T]` — decode with custom policy

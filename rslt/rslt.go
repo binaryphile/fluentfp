@@ -1,6 +1,9 @@
 package rslt
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // Result represents the outcome of an operation that may fail.
 // It holds either a value (Ok) or an error (Err).
@@ -210,6 +213,15 @@ func Fold[R, T any](res Result[R], onErr func(error) T, onOk func(R) T) T {
 func Lift[A, R any](fn func(A) (R, error)) func(A) Result[R] {
 	return func(a A) Result[R] {
 		return Of(fn(a))
+	}
+}
+
+// LiftCtx wraps a context-aware fallible function, partially applying the
+// context. The returned function takes only the value argument and returns
+// Result — suitable for use with FlatMap in a chain.
+func LiftCtx[T, R any](ctx context.Context, fn func(context.Context, T) (R, error)) func(T) Result[R] {
+	return func(t T) Result[R] {
+		return Of(fn(ctx, t))
 	}
 }
 

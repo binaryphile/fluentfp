@@ -247,24 +247,8 @@ func drainResults[T any](name string, ch <-chan rslt.Result[T]) {
 // Post-processing is best-effort: errors are logged, not propagated.
 func startPipeline(ctx context.Context, postCh <-chan Order) {
 	// Stage accepts orders and passes them through for downstream Tee.
-	passthrough := func(_ context.Context, o Order) (Order, error) { return o, nil }
-	stage := toc.Start(ctx, passthrough, toc.Options[Order]{
-		Capacity: 10,
-		Workers:  1,
-	})
-
-	// Feed channel → stage.
-	go func() {
-		for o := range postCh {
-			if err := stage.Submit(ctx, o); err != nil {
-				log.Printf("  postprocess: submit failed: %v", err)
-			}
-		}
-		stage.CloseInput()
-	}()
-
 	// Tee: broadcast each order to two branches.
-	tee := toc.NewTee(ctx, stage.Out(), 2)
+	tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
 
 	// Branch 0: audit log.
 	auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
@@ -286,6 +270,11 @@ func main() {
 
 	s := newStore()
 	var idCounter atomic.Int64
+
+	// findOrder looks up an order by ID, returning 404 on miss.
+	findOrder := func(id string) rslt.Result[Order] {
+		return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
+	}
 
 	// withNewID sets the order ID and initial status.
 	withNewID := func(o Order) Order {
@@ -321,9 +310,7 @@ func main() {
 		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
 		// enrich calls the breaker-wrapped pricing service.
-		enrich := func(o Order) rslt.Result[Order] {
-			return rslt.Of(enrichWithBreaker(req.Context(), o))
-		}
+		enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
 		// logFailure logs enrichment errors.
 		logFailure := func(err error) {
@@ -354,12 +341,8 @@ func main() {
 	// --- GET /orders/{id} ---
 
 	handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
-		id := req.PathValue("id")
-		if id == "" {
-			return rslt.Err[web.Response](web.BadRequest("missing order id"))
-		}
-
-		found := option.New(s.get(id)).OkOr(web.NotFound("order not found"))
+		id := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
+		found := rslt.FlatMap(id, findOrder)
 		return rslt.Map(found, web.OK[Order])
 	}
 
@@ -369,15 +352,20 @@ func main() {
 		q := req.URL.Query()
 
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
-		rawMinTotal := option.NonEmpty(q.Get("min_total"))
-		minTotalOption := option.FlatMap(rawMinTotal, option.Atoi)
-		if raw, ok := rawMinTotal.Get(); ok {
-			if _, ok := minTotalOption.Get(); !ok {
-				return rslt.Err[web.Response](web.BadRequest(
-					fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
-			}
+
+		// parseMinTotal parses a string as int, returning 400 on invalid input.
+		parseMinTotal := func(raw string) rslt.Result[int] {
+			return option.Atoi(raw).OkOr(web.BadRequest(
+				fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 		}
-		mt, hasMinTotal := minTotalOption.Get()
+
+		rawMinTotal := option.NonEmpty(q.Get("min_total"))
+		minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
+		mtOption, err := minTotalResult.Unpack()
+		if err != nil {
+			return rslt.Err[web.Response](err)
+		}
+		mt, hasMinTotal := mtOption.Get()
 
 		// hasMatchingStatus checks if order status matches the filter.
 		hasMatchingStatus := func(o Order) bool { return o.Status == status }

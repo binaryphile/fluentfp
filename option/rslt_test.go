@@ -2,9 +2,11 @@ package option_test
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/binaryphile/fluentfp/option"
+	"github.com/binaryphile/fluentfp/rslt"
 )
 
 func TestOkOr(t *testing.T) {
@@ -98,5 +100,45 @@ func TestOkOrCall(t *testing.T) {
 			}
 		}()
 		option.NotOk[int]().OkOrCall(func() error { return nil })
+	})
+}
+
+func TestFlatMapResult(t *testing.T) {
+	parsePositive := func(s string) rslt.Result[int] {
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return rslt.Err[int](err)
+		}
+		return rslt.Ok(n)
+	}
+
+	t.Run("absent returns Ok(NotOk)", func(t *testing.T) {
+		r := option.FlatMapResult(option.NotOk[string](), parsePositive)
+		opt, err := r.Unpack()
+		if err != nil {
+			t.Fatalf("absent should be Ok, got Err: %v", err)
+		}
+		if opt.IsOk() {
+			t.Fatal("absent inner should be NotOk")
+		}
+	})
+
+	t.Run("present valid returns Ok(Of(n))", func(t *testing.T) {
+		r := option.FlatMapResult(option.Of("42"), parsePositive)
+		opt, err := r.Unpack()
+		if err != nil {
+			t.Fatalf("valid should be Ok, got Err: %v", err)
+		}
+		v, ok := opt.Get()
+		if !ok || v != 42 {
+			t.Errorf("valid: got (%d, %t), want (42, true)", v, ok)
+		}
+	})
+
+	t.Run("present invalid returns Err", func(t *testing.T) {
+		r := option.FlatMapResult(option.Of("abc"), parsePositive)
+		if r.Err() == nil {
+			t.Fatal("invalid should be Err")
+		}
 	})
 }

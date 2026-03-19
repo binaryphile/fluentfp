@@ -31,6 +31,9 @@ func _() {
 	_ = TooManyRequests
 	_ = StatusError
 
+	// Params
+	_ = PathParam
+
 	// Decode
 	_ = DecodeJSON[int]
 	_ = DecodeJSONWith[int]

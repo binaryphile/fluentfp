@@ -30,6 +30,8 @@ func _() {
 	_ = Option[int].ToOpt
 	_ = Option[int].ToRune
 	_ = Option[int].ToString
+	_ = Option[int].OkOr
+	_ = Option[int].OkOrCall
 
 	// type aliases
 	type _ = Any

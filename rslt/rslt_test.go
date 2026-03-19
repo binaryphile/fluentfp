@@ -1,6 +1,7 @@
 package rslt_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -635,6 +636,26 @@ func TestTap(t *testing.T) {
 		}
 		if r.Err() != sentinelErr {
 			t.Errorf("Tap on Err: error = %v, want %v", r.Err(), sentinelErr)
+		}
+	})
+}
+
+func TestLiftCtx(t *testing.T) {
+	t.Run("success wraps in Ok", func(t *testing.T) {
+		fn := func(_ context.Context, n int) (int, error) { return n * 2, nil }
+		lifted := rslt.LiftCtx(context.Background(), fn)
+		v, ok := lifted(5).Get()
+		if !ok || v != 10 {
+			t.Errorf("LiftCtx success: got (%d, %t), want (10, true)", v, ok)
+		}
+	})
+
+	t.Run("error wraps in Err", func(t *testing.T) {
+		sentinelErr := errors.New("fail")
+		fn := func(_ context.Context, n int) (int, error) { return 0, sentinelErr }
+		lifted := rslt.LiftCtx(context.Background(), fn)
+		if lifted(5).Err() != sentinelErr {
+			t.Errorf("LiftCtx error: got %v, want %v", lifted(5).Err(), sentinelErr)
 		}
 	})
 }

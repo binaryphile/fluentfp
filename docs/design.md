@@ -866,6 +866,22 @@ Go methods cannot introduce extra type parameters, so same-type mapping (`func(T
 
 **Why eager + lazy:** `OkOr(err)` evaluates the error eagerly. `OkOrCall(fn)` defers error construction until the Option is actually absent. Matches the `Or`/`OrCall` pattern already on Option.
 
+**FlatMapResult — bridging optional parsing:** `option.FlatMapResult(opt, fn)` applies a fallible function (`func(T) Result[R]`) to an Option. Absent → `Ok(NotOk)`, present+valid → `Ok(Of(v))`, present+invalid → `Err`. This distinguishes "not provided" (absent) from "provided but invalid" (error) — a common pattern for optional query parameters that need validation.
+
+### D34: rslt.LiftCtx — partial context application for call-shaped functions
+
+`rslt.LiftCtx(ctx, fn)` partially applies a context to `func(context.Context, T) (R, error)`, producing `func(T) Result[R]`. This bridges the call package's decorator signature into rslt's FlatMap chain.
+
+**Why needed:** The POST handler's enrich step wraps a context-aware function for use in a Result chain. Without LiftCtx, this requires a closure: `func(o Order) rslt.Result[Order] { return rslt.Of(fn(ctx, o)) }`. LiftCtx eliminates the closure.
+
+### D35: web.PathParam and toc.FromChan — bridge helpers
+
+`web.PathParam(req, name)` wraps `PathValue` + `NonEmpty` into `Option[string]`. Eliminates the `if id == ""` guard in GET handlers.
+
+`toc.FromChan(ch)` wraps a plain `chan T` into `chan rslt.Result[T]` for use with Tee, Pipe, and other toc operators. Eliminates the passthrough Stage + feeder goroutine pattern.
+
+Both are thin wrappers. Their value is eliminating recurring boilerplate patterns identified in the orders example.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.
