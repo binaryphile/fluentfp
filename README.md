@@ -54,6 +54,39 @@ For `[]*User` slices, the method expression is `(*User).IsActive`.
 
 See [naming patterns](naming-in-hof.md) for when to use method expressions vs named functions vs closures.
 
+### Beyond Collections
+
+fluentfp isn't just `slice`. Here's the same library applied to HTTP handlers, resilience, and request plumbing:
+
+```go
+// HTTP handler returns a value — no ResponseWriter mutation
+handleGetUser := func(r *http.Request) rslt.Result[web.Response] {
+    return rslt.Map(
+        option.New(store.Get(r.PathValue("id"))).OkOr(web.NotFound("user not found")),
+        web.OK[User],
+    )
+}
+mux.HandleFunc("GET /users/{id}", web.Adapt(handleGetUser))
+```
+
+```go
+// Circuit breaker wraps a function — same signature, breaker invisible
+breaker := hof.NewBreaker(hof.BreakerConfig{
+    ResetTimeout: 10 * time.Second,
+    ReadyToTrip:  hof.ConsecutiveFailures(3),
+})
+safeFetch := hof.WithBreaker(breaker, fetchFromAPI)
+resp, err := safeFetch(ctx, url)  // returns ErrCircuitOpen when tripped
+```
+
+```go
+// Typed context values — no sentinel keys, no type assertions
+ctx = ctxval.With(ctx, RequestID("req-123"))
+reqID := ctxval.From[RequestID](ctx).Or("unknown")
+```
+
+See the [orders example](examples/orders/) for all of these composing in a single runnable service.
+
 ## What It Looks Like
 
 The **[showcase](docs/showcase.md)** has 16 more, including [Sort, Trim, and Map-to-Slice](docs/showcase.md#sort-and-trim-boilerplate--chenjiandongxsniffer).
@@ -260,8 +293,8 @@ throttled := hof.Throttle(10, protected)
 ```go
 // Handlers return Result[Response] — no ResponseWriter, no manual status codes
 var createUser web.Handler = func(r *http.Request) rslt.Result[web.Response] {
-    req := rslt.Of(web.DecodeJSON[CreateReq](r))
-    return rslt.Map(req, createAndRespond)
+    decoded := web.DecodeJSON[CreateReq](r)
+    return rslt.Map(decoded, createAndRespond)
 }
 
 // Adapt bridges to http.HandlerFunc; WithErrorMapper translates domain errors
