@@ -165,10 +165,8 @@ handleCreateOrder := func(
     return o
   }
 
-  enrich := func(o Order) rslt.Result[Order] {
-    return rslt.Of(
-      enrichWithBreaker(req.Context(), o))
-  }
+  enrich := rslt.LiftCtx(
+    req.Context(), enrichWithBreaker)
 
   logFailure := func(err error) {
     log.Printf("[%s] enrichment failed: %v",
@@ -549,12 +547,13 @@ Two branches, identical boilerplate.
 <td>
 
 ```go
-found := option.New(s.get(id)).
-  OkOr(web.NotFound("order not found"))
+id := web.PathParam(req, "id").
+  OkOr(web.BadRequest("missing order id"))
+found := rslt.FlatMap(id, findOrder)
 return rslt.Map(found, web.OK[Order])
 ```
 
-`option.New` wraps `(Order, bool)` → `Option`. `.OkOr` bridges to `Result`: present → Ok, absent → Err(404). `rslt.Map` wraps Ok in a 200 response. The 404 propagates through `Map` untouched.
+`web.PathParam` wraps `PathValue` + `NonEmpty` into `Option[string]`. `.OkOr` bridges to `Result[string]`. `rslt.FlatMap` calls `findOrder` (which uses `option.New` + `.OkOr` to bridge the store lookup). `rslt.Map` wraps Ok in a 200 response. Errors propagate untouched.
 
 </td>
 </tr>
@@ -614,12 +613,15 @@ status, hasStatus :=
   option.NonEmpty(q.Get("status")).Get()
 rawMinTotal :=
   option.NonEmpty(q.Get("min_total"))
-minTotalOption :=
-  option.FlatMap(rawMinTotal, option.Atoi)
-mt, hasMinTotal := minTotalOption.Get()
+minTotalResult :=
+  option.FlatMapResult(rawMinTotal,
+    parseMinTotal)
+mtOption, err := minTotalResult.Unpack()
+// err → 400 if present but invalid
+mt, hasMinTotal := mtOption.Get()
 ```
 
-Parse pipeline: `NonEmpty` → `FlatMap` → `Atoi` chains empty-check into integer parsing. Each step handles the absent case automatically. No mutable `var` declarations.
+`FlatMapResult` bridges optional and fallible: absent → `Ok(NotOk)`, present+valid → `Ok(Of(n))`, present+invalid → `Err(400)`. No mutable `var` declarations. Absent vs invalid is cleanly distinguished.
 
 </td>
 </tr>
@@ -789,10 +791,8 @@ go func() {
 <td>
 
 ```go
-stage := toc.Start(ctx, passthrough,
-  toc.Options[Order]{
-    Capacity: 10, Workers: 1})
-tee := toc.NewTee(ctx, stage.Out(), 2)
+tee := toc.NewTee(ctx,
+  toc.FromChan(postCh), 2)
 auditPipe := toc.Pipe(ctx,
   tee.Branch(0), logOrder,
   toc.Options[Order]{})
@@ -801,7 +801,7 @@ inventoryPipe := toc.Pipe(ctx,
   toc.Options[Order]{})
 ```
 
-Backpressure, cancellation, shutdown ordering, and `Stats()` built in.
+`toc.FromChan` bridges `chan Order` → `chan rslt.Result[Order]` — no passthrough stage needed. Backpressure, cancellation, shutdown ordering, and `Stats()` built in.
 
 </td>
 </tr>

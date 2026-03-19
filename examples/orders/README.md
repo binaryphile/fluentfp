@@ -69,7 +69,8 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-    // named functions: withNewID, enrich, logFailure, storeAndNotify (defined above)
+    // enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
+    // logFailure, storeAndNotify defined as closures above
 
     order := web.DecodeJSON[Order](req)
     stored := order.
@@ -164,6 +165,14 @@ enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
 
 `enrichWithBreaker` has the same signature as `enrichOrder`. The handler calls it without knowing a breaker exists. After 3 consecutive failures, it rejects with `call.ErrCircuitOpen`.
 
+In the POST handler, `rslt.LiftCtx` partially applies the request context, producing a `func(Order) Result[Order]` that slots directly into the FlatMap chain:
+
+```go
+enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
+```
+
+No closure needed — LiftCtx does the wrapping.
+
 At the HTTP boundary, one error mapper translates all domain errors to HTTP responses:
 
 ```go
@@ -191,34 +200,29 @@ Looking up a resource and returning 404 on miss is two branches with identical b
 
 ```go
 handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
-    id := req.PathValue("id")
-    if id == "" {
-        return rslt.Err[web.Response](web.BadRequest("missing order id"))
-    }
-
-    found := option.New(s.get(id)).OkOr(web.NotFound("order not found"))
+    id := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
+    found := rslt.FlatMap(id, findOrder)
     return rslt.Map(found, web.OK[Order])
 }
 ```
 
-Three operations compose into two lines:
+Three steps, each building on the last:
 
-1. `option.New(s.get(id))` — wraps Go's `(Order, bool)` return into `Option[Order]`
-2. `.OkOr(web.NotFound(...))` — present → `Ok(order)`, absent → `Err(404)`
+1. `web.PathParam(req, "id")` — wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges to `Result[string]`
+2. `rslt.FlatMap(id, findOrder)` — looks up the order (standalone FlatMap because string → Order is cross-type)
 3. `rslt.Map(found, web.OK[Order])` — wraps the Ok value in a 200 response
 
-If the lookup missed, the 404 propagates through `Map` untouched.
-
-The same `option` package handles map lookups. In the pricing function, unknown SKUs are errors (not silent fallbacks):
+`findOrder` is a named function that bridges the store lookup:
 
 ```go
-price, ok := option.Lookup(prices, item.SKU).Get()
-if !ok {
-    return o, fmt.Errorf("%w: %s", errUnknownSKU, item.SKU)
+findOrder := func(id string) rslt.Result[Order] {
+    return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
 }
 ```
 
-When a fallback *is* appropriate, `.Or(default)` replaces the `if !ok` block entirely:
+If any step fails, the error propagates through FlatMap and Map untouched.
+
+When a map lookup needs a fallback instead of an error, `option.Lookup(m, k).Or(default)` replaces the entire `if !ok` block:
 
 ```go
 price := option.Lookup(prices, item.SKU).Or(100)
@@ -232,9 +236,19 @@ With fluentfp, parsing is a pipeline and filtering is a chain:
 
 ```go
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
+
+parseMinTotal := func(raw string) rslt.Result[int] {
+    return option.Atoi(raw).OkOr(web.BadRequest(
+        fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
+}
+
 rawMinTotal := option.NonEmpty(q.Get("min_total"))
-minTotalOption := option.FlatMap(rawMinTotal, option.Atoi)
-mt, hasMinTotal := minTotalOption.Get()
+minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
+mtOption, err := minTotalResult.Unpack()
+if err != nil {
+    return rslt.Err[web.Response](err)
+}
+mt, hasMinTotal := mtOption.Get()
 
 hasMatchingStatus := func(o Order) bool { return o.Status == status }
 totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
@@ -248,7 +262,7 @@ if hasMinTotal {
 }
 ```
 
-`option.NonEmpty` → `option.FlatMap` → `option.Atoi` chains empty-check into integer parsing. The option handles the absent case automatically at every step. Invalid `min_total` values (present but not an integer) return 400.
+`option.FlatMapResult` bridges the gap between optional and fallible: absent → `Ok(NotOk)` (no filter applied), present+valid → `Ok(Of(n))`, present+invalid → `Err(400)`. This cleanly distinguishes "not provided" from "provided but wrong" — a common pattern for optional query parameters.
 
 `slice.SortBy(list, orderNum)` sorts by a key function — `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. The conditional `KeepIf` filters are plain Go `if` statements — no special API needed when you're not inside a chain that would break.
 
@@ -272,16 +286,15 @@ reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
 After storing the order, the handler sends it to a background pipeline for audit logging and inventory tracking. In conventional Go this means creating channels, writing fan-out goroutines, and manually sequencing channel closes. None of it has metrics.
 
-With toc, the pipeline is four lines:
+With toc, the pipeline is three lines:
 
 ```go
-stage := toc.Start(ctx, passthrough, toc.Options[Order]{Capacity: 10, Workers: 1})
-tee := toc.NewTee(ctx, stage.Out(), 2)
+tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
 auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
 inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
 
-`Start` creates a bounded stage. `Tee` broadcasts each order to both branches. `Pipe` chains a function onto each branch. The pipeline runs for the lifetime of the server.
+`toc.FromChan` bridges the plain `chan Order` into the `chan rslt.Result[Order]` that toc operators expect — no passthrough stage needed. `Tee` broadcasts each order to both branches. `Pipe` chains a function onto each branch. The pipeline runs for the lifetime of the server.
 
 What toc gives you that bare goroutines don't:
 
