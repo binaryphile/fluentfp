@@ -75,12 +75,12 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     validatedOrder := rslt.FlatMap(order, validateOrder)
     assignedOrder := validatedOrder.Transform(withNewID)
     enrichedOrder := rslt.FlatMap(assignedOrder, enrich)
-    storedOrder := enrichedOrder.MapErr(logFailure).Tap(storeAndNotify)
+    storedOrder := enrichedOrder.TapErr(logFailure).Tap(storeAndNotify)
     return rslt.Map(storedOrder, web.Created[Order])
 }
 ```
 
-No `if err != nil`. The handler is a pipeline: each line is one operation on a `Result`. `FlatMap` chains operations that can fail (decode→validate, enrich). `Transform` transforms the Ok value (assign ID, store+notify). `MapErr` handles the Err side (log failure). `Map` wraps the final value in a response.
+No `if err != nil`. The handler is a pipeline: each line is one operation on a `Result`. `FlatMap` chains operations that can fail (decode→validate, enrich). `Transform` transforms the Ok value (assign ID). `TapErr` runs a side effect on errors (log failure). `Tap` runs a side effect on success (store + notify). `Map` wraps the final value in a response.
 
 The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering — headers, status codes, JSON encoding, error formatting — happens once in `web.Adapt`.
 
@@ -162,21 +162,24 @@ enrichWithBreaker := hof.WithBreaker(breaker, enrichOrder)
 
 `enrichWithBreaker` has the same signature as `enrichOrder`. The handler calls it without knowing a breaker exists. After 3 consecutive failures, it rejects with `hof.ErrCircuitOpen`.
 
-At the HTTP boundary, one error mapper catches it:
+At the HTTP boundary, one error mapper translates all domain errors to HTTP responses:
 
 ```go
 func mapDomainError(err error) (*web.Error, bool) {
     if errors.Is(err, hof.ErrCircuitOpen) {
         return &web.Error{Status: 503, Message: "pricing service unavailable"}, true
     }
+    if errors.Is(err, errPricingFailure) {
+        return &web.Error{Status: 502, Message: "pricing service error"}, true
+    }
+    if errors.Is(err, errUnknownSKU) {
+        return &web.Error{Status: 422, Message: err.Error()}, true
+    }
     return nil, false
 }
-
-errorMapper := web.WithErrorMapper(mapDomainError)
-mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder, errorMapper))
 ```
 
-Defined once, applied to every handler. In conventional Go, every handler that calls the breaker-wrapped function needs its own `if errors.Is` block with response writing.
+Defined once, applied to every handler via `web.WithErrorMapper`. Breaker-open → 503, pricing failure → 502, unknown SKU → 422. In conventional Go, every handler that calls the enrichment function needs its own `if errors.Is` block with response writing for each error type.
 
 **Try it:** send 3 orders with SKU `"FAIL-PRICE"`, then one with a normal SKU — it gets 503.
 
@@ -204,13 +207,20 @@ Three operations compose into two lines:
 
 If the lookup missed, the 404 propagates through `Map` untouched.
 
-The same `option` package handles map lookups with fallbacks:
+The same `option` package handles map lookups. In the pricing function, unknown SKUs are errors (not silent fallbacks):
 
 ```go
-price := option.Lookup(prices, item.SKU).Or(100) // unknown SKU: $1.00
+price, ok := option.Lookup(prices, item.SKU).Get()
+if !ok {
+    return o, fmt.Errorf("%w: %s", errUnknownSKU, item.SKU)
+}
 ```
 
-One line replaces `price, ok := m[key]; if !ok { price = fallback }`.
+When a fallback *is* appropriate, `.Or(default)` replaces the `if !ok` block entirely:
+
+```go
+price := option.Lookup(prices, item.SKU).Or(100)
+```
 
 ### Parsing and filtering without if-blocks (option, slice)
 

@@ -33,7 +33,7 @@ flowchart TD
 | **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `rslt.FlatMap(order, validateOrder)` where `validateOrder = web.Steps(...)` (1 line) | Composable list of named validators, each carrying its HTTP status |
 | **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` — pure transform on Ok value (1 line) | Mutation wrapped in named function |
 | **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `rslt.FlatMap(assignedOrder, enrich)` where `enrich` wraps `enrichWithBreaker` (1 line) | Breaker is a decorator — invisible to caller |
-| **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.MapErr(logFailure)` — error-side transform in pipeline (1 line) | Logging separated from response rendering |
+| **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` — error-side side effect in pipeline (1 line) | Logging separated from response rendering |
 | **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` — side effects in named function (1 line) | Side effects named and composable |
 | **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(storedOrder, web.Created[Order])` (1 line) | `Adapt` renders once |
 | **Error → HTTP** | `if errors.Is(err, ...)` + response block, repeated per handler | `web.WithErrorMapper(mapDomainError)` defined once at boundary | One mapping function for all handlers |
@@ -198,7 +198,7 @@ handleCreateOrder := func(
   enrichedOrder :=
     rslt.FlatMap(assignedOrder, enrich)
   storedOrder := enrichedOrder.
-    MapErr(logFailure).
+    TapErr(logFailure).
     Tap(storeAndNotify)
   return rslt.Map(
     storedOrder, web.Created[Order])
@@ -220,7 +220,7 @@ What the pipeline eliminates:
 | Separate decode and validate error blocks | `rslt.FlatMap` | Chains them; errors propagate |
 | `breaker.allow()` / `recordSuccess()` / `recordFailure()` | `enrichWithBreaker` | Decorator — same signature, breaker invisible |
 | `if errors.Is(err, errCircuitOpen)` in handler | `web.WithErrorMapper` | Defined once at adapter boundary |
-| `log.Printf` on error scattered in branches | `MapErr(logFailure)` | Error-side transform in the pipeline |
+| `log.Printf` on error scattered in branches | `TapErr(logFailure)` | Error-side side effect in the pipeline |
 
 The conventional version also excludes the 40+ lines needed to implement `circuitBreaker` itself.
 
@@ -494,7 +494,7 @@ logFailure := func(err error) error {
   return err
 }
 storedOrder := enrichedOrder.
-  MapErr(logFailure).
+  TapErr(logFailure).
   Tap(storeAndNotify)
 
 // Error mapping (defined once, at boundary):
@@ -503,8 +503,17 @@ mapDomainError := func(
 ) (*web.Error, bool) {
   if errors.Is(err, hof.ErrCircuitOpen) {
     return &web.Error{
-      Status: 503,
-      Message: "pricing unavailable",
+      Status: 503, Message: "unavailable",
+    }, true
+  }
+  if errors.Is(err, errPricingFailure) {
+    return &web.Error{
+      Status: 502, Message: "pricing error",
+    }, true
+  }
+  if errors.Is(err, errUnknownSKU) {
+    return &web.Error{
+      Status: 422, Message: err.Error(),
     }, true
   }
   return nil, false
@@ -513,7 +522,7 @@ web.Adapt(handler, web.WithErrorMapper(
   mapDomainError))
 ```
 
-Three concerns, three locations: `MapErr` logs in the pipeline, `WithErrorMapper` classifies at the boundary, `Adapt` renders.
+Three concerns, three locations: `TapErr` logs in the pipeline (side effect, error unchanged), `WithErrorMapper` classifies at the boundary, `Adapt` renders.
 
 </td>
 </tr>
@@ -561,7 +570,7 @@ return rslt.Map(found, web.OK[Order])
 </tr>
 </table>
 
-### Map Lookup with Fallback
+### Map Lookup with Error on Miss
 
 <table>
 <tr><th>Conventional</th><th>fluentfp</th></tr>
@@ -571,7 +580,8 @@ return rslt.Map(found, web.OK[Order])
 ```go
 price, ok := prices[item.SKU]
 if !ok {
-  price = 100
+  return o, fmt.Errorf(
+    "unknown SKU: %s", item.SKU)
 }
 ```
 
@@ -579,9 +589,15 @@ if !ok {
 <td>
 
 ```go
-price := option.Lookup(
-  prices, item.SKU).Or(100)
+price, ok := option.Lookup(
+  prices, item.SKU).Get()
+if !ok {
+  return o, fmt.Errorf(
+    "%w: %s", errUnknownSKU, item.SKU)
+}
 ```
+
+Similar here — `option.Lookup` wraps the map access but the error handling is the same. The win is when a fallback *is* appropriate: `option.Lookup(m, k).Or(default)` replaces the entire `if !ok` block.
 
 </td>
 </tr>
