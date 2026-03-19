@@ -276,6 +276,13 @@ func main() {
 	s := newStore()
 	var idCounter atomic.Int64
 
+	// withNewID sets the order ID and initial status.
+	withNewID := func(o Order) Order {
+		o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
+		o.Status = "pending"
+		return o
+	}
+
 	// --- Circuit breaker for pricing enrichment ---
 
 	breaker := hof.NewBreaker(hof.BreakerConfig{
@@ -301,13 +308,6 @@ func main() {
 
 	handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
 		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
-
-		// withNewID sets the order ID and initial status.
-		withNewID := func(o Order) Order {
-			o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
-			o.Status = "pending"
-			return o
-		}
 
 		// enrich calls the breaker-wrapped pricing service.
 		enrich := func(o Order) rslt.Result[Order] {
