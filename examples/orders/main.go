@@ -222,7 +222,7 @@ func mapDomainError(err error) (*web.Error, bool) {
 // logOrder logs the order for the audit trail and returns its ID.
 func logOrder(_ context.Context, o Order) (string, error) {
 	log.Printf("  postprocess: audit order %s (%d cents)", o.ID, o.TotalCents)
-	return o.GetID(), nil
+	return o.ID, nil
 }
 
 // countItems counts SKU line items for inventory tracking.
@@ -371,7 +371,7 @@ func main() {
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 		rawMinTotal := option.NonEmpty(q.Get("min_total"))
 		minTotalOption := option.FlatMap(rawMinTotal, option.Atoi)
-		if raw, ok := option.NonEmpty(q.Get("min_total")).Get(); ok {
+		if raw, ok := rawMinTotal.Get(); ok {
 			if _, ok := minTotalOption.Get(); !ok {
 				return rslt.Err[web.Response](web.BadRequest(
 					fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
@@ -384,8 +384,7 @@ func main() {
 		// totalAtLeast checks if order total meets the minimum.
 		totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
-		sorted := slice.SortBy(s.list(), orderNum)
-		orders := sorted.
+		orders := slice.SortBy(s.list(), orderNum).
 			KeepIfWhen(hasStatus, hasMatchingStatus).
 			KeepIfWhen(hasMinTotal, totalAtLeast)
 
