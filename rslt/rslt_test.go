@@ -612,3 +612,29 @@ func TestResultErr(t *testing.T) {
 		}
 	})
 }
+
+func TestTap(t *testing.T) {
+	t.Run("ok calls fn and returns same result", func(t *testing.T) {
+		var captured int
+		r := rslt.Ok(42).Tap(func(v int) { captured = v })
+		v, ok := r.Get()
+		if !ok || v != 42 {
+			t.Errorf("Tap on Ok: got (%d, %t), want (42, true)", v, ok)
+		}
+		if captured != 42 {
+			t.Errorf("Tap did not call fn: captured = %d, want 42", captured)
+		}
+	})
+
+	t.Run("err skips fn and returns same result", func(t *testing.T) {
+		called := false
+		sentinelErr := errors.New("fail")
+		r := rslt.Err[int](sentinelErr).Tap(func(int) { called = true })
+		if called {
+			t.Fatal("Tap should not call fn on Err")
+		}
+		if r.Err() != sentinelErr {
+			t.Errorf("Tap on Err: error = %v, want %v", r.Err(), sentinelErr)
+		}
+	})
+}

@@ -321,7 +321,7 @@ func main() {
 		}
 
 		// storeAndNotify persists the order and sends to post-processing.
-		storeAndNotify := func(o Order) Order {
+		storeAndNotify := func(o Order) {
 			s.put(o)
 			log.Printf("[%s] created order %s (%d cents)", reqID, o.ID, o.TotalCents)
 			select {
@@ -329,14 +329,13 @@ func main() {
 			default:
 				log.Printf("[%s] post-processing channel full, skipping", reqID)
 			}
-			return o
 		}
 
 		order := web.DecodeJSON[Order](req)
 		validatedOrder := rslt.FlatMap(order, validateOrder)
 		assignedOrder := validatedOrder.Convert(withNewID)
 		enrichedOrder := rslt.FlatMap(assignedOrder, enrich)
-		storedOrder := enrichedOrder.MapErr(logFailure).Convert(storeAndNotify)
+		storedOrder := enrichedOrder.MapErr(logFailure).Tap(storeAndNotify)
 		return rslt.Map(storedOrder, web.Created[Order])
 	}
 

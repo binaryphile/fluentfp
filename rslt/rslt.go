@@ -138,6 +138,17 @@ func (r Result[R]) IfOk(fn func(R)) {
 	}
 }
 
+// Tap calls fn with the value if r is Ok and returns r unchanged.
+// Use for side effects (logging, storage) that should not alter the Result.
+func (r Result[R]) Tap(fn func(R)) Result[R] {
+	if r.err == nil {
+		fn(r.value)
+	}
+
+	return r
+}
+
+
 // IfErr calls fn with the error if r is Err.
 func (r Result[R]) IfErr(fn func(error)) {
 	if r.err != nil {
