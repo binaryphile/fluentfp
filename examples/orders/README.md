@@ -146,27 +146,27 @@ func itemsHavePositiveQty(o Order) rslt.Result[Order] {
 
 Adding a validation means adding a name to `web.Steps(...)`. Each validator is independently testable. In conventional Go, this is a monolithic function where every check returns a bare `error` that loses the HTTP status code.
 
-### Wrapping functions with resilience (hof)
+### Wrapping functions with resilience (cb)
 
 The pricing service might be slow or failing. In conventional Go, adding a circuit breaker means writing 40+ lines of mutex-protected state (open/closed/half-open), then threading check/record/branch logic through the handler. The breaker becomes more code than the call it protects.
 
 With fluentfp, it's a decorator:
 
 ```go
-breaker := hof.NewBreaker(hof.BreakerConfig{
+breaker := cb.NewBreaker(cb.BreakerConfig{
     ResetTimeout: 10 * time.Second,
-    ReadyToTrip:  hof.ConsecutiveFailures(3),
+    ReadyToTrip:  cb.ConsecutiveFailures(3),
 })
-enrichWithBreaker := hof.WithBreaker(breaker, enrichOrder)
+enrichWithBreaker := cb.WithBreaker(breaker, enrichOrder)
 ```
 
-`enrichWithBreaker` has the same signature as `enrichOrder`. The handler calls it without knowing a breaker exists. After 3 consecutive failures, it rejects with `hof.ErrCircuitOpen`.
+`enrichWithBreaker` has the same signature as `enrichOrder`. The handler calls it without knowing a breaker exists. After 3 consecutive failures, it rejects with `cb.ErrOpen`.
 
 At the HTTP boundary, one error mapper translates all domain errors to HTTP responses:
 
 ```go
 func mapDomainError(err error) (*web.Error, bool) {
-    if errors.Is(err, hof.ErrCircuitOpen) {
+    if errors.Is(err, cb.ErrOpen) {
         return &web.Error{Status: 503, Message: "pricing service unavailable"}, true
     }
     if errors.Is(err, errPricingFailure) {
@@ -287,7 +287,7 @@ What toc gives you that bare goroutines don't:
 
 ```
 HTTP request (synchronous):
-  decode (web) → validate (web.Steps) → enrich (hof.WithBreaker) → store → 201
+  decode (web) → validate (web.Steps) → enrich (cb.WithBreaker) → store → 201
 
 Background (fire-and-forget):
   postCh → toc.Start → toc.Tee(2) → [audit Pipe | inventory Pipe]

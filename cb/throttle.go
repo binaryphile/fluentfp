@@ -1,4 +1,4 @@
-package hof
+package cb
 
 import (
 	"context"
@@ -12,10 +12,10 @@ import (
 // Panics if n <= 0 or fn is nil.
 func Throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if n <= 0 {
-		panic("hof.Throttle: n must be > 0")
+		panic("cb.Throttle: n must be > 0")
 	}
 	if fn == nil {
-		panic("hof.Throttle: fn must not be nil")
+		panic("cb.Throttle: fn must not be nil")
 	}
 
 	sem := make(chan struct{}, n)
@@ -51,13 +51,13 @@ func Throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(cont
 // Per-call: panics if cost(t) <= 0 or cost(t) > capacity.
 func ThrottleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if capacity <= 0 {
-		panic("hof.ThrottleWeighted: capacity must be > 0")
+		panic("cb.ThrottleWeighted: capacity must be > 0")
 	}
 	if cost == nil {
-		panic("hof.ThrottleWeighted: cost must not be nil")
+		panic("cb.ThrottleWeighted: cost must not be nil")
 	}
 	if fn == nil {
-		panic("hof.ThrottleWeighted: fn must not be nil")
+		panic("cb.ThrottleWeighted: fn must not be nil")
 	}
 
 	sem := make(chan struct{}, capacity)
@@ -77,10 +77,10 @@ func ThrottleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.
 
 		itemCost := cost(t)
 		if itemCost <= 0 {
-			panic("hof.ThrottleWeighted: cost must be > 0")
+			panic("cb.ThrottleWeighted: cost must be > 0")
 		}
 		if itemCost > capacity {
-			panic("hof.ThrottleWeighted: cost must be <= capacity")
+			panic("cb.ThrottleWeighted: cost must be <= capacity")
 		}
 
 		// Serialize multi-token acquire to prevent deadlock.

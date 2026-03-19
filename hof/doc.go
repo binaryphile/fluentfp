@@ -1,11 +1,12 @@
-// Package hof provides function combinators for composition, partial application,
-// independent application, concurrency control, side-effect wrapping, and
-// call coalescing. Based on Stone's "Algorithms: A Functional Programming
-// Approach" (pipe, sect, cross).
+// Package hof provides pure function combinators: composition, partial
+// application, and independent application. Based on Stone's
+// "Algorithms: A Functional Programming Approach" (pipe, sect, cross).
+//
+// For resilience decorators (retry, circuit breaker, throttle, debounce),
+// see the [cb] package.
 package hof
 
-// Compile-time export verification. Every fluentfp package uses this pattern
-// to ensure exported symbols remain available across refactors.
+// Compile-time export verification.
 func _() {
 	// Composition
 	_ = Pipe[int, int, int]
@@ -19,34 +20,4 @@ func _() {
 
 	// Building blocks
 	_ = Eq[int]
-
-	// Concurrency control
-	_ = Throttle[int, int]
-	_ = ThrottleWeighted[int, int]
-
-	// Side-effect wrappers
-	_ = OnErr[int, int]
-
-	// Retry
-	_ = Retry[int, int]
-	_ = Backoff(nil)
-	_ = ConstantBackoff
-	_ = ExponentialBackoff
-
-	// Circuit breaking
-	_ = NewBreaker
-	_ = WithBreaker[int, int]
-	_ = ConsecutiveFailures
-	_ = ErrCircuitOpen
-	_ = BreakerState(0)
-	_ = StateClosed
-	_ = StateOpen
-	_ = StateHalfOpen
-	_ = Snapshot{}
-	_ = Transition{}
-	_ = BreakerConfig{}
-
-	// Debouncing
-	_ = NewDebouncer[int]
-	_ = MaxWait
 }

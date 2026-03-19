@@ -1,4 +1,4 @@
-package hof
+package cb
 
 import "context"
 
@@ -12,10 +12,10 @@ import "context"
 // Panics if fn is nil or onErr is nil.
 func OnErr[T, R any](fn func(context.Context, T) (R, error), onErr func(error)) func(context.Context, T) (R, error) {
 	if fn == nil {
-		panic("hof.OnErr: fn must not be nil")
+		panic("cb.OnErr: fn must not be nil")
 	}
 	if onErr == nil {
-		panic("hof.OnErr: onErr must not be nil")
+		panic("cb.OnErr: onErr must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {

@@ -1,4 +1,4 @@
-package hof
+package cb
 
 import (
 	"sync"

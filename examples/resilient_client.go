@@ -1,6 +1,6 @@
 //go:build ignore
 
-// Resilient API client in 20 lines using hof.CircuitBreaker + hof.Retry + hof.MapErr.
+// Resilient API client in 20 lines using cb.CircuitBreaker + cb.Retry + cb.MapErr.
 //
 // Run:
 //
@@ -24,7 +24,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/binaryphile/fluentfp/hof"
+	"github.com/binaryphile/fluentfp/cb"
 )
 
 // Simulated errors.
@@ -64,17 +64,17 @@ func classifyError(err error) error {
 func main() {
 	// Stack three decorators — each preserves func(ctx, T) (R, error):
 	//   fetchUser → MapErr(classify) → Retry(3, backoff) → WithBreaker
-	classified := hof.MapErr(fetchUser, classifyError)
-	retried := hof.Retry(3, hof.ExponentialBackoff(50*time.Millisecond), isTransient, classified)
+	classified := cb.MapErr(fetchUser, classifyError)
+	retried := cb.Retry(3, cb.ExponentialBackoff(50*time.Millisecond), isTransient, classified)
 
-	breaker := hof.NewBreaker(hof.BreakerConfig{
+	breaker := cb.NewBreaker(cb.BreakerConfig{
 		ResetTimeout: 5 * time.Second,
-		ReadyToTrip:  hof.ConsecutiveFailures(2),
-		OnStateChange: func(t hof.Transition) {
+		ReadyToTrip:  cb.ConsecutiveFailures(2),
+		OnStateChange: func(t cb.Transition) {
 			fmt.Printf("  breaker: %s → %s\n", t.From, t.To)
 		},
 	})
-	safeFetch := hof.WithBreaker(breaker, retried)
+	safeFetch := cb.WithBreaker(breaker, retried)
 
 	// Try 10 requests.
 	ctx := context.Background()

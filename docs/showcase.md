@@ -818,7 +818,7 @@ func (s *Server) invalidateSession(id string, entMeta *acl.EnterpriseMeta) {
 **fluentfp:**
 ```go
 // At server construction — retry policy defined once, applied everywhere
-s.resilientRaftApply = hof.Retry(maxInvalidateAttempts, hof.ExponentialBackoff(invalidateRetryBase), nil, s.leaderRaftApply)
+s.resilientRaftApply = cb.Retry(maxInvalidateAttempts, cb.ExponentialBackoff(invalidateRetryBase), nil, s.leaderRaftApply)
 ```
 
 ```go
@@ -850,7 +850,7 @@ func (s *Server) invalidateSession(ctx context.Context, id string, entMeta *acl.
 
 **What changed:** The 7-line retry loop — `for` header, `leaderRaftApply`, success check, `time.Sleep` with bit-shift backoff, `continue` — collapses into a decorated `s.resilientRaftApply` defined once at construction time. The function body becomes setup + one call + result check. The backoff strategy is reusable across every Raft operation that needs resilience.
 
-**What's eliminated:** Manual retry loop, `time.Sleep`, backoff calculation (`1 << attempt * base`), per-iteration control flow. The retry policy is defined once and shared across `invalidateSession`, `invalidateKey`, and similar methods. The original's per-attempt error logging (`s.logger.Error("Invalidation failed")`) is not preserved — `hof.Retry` doesn't expose a per-attempt hook. For code that needs per-attempt logging, `hof.OnErr` can wrap the inner function, though it only receives a `func()` callback without error access.
+**What's eliminated:** Manual retry loop, `time.Sleep`, backoff calculation (`1 << attempt * base`), per-iteration control flow. The retry policy is defined once and shared across `invalidateSession`, `invalidateKey`, and similar methods. The original's per-attempt error logging (`s.logger.Error("Invalidation failed")`) is not preserved — `cb.Retry` doesn't expose a per-attempt hook. For code that needs per-attempt logging, `cb.OnErr` can wrap the inner function, though it only receives a `func()` callback without error access.
 
 **What this pattern looks like at scale:** The same retry-loop-with-backoff pattern appears throughout the examples below and in CockroachDB's [TCP accept loop](https://github.com/cockroachdb/cockroach/blob/master/pkg/util/netutil/net.go#L159-L195) (hand-rolled exponential backoff with cap). In each case, the actual operation is 1-3 lines; the ceremony around it runs 10-30x longer. Function decoration separates these concerns, makes them independently testable, and eliminates the copy-paste visible across codebases.
 
@@ -895,8 +895,8 @@ go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
 **fluentfp:**
 ```go
 // At construction — compose resilience decorators
-throttledCreate := hof.Throttle(routeConcurrency, rc.routes.CreateRoute)
-createRoute := hof.Retry(maxRetries, hof.ConstantBackoff(retryInterval), nil, throttledCreate)
+throttledCreate := cb.Throttle(routeConcurrency, rc.routes.CreateRoute)
+createRoute := cb.Retry(maxRetries, cb.ConstantBackoff(retryInterval), nil, throttledCreate)
 ```
 
 ```go
@@ -914,7 +914,7 @@ go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
 
 *We presume `CreateRoute` adapted to the `func(context.Context, T) (R, error)` signature.*
 
-**What changed:** The channel-based semaphore (`rateLimiter <- struct{}{}` / `<-rateLimiter`) becomes `hof.Throttle`. The `RetryOnConflict` wrapper with its callback becomes `hof.Retry`. The two decorators compose: throttle the inner function, then retry the throttled version. The goroutine body shrinks from 20 lines of cross-cutting concerns to a single decorated call + error handling.
+**What changed:** The channel-based semaphore (`rateLimiter <- struct{}{}` / `<-rateLimiter`) becomes `cb.Throttle`. The `RetryOnConflict` wrapper with its callback becomes `cb.Retry`. The two decorators compose: throttle the inner function, then retry the throttled version. The goroutine body shrinks from 20 lines of cross-cutting concerns to a single decorated call + error handling.
 
 **What's eliminated:** Manual semaphore acquire/release (a common source of deadlocks if the release is missed on an error path), the `RetryOnConflict` callback wrapper, timing instrumentation interleaved with business logic. The pattern repeats in the same file for `deleteRoute` with nearly identical ceremony.
 
@@ -969,7 +969,7 @@ func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.
 }
 ```
 
-**What this shows:** The structural win isn't line count in a single file — it's that 5 provider files each copy-paste the same ~80 lines of retry/throttle/recover ceremony. With function decoration, the ceremony would be defined once — `hof.Retry(maxAttempts, backoff, nil, watchAndProcess)` — and each provider would supply only its watch function. Traefik is already halfway there: it uses a third-party `backoff.RetryNotify` + `safe.OperationWithRecover`. The remaining ceremony (event throttling via channel wrapper, `time.Sleep` for rate limiting, error logging at multiple points) is the part that decoration would further extract. This is a case where the pattern motivates the tool rather than demonstrating a clean 1:1 rewrite — the long-running watch-loop pattern doesn't map directly to `hof.Retry`'s request-response model.
+**What this shows:** The structural win isn't line count in a single file — it's that 5 provider files each copy-paste the same ~80 lines of retry/throttle/recover ceremony. With function decoration, the ceremony would be defined once — `cb.Retry(maxAttempts, backoff, nil, watchAndProcess)` — and each provider would supply only its watch function. Traefik is already halfway there: it uses a third-party `backoff.RetryNotify` + `safe.OperationWithRecover`. The remaining ceremony (event throttling via channel wrapper, `time.Sleep` for rate limiting, error logging at multiple points) is the part that decoration would further extract. This is a case where the pattern motivates the tool rather than demonstrating a clean 1:1 rewrite — the long-running watch-loop pattern doesn't map directly to `cb.Retry`'s request-response model.
 
 ### Retry + token refresh + error classification — etcd-io/etcd
 
@@ -1029,11 +1029,11 @@ refreshOnAuthErr := func(err error) {
     }
 }
 
-invokerWithRefresh := hof.OnErr(invoker, refreshOnAuthErr)
-resilientInvoke := hof.Retry(callOpts.max, hof.ExponentialBackoff(retryBase), isSafeRetry, invokerWithRefresh)
+invokerWithRefresh := cb.OnErr(invoker, refreshOnAuthErr)
+resilientInvoke := cb.Retry(callOpts.max, cb.ExponentialBackoff(retryBase), isSafeRetry, invokerWithRefresh)
 ```
 
-**What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `hof.Retry` handles the loop, backoff, and retry classification via `shouldRetry`. `hof.OnErr` handles the token refresh trigger with error classification via `func(error)`.
+**What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `cb.Retry` handles the loop, backoff, and retry classification via `shouldRetry`. `cb.OnErr` handles the token refresh trigger with error classification via `func(error)`.
 
 ---
 

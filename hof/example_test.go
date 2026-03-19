@@ -1,7 +1,6 @@
 package hof_test
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -58,85 +57,4 @@ func ExampleCross() {
 
 	fmt.Println(d, u)
 	// Output: 10 HELLO
-}
-
-func ExampleThrottle() {
-	// Wrap a function so at most 3 calls run concurrently.
-	// doubleIt doubles the input.
-	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
-	throttled := hof.Throttle(3, doubleIt)
-
-	result, err := throttled(context.Background(), 5)
-	if err != nil {
-		fmt.Println("error:", err)
-		return
-	}
-
-	fmt.Println(result)
-	// Output: 10
-}
-
-func ExampleThrottleWeighted() {
-	// Wrap a function so total cost of concurrent calls never exceeds 100.
-	// processItem returns the item unchanged.
-	processItem := func(_ context.Context, n int) (int, error) { return n, nil }
-	// itemCost uses the item value as its cost.
-	itemCost := func(n int) int { return n }
-
-	throttled := hof.ThrottleWeighted(100, itemCost, processItem)
-
-	result, err := throttled(context.Background(), 42)
-	if err != nil {
-		fmt.Println("error:", err)
-		return
-	}
-
-	fmt.Println(result)
-	// Output: 42
-}
-
-func ExampleOnErr() {
-	var count int
-
-	// onErr increments the error counter.
-	onErr := func(_ error) { count++ }
-	// failOrDouble returns an error for negative inputs.
-	failOrDouble := func(_ context.Context, n int) (int, error) {
-		if n < 0 {
-			return 0, fmt.Errorf("negative")
-		}
-
-		return n * 2, nil
-	}
-
-	wrapped := hof.OnErr(failOrDouble, onErr)
-
-	r1, _ := wrapped(context.Background(), 5)
-	fmt.Println(r1, count)
-
-	r2, _ := wrapped(context.Background(), -1)
-	fmt.Println(r2, count)
-	// Output:
-	// 10 0
-	// 0 1
-}
-
-func ExampleRetry() {
-	attempts := 0
-
-	// failThenSucceed fails twice, then succeeds.
-	failThenSucceed := func(_ context.Context, n int) (int, error) {
-		attempts++
-		if attempts < 3 {
-			return 0, fmt.Errorf("not yet")
-		}
-
-		return n * 2, nil
-	}
-
-	retried := hof.Retry(3, hof.ConstantBackoff(0), nil, failThenSucceed)
-	result, err := retried(context.Background(), 5)
-
-	fmt.Println(result, err)
-	// Output: 10 <nil>
 }

@@ -1,4 +1,4 @@
-package hof
+package cb
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func ConstantBackoff(delay time.Duration) Backoff {
 // Panics if initial <= 0.
 func ExponentialBackoff(initial time.Duration) Backoff {
 	if initial <= 0 {
-		panic("hof.ExponentialBackoff: initial must be > 0")
+		panic("cb.ExponentialBackoff: initial must be > 0")
 	}
 
 	return func(n int) time.Duration {
@@ -45,13 +45,13 @@ func ExponentialBackoff(initial time.Duration) Backoff {
 // Panics if maxAttempts < 1, backoff is nil, or fn is nil.
 func Retry[T, R any](maxAttempts int, backoff Backoff, shouldRetry func(error) bool, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if maxAttempts < 1 {
-		panic("hof.Retry: maxAttempts must be > 0")
+		panic("cb.Retry: maxAttempts must be > 0")
 	}
 	if backoff == nil {
-		panic("hof.Retry: backoff must not be nil")
+		panic("cb.Retry: backoff must not be nil")
 	}
 	if fn == nil {
-		panic("hof.Retry: fn must not be nil")
+		panic("cb.Retry: fn must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {

@@ -1,6 +1,6 @@
 //go:build ignore
 
-// Integration example: web + ctxval + hof.CircuitBreaker middleware stack.
+// Integration example: web + ctxval + cb.CircuitBreaker middleware stack.
 //
 // Run:
 //
@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/binaryphile/fluentfp/ctxval"
-	"github.com/binaryphile/fluentfp/hof"
+	"github.com/binaryphile/fluentfp/cb"
 	"github.com/binaryphile/fluentfp/option"
 	"github.com/binaryphile/fluentfp/rslt"
 	"github.com/binaryphile/fluentfp/web"
@@ -52,7 +52,7 @@ func lookupWeather(_ context.Context, city string) (string, error) {
 
 // mapDomainError maps domain errors to HTTP errors at the adapter boundary.
 func mapDomainError(err error) (*web.Error, bool) {
-	if errors.Is(err, hof.ErrCircuitOpen) {
+	if errors.Is(err, cb.ErrOpen) {
 		return &web.Error{
 			Status:  http.StatusServiceUnavailable,
 			Message: "weather service temporarily unavailable",
@@ -65,14 +65,14 @@ func mapDomainError(err error) (*web.Error, bool) {
 func main() {
 	// --- Circuit breaker ---
 
-	breaker := hof.NewBreaker(hof.BreakerConfig{
+	breaker := cb.NewBreaker(cb.BreakerConfig{
 		ResetTimeout: 10 * time.Second,
-		ReadyToTrip:  hof.ConsecutiveFailures(2),
-		OnStateChange: func(t hof.Transition) {
+		ReadyToTrip:  cb.ConsecutiveFailures(2),
+		OnStateChange: func(t cb.Transition) {
 			log.Printf("breaker: %s → %s", t.From, t.To)
 		},
 	})
-	safeWeather := hof.WithBreaker(breaker, lookupWeather)
+	safeWeather := cb.WithBreaker(breaker, lookupWeather)
 
 	// --- Middleware: request ID ---
 

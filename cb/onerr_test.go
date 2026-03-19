@@ -1,4 +1,4 @@
-package hof_test
+package cb_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/binaryphile/fluentfp/hof"
+	"github.com/binaryphile/fluentfp/cb"
 )
 
 func TestOnErrBasicSuccess(t *testing.T) {
@@ -17,7 +17,7 @@ func TestOnErrBasicSuccess(t *testing.T) {
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
-	wrapped := hof.OnErr(doubleIt, onErr)
+	wrapped := cb.OnErr(doubleIt, onErr)
 	got, err := wrapped(context.Background(), 5)
 
 	if err != nil {
@@ -40,7 +40,7 @@ func TestOnErrCallsOnError(t *testing.T) {
 	// failingFn always returns an error.
 	failingFn := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
 
-	wrapped := hof.OnErr(failingFn, onErr)
+	wrapped := cb.OnErr(failingFn, onErr)
 	_, err := wrapped(context.Background(), 5)
 
 	if !errors.Is(err, errBoom) {
@@ -61,7 +61,7 @@ func TestOnErrWithContextCancel(t *testing.T) {
 	// failingFn always returns an error.
 	failingFn := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
 
-	wrapped := hof.OnErr(failingFn, onErr)
+	wrapped := cb.OnErr(failingFn, onErr)
 	_, err := wrapped(ctx, 5)
 
 	if !errors.Is(err, errBoom) {
@@ -87,7 +87,7 @@ func TestOnErrComposesWithThrottle(t *testing.T) {
 	}
 
 	// Compose: Throttle wrapping OnErr.
-	throttled := hof.Throttle(2, hof.OnErr(doubleOrFail, onErr))
+	throttled := cb.Throttle(2, cb.OnErr(doubleOrFail, onErr))
 
 	// Success path.
 	got, err := throttled(context.Background(), 5)
@@ -123,11 +123,11 @@ func TestOnErrValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "nil_fn",
-			fn:   func() { hof.OnErr[int, int](nil, dummyOnErr) },
+			fn:   func() { cb.OnErr[int, int](nil, dummyOnErr) },
 		},
 		{
 			name: "nil_onErr",
-			fn:   func() { hof.OnErr(dummyFn, nil) },
+			fn:   func() { cb.OnErr(dummyFn, nil) },
 		},
 	}
 

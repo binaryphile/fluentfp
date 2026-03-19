@@ -60,7 +60,7 @@ return rslt.Err[web.Response](web.Forbidden("insufficient permissions")) // 403
 ```go
 // Error mapping — domain errors → HTTP errors, defined once at the boundary
 mapDomainError := func(err error) (*web.Error, bool) {
-    if errors.Is(err, hof.ErrCircuitOpen) {
+    if errors.Is(err, cb.ErrOpen) {
         return &web.Error{Status: 503, Message: "service unavailable"}, true
     }
     return nil, false

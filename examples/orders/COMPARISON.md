@@ -191,17 +191,13 @@ handleCreateOrder := func(
   // --- pipeline ---
 
   order := web.DecodeJSON[Order](req)
-  validatedOrder :=
-    rslt.FlatMap(order, validateOrder)
-  assignedOrder :=
-    validatedOrder.Transform(withNewID)
-  enrichedOrder :=
-    rslt.FlatMap(assignedOrder, enrich)
-  storedOrder := enrichedOrder.
+  stored := order.
+    FlatMap(validateOrder).
+    Transform(withNewID).
+    FlatMap(enrich).
     TapErr(logFailure).
     Tap(storeAndNotify)
-  return rslt.Map(
-    storedOrder, web.Created[Order])
+  return rslt.Map(stored, web.Created[Order])
 }
 ```
 
@@ -425,11 +421,11 @@ Three concerns tangled: state checking, result recording, response writing. The 
 
 ```go
 // Setup (5 lines, once):
-breaker := hof.NewBreaker(hof.BreakerConfig{
+breaker := cb.NewBreaker(cb.BreakerConfig{
   ResetTimeout: 10 * time.Second,
-  ReadyToTrip:  hof.ConsecutiveFailures(3),
+  ReadyToTrip:  cb.ConsecutiveFailures(3),
 })
-enrichWithBreaker := hof.WithBreaker(
+enrichWithBreaker := cb.WithBreaker(
   breaker, enrichOrder)
 
 // In handler (defined as named function):
@@ -501,7 +497,7 @@ storedOrder := enrichedOrder.
 mapDomainError := func(
   err error,
 ) (*web.Error, bool) {
-  if errors.Is(err, hof.ErrCircuitOpen) {
+  if errors.Is(err, cb.ErrOpen) {
     return &web.Error{
       Status: 503, Message: "unavailable",
     }, true
