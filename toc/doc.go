@@ -54,7 +54,9 @@
 // threshold). [NewTee] broadcasts each item to N branches (synchronous
 // lockstep — slowest consumer governs pace). [NewMerge] recombines
 // multiple upstream Result channels into a single nondeterministic
-// stream (fan-in).
+// stream (fan-in). [NewJoin] recombines two branch results into one
+// combined output (strict branch recombination — one item from each
+// source, combined via a function).
 //
 // Pipelines have two error planes: data-plane errors (per-item rslt.Err
 // in [Stage.Out]) and control-plane errors ([Stage.Wait] / [Stage.Cause]).
@@ -168,6 +170,26 @@ func _() {
 	_ = mg.Out
 	_ = mg.Wait
 	_ = mg.Stats
+
+	// Join lifecycle
+	_ = NewJoin[int, string, bool]
+
+	// JoinStats fields
+	_ = JoinStats{
+		ReceivedA: 0, ReceivedB: 0, Combined: 0, Errors: 0,
+		DiscardedA: 0, DiscardedB: 0, ExtraA: 0, ExtraB: 0,
+		OutputBlockedTime: 0,
+	}
+
+	// Join methods
+	var j *Join[bool]
+	_ = j.Out
+	_ = j.Wait
+	_ = j.Stats
+
+	// MissingResultError
+	var mre *MissingResultError
+	_ = mre.Error
 
 	// rslt dependency (used by Out return type)
 	var _ rslt.Result[string]

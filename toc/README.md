@@ -230,9 +230,36 @@ storer   := toc.Pipe(ctx, merged.Out(), storeBatch, Options{Workers: 1})
 
 **Per-source stats:** `SourceReceived[i]`, `SourceForwarded[i]`, `SourceDropped[i]` track each source's contribution. Aggregates are derived by summing per-source slices. Invariant (after Wait): `Received = Forwarded + Dropped`.
 
+### Join
+
+`NewJoin` recombines results from two upstream channels into one combined output (strict branch recombination). Uses the first item from each source for join semantics (combine or error), then drains all remaining items from both sources.
+
+```go
+chunker  := toc.Start(ctx, chunkFile, Options{Workers: N, Capacity: N*2})
+tee      := toc.NewTee(ctx, chunker.Out(), 2)
+extDocs  := toc.Pipe(ctx, tee.Branch(0), extractDocs, Options{Workers: 1})
+callGraph := toc.Pipe(ctx, tee.Branch(1), buildCallGraph, Options{Workers: 1})
+joined   := toc.NewJoin(ctx, extDocs.Out(), callGraph.Out(), combine)
+resolver := toc.Pipe(ctx, joined.Out(), resolveEdges, Options{Workers: 1})
+
+// feed, drain tail, wait reverse order
+```
+
+**Error matrix:** Ok/Ok → combine via fn. Ok/Err or Err/Ok → forward the error, discard the other. Err/Err → `errors.Join` preserving both. Missing item (source closes empty) → `MissingResultError`. Missing+Err → `errors.Join(err, MissingResultError)`. Both missing → no output.
+
+**Contract:** "At most one" — each source is expected to produce exactly 1 item. Missing items (0) and extra items (2+) are contract violations handled gracefully, not panics.
+
+**Structural mismatches visible in stats:** `ExtraA`/`ExtraB` count items beyond the first, drained after the join decision. `DiscardedA`/`DiscardedB` count first items that weren't combined (error path, cancel, panic). Post-decision items are always classified as Extra, even if cancellation later prevents result delivery. Conservation invariant (after Wait): `ReceivedA = Combined + DiscardedA + ExtraA`.
+
+**fn contract:** `func(A, B) R` — pure, synchronous combiner. No context, no error return. Panics recovered as `PanicError`. If combining can fail, use a downstream Pipe for the error-capable transform.
+
+**Cancellation:** Advisory. On cancel, consumed items are discarded and both sources are drained. `Wait()` returns the latched context error. `Wait()` may return nil after cancellation if no goroutine observed it on a checked path.
+
+**Liveness:** Consumer must drain `Out()` or cancel the shared context. Both sources must eventually close for the goroutine to exit.
+
 ### Lifecycle Contract
 
-**Source ownership:** Pipe, Batcher, WeightedBatcher, Tee, and Merge drain their source(s) to completion. This requires two conditions: (1) the consumer drains `Out()` or ctx is canceled (downstream liveness), and (2) the upstream source eventually closes (upstream completion). Cancellation solves downstream liveness — it unblocks output sends so the operator can continue draining. It does not force-close the source. If the source never closes, the operator blocks in drain/discard mode indefinitely. After cancellation, all switch to discard mode (continue reading source, discard items). If the consumer stops reading and ctx is never canceled, the operator blocks on output delivery and cannot drain its source.
+**Source ownership:** Pipe, Batcher, WeightedBatcher, Tee, Merge, and Join drain their source(s) to completion. This requires two conditions: (1) the consumer drains `Out()` or ctx is canceled (downstream liveness), and (2) the upstream source eventually closes (upstream completion). Cancellation solves downstream liveness — it unblocks output sends so the operator can continue draining. It does not force-close the source. If the source never closes, the operator blocks in drain/discard mode indefinitely. After cancellation, all switch to discard mode (continue reading source, discard items). If the consumer stops reading and ctx is never canceled, the operator blocks on output delivery and cannot drain its source.
 
 **Cancellation:** Fail-fast is stage-local — it cancels only the stage, not upstream. For pipeline-wide shutdown, cancel the shared parent context. This favors deterministic draining over aggressive abort.
 
@@ -240,7 +267,7 @@ storer   := toc.Pipe(ctx, merged.Out(), storeBatch, Options{Workers: 1})
 
 **Construction order (Tee):** NewTee starts immediately. All branch consumers should be wired before upstream produces items. With unbuffered branch channels, if a branch is not yet being read, Tee blocks on that branch's send.
 
-**Drain order:** Drain only the tail stage's Out(). Each Pipe/Batcher/Tee/Merge drains its upstream internally. After tail Out() closes, Wait() may be called in any order. Reverse order is recommended.
+**Drain order:** Drain only the tail stage's Out(). Each Pipe/Batcher/Tee/Merge/Join drains its upstream internally. After tail Out() closes, Wait() may be called in any order. Reverse order is recommended.
 
 **Ordering:** No ordering guarantee with Workers > 1. With Workers == 1, worker results preserve encounter order. However, forwarded errors bypass the worker queue, so in Pipe stages they may arrive before buffered worker results regardless of worker count.
 

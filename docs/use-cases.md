@@ -636,7 +636,7 @@
 
 **Main Scenario:**
 1. Developer starts a head stage with Start, submitting items from a producer goroutine.
-2. Developer creates intermediate stages with Pipe (or NewBatcher for accumulation, or NewTee for broadcast, or NewMerge for fan-in), each reading from the previous stage's Out().
+2. Developer creates intermediate stages with Pipe (or NewBatcher for accumulation, or NewWeightedBatcher for weight-based accumulation, or NewTee for broadcast, or NewMerge for fan-in, or NewJoin for branch recombination), each reading from the previous stage's Out().
 3. Each Pipe stage's feeder reads upstream results: Ok values go to workers, Err values pass through directly to the output.
 4. Developer drains the tail stage's Out() to receive final results (successes and forwarded errors).
 5. Developer calls Wait on each stage in reverse order to confirm clean shutdown.
@@ -649,6 +649,7 @@
 - 2b. WeightedBatcher between stages: accumulates items by weight or count (whichever reaches threshold first), preventing unbounded accumulation of zero/low-weight items. Same error-as-batch-boundary semantics.
 - 2c. Tee between stages: Developer fans out one stream to multiple downstream paths. All branches observe the same logical sequence. Backpressure is preserved across the fan-out.
 - 2d. Merge between stages: Developer recombines multiple upstream paths into a single stream for downstream processing. Items from all sources appear in the merged output.
+- 2e. Join between stages: Developer recombines results from two Tee branches. Join reads one result from each source, combines Ok/Ok pairs via a function, and forwards errors. Structural mismatches (extra or missing items from either source) are contract violations visible in stats.
 - 5a. Wait called in forward order: Also valid — Wait may be called in any order after tail Out() is drained. Reverse order is recommended but not required.
 
 **Sub-Variations:**
@@ -662,3 +663,5 @@
 - Tee stats: Received = FullyDelivered + PartiallyDelivered + Undelivered, per-branch BranchDelivered/BranchBlockedTime
 - DAG shape: Start → Tee → (Pipe, Pipe) → Merge → Pipe — fan-out then fan-in with independent downstream processing
 - Merge stats: per-source received, forwarded, dropped
+- Join shape: Start → Tee → (Pipe, Pipe) → Join(fn) → Pipe — fan-out, independent processing, branch recombination
+- Join stats: ReceivedA, ReceivedB, Combined, Errors, DiscardedA, DiscardedB, ExtraA, ExtraB

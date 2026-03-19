@@ -228,7 +228,7 @@ Packages are independent — import one or all.
 | [rslt](rslt/)       | Typed error handling             | `Ok`, `Err`, `CollectAll`, `CollectOkAndErr`   |
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Resilience + function combinators | `Retry`, `WithBreaker`, `Throttle`, `MapErr`  |
-| [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge` |
+| [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin` |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
 | [web](web/)         | Typed HTTP handlers              | `Adapt`, `DecodeJSON`, `Steps`                 |
 | [memo](memo/)       | Memoization                      | `Of`, `Fn`, `FnErr`, `NewLRU`                  |
@@ -321,6 +321,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Batch items by count or weight | `toc.NewBatcher(ctx, src, n)` | toc |
 | Broadcast to N branches | `toc.NewTee(ctx, src, n)` | toc |
 | Recombine N streams into one | `toc.NewMerge(ctx, sources...)` | toc |
+| Recombine two branch results | `toc.NewJoin(ctx, srcA, srcB, fn)` | toc |
 | Lazy iterate with memoization | `stream.Generate(seed, fn).Take(10).Collect()` | stream |
 | Lazy iterate without memoization | `seq.From(s).KeepIf(f).Take(10).Collect()` | seq |
 | Memoize a function | `memo.Of(fn)` or `memo.Fn(cache, fn)` | memo |

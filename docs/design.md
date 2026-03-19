@@ -683,7 +683,7 @@ func (s *Stage[T, R]) Cause() error
 
 **Not an abstraction over errgroup:** Different concern. errgroup manages N goroutines with shared error. toc manages a bounded queue + worker pool with per-item results, stats, and lifecycle. `FanOut` in slice covers the errgroup-shaped case.
 
-### D27: Pipeline composition via free functions (Pipe, Batcher, Tee, Merge)
+### D27: Pipeline composition via free functions (Pipe, Batcher, Tee, Merge, Join)
 
 ```go
 func Pipe[T, R any](ctx context.Context, src <-chan rslt.Result[T],
@@ -812,6 +812,36 @@ func NewMerge[T any](ctx context.Context, sources ...<-chan rslt.Result[T]) *Mer
 **Expected N:** Small (2-4 for typical DAG pipeline recombination). One goroutine per source is O(N). Not designed for large or unbounded N.
 
 **Acyclic pipelines only:** Same constraint as Tee/Pipe/Batcher.
+
+### D31: Strict branch recombination via Join
+
+```go
+func NewJoin[A, B, R any](ctx context.Context, srcA <-chan rslt.Result[A], srcB <-chan rslt.Result[B], fn func(A, B) R) *Join[R]
+```
+
+**Why Join, not Zip2 or Collector:** Three design iterations refined the abstraction.
+
+Collector (windowed fold, grade C) consumed N items from a merged stream — destroying provenance. Window boundaries were nondeterministic: `Merge(branchA, branchB)` could produce (ErrA, OkB) or (OkB, ErrA), yielding different fold results for the same logical upstream. Collector solved a different problem than branch recombination.
+
+Zip2 (positional zipper, grade B-) kept two channels but split the difference between strict join and general zipper. Four goroutines (2 readers + combiner + closer) were overkill for arity 2 — Go's `select` can multiplex both channels directly. Silent truncation hid contract violations (extra items are bugs, not benign). Err/Err → 2 outputs broke cardinality.
+
+Join (strict branch recombination) is the clean design: one goroutine, one item from each side, one output. Missing and extra items are contract violations visible in stats, not silently hidden.
+
+**Error matrix design:** Ok/Ok → combine. Any error taints the pair. Err/Err uses `errors.Join` to preserve both (not just the first). Missing items use typed `MissingResultError` with Source field, composable with branch errors via `errors.Join`. Always at most 1 output — preserves cardinality.
+
+**Why typed MissingResultError (not sentinel):** `errors.As` extracts the Source field ("A" or "B"), enabling callers to determine which side was missing. Composes cleanly with `errors.Join` when the other side also has an error.
+
+**Why per-side state machine:** The original boolean `haveA/haveB` design had a deadlock: both channels nil'd after first item, then both close empty → select has no readable cases → hang. The state machine (open/gotFirst/closedEmpty/closed) keeps channels selectable after first item and handles all close combinations without deadlock. Extra items read during the collect phase are absorbed and counted.
+
+**Why channels stay selectable after first item:** The original design nil'd channels after reading the first item. This creates two problems: (1) backpressures buggy producers that send multiple items — they block on the send, potentially hanging the pipeline; (2) defers extra-item counting to the drain phase, making Phase 1 exit conditions incomplete. Keeping channels selectable absorbs extras during collect and avoids both problems.
+
+**Why separate DiscardedX and ExtraX counters:** A single "DroppedX" counter would conflate first-item discards (error path, cancel, panic) with extra-item drains (contract violations). These are different diagnostic signals: DiscardedA > 0 means the join failed or was canceled; ExtraA > 0 means the upstream produced more than expected. Conservation invariant: `ReceivedX = Combined + DiscardedX + ExtraX`.
+
+**Why single goroutine:** Go's `select` can multiplex both source channels and `ctx.Done()` without reflection, making a single goroutine sufficient for arity 2. The drain phase uses the same select pattern (nil out closed channels). No internal channels, no reader goroutines, no close choreography. Compare with Merge's N+1 goroutines — necessary there because Go's `select` requires a fixed number of cases, but Join has exactly 2 sources.
+
+**fn contract — pure combiner, not processing stage:** `func(A, B) R` — no context, no error return. This keeps Join focused on structural combination. If combining can fail, downstream Pipe handles the error-capable transform. Panics in fn are recovered as `PanicError`, consistent with Stage's panic recovery.
+
+**Type erasure — Join[R], not Join[A, B, R]:** The struct type only needs R (the output type). A and B exist in the constructor and the goroutine closure but are erased from the struct. Same pattern as Pipe erasing T from Stage. Callers interact with `*Join[R]`, not `*Join[A, B, R]`.
 
 ## Allocation Model
 
