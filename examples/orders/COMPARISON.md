@@ -30,7 +30,7 @@ flowchart TD
 | Step | Conventional Go | fluentfp | What changes |
 |------|----------------|----------|--------------|
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
-| **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `rslt.FlatMap(order, validateOrder)` where `validateOrder = web.Steps(...)` (1 line) | Composable list of named validators, each carrying its HTTP status |
+| **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `.FlatMap(validateOrder)` where `validateOrder = web.Steps(...)` (1 line) | Composable list of named validators, each carrying its HTTP status |
 | **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` — pure transform on Ok value (1 line) | Mutation wrapped in named function |
 | **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `.FlatMap(enrich)` in the chain (1 line) | Breaker is a decorator — invisible to caller |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` — error-side side effect in pipeline (1 line) | Logging separated from response rendering |
@@ -170,13 +170,12 @@ handleCreateOrder := func(
       enrichWithBreaker(req.Context(), o))
   }
 
-  logFailure := func(err error) error {
+  logFailure := func(err error) {
     log.Printf("[%s] enrichment failed: %v",
       reqID, err)
-    return err
   }
 
-  storeAndNotify := func(o Order) Order {
+  storeAndNotify := func(o Order) {
     s.put(o)
     log.Printf("[%s] created order %s",
       reqID, o.ID)
@@ -185,7 +184,6 @@ handleCreateOrder := func(
     default:
       log.Printf("[%s] channel full", reqID)
     }
-    return o
   }
 
   // --- pipeline ---
@@ -481,15 +479,13 @@ Logging, error classification, and response rendering — all in one `if err` bl
 <td>
 
 ```go
-// Error logging (in pipeline):
-logFailure := func(err error) error {
+// Error logging (in the chain):
+logFailure := func(err error) {
   log.Printf("[%s] enrichment failed: %v",
     reqID, err)
-  return err
 }
-// In the chain:
-.TapErr(logFailure).
-.Tap(storeAndNotify)
+// ... chain includes:
+//   .TapErr(logFailure).Tap(storeAndNotify)
 
 // Error mapping (defined once, at boundary):
 mapDomainError := func(
@@ -564,38 +560,18 @@ return rslt.Map(found, web.OK[Order])
 </tr>
 </table>
 
-### Map Lookup with Error on Miss
+### Map Lookup
 
-<table>
-<tr><th>Conventional</th><th>fluentfp</th></tr>
-<tr>
-<td>
+The pricing function uses a plain map lookup — no fluentfp needed:
 
 ```go
 price, ok := prices[item.SKU]
 if !ok {
-  return o, fmt.Errorf(
-    "unknown SKU: %s", item.SKU)
+    return o, fmt.Errorf("%w: %s", errUnknownSKU, item.SKU)
 }
 ```
 
-</td>
-<td>
-
-```go
-price, ok := option.Lookup(
-  prices, item.SKU).Get()
-if !ok {
-  return o, fmt.Errorf(
-    "%w: %s", errUnknownSKU, item.SKU)
-}
-```
-
-Similar here — `option.Lookup` wraps the map access but the error handling is the same. The win is when a fallback *is* appropriate: `option.Lookup(m, k).Or(default)` replaces the entire `if !ok` block.
-
-</td>
-</tr>
-</table>
+`option.Lookup` earns its keep when you want a fallback instead of an error: `option.Lookup(m, k).Or(default)` replaces the entire `if !ok` block in one expression.
 
 ### Query Parameter Parsing
 
@@ -636,18 +612,14 @@ Mutable variables declared before the conditional, assigned inside it.
 ```go
 status, hasStatus :=
   option.NonEmpty(q.Get("status")).Get()
-
-// parseIntParam: absent → Ok(NotOk),
-// valid → Ok(Of(n)), invalid → Err(400)
-minTotalResult :=
-  parseIntParam(q.Get("min_total"))
-
-// filterOrders uses the parsed params
-return rslt.FlatMap(
-  minTotalResult, filterOrders)
+rawMinTotal :=
+  option.NonEmpty(q.Get("min_total"))
+minTotalOption :=
+  option.FlatMap(rawMinTotal, option.Atoi)
+mt, hasMinTotal := minTotalOption.Get()
 ```
 
-Parse pipeline: empty → skip, non-empty → parse. Invalid → 400 via `OkOr`. The list handler chains parsing into filtering with `FlatMap` — no `if err != nil`.
+Parse pipeline: `NonEmpty` → `FlatMap` → `Atoi` chains empty-check into integer parsing. Each step handles the absent case automatically. No mutable `var` declarations.
 
 </td>
 </tr>
