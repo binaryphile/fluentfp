@@ -146,7 +146,7 @@ func enrichOrder(_ context.Context, o Order) (Order, error) {
 		if item.SKU == "FAIL-PRICE" {
 			return o, errPricingFailure
 		}
-		price, ok := option.Lookup(prices, item.SKU).Get()
+		price, ok := prices[item.SKU]
 		if !ok {
 			return o, fmt.Errorf("%w: %s", errUnknownSKU, item.SKU)
 		}
