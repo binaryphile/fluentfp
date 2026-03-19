@@ -136,21 +136,17 @@ var prices = map[string]int{
 }
 
 var errPricingFailure = errors.New("pricing service error")
-var errUnknownSKU = errors.New("unknown SKU")
 
 // enrichOrder computes the total by looking up prices per SKU.
-// SKU "FAIL-PRICE" deterministically fails. Unknown SKUs return an error.
+// SKU "FAIL-PRICE" deterministically fails to simulate a service outage.
+// Assumes SKUs are already validated — unknown SKUs are caught in validation.
 func enrichOrder(_ context.Context, o Order) (Order, error) {
 	total := 0
 	for _, item := range o.Items {
 		if item.SKU == "FAIL-PRICE" {
 			return o, errPricingFailure
 		}
-		price, ok := prices[item.SKU]
-		if !ok {
-			return o, fmt.Errorf("%w: %s", errUnknownSKU, item.SKU)
-		}
-		total += price * item.Quantity
+		total += prices[item.SKU] * item.Quantity
 	}
 	o.TotalCents = total
 	o.Status = "enriched"
@@ -185,6 +181,22 @@ func itemsHavePositiveQty(o Order) rslt.Result[Order] {
 	return rslt.Ok(o)
 }
 
+// itemsHaveKnownSKUs validates all SKUs exist in the price table.
+// This runs before the breaker-wrapped enrichment so bad input
+// doesn't count as a service failure.
+func itemsHaveKnownSKUs(o Order) rslt.Result[Order] {
+	for _, item := range o.Items {
+		if item.SKU == "FAIL-PRICE" {
+			continue // synthetic failure SKU, not a validation error
+		}
+		if _, ok := prices[item.SKU]; !ok {
+			return rslt.Err[Order](web.BadRequest(
+				fmt.Sprintf("unknown SKU: %s", item.SKU)))
+		}
+	}
+	return rslt.Ok(o)
+}
+
 // ---------------------------------------------------------------------------
 // Error mapping
 // ---------------------------------------------------------------------------
@@ -203,13 +215,6 @@ func mapDomainError(err error) (*web.Error, bool) {
 			Status:  http.StatusBadGateway,
 			Message: "pricing service error",
 			Code:    "BAD_GATEWAY",
-		}, true
-	}
-	if errors.Is(err, errUnknownSKU) {
-		return &web.Error{
-			Status:  http.StatusUnprocessableEntity,
-			Message: err.Error(),
-			Code:    "UNKNOWN_SKU",
 		}, true
 	}
 	return nil, false
@@ -301,7 +306,7 @@ func main() {
 
 	// --- Validation + error mapping ---
 
-	validateOrder := web.Steps(hasCustomer, hasItems, itemsHavePositiveQty)
+	validateOrder := web.Steps(hasCustomer, hasItems, itemsHavePositiveQty, itemsHaveKnownSKUs)
 	errorMapper := web.WithErrorMapper(mapDomainError)
 
 	// --- POST /orders ---
