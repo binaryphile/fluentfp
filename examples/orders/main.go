@@ -369,7 +369,8 @@ func main() {
 		q := req.URL.Query()
 
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
-		minTotalOption := option.FlatMap(option.NonEmpty(q.Get("min_total")), option.Atoi)
+		rawMinTotal := option.NonEmpty(q.Get("min_total"))
+		minTotalOption := option.FlatMap(rawMinTotal, option.Atoi)
 		if raw, ok := option.NonEmpty(q.Get("min_total")).Get(); ok {
 			if _, ok := minTotalOption.Get(); !ok {
 				return rslt.Err[web.Response](web.BadRequest(

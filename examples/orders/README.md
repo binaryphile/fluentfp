@@ -232,7 +232,8 @@ With fluentfp, parsing is a pipeline and filtering is a chain:
 
 ```go
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
-minTotalOption := option.FlatMap(option.NonEmpty(q.Get("min_total")), option.Atoi)
+rawMinTotal := option.NonEmpty(q.Get("min_total"))
+minTotalOption := option.FlatMap(rawMinTotal, option.Atoi)
 mt, hasMinTotal := minTotalOption.Get()
 
 hasMatchingStatus := func(o Order) bool { return o.Status == status }
