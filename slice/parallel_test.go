@@ -18,7 +18,7 @@ func TestPMap(t *testing.T) {
 
 	t.Run("matches sequential", func(t *testing.T) {
 		input := From([]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
-		want := []int(input.Convert(double))
+		want := []int(input.Transform(double))
 		got := []int(PMap(input, 4, double))
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("PMap = %v, want %v", got, want)

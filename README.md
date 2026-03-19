@@ -153,7 +153,7 @@ func ActiveNames(users []User) []string {
 
 // Internal — embrace it. Accepting Mapper saves From() calls across a chain of helpers.
 func transform(users slice.Mapper[User]) slice.Mapper[User] {
-    return users.KeepIf(User.IsActive).Convert(User.Normalize)
+    return users.KeepIf(User.IsActive).Transform(User.Normalize)
 }
 ```
 
@@ -224,7 +224,7 @@ Packages are independent — import one or all.
 | [seq](seq/)         | Fluent iter.Seq chains           | `From`, `KeepIf`, `Take`, `Collect`            |
 | [stream](stream/)   | Lazy memoized sequences          | `Generate`, `Unfold`, `Take`, `Collect`        |
 | [option](option/)   | Optional values + conditionals   | `Of`, `When`, `Or`, `NonZero`, `Env`           |
-| [either](either/)   | Sum types                        | `Left`, `Right`, `Fold`, `Convert`, `FlatMap`  |
+| [either](either/)   | Sum types                        | `Left`, `Right`, `Fold`, `Transform`, `FlatMap`  |
 | [rslt](rslt/)       | Typed error handling             | `Ok`, `Err`, `CollectAll`, `CollectOkAndErr`   |
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Resilience + function combinators | `Retry`, `WithBreaker`, `Throttle`, `MapErr`  |

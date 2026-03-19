@@ -284,8 +284,8 @@ func (b Option[T]) ToOpt() (_ *T) {
 	return &b.t
 }
 
-// Convert returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
-func (b Option[T]) Convert(fn func(T) T) (_ Option[T]) {
+// Transform returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+func (b Option[T]) Transform(fn func(T) T) (_ Option[T]) {
 	if !b.ok {
 		return
 	}

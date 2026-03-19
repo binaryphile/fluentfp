@@ -684,23 +684,23 @@ func TestNoneNilFnPanics(t *testing.T) {
 	})
 }
 
-// --- Convert (light coverage) ---
+// --- Transform (light coverage) ---
 
-func TestConvert(t *testing.T) {
+func TestTransform(t *testing.T) {
 	double := func(n int) int { return n * 2 }
-	got := stream.Of(1, 2, 3).Convert(double).Collect()
+	got := stream.Of(1, 2, 3).Transform(double).Collect()
 	assertSliceEqual(t, []int{2, 4, 6}, got)
 }
 
-func TestConvertEmpty(t *testing.T) {
+func TestTransformEmpty(t *testing.T) {
 	double := func(n int) int { return n * 2 }
-	got := stream.From([]int(nil)).Convert(double).Collect()
+	got := stream.From([]int(nil)).Transform(double).Collect()
 	assertSliceEqual(t, nil, got)
 }
 
-func TestConvertNilFnPanics(t *testing.T) {
+func TestTransformNilFnPanics(t *testing.T) {
 	assertPanics(t, func() {
-		stream.Of(1).Convert(nil)
+		stream.Of(1).Transform(nil)
 	})
 }
 
@@ -830,7 +830,7 @@ func TestMemoizationSameResult(t *testing.T) {
 	assertSliceEqual(t, first, second)
 }
 
-// --- Laziness tests for Map, Convert, TakeWhile, KeepIf ---
+// --- Laziness tests for Map, Transform, TakeWhile, KeepIf ---
 
 func TestMapLaziness(t *testing.T) {
 	var count atomic.Int64
@@ -850,14 +850,14 @@ func TestMapLaziness(t *testing.T) {
 	}
 }
 
-func TestConvertLaziness(t *testing.T) {
+func TestTransformLaziness(t *testing.T) {
 	var count atomic.Int64
 	s := unfoldCounted([]int{1, 2, 3}, &count)
 
 	double := func(n int) int { return n * 2 }
-	converted := s.Convert(double)
+	converted := s.Transform(double)
 	if got := count.Load(); got != 0 {
-		t.Errorf("Convert construction forced %d tails, want 0", got)
+		t.Errorf("Transform construction forced %d tails, want 0", got)
 	}
 
 	_ = converted.Take(1).Collect()
@@ -1117,7 +1117,7 @@ func TestConcurrentPermanentPanic(t *testing.T) {
 // --- Head-eager behavior ---
 
 func TestHeadEagerBehavior(t *testing.T) {
-	// Map, Convert, and TakeWhile evaluate fn on the current head at construction.
+	// Map, Transform, and TakeWhile evaluate fn on the current head at construction.
 	// This is part of the contract, not incidental.
 	t.Run("Map", func(t *testing.T) {
 		var count int
@@ -1128,12 +1128,12 @@ func TestHeadEagerBehavior(t *testing.T) {
 		}
 	})
 
-	t.Run("Convert", func(t *testing.T) {
+	t.Run("Transform", func(t *testing.T) {
 		var count int
 		counting := func(n int) int { count++; return n }
-		_ = stream.Of(1, 2, 3).Convert(counting)
+		_ = stream.Of(1, 2, 3).Transform(counting)
 		if count != 1 {
-			t.Errorf("Convert: expected head fn called once at construction, got %d", count)
+			t.Errorf("Transform: expected head fn called once at construction, got %d", count)
 		}
 	})
 
@@ -1158,7 +1158,7 @@ func TestNilCallbackPanics(t *testing.T) {
 	}{
 		{"KeepIf", func() { s.KeepIf(nil) }},
 		{"RemoveIf", func() { s.RemoveIf(nil) }},
-		{"Convert", func() { s.Convert(nil) }},
+		{"Transform", func() { s.Transform(nil) }},
 		{"TakeWhile", func() { s.TakeWhile(nil) }},
 		{"DropWhile", func() { s.DropWhile(nil) }},
 		{"Find", func() { s.Find(nil) }},

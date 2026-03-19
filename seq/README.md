@@ -104,7 +104,7 @@ events := seq.FromChannel(ctx, eventCh).KeepIf(Event.IsImportant).Take(10).Colle
 
 ```go
 // ToChannel — bridge a Seq pipeline to a channel
-out := seq.From(items).Convert(transform).ToChannel(ctx, 0)
+out := seq.From(items).Transform(transform).ToChannel(ctx, 0)
 for v := range out {
     process(v)
 }
@@ -130,7 +130,7 @@ The zero value of `Seq[T]` is nil. It is **not safe for direct range** — use `
 
 `Every` and `None` return true on empty or nil input (vacuous truth). `Find` and `Reduce` return `option.Option[T]` — not-ok if no match/element is found.
 
-`Convert` is a same-type transform (method). `Map` is a cross-type transform (standalone, because Go methods can't introduce additional type parameters).
+`Transform` is a same-type transform (method). `Map` is a cross-type transform (standalone, because Go methods can't introduce additional type parameters).
 
 **Non-termination:** `Collect`, `Each`, `Fold`, and `Reduce` on infinite sequences will not terminate. `Contains` terminates only if a match is found. Always use `Take` or `TakeWhile` to bound infinite sequences before calling a terminal operation.
 
@@ -158,7 +158,7 @@ All callback-taking functions panic on nil callbacks. `FlatMap` treats nil inner
 
 **Create**: `From`, `FromIter`, `Of`, `Generate`, `Repeat`, `Unfold`, `FromNext`, `FromChannel`, `Empty`
 
-**Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Convert` (same-type), `Intersperse`, `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (cross-type, standalone), `FilterMap` (standalone), `FlatMap` (standalone), `Concat` (standalone), `Enumerate` (standalone), `Zip` (standalone), `Scan` (standalone), `Unique` (standalone), `UniqueBy` (standalone), `Chunk` (standalone)
+**Lazy** (return Seq): `KeepIf`, `RemoveIf`, `Transform` (same-type), `Intersperse`, `Take`, `Drop`, `TakeWhile`, `DropWhile`, `Map` (cross-type, standalone), `FilterMap` (standalone), `FlatMap` (standalone), `Concat` (standalone), `Enumerate` (standalone), `Zip` (standalone), `Scan` (standalone), `Unique` (standalone), `UniqueBy` (standalone), `Chunk` (standalone)
 
 **Terminal** (force evaluation): `Collect`, `Find` (returns `option.Option[T]`), `Reduce` (returns `option.Option[T]`), `Any`, `Every`, `None`, `Each`, `Fold` (standalone), `Contains` (standalone), `ToChannel` (spawns goroutine)
 

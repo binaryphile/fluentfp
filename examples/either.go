@@ -65,10 +65,10 @@ func main() {
 
 	// === Mapping ===
 
-	// Convert transforms the Right value (type-preserving)
+	// Transform transforms the Right value (type-preserving)
 	// doubleInt doubles an integer.
 	doubleInt := func(n int) int { return n * 2 }
-	doubled := ok42.Convert(doubleInt)
+	doubled := ok42.Transform(doubleInt)
 	fmt.Println("Doubled:", doubled.Or(0)) // Doubled: 84
 
 	// either.Map transforms to a different type

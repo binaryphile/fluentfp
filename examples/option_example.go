@@ -68,10 +68,10 @@ func main() {
 
 	// === Transforming ===
 
-	// Convert maps to the same type
+	// Transform maps to the same type
 	// doubleInt doubles an integer.
 	doubleInt := func(i int) int { return i * 2 }
-	eightyFourOption := fortyTwoOption.Convert(doubleInt)
+	eightyFourOption := fortyTwoOption.Transform(doubleInt)
 	fmt.Println("eightyFourOption.OrZero():", eightyFourOption.OrZero()) // 84
 
 	// ToString maps to string

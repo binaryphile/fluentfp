@@ -5,7 +5,7 @@ Build complex functions from simple ones — compose, partially apply, or wrap w
 ```go
 // Compose at the call site when the combination is obvious
 normalize := hof.Pipe(strings.TrimSpace, strings.ToLower)
-slice.From(inputs).Convert(normalize)
+slice.From(inputs).Transform(normalize)
 ```
 
 ## What It Looks Like
@@ -14,7 +14,7 @@ slice.From(inputs).Convert(normalize)
 // Partial application — fix one argument
 add := func(a, b int) int { return a + b }
 add5 := hof.Bind(add, 5)
-slice.From(nums).Convert(add5)
+slice.From(nums).Transform(add5)
 ```
 
 ```go

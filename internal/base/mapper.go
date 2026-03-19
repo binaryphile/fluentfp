@@ -22,8 +22,8 @@ func FindAs[R, T any](ts []T) option.Option[R] {
 	return option.NotOk[R]()
 }
 
-// Convert returns the result of applying fn to each member of ts.
-func (ts Mapper[T]) Convert(fn func(T) T) Mapper[T] {
+// Transform returns the result of applying fn to each member of ts.
+func (ts Mapper[T]) Transform(fn func(T) T) Mapper[T] {
 	results := make([]T, len(ts))
 	for i := range ts {
 		results[i] = fn(ts[i])

@@ -20,7 +20,7 @@ func _() {
 
 	_ = Seq[int].KeepIf
 	_ = Seq[int].RemoveIf
-	_ = Seq[int].Convert
+	_ = Seq[int].Transform
 	_ = Seq[int].Intersperse
 	_ = Seq[int].Take
 	_ = Seq[int].Drop

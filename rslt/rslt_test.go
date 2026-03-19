@@ -87,7 +87,7 @@ func TestOf(t *testing.T) {
 	})
 }
 
-func TestConvert(t *testing.T) {
+func TestTransform(t *testing.T) {
 	// double doubles an int.
 	double := func(n int) int { return n * 2 }
 
@@ -113,10 +113,10 @@ func TestConvert(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.result.Convert(double)
+			got := tt.result.Transform(double)
 			val, ok := got.Get()
 			if val != tt.wantVal || ok != tt.wantOk {
-				t.Errorf("Convert: got (%d, %t), want (%d, %t)", val, ok, tt.wantVal, tt.wantOk)
+				t.Errorf("Transform: got (%d, %t), want (%d, %t)", val, ok, tt.wantVal, tt.wantOk)
 			}
 		})
 	}

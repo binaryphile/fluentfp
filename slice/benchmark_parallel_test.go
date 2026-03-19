@@ -38,7 +38,7 @@ func BenchmarkPMap_Trivial(b *testing.B) {
 		m := From(input)
 		b.Run("seq/"+sz.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = m.Convert(double)
+				_ = m.Transform(double)
 			}
 		})
 		b.Run("par/"+sz.name, func(b *testing.B) {
@@ -68,7 +68,7 @@ func BenchmarkPMap_CPUBound(b *testing.B) {
 		m := From(input)
 		b.Run("seq/"+sz.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = m.Convert(cpuWork)
+				_ = m.Transform(cpuWork)
 			}
 		})
 		b.Run("par/"+sz.name, func(b *testing.B) {

@@ -225,7 +225,7 @@ Provides composition (`Pipe`), partial application (`Bind`/`BindR`), independent
 
 ### D9: Method vs standalone function boundary
 
-Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `KeepIfWhen`, `Convert`, `Find`, `FlatMap`, etc.
+Methods on `Mapper[T]` for operations that return chainable types: `KeepIf`, `KeepIfWhen`, `Transform`, `Find`, `FlatMap`, etc.
 
 Standalone functions for operations needing extra type parameters or custom traversal: `Map`, `FlatMap`, `PFlatMap`, `Fold`, `SortBy`, `MapAccum`, `Unzip`, `FindAs`, `FromSet`, `GroupBy`, `KeyBy`, `Partition`. `GroupBy` lives in the `slice` package — it returns `Mapper[Group[K, T]]` for direct chaining. Map-consuming standalone functions live in `kv` (`kv.Map`, `kv.Values`).
 
@@ -248,7 +248,7 @@ type Result[R any] struct {
 
 A standalone package with zero internal imports — not an alias for `Either[error, R]`.
 
-**Why not an alias for Either:** Either uses Left/Right naming — wrong for a result type where callers want `IsOk()`/`IsErr()`, not `IsRight()`/`IsLeft()`. Changing from alias to defined type later would be contract-breaking. A standalone type can add methods freely (`Convert`, `FlatMap`, `MustGet`, `IfOk`, `IfErr`) without polluting Either's API.
+**Why not an alias for Either:** Either uses Left/Right naming — wrong for a result type where callers want `IsOk()`/`IsErr()`, not `IsRight()`/`IsLeft()`. Changing from alias to defined type later would be contract-breaking. A standalone type can add methods freely (`Transform`, `FlatMap`, `MustGet`, `IfOk`, `IfErr`) without polluting Either's API.
 
 **Zero value:** `Result[R]{}` has `err: nil`, making it a valid `Ok(zeroR)`. Matches D4 (Option zero is not-ok) and D5 (Either zero is Left) in providing useful zero values.
 
@@ -866,7 +866,7 @@ In practice, fluentfp code lives alongside imperative code — legacy libraries,
 | `From()` alone | Shared | Yes, if either side mutates |
 | `Take`, `TakeLast` | Shared (subslice view) | Yes, if result is mutated or outlives source |
 | `Chunk` | Shared (each chunk is a view) | Yes, if chunks are mutated |
-| Everything else (`KeepIf`, `RemoveIf`, `Convert`, `ToString`, `Reverse`, `FlatMap`, `SortBy`, `Map`, `Clone`, etc.) | Independent (fresh allocation) | No |
+| Everything else (`KeepIf`, `RemoveIf`, `Transform`, `ToString`, `Reverse`, `FlatMap`, `SortBy`, `Map`, `Clone`, etc.) | Independent (fresh allocation) | No |
 
 Most chains are safe by default — any allocating operation produces an independent result:
 
@@ -916,7 +916,7 @@ filtered := slice.From(items).KeepIf(Item.IsValid)
 legacySort(filtered)  // safe — KeepIf already produced a fresh slice
 ```
 
-**Rule of thumb:** If a chain contains at least one allocating operation (`KeepIf`, `Convert`, `ToString`, etc.), the result already has an independent backing array. `.Clone()` is only needed at boundaries where (a) you used only view operations (`From` alone, `Take`, `TakeLast`, `Chunk`) and (b) either side might mutate.
+**Rule of thumb:** If a chain contains at least one allocating operation (`KeepIf`, `Transform`, `ToString`, etc.), the result already has an independent backing array. `.Clone()` is only needed at boundaries where (a) you used only view operations (`From` alone, `Take`, `TakeLast`, `Chunk`) and (b) either side might mutate.
 
 ## Safety Properties
 

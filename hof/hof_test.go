@@ -145,20 +145,20 @@ func TestPipe_ReusableAcrossCalls(t *testing.T) {
 
 // --- Integration ---
 
-func TestPipe_WithSliceConvert(t *testing.T) {
+func TestPipe_WithSliceTransform(t *testing.T) {
 	normalize := hof.Pipe(strings.TrimSpace, strings.ToLower)
 
-	got := slice.From([]string{"  Hello ", " WORLD  "}).Convert(normalize)
+	got := slice.From([]string{"  Hello ", " WORLD  "}).Transform(normalize)
 
 	if !slices.Equal([]string(got), []string{"hello", "world"}) {
 		t.Errorf("got %v, want [hello world]", got)
 	}
 }
 
-func TestBind_WithSliceConvert(t *testing.T) {
+func TestBind_WithSliceTransform(t *testing.T) {
 	add := func(a, b int) int { return a + b }
 
-	got := slice.From([]int{1, 2, 3}).Convert(hof.Bind(add, 5))
+	got := slice.From([]int{1, 2, 3}).Transform(hof.Bind(add, 5))
 
 	if !slices.Equal([]int(got), []int{6, 7, 8}) {
 		t.Errorf("got %v, want [6 7 8]", got)

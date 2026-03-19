@@ -10,7 +10,7 @@ func _() {
 
 	_ = Mapper[int].Any
 	_ = Mapper[int].Clone
-	_ = Mapper[int].Convert
+	_ = Mapper[int].Transform
 	_ = Mapper[int].Drop
 	_ = Mapper[int].DropLast
 	_ = Mapper[int].DropLastWhile

@@ -18,7 +18,7 @@ func _() {
 	// Stream methods — lazy operations
 	_ = Stream[int].KeepIf
 	_ = Stream[int].RemoveIf
-	_ = Stream[int].Convert
+	_ = Stream[int].Transform
 	_ = Stream[int].Take
 	_ = Stream[int].TakeWhile
 	_ = Stream[int].Drop

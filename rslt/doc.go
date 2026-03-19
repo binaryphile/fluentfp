@@ -9,7 +9,7 @@ func _() {
 	_ = Result[int].Or
 	_ = Result[int].OrCall
 	_ = Result[int].GetErr
-	_ = Result[int].Convert
+	_ = Result[int].Transform
 	_ = Result[int].FlatMap
 	_ = Result[int].MustGet
 	_ = Result[int].IfOk

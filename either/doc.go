@@ -4,7 +4,7 @@
 // containing L's zero value — in particular, Either[error, R]{} is Left(nil),
 // a Left with no meaningful error. Always construct explicitly via [Left] or [Right].
 //
-// Either is right-biased: the primary transform and extraction methods (Convert,
+// Either is right-biased: the primary transform and extraction methods (Transform,
 // FlatMap, MustGet, IfRight, Or) operate on the Right value. Left-side accessors
 // (MustGetLeft, IfLeft, LeftOr) and the recovery combinator [FlatMapLeft] are provided
 // for cases where the Left value matters, but the API favors Right-side chaining.
@@ -49,7 +49,7 @@ func _() {
 	_ = Either[int, string].OrCall
 
 	// Transforms — methods
-	_ = Either[int, string].Convert
+	_ = Either[int, string].Transform
 	_ = Either[int, string].FlatMap
 	_ = Either[int, string].FlatMapLeft
 	_ = Either[int, string].Swap

@@ -17,7 +17,7 @@ const (
 //
 // Head-eager, tail-lazy: when a cell exists, its head is known. Only the tail is
 // deferred and evaluated at most once. Operations like KeepIf eagerly scan to the
-// first match; Map/Convert/TakeWhile eagerly transform the current head. Tail
+// first match; Map/Transform/TakeWhile eagerly transform the current head. Tail
 // computation is always deferred into a thunk.
 //
 // Concurrent tail forcing is synchronized and memoized. Multiple goroutines can

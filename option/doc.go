@@ -7,7 +7,7 @@ package option
 
 func _() {
 	// methods
-	_ = Option[int].Convert
+	_ = Option[int].Transform
 	_ = Option[int].FlatMap
 	_ = Option[int].Get
 	_ = Option[int].IfNotOk

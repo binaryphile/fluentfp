@@ -42,13 +42,13 @@ func (s Stream[T]) RemoveIf(fn func(T) bool) Stream[T] {
 	return s.KeepIf(notFn)
 }
 
-// Convert applies fn to each element, returning a stream of results.
+// Transform applies fn to each element, returning a stream of results.
 // Eagerly transforms the current head; tail transforms are deferred.
 // Same-type transform — use standalone Map for cross-type mapping.
 // Panics if fn is nil.
-func (s Stream[T]) Convert(fn func(T) T) Stream[T] {
+func (s Stream[T]) Transform(fn func(T) T) Stream[T] {
 	if fn == nil {
-		panic("stream.Convert: fn must not be nil")
+		panic("stream.Transform: fn must not be nil")
 	}
 
 	if s.cell == nil {
@@ -61,7 +61,7 @@ func (s Stream[T]) Convert(fn func(T) T) Stream[T] {
 	return Stream[T]{cell: &cell[T]{
 		head: head,
 		tail: func() *cell[T] {
-			result := cur.Tail().Convert(fn)
+			result := cur.Tail().Transform(fn)
 			return result.cell
 		},
 	}}

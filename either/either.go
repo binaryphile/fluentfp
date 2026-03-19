@@ -61,9 +61,9 @@ func (e Either[L, R]) LeftOr(defaultVal L) L {
 	return defaultVal
 }
 
-// Convert applies fn to the Right value and returns a new Either.
+// Transform applies fn to the Right value and returns a new Either.
 // If e is Left, returns e unchanged.
-func (e Either[L, R]) Convert(fn func(R) R) Either[L, R] {
+func (e Either[L, R]) Transform(fn func(R) R) Either[L, R] {
 	if !e.isRight {
 		return e
 	}

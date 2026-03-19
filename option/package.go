@@ -13,7 +13,7 @@ func Env(key string) String {
 }
 
 // Map returns an option of the result of applying fn to the option's value if ok, or not-ok otherwise.
-// For same-type mapping, use the Convert method.
+// For same-type mapping, use the Transform method.
 func Map[T, R any](b Option[T], fn func(T) R) (_ Option[R]) {
 	if !b.ok {
 		return

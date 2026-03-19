@@ -41,12 +41,12 @@ func (s Seq[T]) RemoveIf(fn func(T) bool) Seq[T] {
 	})
 }
 
-// Convert applies fn to each element, returning a Seq of results.
+// Transform applies fn to each element, returning a Seq of results.
 // Same-type transform — use standalone Map for cross-type mapping.
 // Panics if fn is nil.
-func (s Seq[T]) Convert(fn func(T) T) Seq[T] {
+func (s Seq[T]) Transform(fn func(T) T) Seq[T] {
 	if fn == nil {
-		panic("seq.Convert: fn must not be nil")
+		panic("seq.Transform: fn must not be nil")
 	}
 
 	if s == nil {

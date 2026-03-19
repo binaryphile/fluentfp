@@ -327,11 +327,11 @@ func TestRemoveIf(t *testing.T) {
 	assertSliceEqual(t, got, []int{1, 3, 5})
 }
 
-func TestConvert(t *testing.T) {
+func TestTransform(t *testing.T) {
 	// double returns n * 2.
 	double := func(n int) int { return n * 2 }
 
-	got := From([]int{1, 2, 3}).Convert(double).Collect()
+	got := From([]int{1, 2, 3}).Transform(double).Collect()
 	assertSliceEqual(t, got, []int{2, 4, 6})
 }
 
@@ -858,7 +858,7 @@ func TestChainedPipeline(t *testing.T) {
 
 	got := From([]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}).
 		KeepIf(isEven).
-		Convert(double).
+		Transform(double).
 		Take(3).
 		Collect()
 	assertSliceEqual(t, got, []int{4, 8, 12})
@@ -875,10 +875,10 @@ func TestLaziness(t *testing.T) {
 		return n * 2
 	}
 
-	s := From([]int{1, 2, 3}).Convert(counting)
+	s := From([]int{1, 2, 3}).Transform(counting)
 
 	if calls != 0 {
-		t.Errorf("Convert should be lazy: got %d calls, want 0", calls)
+		t.Errorf("Transform should be lazy: got %d calls, want 0", calls)
 	}
 
 	got := s.Take(1).Collect()
@@ -895,7 +895,7 @@ func TestReEvaluation(t *testing.T) {
 	// double returns n * 2.
 	double := func(n int) int { return n * 2 }
 
-	s := From([]int{1, 2, 3}).Convert(double)
+	s := From([]int{1, 2, 3}).Transform(double)
 
 	first := s.Collect()
 	second := s.Collect()
@@ -936,8 +936,8 @@ func TestZeroValueSafety(t *testing.T) {
 		t.Errorf("RemoveIf on zero: got %v, want nil", got)
 	}
 
-	if got := s.Convert(double).Collect(); got != nil {
-		t.Errorf("Convert on zero: got %v, want nil", got)
+	if got := s.Transform(double).Collect(); got != nil {
+		t.Errorf("Transform on zero: got %v, want nil", got)
 	}
 
 	if got := s.Take(5).Collect(); got != nil {
@@ -1080,7 +1080,7 @@ func TestNilReceiverLazyOps(t *testing.T) {
 	}{
 		{"KeepIf", s.KeepIf(alwaysTrue)},
 		{"RemoveIf", s.RemoveIf(alwaysTrue)},
-		{"Convert", s.Convert(identity)},
+		{"Transform", s.Transform(identity)},
 		{"Take", s.Take(5)},
 		{"Drop", s.Drop(1)},
 		{"TakeWhile", s.TakeWhile(alwaysTrue)},

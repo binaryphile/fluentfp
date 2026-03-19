@@ -73,14 +73,14 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
 
     order := web.DecodeJSON[Order](req)
     validatedOrder := rslt.FlatMap(order, validateOrder)
-    assignedOrder := validatedOrder.Convert(withNewID)
+    assignedOrder := validatedOrder.Transform(withNewID)
     enrichedOrder := rslt.FlatMap(assignedOrder, enrich)
-    storedOrder := enrichedOrder.MapErr(logFailure).Convert(storeAndNotify)
+    storedOrder := enrichedOrder.MapErr(logFailure).Tap(storeAndNotify)
     return rslt.Map(storedOrder, web.Created[Order])
 }
 ```
 
-No `if err != nil`. The handler is a pipeline: each line is one operation on a `Result`. `FlatMap` chains operations that can fail (decode→validate, enrich). `Convert` transforms the Ok value (assign ID, store+notify). `MapErr` handles the Err side (log failure). `Map` wraps the final value in a response.
+No `if err != nil`. The handler is a pipeline: each line is one operation on a `Result`. `FlatMap` chains operations that can fail (decode→validate, enrich). `Transform` transforms the Ok value (assign ID, store+notify). `MapErr` handles the Err side (log failure). `Map` wraps the final value in a response.
 
 The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering — headers, status codes, JSON encoding, error formatting — happens once in `web.Adapt`.
 

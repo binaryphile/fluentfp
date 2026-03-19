@@ -31,10 +31,10 @@ flowchart TD
 |------|----------------|----------|--------------|
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
 | **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `rslt.FlatMap(order, validateOrder)` where `validateOrder = web.Steps(...)` (1 line) | Composable list of named validators, each carrying its HTTP status |
-| **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Convert(withNewID)` — pure transform on Ok value (1 line) | Mutation wrapped in named function |
+| **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` — pure transform on Ok value (1 line) | Mutation wrapped in named function |
 | **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `rslt.FlatMap(assignedOrder, enrich)` where `enrich` wraps `enrichWithBreaker` (1 line) | Breaker is a decorator — invisible to caller |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.MapErr(logFailure)` — error-side transform in pipeline (1 line) | Logging separated from response rendering |
-| **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Convert(storeAndNotify)` — side effects in named function (1 line) | Side effects named and composable |
+| **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` — side effects in named function (1 line) | Side effects named and composable |
 | **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(storedOrder, web.Created[Order])` (1 line) | `Adapt` renders once |
 | **Error → HTTP** | `if errors.Is(err, ...)` + response block, repeated per handler | `web.WithErrorMapper(mapDomainError)` defined once at boundary | One mapping function for all handlers |
 
@@ -194,12 +194,12 @@ handleCreateOrder := func(
   validatedOrder :=
     rslt.FlatMap(order, validateOrder)
   assignedOrder :=
-    validatedOrder.Convert(withNewID)
+    validatedOrder.Transform(withNewID)
   enrichedOrder :=
     rslt.FlatMap(assignedOrder, enrich)
   storedOrder := enrichedOrder.
     MapErr(logFailure).
-    Convert(storeAndNotify)
+    Tap(storeAndNotify)
   return rslt.Map(
     storedOrder, web.Created[Order])
 }
@@ -333,7 +333,7 @@ Adding a validation = adding a name to the list.
 
 ### Chaining Decode → Validate → Transform
 
-This is where `FlatMap` and `Convert` replace `if err != nil` blocks.
+This is where `FlatMap` and `Transform` replace `if err != nil` blocks.
 
 <table>
 <tr><th>Conventional</th><th>fluentfp</th></tr>
@@ -367,10 +367,10 @@ order := web.DecodeJSON[Order](req)
 validatedOrder :=
   rslt.FlatMap(order, validateOrder)
 assignedOrder :=
-  validatedOrder.Convert(withNewID)
+  validatedOrder.Transform(withNewID)
 ```
 
-Three lines. `FlatMap` chains fallible operations — if `order` is Err, `validateOrder` is never called. `Convert` transforms the Ok value — `withNewID` returns a new Order with ID assigned.
+Three lines. `FlatMap` chains fallible operations — if `order` is Err, `validateOrder` is never called. `Transform` transforms the Ok value — `withNewID` returns a new Order with ID assigned.
 
 `FlatMap` is called "flat" because `validateOrder` returns `Result[Order]`: a plain `Map` would nest that into `Result[Result[Order]]`. FlatMap keeps it one level deep.
 
@@ -495,7 +495,7 @@ logFailure := func(err error) error {
 }
 storedOrder := enrichedOrder.
   MapErr(logFailure).
-  Convert(storeAndNotify)
+  Tap(storeAndNotify)
 
 // Error mapping (defined once, at boundary):
 mapDomainError := func(

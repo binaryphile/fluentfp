@@ -99,11 +99,11 @@ func (r Result[R]) Err() error {
 	return r.err
 }
 
-// Convert returns the result of applying fn to the value if r is Ok, or r unchanged if r is Err.
+// Transform returns the result of applying fn to the value if r is Ok, or r unchanged if r is Err.
 // For cross-type mapping (R -> S), use the standalone [Map] function.
-// Convert is the same-type method form; Go does not allow generic methods with
+// Transform is the same-type method form; Go does not allow generic methods with
 // extra type parameters, so cross-type mapping requires a standalone function.
-func (r Result[R]) Convert(fn func(R) R) Result[R] {
+func (r Result[R]) Transform(fn func(R) R) Result[R] {
 	if r.err != nil {
 		return r
 	}

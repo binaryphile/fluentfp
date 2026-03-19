@@ -512,7 +512,7 @@ func TestFromChannelToChannelRoundtrip(t *testing.T) {
 	double := func(n int) int { return n * 2 }
 
 	// Pipeline: channel → Seq → transform → channel.
-	out := FromChannel(ctx, src).Convert(double).ToChannel(ctx, 0)
+	out := FromChannel(ctx, src).Transform(double).ToChannel(ctx, 0)
 
 	var got []int
 

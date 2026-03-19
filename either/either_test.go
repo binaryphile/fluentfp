@@ -99,25 +99,25 @@ func TestLeftOr(t *testing.T) {
 
 // --- Transforms ---
 
-func TestConvert(t *testing.T) {
+func TestTransform(t *testing.T) {
 	double := func(x int) int { return x * 2 }
 
 	t.Run("Right applies function", func(t *testing.T) {
-		result := Right[string, int](5).Convert(double)
+		result := Right[string, int](5).Transform(double)
 		if r, ok := result.Get(); !ok || r != 10 {
-			t.Errorf("Convert() = (%v, %v), want (10, true)", r, ok)
+			t.Errorf("Transform() = (%v, %v), want (10, true)", r, ok)
 		}
 	})
 
 	t.Run("Left does not call function", func(t *testing.T) {
 		called := false
 		tracking := func(x int) int { called = true; return x * 2 }
-		result := Left[string, int]("err").Convert(tracking)
+		result := Left[string, int]("err").Transform(tracking)
 		if l, ok := result.GetLeft(); !ok || l != "err" {
-			t.Errorf("Convert() should preserve Left, got (%v, %v)", l, ok)
+			t.Errorf("Transform() should preserve Left, got (%v, %v)", l, ok)
 		}
 		if called {
-			t.Error("Convert() should not call fn on Left")
+			t.Error("Transform() should not call fn on Left")
 		}
 	})
 }

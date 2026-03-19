@@ -36,7 +36,7 @@ func main() {
 
 	// === Mapping ===
 
-	normalized := validPosts.Convert(Post.Normalize)
+	normalized := validPosts.Transform(Post.Normalize)
 	fmt.Println("first normalized:", normalized[0].Title) // first normalized: Introduction to Go
 
 	titles := validPosts.ToString(Post.GetTitle)

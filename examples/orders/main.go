@@ -333,7 +333,7 @@ func main() {
 
 		order := web.DecodeJSON[Order](req)
 		validatedOrder := rslt.FlatMap(order, validateOrder)
-		assignedOrder := validatedOrder.Convert(withNewID)
+		assignedOrder := validatedOrder.Transform(withNewID)
 		enrichedOrder := rslt.FlatMap(assignedOrder, enrich)
 		storedOrder := enrichedOrder.MapErr(logFailure).Tap(storeAndNotify)
 		return rslt.Map(storedOrder, web.Created[Order])

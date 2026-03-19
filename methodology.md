@@ -193,7 +193,7 @@ count := slice.From(users).
 ```
 
 **What counts toward multiline:**
-- `KeepIf`, `RemoveIf`, `Convert`, `Len`, `Each` — these count
+- `KeepIf`, `RemoveIf`, `Transform`, `Len`, `Each` — these count
 - `slice.From()` — setup, doesn't count
 - `ToString`, `ToInt`, `ToFloat64` — data extraction, chains onto previous line
 
@@ -328,7 +328,7 @@ func (ts Mapper[T]) Take(n int) Mapper[T] {
 | `.Reverse()` | 1 |
 | `Fold(...)` | 0 (accumulator only) |
 
-A 3-operation chain like `From(xs).KeepIf(p).Convert(f).ToString(g)` allocates 3 slices. A fused manual loop allocates 1.
+A 3-operation chain like `From(xs).KeepIf(p).Transform(f).ToString(g)` allocates 3 slices. A fused manual loop allocates 1.
 
 ### Benchmark Results
 
