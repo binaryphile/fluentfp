@@ -582,7 +582,8 @@ Mutable variables declared before the conditional, assigned inside it.
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 rawMinTotal := option.NonEmpty(q.Get("min_total"))
 minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
-mtOption, err := minTotalResult.Unpack()  // err → 400 if present but invalid
+// err → 400 if present but invalid
+mtOption, err := minTotalResult.Unpack()
 mt, hasMinTotal := mtOption.Get()
 ```
 
@@ -755,8 +756,10 @@ go func() {
 
 ```go
 tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
-auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
-inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
+auditPipe := toc.Pipe(
+  ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
+inventoryPipe := toc.Pipe(
+  ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
 
 `toc.FromChan` bridges `chan Order` → `chan rslt.Result[Order]` — no passthrough stage needed. Backpressure, cancellation, shutdown ordering, and `Stats()` built in.

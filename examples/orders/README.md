@@ -15,7 +15,8 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
     if req.Header.Get("Content-Type") != "application/json" {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(415)
-        json.NewEncoder(w).Encode(map[string]string{"error": "expected application/json"})
+        json.NewEncoder(w).Encode(
+            map[string]string{"error": "expected application/json"})
         return
     }
 
@@ -25,14 +26,16 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
     if err := dec.Decode(&order); err != nil {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(400)
-        json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+        json.NewEncoder(w).Encode(
+            map[string]string{"error": err.Error()})
         return
     }
 
     if order.Customer == "" {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(400)
-        json.NewEncoder(w).Encode(map[string]string{"error": "customer is required"})
+        json.NewEncoder(w).Encode(
+            map[string]string{"error": "customer is required"})
         return
     }
     // ... more validation ...
@@ -40,7 +43,8 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
     if !breaker.allow() {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(503)
-        json.NewEncoder(w).Encode(map[string]string{"error": "pricing service unavailable"})
+        json.NewEncoder(w).Encode(
+            map[string]string{"error": "pricing service unavailable"})
         return
     }
     enriched, err := enrichOrder(req.Context(), order)
@@ -48,7 +52,8 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
         breaker.recordFailure()
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(500)
-        json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
+        json.NewEncoder(w).Encode(
+            map[string]string{"error": "internal error"})
         return
     }
     breaker.recordSuccess()
@@ -104,7 +109,8 @@ type Handler = func(*http.Request) rslt.Result[web.Response]
 A `Result` is either `Ok(value)` or `Err(error)`. The handler returns one or the other. `web.Adapt` converts it to a standard `http.HandlerFunc`:
 
 ```go
-mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder, errorMapper))
+mux.HandleFunc("POST /orders",
+    web.Adapt(handleCreateOrder, errorMapper))
 ```
 
 The response constructors — `web.Created`, `web.OK`, `web.BadRequest`, `web.NotFound` — carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
@@ -141,7 +147,8 @@ Each validator has the signature `func(Order) rslt.Result[Order]` and carries it
 ```go
 func itemsHavePositiveQty(o Order) rslt.Result[Order] {
     if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
-        return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
+        return rslt.Err[Order](
+            web.BadRequest("all items must have positive quantity"))
     }
     return rslt.Ok(o)
 }
@@ -178,10 +185,14 @@ At the HTTP boundary, one error mapper translates all domain errors to HTTP resp
 ```go
 func mapDomainError(err error) (*web.Error, bool) {
     if errors.Is(err, call.ErrCircuitOpen) {
-        return &web.Error{Status: 503, Message: "pricing service unavailable"}, true
+        return &web.Error{
+            Status: 503, Message: "pricing service unavailable",
+        }, true
     }
     if errors.Is(err, errPricingFailure) {
-        return &web.Error{Status: 502, Message: "pricing service error"}, true
+        return &web.Error{
+            Status: 502, Message: "pricing service error",
+        }, true
     }
     if errors.Is(err, errUnknownSKU) {
         return &web.Error{Status: 422, Message: err.Error()}, true
@@ -200,7 +211,8 @@ Looking up a resource and returning 404 on miss is two branches with identical b
 
 ```go
 handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
-    id := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
+    id := web.PathParam(req, "id").
+        OkOr(web.BadRequest("missing order id"))
     found := rslt.FlatMap(id, findOrder)
     return rslt.Map(found, web.OK[Order])
 }
@@ -239,7 +251,8 @@ status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
 parseMinTotal := func(raw string) rslt.Result[int] {
     return option.Atoi(raw).OkOr(web.BadRequest(
-        fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
+        fmt.Sprintf(
+            "min_total must be an integer (cents), got %q", raw)))
 }
 
 rawMinTotal := option.NonEmpty(q.Get("min_total"))
@@ -290,8 +303,10 @@ With toc, the pipeline is three lines:
 
 ```go
 tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
-auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
-inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
+auditPipe := toc.Pipe(
+    ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
+inventoryPipe := toc.Pipe(
+    ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
 
 `toc.FromChan` bridges the plain `chan Order` into the `chan rslt.Result[Order]` that toc operators expect — no passthrough stage needed. `Tee` broadcasts each order to both branches. `Pipe` chains a function onto each branch. The pipeline runs for the lifetime of the server.
