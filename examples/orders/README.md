@@ -69,18 +69,20 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-    // named functions: assignID, enrich, logFailure, storeAndNotify (defined above)
+    // named functions: withNewID, enrich, logFailure, storeAndNotify (defined above)
 
     order := web.DecodeJSON[Order](req)
-    validatedOrder := rslt.FlatMap(order, validateOrder)
-    assignedOrder := validatedOrder.Transform(withNewID)
-    enrichedOrder := rslt.FlatMap(assignedOrder, enrich)
-    storedOrder := enrichedOrder.TapErr(logFailure).Tap(storeAndNotify)
-    return rslt.Map(storedOrder, web.Created[Order])
+    stored := order.
+        FlatMap(validateOrder).
+        Transform(withNewID).
+        FlatMap(enrich).
+        TapErr(logFailure).
+        Tap(storeAndNotify)
+    return rslt.Map(stored, web.Created[Order])
 }
 ```
 
-No `if err != nil`. The handler is a pipeline: each line is one operation on a `Result`. `FlatMap` chains operations that can fail (decode→validate, enrich). `Transform` transforms the Ok value (assign ID). `TapErr` runs a side effect on errors (log failure). `Tap` runs a side effect on success (store + notify). `Map` wraps the final value in a response.
+No `if err != nil`. The handler is a single chain: decode → validate → assign ID → enrich → log errors → store. Each method does one thing: `FlatMap` chains operations that can fail. `Transform` is a pure same-type transform. `TapErr` is an error-side side effect. `Tap` is an Ok-side side effect. `rslt.Map` at the end is standalone because it changes the type (Order → Response).
 
 The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering — headers, status codes, JSON encoding, error formatting — happens once in `web.Adapt`.
 
@@ -120,12 +122,12 @@ Decoding a JSON body correctly in Go requires:
 
 ```go
 order := web.DecodeJSON[Order](req)
-validatedOrder := rslt.FlatMap(order, validateOrder)
+validated := order.FlatMap(validateOrder)
 ```
 
-`FlatMap` takes a `Result` and a function that also returns a `Result`. If the input is `Ok`, it unwraps the value and passes it to the function. If the input is `Err`, it skips the function entirely and returns the error. The "flat" part: since `validateOrder` itself returns `Result[Order]`, a plain `Map` would give you `Result[Result[Order]]` — nested results. `FlatMap` flattens that to a single `Result[Order]`.
+`FlatMap` chains two operations that each return `Result`. If `order` is Err, `validateOrder` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `validateOrder` itself returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
 
-In practice: if decoding fails (wrong Content-Type → 415, malformed JSON → 400), validation is never called. If validation fails, that error propagates. Two lines replace 20 lines of decode-check-validate-check.
+In practice: if decoding fails (wrong Content-Type → 415, malformed JSON → 400), validation is never called. If validation fails, that error propagates. The chain continues with `.Transform(withNewID).FlatMap(enrich)` — each step feeds the next, errors propagate automatically.
 
 The validation chain is a list of named functions:
 
@@ -236,14 +238,14 @@ mt, hasMinTotal := minTotalOption.Get()
 hasMatchingStatus := func(o Order) bool { return o.Status == status }
 totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
-orders := slice.SortBy(s.list(), Order.GetID).
+orders := slice.SortBy(s.list(), orderNum).
     KeepIfWhen(hasStatus, hasMatchingStatus).
     KeepIfWhen(hasMinTotal, totalAtLeast)
 ```
 
-`option.NonEmpty` → `option.FlatMap` → `option.Atoi` chains empty-check into integer parsing. The option handles the absent case automatically at every step.
+`option.NonEmpty` → `option.FlatMap` → `option.Atoi` chains empty-check into integer parsing. The option handles the absent case automatically at every step. Invalid `min_total` values (present but not an integer) return 400.
 
-`slice.SortBy(list, Order.GetID)` sorts using a method expression — "sort by ID" is the entire expression. `KeepIfWhen(cond, fn)` applies a filter only when the condition is true. Two optional filters chain without `if` blocks breaking the pipeline.
+`slice.SortBy(list, orderNum)` sorts by a key function — `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. The result chains directly into `KeepIfWhen(cond, fn)`, which applies a filter only when the condition is true. Two optional filters chain without `if` blocks breaking the pipeline.
 
 The conventional equivalent: `var filtered []Order` declared twice, two `for` loops with `append`, and `sort.Slice` with an `i, j` closure that accesses the outer slice by index.
 
@@ -293,7 +295,7 @@ Background (fire-and-forget):
   postCh → toc.Start → toc.Tee(2) → [audit Pipe | inventory Pipe]
 ```
 
-The HTTP path is fully synchronous: the order is validated, enriched, and stored before the response is sent. Validation errors return 400, pricing failures return 500, and a tripped circuit breaker returns 503.
+The HTTP path is fully synchronous: the order is validated, enriched, and stored before the response is sent. Validation errors return 400, pricing failures return 502, unknown SKUs return 422, and a tripped circuit breaker returns 503.
 
 After storing, the order is sent to a background pipeline for post-processing. This is best-effort: if the channel is full, it's skipped with a log message.
 
