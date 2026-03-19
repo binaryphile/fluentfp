@@ -843,6 +843,24 @@ Join (strict branch recombination) is the clean design: one goroutine, one item 
 
 **Type erasure — Join[R], not Join[A, B, R]:** The struct type only needs R (the output type). A and B exist in the constructor and the goroutine closure but are erased from the struct. Same pattern as Pipe erasing T from Stage. Callers interact with `*Join[R]`, not `*Join[A, B, R]`.
 
+### D32: Transform / Map / Tap / TapErr — naming for container operations
+
+Go methods cannot introduce extra type parameters, so same-type mapping (`func(T) T`) must be a method while cross-type mapping (`func(T) S`) must be a standalone function. This constraint requires two names for the same FP concept (functor map).
+
+**Why Transform, not Convert or Map:** `Convert` implies type conversion (misleading for same-type transforms). `Map` as a method would overload the standalone `Map` function — users would need to memorize "method Map is same-type only, standalone Map is cross-type." That's teachability debt. `Transform` accurately describes "apply a function to the contained value" without claiming the canonical FP term for a restricted form. The teaching story: `Transform` is fluent same-type sugar, `Map` is the full cross-type primitive.
+
+**Why Tap and TapErr:** `IfOk`/`IfErr` run side effects but return void — they can't be chained. `Tap` runs `func(T)` on Ok and returns the Result unchanged; `TapErr` runs `func(error)` on Err and returns unchanged. This cleanly separates side effects from transforms: `Transform` = pure same-type, `Map` = pure cross-type, `Tap` = Ok side effect, `TapErr` = Err side effect, `MapErr` = Err transform.
+
+**Why not abuse MapErr for side effects:** `MapErr(func(error) error)` transforms the error. Using it for logging (returning the same error) works mechanically but is semantically wrong — the same class of abuse that led to adding `Tap` for the Ok path. `TapErr` makes the intent explicit.
+
+### D33: Option→Result bridge via OkOr/OkOrCall
+
+`Option.OkOr(err)` bridges absent values into error results. Method form (not standalone) because the receiver type is already known and it reads fluently: `opt.OkOr(web.NotFound(...))`.
+
+**Why on Option, not on Result:** The conversion starts from Option — the caller has an Option and wants a Result. Putting it on Option follows the "source owns the conversion" principle. Option importing rslt is acceptable (no cycle since rslt doesn't import option).
+
+**Why eager + lazy:** `OkOr(err)` evaluates the error eagerly. `OkOrCall(fn)` defers error construction until the Option is actually absent. Matches the `Or`/`OrCall` pattern already on Option.
+
 ## Allocation Model
 
 **Entry and exit are free:** `slice.From()` and returning `Mapper[T]` as `[]T` are type conversions — the Go spec guarantees they only change the type, not the representation. No array copy; the slice header (pointer, length, capacity) is reinterpreted. The backing array is shared.

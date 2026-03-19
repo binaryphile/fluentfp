@@ -30,8 +30,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/binaryphile/fluentfp/ctxval"
@@ -77,6 +80,14 @@ func (o Order) GetStatus() string { return o.Status }
 
 // GetTotalCents returns the order total in cents (method expression: Order.GetTotalCents).
 func (o Order) GetTotalCents() int { return o.TotalCents }
+
+// orderNum extracts the numeric suffix from an order ID for sorting.
+// "ord-2" → 2, "ord-10" → 10. Returns 0 if parsing fails.
+func orderNum(o Order) int {
+	s := strings.TrimPrefix(o.ID, "ord-")
+	n, _ := strconv.Atoi(s)
+	return n
+}
 
 // ---------------------------------------------------------------------------
 // Store — single source of truth
@@ -124,18 +135,21 @@ var prices = map[string]int{
 	"GIZMO-3":  500,
 }
 
-// errPricingFailure is returned for SKU "FAIL-PRICE" to demonstrate breaker tripping.
 var errPricingFailure = errors.New("pricing service error")
+var errUnknownSKU = errors.New("unknown SKU")
 
 // enrichOrder computes the total by looking up prices per SKU.
-// SKU "FAIL-PRICE" deterministically fails.
+// SKU "FAIL-PRICE" deterministically fails. Unknown SKUs return an error.
 func enrichOrder(_ context.Context, o Order) (Order, error) {
 	total := 0
 	for _, item := range o.Items {
 		if item.SKU == "FAIL-PRICE" {
 			return o, errPricingFailure
 		}
-		price := option.Lookup(prices, item.SKU).Or(100) // unknown SKU: $1.00
+		price, ok := option.Lookup(prices, item.SKU).Get()
+		if !ok {
+			return o, fmt.Errorf("%w: %s", errUnknownSKU, item.SKU)
+		}
 		total += price * item.Quantity
 	}
 	o.TotalCents = total
@@ -175,7 +189,7 @@ func itemsHavePositiveQty(o Order) rslt.Result[Order] {
 // Error mapping
 // ---------------------------------------------------------------------------
 
-// mapDomainError maps hof.ErrCircuitOpen to 503 at the adapter boundary.
+// mapDomainError maps domain errors to HTTP errors at the adapter boundary.
 func mapDomainError(err error) (*web.Error, bool) {
 	if errors.Is(err, hof.ErrCircuitOpen) {
 		return &web.Error{
@@ -184,11 +198,25 @@ func mapDomainError(err error) (*web.Error, bool) {
 			Code:    "SERVICE_UNAVAILABLE",
 		}, true
 	}
+	if errors.Is(err, errPricingFailure) {
+		return &web.Error{
+			Status:  http.StatusBadGateway,
+			Message: "pricing service error",
+			Code:    "BAD_GATEWAY",
+		}, true
+	}
+	if errors.Is(err, errUnknownSKU) {
+		return &web.Error{
+			Status:  http.StatusUnprocessableEntity,
+			Message: err.Error(),
+			Code:    "UNKNOWN_SKU",
+		}, true
+	}
 	return nil, false
 }
 
 // ---------------------------------------------------------------------------
-// Background pipeline (toc) — long-lived post-processing
+// Background pipeline (toc) — best-effort post-processing
 // ---------------------------------------------------------------------------
 
 // logOrder logs the order for the audit trail and returns its ID.
@@ -202,8 +230,21 @@ func countItems(_ context.Context, o Order) (int, error) {
 	return len(o.Items), nil
 }
 
+// drainResults logs each result or error from a pipeline branch.
+func drainResults[T any](name string, ch <-chan rslt.Result[T]) {
+	for r := range ch {
+		if err := r.Err(); err != nil {
+			log.Printf("  postprocess: %s error: %v", name, err)
+			continue
+		}
+		v, _ := r.Get()
+		log.Printf("  postprocess: %s result: %v", name, v)
+	}
+}
+
 // startPipeline launches a long-lived toc pipeline that broadcasts each
 // order to an audit branch and an inventory branch via Tee.
+// Post-processing is best-effort: errors are logged, not propagated.
 func startPipeline(ctx context.Context, postCh <-chan Order) {
 	// Stage accepts orders and passes them through for downstream Tee.
 	passthrough := func(_ context.Context, o Order) (Order, error) { return o, nil }
@@ -231,38 +272,8 @@ func startPipeline(ctx context.Context, postCh <-chan Order) {
 	// Branch 1: inventory count.
 	inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 
-	// Drain both branches, logging results and errors.
-	// drainResults logs each result or error from a branch.
-	drainResults := func(name string, ch <-chan rslt.Result[any]) {
-		for r := range ch {
-			if err := r.Err(); err != nil {
-				log.Printf("  postprocess: %s error: %v", name, err)
-				continue
-			}
-			v, _ := r.Get()
-			log.Printf("  postprocess: %s result: %v", name, v)
-		}
-	}
-
-	go drainResults("audit", toAny(auditPipe.Out()))
-	go drainResults("inventory", toAny(inventoryPipe.Out()))
-}
-
-// toAny adapts a typed result channel to chan rslt.Result[any] for the drain helper.
-func toAny[T any](ch <-chan rslt.Result[T]) <-chan rslt.Result[any] {
-	out := make(chan rslt.Result[any])
-	go func() {
-		for r := range ch {
-			v, err := r.Unpack()
-			if err != nil {
-				out <- rslt.Err[any](err)
-			} else {
-				out <- rslt.Ok[any](v)
-			}
-		}
-		close(out)
-	}()
-	return out
+	go drainResults("audit", auditPipe.Out())
+	go drainResults("inventory", inventoryPipe.Out())
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +281,7 @@ func toAny[T any](ch <-chan rslt.Result[T]) <-chan rslt.Result[any] {
 // ---------------------------------------------------------------------------
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	s := newStore()
@@ -294,7 +305,7 @@ func main() {
 	})
 	enrichWithBreaker := hof.WithBreaker(breaker, enrichOrder)
 
-	// --- Background post-processing pipeline ---
+	// --- Best-effort post-processing pipeline ---
 
 	postCh := make(chan Order, 20)
 	startPipeline(ctx, postCh)
@@ -314,10 +325,9 @@ func main() {
 			return rslt.Of(enrichWithBreaker(req.Context(), o))
 		}
 
-		// logFailure logs enrichment errors without changing them.
-		logFailure := func(err error) error {
+		// logFailure logs enrichment errors.
+		logFailure := func(err error) {
 			log.Printf("[%s] enrichment failed: %v", reqID, err)
-			return err
 		}
 
 		// storeAndNotify persists the order and sends to post-processing.
@@ -335,7 +345,7 @@ func main() {
 		validatedOrder := rslt.FlatMap(order, validateOrder)
 		assignedOrder := validatedOrder.Transform(withNewID)
 		enrichedOrder := rslt.FlatMap(assignedOrder, enrich)
-		storedOrder := enrichedOrder.MapErr(logFailure).Tap(storeAndNotify)
+		storedOrder := enrichedOrder.TapErr(logFailure).Tap(storeAndNotify)
 		return rslt.Map(storedOrder, web.Created[Order])
 	}
 
@@ -356,37 +366,27 @@ func main() {
 	handleListOrders := func(req *http.Request) rslt.Result[web.Response] {
 		q := req.URL.Query()
 
-		// parseIntParam parses a query param as an integer.
-		// Returns Ok(Option[int]): absent → Ok(NotOk), valid → Ok(Of(n)), invalid → Err(400).
-		parseIntParam := func(raw string) rslt.Result[option.Int] {
-			if raw == "" {
-				return rslt.Ok(option.NotOk[int]())
+		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
+		minTotalOption := option.FlatMap(option.NonEmpty(q.Get("min_total")), option.Atoi)
+		if raw, ok := option.NonEmpty(q.Get("min_total")).Get(); ok {
+			if _, ok := minTotalOption.Get(); !ok {
+				return rslt.Err[web.Response](web.BadRequest(
+					fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 			}
-			return rslt.Map(
-				option.Atoi(raw).OkOr(web.BadRequest(
-					fmt.Sprintf("min_total must be an integer (cents), got %q", raw))),
-				option.Of[int],
-			)
 		}
+		mt, hasMinTotal := minTotalOption.Get()
 
-		// filterOrders applies optional status and min_total filters.
-		filterOrders := func(mtOption option.Int) rslt.Result[web.Response] {
-			status, hasStatus := option.NonEmpty(q.Get("status")).Get()
-			mt, hasMinTotal := mtOption.Get()
+		// hasMatchingStatus checks if order status matches the filter.
+		hasMatchingStatus := func(o Order) bool { return o.Status == status }
+		// totalAtLeast checks if order total meets the minimum.
+		totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
-			// hasMatchingStatus checks if order status matches the filter.
-			hasMatchingStatus := func(o Order) bool { return o.Status == status }
-			// totalAtLeast checks if order total meets the minimum.
-			totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
+		sorted := slice.SortBy(s.list(), orderNum)
+		orders := sorted.
+			KeepIfWhen(hasStatus, hasMatchingStatus).
+			KeepIfWhen(hasMinTotal, totalAtLeast)
 
-			orders := slice.SortBy(s.list(), Order.GetID).
-				KeepIfWhen(hasStatus, hasMatchingStatus).
-				KeepIfWhen(hasMinTotal, totalAtLeast)
-
-			return rslt.Ok(web.OK(orders))
-		}
-
-		return rslt.FlatMap(parseIntParam(q.Get("min_total")), filterOrders)
+		return rslt.Ok(web.OK(orders))
 	}
 
 	// --- Middleware: inject request ID via ctxval ---
@@ -413,16 +413,18 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Shutdown: stop accepting requests, drain in-flight handlers, then
-	// close the post-processing channel (safe because no handlers are
-	// running after Shutdown returns).
+	// Shutdown: stop accepting requests, drain in-flight handlers.
+	// Context cancellation propagates to toc pipeline via ctx.
+	// postCh is not closed here — it is drained by context cancellation
+	// in the pipeline, avoiding send-on-closed-channel panics.
 	go func() {
 		<-ctx.Done()
 		log.Println("shutting down...")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
-		server.Shutdown(shutdownCtx)
-		close(postCh)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("shutdown error: %v", err)
+		}
 	}()
 
 	log.Println("listening on :3000")

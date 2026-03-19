@@ -156,6 +156,16 @@ func (r Result[R]) IfErr(fn func(error)) {
 	}
 }
 
+// TapErr calls fn with the error if r is Err and returns r unchanged.
+// Use for error-side side effects (logging, metrics) that should not alter the Result.
+func (r Result[R]) TapErr(fn func(error)) Result[R] {
+	if r.err != nil {
+		fn(r.err)
+	}
+
+	return r
+}
+
 // MapErr returns a Result with the error transformed by fn if r is Err, or r unchanged if r is Ok.
 // Useful for wrapping or annotating errors without losing the Result context.
 // Panics if fn returns nil (same as [Err]).

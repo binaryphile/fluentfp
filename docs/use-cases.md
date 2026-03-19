@@ -229,14 +229,18 @@
 **Extensions:**
 - 1a. Developer has a fallible function returning `(R, error)` and needs it to return `Result` instead: System wraps the function via `rslt.Lift`, producing a new function with the same input that returns a `Result`.
 - 2a. Developer needs both branches handled with different logic, producing unified result: System applies the appropriate branch function via `Fold`.
-- 2b. Developer needs to transform only the success branch: System transforms via `Convert` (same type) or `Map` (cross-type), passing failure through.
+- 2b. Developer needs to transform only the success branch: System transforms via `Transform` (same type) or `Map` (cross-type), passing failure through.
 - 2c. Developer needs to chain operations that each may fail: System applies each operation in sequence via `FlatMap`, short-circuiting to failure if any step fails. No manual error checking between steps.
+- 2d. Developer needs a side effect on the success branch without altering the result: System runs the function via `Tap`, returning the result unchanged.
+- 2e. Developer needs a side effect on the failure branch without altering the result: System runs the function via `TapErr`, returning the result unchanged.
+- 2f. Developer needs to bridge an Option into a Result, treating absence as a specific error: System converts via `Option.OkOr(err)` (eager) or `Option.OkOrCall(fn)` (lazy).
 
 **Sub-Variations:**
 - Either: general two-branch sum type, left = failure convention, right = success convention
 - Result: specialized `Either[error, T]` with `Ok`/`Err` constructors, `PanicError` for recovered panics
 - Collectors: `CollectAll`, `CollectOk`, `CollectErr`, `CollectOkAndErr` — batch result processing returning plain slices
-- Extraction: value-and-presence pair (`Get`), default value (`Or`), lazy default (`OrCall`)
+- Extraction: value-and-presence pair (`Get`), error accessor (`Err`), default value (`Or`), lazy default (`OrCall`)
+- Side effects: `IfOk`, `IfErr` (void), `Tap`, `TapErr` (chainable)
 
 ---
 
@@ -387,7 +391,7 @@
 - Filtering: `KeepIf`, `RemoveIf`
 - Limiting: `Take` (by count), `TakeWhile` (by predicate)
 - Skipping: `Drop` (by count), `DropWhile` (by predicate)
-- Transformation: `Convert` (same-type method), `Map` (cross-type standalone)
+- Transformation: `Transform` (same-type method), `Map` (cross-type standalone)
 - Expanding: `FlatMap` (expand and flatten sub-streams)
 - Concatenating: `Concat`
 - Pairing: `Zip`, `ZipWith`
@@ -445,7 +449,7 @@
 - Filtering: `KeepIf`, `RemoveIf`, `FilterMap` (filter+transform)
 - Limiting: `Take` (by count), `TakeWhile` (by predicate)
 - Skipping: `Drop` (by count), `DropWhile` (by predicate)
-- Transformation: `Convert` (same-type method), `Map` (cross-type standalone)
+- Transformation: `Transform` (same-type method), `Map` (cross-type standalone)
 - Deduplication: `Unique` (by comparable equality), `UniqueBy` (by key)
 - Expanding: `FlatMap`
 - Concatenating: `Concat`
