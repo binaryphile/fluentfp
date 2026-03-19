@@ -302,36 +302,41 @@ func main() {
 	handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
 		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-		// Decode + validate.
-		validated := rslt.FlatMap(web.DecodeJSON[Order](req), validateOrder)
-		order, err := validated.Unpack()
-		if err != nil {
-			return rslt.Err[web.Response](err)
+		// assignID sets the order ID and initial status.
+		assignID := func(o Order) Order {
+			o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
+			o.Status = "pending"
+			return o
 		}
 
-		// Assign ID.
-		order.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
-		order.Status = "pending"
+		// enrich calls the breaker-wrapped pricing service.
+		enrich := func(o Order) rslt.Result[Order] {
+			return rslt.Of(enrichWithBreaker(req.Context(), o))
+		}
 
-		// Enrich (synchronous, breaker-wrapped).
-		enriched, err := enrichWithBreaker(req.Context(), order)
-		if err != nil {
+		// logFailure logs enrichment errors without changing them.
+		logFailure := func(err error) error {
 			log.Printf("[%s] enrichment failed: %v", reqID, err)
-			return rslt.Err[web.Response](err)
+			return err
 		}
 
-		// Store.
-		s.put(enriched)
-		log.Printf("[%s] created order %s (%d cents)", reqID, enriched.ID, enriched.TotalCents)
-
-		// Send to background post-processing (non-blocking, best-effort).
-		select {
-		case postCh <- enriched:
-		default:
-			log.Printf("[%s] post-processing channel full, skipping", reqID)
+		// storeAndNotify persists the order and sends to post-processing.
+		storeAndNotify := func(o Order) Order {
+			s.put(o)
+			log.Printf("[%s] created order %s (%d cents)", reqID, o.ID, o.TotalCents)
+			select {
+			case postCh <- o:
+			default:
+				log.Printf("[%s] post-processing channel full, skipping", reqID)
+			}
+			return o
 		}
 
-		return rslt.Ok(web.Created(enriched))
+		validated := rslt.FlatMap(web.DecodeJSON[Order](req), validateOrder)
+		assigned := validated.Convert(assignID)
+		enriched := rslt.FlatMap(assigned, enrich)
+		stored := enriched.MapErr(logFailure).Convert(storeAndNotify)
+		return rslt.Map(stored, web.Created[Order])
 	}
 
 	// --- GET /orders/{id} ---
