@@ -470,17 +470,24 @@ func (s *Stage[T, R]) trySend(ctx context.Context, q queued[T]) error {
 		return ErrClosed
 	}
 
+	s.bufferedDepth.Add(1)
+
 	select {
 	case s.in <- q:
 		s.submitted.Add(1)
-		s.bufferedDepth.Add(1)
 
 		return nil
 	case <-s.closing:
+		s.bufferedDepth.Add(-1)
+
 		return ErrClosed
 	case <-s.stageDone:
+		s.bufferedDepth.Add(-1)
+
 		return ErrClosed
 	case <-ctx.Done():
+		s.bufferedDepth.Add(-1)
+
 		return ctx.Err()
 	}
 }
@@ -618,7 +625,7 @@ func (s *Stage[T, R]) DiscardAndCause() error {
 func (s *Stage[T, R]) Stats() Stats {
 	var depth int64
 	if s.capacity > 0 {
-		depth = max(0, s.bufferedDepth.Load())
+		depth = s.bufferedDepth.Load()
 	}
 
 	return Stats{
