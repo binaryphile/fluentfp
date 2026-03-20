@@ -277,11 +277,13 @@ func main() {
 	var idCounter atomic.Int64
 
 	// findOrder looks up an order by ID, returning 404 on miss.
+	// option.New wraps (Order, bool) → Option; OkOr bridges to Result.
 	findOrder := func(id string) rslt.Result[Order] {
 		return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
 	}
 
-	// withNewID sets the order ID and initial status.
+	// withNewID is a pure transform — returns a new Order with ID set.
+	// Used with Transform in the pipeline (same type in, same type out).
 	withNewID := func(o Order) Order {
 		o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
 		o.Status = "pending"
@@ -306,23 +308,29 @@ func main() {
 
 	// --- Validation + error mapping ---
 
-	validateOrder := web.Steps(hasCustomer, hasItems, itemsHavePositiveQty, itemsHaveKnownSKUs)
+	// Steps chains validators — runs each in order, stops on first error.
+	validateOrder := web.Steps(
+		hasCustomer, hasItems, itemsHavePositiveQty, itemsHaveKnownSKUs)
+	// WithErrorMapper translates domain errors to HTTP errors once,
+	// at the Adapt boundary — handlers just return the error.
 	errorMapper := web.WithErrorMapper(mapDomainError)
 
 	// --- POST /orders ---
 
 	handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
+		// Get request ID from context (set by middleware).
 		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-		// enrich calls the breaker-wrapped pricing service.
+		// Wrap the breaker-protected call for use in the pipeline.
+		// LiftCtx binds the request context, producing func(Order) Result[Order].
 		enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
-		// logFailure logs enrichment errors.
+		// Side effect: log on enrichment failure.
 		logFailure := func(err error) {
 			log.Printf("[%s] enrichment failed: %v", reqID, err)
 		}
 
-		// storeAndNotify persists the order and sends to post-processing.
+		// Side effect: persist and send to background pipeline.
 		storeAndNotify := func(o Order) {
 			s.put(o)
 			log.Printf("[%s] created order %s (%d cents)", reqID, o.ID, o.TotalCents)
@@ -333,21 +341,27 @@ func main() {
 			}
 		}
 
-		order := web.DecodeJSON[Order](req)
+		// Pipeline: each step operates on the Result from the previous step.
+		// If any step fails, the rest are skipped and the error propagates.
+		order := web.DecodeJSON[Order](req)    // parse JSON → Result[Order]
 		stored := order.
-			FlatMap(validateOrder).
-			Transform(withNewID).
-			FlatMap(enrich).
-			TapErr(logFailure).
-			Tap(storeAndNotify)
-		return rslt.Map(stored, web.Created[Order])
+			FlatMap(validateOrder).            // validate (can fail → 400)
+			Transform(withNewID).              // assign ID (pure transform)
+			FlatMap(enrich).                   // call pricing (can fail → 502/503)
+			TapErr(logFailure).                // on error: log it
+			Tap(storeAndNotify)                // on success: persist + notify
+		return rslt.Map(stored, web.Created[Order]) // wrap in 201 response
 	}
 
 	// --- GET /orders/{id} ---
 
 	handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
-		id := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
+		// Extract path param as Option, convert absent → 400 error.
+		id := web.PathParam(req, "id").
+			OkOr(web.BadRequest("missing order id"))
+		// Look up order — findOrder returns Result (found → Ok, missing → 404).
 		found := rslt.FlatMap(id, findOrder)
+		// Wrap in 200 response (standalone Map because string → Response is cross-type).
 		return rslt.Map(found, web.OK[Order])
 	}
 
@@ -356,14 +370,18 @@ func main() {
 	handleListOrders := func(req *http.Request) rslt.Result[web.Response] {
 		q := req.URL.Query()
 
+		// Parse optional query params.
+		// NonEmpty: "" → not-ok, non-empty → ok. Get: unpack to (value, bool).
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
-		// parseMinTotal parses a string as int, returning 400 on invalid input.
+		// Parse min_total: absent → Ok(not-ok), valid int → Ok(Of(n)),
+		// invalid → Err(400). FlatMapResult bridges optional + fallible.
 		parseMinTotal := func(raw string) rslt.Result[int] {
 			return option.Atoi(raw).OkOr(web.BadRequest(
-				fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
+				fmt.Sprintf(
+					"min_total must be an integer (cents), got %q",
+					raw)))
 		}
-
 		rawMinTotal := option.NonEmpty(q.Get("min_total"))
 		minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
 		mtOption, err := minTotalResult.Unpack()
@@ -372,11 +390,12 @@ func main() {
 		}
 		mt, hasMinTotal := mtOption.Get()
 
-		// hasMatchingStatus checks if order status matches the filter.
+		// Named predicates for optional filters.
 		hasMatchingStatus := func(o Order) bool { return o.Status == status }
-		// totalAtLeast checks if order total meets the minimum.
 		totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
+		// Sort + conditional filter. KeepIf is like filter() — keeps
+		// elements where the predicate returns true.
 		orders := slice.SortBy(s.list(), orderNum)
 		if hasStatus {
 			orders = orders.KeepIf(hasMatchingStatus)
@@ -389,6 +408,8 @@ func main() {
 	}
 
 	// --- Middleware: inject request ID via ctxval ---
+	// ctxval.With stores a value keyed by its Go type — no sentinel keys.
+	// Handlers retrieve it with ctxval.From[RequestID](ctx).
 
 	var reqCounter atomic.Int64
 	withRequestID := func(next http.Handler) http.Handler {
