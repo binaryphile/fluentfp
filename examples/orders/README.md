@@ -11,36 +11,28 @@ Every Go developer has written this handler. Decode JSON, validate, call a servi
 **Conventional Go (50 lines):**
 
 ```go
-func handleCreateOrder(
-    w http.ResponseWriter, req *http.Request,
-) {
+func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
     if req.Header.Get("Content-Type") != "application/json" {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(415)
-        json.NewEncoder(w).Encode(
-            map[string]string{
-                "error": "expected application/json",
-            })
+        json.NewEncoder(w).Encode(map[string]string{"error": "expected application/json"})
         return
     }
 
     var order Order
-    dec := json.NewDecoder(
-        http.MaxBytesReader(w, req.Body, 1<<20))
+    dec := json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<20))
     dec.DisallowUnknownFields()
     if err := dec.Decode(&order); err != nil {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(400)
-        json.NewEncoder(w).Encode(
-            map[string]string{"error": err.Error()})
+        json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
         return
     }
 
     if order.Customer == "" {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(400)
-        json.NewEncoder(w).Encode(
-            map[string]string{"error": "customer is required"})
+        json.NewEncoder(w).Encode(map[string]string{"error": "customer is required"})
         return
     }
     // ... more validation ...
@@ -48,10 +40,7 @@ func handleCreateOrder(
     if !breaker.allow() {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(503)
-        json.NewEncoder(w).Encode(
-            map[string]string{
-                "error": "pricing service unavailable",
-            })
+        json.NewEncoder(w).Encode(map[string]string{"error": "pricing service unavailable"})
         return
     }
     enriched, err := enrichOrder(req.Context(), order)
@@ -59,8 +48,7 @@ func handleCreateOrder(
         breaker.recordFailure()
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(500)
-        json.NewEncoder(w).Encode(
-            map[string]string{"error": "internal error"})
+        json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
         return
     }
     breaker.recordSuccess()
@@ -78,28 +66,22 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 **With fluentfp:**
 
 ```go
-handleCreateOrder := func(
-    req *http.Request,
-) rslt.Result[web.Response] {
-    // Get request ID from context (set by middleware)
+handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-    // Bind context to breaker-wrapped call for pipeline use
-    enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
-    // Side effects: log errors, persist + notify on success
-    logFailure := func(err error) { ... }
-    storeAndNotify := func(o Order) { ... }
+    enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)          // bind ctx to breaker call
+    logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
+    storeAndNotify := func(o Order) { s.put(o); /* send to postCh */ }
 
-    // Pipeline: each step operates on the Result from the
-    // previous step. If any step fails, the rest are skipped.
-    orderResult := web.DecodeJSON[Order](req) // -> Result
+    // Pipeline: each step operates on the Result. Errors skip the rest.
+    orderResult := web.DecodeJSON[Order](req)
     storedResult := orderResult.
-        FlatMap(Order.Validate).      // validate (-> 400)
-        Transform(withNewID).            // assign ID + status
-        FlatMap(enrich).             // pricing (-> 502/503)
-        TapErr(logFailure).              // on error: log it
-        Tap(storeAndNotify)              // on success: persist
-    return rslt.Map(storedResult, web.Created[Order]) // 201
+        FlatMap(Order.Validate).           // validate (-> 400)
+        Transform(withNewID).              // assign ID + status
+        FlatMap(enrich).                   // call pricing (-> 502/503)
+        TapErr(logFailure).                // on error: log it
+        Tap(storeAndNotify)                // on success: persist + notify
+    return rslt.Map(storedResult, web.Created[Order])
 }
 ```
 
@@ -132,11 +114,20 @@ type Handler = func(*http.Request) rslt.Result[web.Response]
 A `Result` is either `Ok(value)` or `Err(error)`. The handler returns one or the other. `web.Adapt` converts it to a standard `http.HandlerFunc`:
 
 ```go
-mux.HandleFunc("POST /orders",
-    web.Adapt(handleCreateOrder, errorMapper))
+mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder, errorMapper))
 ```
 
 The response constructors -- `web.Created`, `web.OK`, `web.BadRequest`, `web.NotFound` -- carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
+
+### Map and FlatMap on Result
+
+Two operations let you chain steps on a Result without unwrapping it:
+
+- **FlatMap** -- the next step can fail (it returns a Result). If the current Result is Ok, FlatMap unwraps the value and passes it to the function. If the current Result is already Err, the function is skipped entirely. Called "flat" because the function returns `Result[T]`, and without flattening you'd get `Result[Result[T]]` -- nested. FlatMap keeps it one level deep.
+
+- **Map** -- the next step always succeeds (it returns a plain value, not a Result). If the current Result is Ok, Map applies the function and wraps the output in Ok. If Err, the error propagates untouched.
+
+Both come in method and standalone forms. The method form (`result.FlatMap(fn)`) works when the type stays the same. The standalone form (`rslt.FlatMap(result, fn)` / `rslt.Map(result, fn)`) works when the type changes -- Go methods can't introduce new type parameters, so cross-type operations need standalone functions.
 
 ### Chaining decode into validation (rslt.FlatMap)
 
@@ -212,18 +203,10 @@ Defined once, applied to every handler via `web.WithErrorMapper`. Breaker-open -
 Looking up a resource and returning 404 on miss is two branches with identical boilerplate in conventional Go. With fluentfp, it's a pipeline:
 
 ```go
-handleGetOrder := func(
-    req *http.Request,
-) rslt.Result[web.Response] {
-    // Get path param as Option; missing -> Err(400)
-    idResult := web.PathParam(req, "id").
-        OkOr(web.BadRequest("missing order id"))
-    // FlatMap: findOrder can fail (404),
-    // so it returns Result -- use FlatMap.
-    foundResult := rslt.FlatMap(idResult, findOrder)
-    // Map: web.OK always succeeds (wraps in 200),
-    // so it returns a plain value -- use Map.
-    return rslt.Map(foundResult, web.OK[Order])
+handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
+    idResult := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
+    foundResult := rslt.FlatMap(idResult, findOrder)   // FlatMap: findOrder can fail (404)
+    return rslt.Map(foundResult, web.OK[Order])         // Map: web.OK always succeeds (200)
 }
 ```
 
@@ -259,27 +242,21 @@ Query parameters are optional. In conventional Go, each one requires checking em
 With fluentfp, parsing is a pipeline and filtering is a chain:
 
 ```go
-// NonEmpty: "" -> not-ok, non-empty -> ok. Get: (value, bool).
-status, hasStatus := option.NonEmpty(q.Get("status")).Get()
+status, hasStatus := option.NonEmpty(q.Get("status")).Get()  // "" -> not-ok, non-empty -> ok
 
-// FlatMapResult: skip parsing when missing,
-// parse when present, 400 when invalid.
+// FlatMapResult: skip parsing when missing, parse when present, 400 when invalid.
 parseMinTotal := func(raw string) rslt.Result[int] {
-    return option.Atoi(raw).OkOr(web.BadRequest(
-        fmt.Sprintf(
-            "min_total must be an integer (cents), got %q",
-            raw)))
+    return option.Atoi(raw).OkOr(
+        web.BadRequest(fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 }
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
-minTotalResult := option.FlatMapResult(
-    rawMinTotal, parseMinTotal)
+minTotalResult := option.FlatMapResult(rawMinTotalOption, parseMinTotal)
 mtOption, err := minTotalResult.Unpack()
 if err != nil {
     return rslt.Err[web.Response](err)
 }
 mt, hasMinTotal := mtOption.Get()
 
-// Named predicates for optional filters.
 hasMatchingStatus := func(o Order) bool {
     return o.Status == status
 }
