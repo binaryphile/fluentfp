@@ -132,7 +132,9 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
 ```go
 // Handler returns Result[Response] — Ok or Err.
 // web.Adapt renders both as JSON.
-handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
+handleCreateOrder := func(
+  req *http.Request,
+) rslt.Result[web.Response] {
   // Get request ID from context (set by middleware)
   reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
@@ -279,7 +281,8 @@ One monolithic function. Bare `error` loses the HTTP status code.
 <td>
 
 ```go
-validateOrder := web.Steps(hasCustomer, hasItems, itemsHavePositiveQty)
+validateOrder := web.Steps(
+  hasCustomer, hasItems, itemsHavePositiveQty)
 ```
 
 A list of named functions. Each carries its own status code:

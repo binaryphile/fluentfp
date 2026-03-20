@@ -71,7 +71,9 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 **With fluentfp:**
 
 ```go
-handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
+handleCreateOrder := func(
+    req *http.Request,
+) rslt.Result[web.Response] {
     // Get request ID from context (set by middleware)
     reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
@@ -151,7 +153,8 @@ In practice: if decoding fails (wrong Content-Type → 415, malformed JSON → 4
 The validation chain is a list of named functions:
 
 ```go
-validateOrder := web.Steps(hasCustomer, hasItems, itemsHavePositiveQty)
+validateOrder := web.Steps(
+    hasCustomer, hasItems, itemsHavePositiveQty)
 ```
 
 Each validator has the signature `func(Order) rslt.Result[Order]` and carries its own HTTP status code:
