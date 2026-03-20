@@ -2,16 +2,22 @@
 
 Resilience decorators for communicating with runtime dependencies. Named after effectful call decorators — communication over unreliable channels. "Breaker, breaker."
 
-All decorators wrap `func(context.Context, T) (R, error)` and return the same signature, so they compose by stacking:
+All decorators wrap `func(context.Context, T) (R, error)` and return the same signature, so they compose by stacking. Use `Func.With` to build a stack in one expression:
 
 ```go
-// Classify → retry → circuit break — each wraps the previous
-classified := call.MapErr(fetchUser, classifyError)
-retried := call.Retry(3, call.ExponentialBackoff(100*time.Millisecond), isTransient, classified)
-safeFetch := call.WithBreaker(breaker, retried)
+safeFetch := call.Func[string, User](fetchUser).With(
+    call.CircuitBreaker(breaker),
+    call.Retrier(3, backoff, isTransient),
+    call.ErrMapper(classifyError),
+)
+```
 
-// Caller sees the same signature as fetchUser
-resp, err := safeFetch(ctx, url)
+Or apply one at a time with the direct wrappers:
+
+```go
+classified := call.MapErr(fetchUser, classifyError)
+retried := call.Retry(3, backoff, isTransient, classified)
+safeFetch := call.WithBreaker(breaker, retried)
 ```
 
 ## What It Looks Like

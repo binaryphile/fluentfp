@@ -36,4 +36,14 @@ func _() {
 	// Side-effect wrappers
 	_ = OnErr[int, int]
 	_ = MapErr[int, int]
+
+	// Decorator composition
+	_ = Func[int, int](nil)
+	_ = Decorator[int, int](nil)
+	_ = CircuitBreaker[int, int]
+	_ = Retrier[int, int]
+	_ = Throttler[int, int]
+	_ = ThrottlerWeighted[int, int]
+	_ = ErrMapper[int, int]
+	_ = OnError[int, int]
 }
