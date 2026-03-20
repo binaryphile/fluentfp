@@ -149,7 +149,7 @@ func enrichOrder(_ context.Context, o Order) (Order, error) {
 // ---------------------------------------------------------------------------
 
 // Validators: each takes an Order and returns Result[Order].
-// Ok means valid (pass through), Err means invalid (stop the chain).
+// Ok means valid (pass through), Err means invalid (rest of chain skipped).
 // web.BadRequest returns a 400 error that carries the HTTP status code.
 // rslt.Ok / rslt.Err wrap the value or error in a Result.
 
@@ -317,7 +317,7 @@ func main() {
 
 	// --- Validation + error mapping ---
 
-	// Steps chains validators — runs each in order, stops on first error.
+	// Steps chains validators — runs each in order, skips the rest on first error.
 	validateOrder := web.Steps(
 		hasCustomer, hasItems, itemsHavePositiveQty, itemsHaveKnownSKUs)
 	// WithErrorMapper translates domain errors to HTTP errors once,

@@ -153,7 +153,7 @@ Each check repeats the response block.
 
 ```go
 // FlatMap: if decode failed, skip.
-// If validation fails, stop chain.
+// If validation fails, rest is skipped.
 stored := order.
   FlatMap(validateOrder). ...
 ```
