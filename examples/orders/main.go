@@ -317,6 +317,9 @@ func main() {
 	enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
 
 	// --- Best-effort post-processing pipeline ---
+	// After the HTTP handler stores an order, it sends a copy here
+	// (non-blocking) for background audit logging and inventory tracking.
+	// startPipeline reads from this channel and fans out via toc.Tee.
 
 	postCh := make(chan Order, 20)
 	startPipeline(ctx, postCh)
