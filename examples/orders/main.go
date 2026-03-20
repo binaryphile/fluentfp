@@ -368,12 +368,12 @@ func main() {
 	// --- GET /orders/{id} ---
 
 	handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
-		// Extract path param as Option, convert absent → 400 error.
+		// Get path param as Option; missing -> Err(400).
 		idResult := web.PathParam(req, "id").
 			OkOr(web.BadRequest("missing order id"))
-		// Look up order — findOrder returns Result (found → Ok, missing → 404).
+		// FlatMap: findOrder can fail (404), so it returns Result.
 		foundResult := rslt.FlatMap(idResult, findOrder)
-		// Wrap in 200 response (standalone Map because Order → Response is cross-type).
+		// Map: web.OK always succeeds (just wraps in 200).
 		return rslt.Map(foundResult, web.OK[Order])
 	}
 

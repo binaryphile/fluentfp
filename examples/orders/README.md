@@ -233,21 +233,25 @@ Looking up a resource and returning 404 on miss is two branches with identical b
 handleGetOrder := func(
     req *http.Request,
 ) rslt.Result[web.Response] {
-    // Extract path param; absent -> 400
+    // Get path param as Option; missing -> Err(400)
     idResult := web.PathParam(req, "id").
         OkOr(web.BadRequest("missing order id"))
-    // Look up order; missing -> 404
+    // FlatMap: findOrder can fail (404),
+    // so it returns Result -- use FlatMap.
     foundResult := rslt.FlatMap(idResult, findOrder)
-    // Wrap in 200 response (standalone Map -- type changes)
+    // Map: web.OK always succeeds (wraps in 200),
+    // so it returns a plain value -- use Map.
     return rslt.Map(foundResult, web.OK[Order])
 }
 ```
 
 Three steps, each building on the last:
 
-1. `web.PathParam` wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges absent -> `Err(400)`
-2. `rslt.FlatMap(idResult, findOrder)` looks up the order (standalone FlatMap because string -> Order is a type change)
-3. `rslt.Map(foundResult, web.OK[Order])` wraps the Ok value in a 200 response
+1. `web.PathParam` wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges missing -> `Err(400)`
+2. `rslt.FlatMap(idResult, findOrder)` -- `FlatMap` because `findOrder` can fail (returns Result). If id was already an error, findOrder is skipped.
+3. `rslt.Map(foundResult, web.OK[Order])` -- `Map` because `web.OK` always succeeds (returns a plain Response, not a Result). If foundResult was an error, it propagates untouched.
+
+Both are standalone (not methods) because the type changes at each step: string -> Order -> Response. Go methods can't introduce new type parameters.
 
 `findOrder` is a named function that bridges the store lookup:
 

@@ -326,18 +326,22 @@ Two branches, identical boilerplate.
 <td>
 
 ```go
-// PathParam wraps PathValue -> Option[string].
-// OkOr bridges absent -> Err(400).
+// PathParam: get path variable as Option.
+// OkOr: missing param -> Err(400).
 idResult := web.PathParam(req, "id").
   OkOr(web.BadRequest("missing order id"))
-// findOrder: Option.New(store lookup).OkOr(404).
-// Standalone FlatMap because string -> Order is cross-type.
+
+// FlatMap: findOrder can fail (404),
+// so it returns Result -- use FlatMap.
 foundResult := rslt.FlatMap(idResult, findOrder)
-// Standalone Map because Order -> Response is cross-type.
+
+// Map: web.OK always succeeds (just wraps
+// in 200), so it returns a plain value --
+// use Map, not FlatMap.
 return rslt.Map(foundResult, web.OK[Order])
 ```
 
-`web.PathParam` wraps `PathValue` + `NonEmpty` into `Option[string]`. `.OkOr` bridges to `Result[string]`. `rslt.FlatMap` calls `findOrder` (which uses `option.New` + `.OkOr` to bridge the store lookup). `rslt.Map` wraps Ok in a 200 response. Errors propagate untouched.
+The difference between `FlatMap` and `Map`: if the next function can fail (returns `Result`), use `FlatMap`. If it always succeeds (returns a plain value), use `Map`. Both are standalone here because the types change (string -> Order -> Response) -- Go methods can't change the generic type parameter.
 
 </td>
 </tr>
