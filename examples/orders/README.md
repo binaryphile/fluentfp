@@ -92,14 +92,14 @@ handleCreateOrder := func(
 
     // Pipeline: each step operates on the Result from the
     // previous step. If any step fails, the rest are skipped.
-    order := web.DecodeJSON[Order](req)  // parse JSON -> Result
-    stored := order.
+    orderResult := web.DecodeJSON[Order](req) // -> Result
+    storedResult := orderResult.
         FlatMap(validateOrder).      // validate (-> 400)
         Transform(withNewID).            // assign ID + status
         FlatMap(enrich).             // pricing (-> 502/503)
         TapErr(logFailure).              // on error: log it
         Tap(storeAndNotify)              // on success: persist
-    return rslt.Map(stored, web.Created[Order])  // wrap in 201
+    return rslt.Map(storedResult, web.Created[Order]) // 201
 }
 ```
 
@@ -149,11 +149,11 @@ Decoding a JSON body correctly in Go requires:
 `web.DecodeJSON[Order](req)` does steps 1-4 in one call, returning `Result[Order]`. Then `rslt.FlatMap` chains it into validation:
 
 ```go
-order := web.DecodeJSON[Order](req)
-validated := order.FlatMap(validateOrder)
+orderResult := web.DecodeJSON[Order](req)
+validatedResult := orderResult.FlatMap(validateOrder)
 ```
 
-`FlatMap` chains two operations that each return `Result`. If `order` is Err, `validateOrder` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `validateOrder` itself returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
+`FlatMap` chains two operations that each return `Result`. If `orderResult` is Err, `validateOrder` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `validateOrder` itself returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
 
 In practice: if decoding fails (wrong Content-Type -> 415, malformed JSON -> 400), validation is never called. If validation fails, that error propagates. The chain continues with `.Transform(withNewID).FlatMap(enrich)` -- each step feeds the next, errors propagate automatically.
 
@@ -234,20 +234,20 @@ handleGetOrder := func(
     req *http.Request,
 ) rslt.Result[web.Response] {
     // Extract path param; absent -> 400
-    id := web.PathParam(req, "id").
+    idResult := web.PathParam(req, "id").
         OkOr(web.BadRequest("missing order id"))
     // Look up order; missing -> 404
-    found := rslt.FlatMap(id, findOrder)
+    foundResult := rslt.FlatMap(idResult, findOrder)
     // Wrap in 200 response (standalone Map -- type changes)
-    return rslt.Map(found, web.OK[Order])
+    return rslt.Map(foundResult, web.OK[Order])
 }
 ```
 
 Three steps, each building on the last:
 
 1. `web.PathParam` wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges absent -> `Err(400)`
-2. `rslt.FlatMap(id, findOrder)` looks up the order (standalone FlatMap because string -> Order is a type change)
-3. `rslt.Map(found, web.OK[Order])` wraps the Ok value in a 200 response
+2. `rslt.FlatMap(idResult, findOrder)` looks up the order (standalone FlatMap because string -> Order is a type change)
+3. `rslt.Map(foundResult, web.OK[Order])` wraps the Ok value in a 200 response
 
 `findOrder` is a named function that bridges the store lookup:
 
@@ -285,7 +285,7 @@ parseMinTotal := func(raw string) rslt.Result[int] {
             "min_total must be an integer (cents), got %q",
             raw)))
 }
-rawMinTotal := option.NonEmpty(q.Get("min_total"))
+rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
 minTotalResult := option.FlatMapResult(
     rawMinTotal, parseMinTotal)
 mtOption, err := minTotalResult.Unpack()

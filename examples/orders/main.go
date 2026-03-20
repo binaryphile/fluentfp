@@ -355,26 +355,26 @@ func main() {
 
 		// Pipeline: each step operates on the Result from the previous step.
 		// If any step fails, the rest are skipped and the error propagates.
-		order := web.DecodeJSON[Order](req)    // parse JSON → Result[Order]
-		stored := order.
+		orderResult := web.DecodeJSON[Order](req)    // parse JSON → Result[Order]
+		storedResult := orderResult.
 			FlatMap(validateOrder).            // validate (can fail → 400)
 			Transform(withNewID).              // assign ID + status
 			FlatMap(enrich).                   // call pricing (can fail → 502/503)
 			TapErr(logFailure).                // on error: log it
 			Tap(storeAndNotify)                // on success: persist + notify
-		return rslt.Map(stored, web.Created[Order]) // wrap in 201 response
+		return rslt.Map(storedResult, web.Created[Order]) // wrap in 201 response
 	}
 
 	// --- GET /orders/{id} ---
 
 	handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
 		// Extract path param as Option, convert absent → 400 error.
-		id := web.PathParam(req, "id").
+		idResult := web.PathParam(req, "id").
 			OkOr(web.BadRequest("missing order id"))
 		// Look up order — findOrder returns Result (found → Ok, missing → 404).
-		found := rslt.FlatMap(id, findOrder)
+		foundResult := rslt.FlatMap(idResult, findOrder)
 		// Wrap in 200 response (standalone Map because Order → Response is cross-type).
-		return rslt.Map(found, web.OK[Order])
+		return rslt.Map(foundResult, web.OK[Order])
 	}
 
 	// --- GET /orders?status=X&min_total=Y (cents) ---
@@ -396,8 +396,8 @@ func main() {
 					"min_total must be an integer (cents), got %q",
 					raw)))
 		}
-		rawMinTotal := option.NonEmpty(q.Get("min_total"))
-		minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
+		rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
+		minTotalResult := option.FlatMapResult(rawMinTotalOption, parseMinTotal)
 		// Unpack converts Result back to Go's (value, error) pair.
 		mtOption, err := minTotalResult.Unpack()
 		if err != nil {

@@ -35,7 +35,7 @@ flowchart TD
 | **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `.FlatMap(enrich)` in the chain (1 line) | Breaker is a decorator -- invisible to caller |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` -- error-side side effect in pipeline (1 line) | Logging separated from response rendering |
 | **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` -- side effects in named function (1 line) | Side effects named and composable |
-| **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(stored, web.Created[Order])` (1 line) | `Adapt` renders once |
+| **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(storedResult, web.Created[Order])` (1 line) | `Adapt` renders once |
 | **Error -> HTTP** | `if errors.Is(err, ...)` + response block, repeated per handler | `web.WithErrorMapper(mapDomainError)` defined once at boundary | One mapping function for all handlers |
 
 ## The Complete POST Handler
@@ -114,7 +114,7 @@ if err := dec.Decode(&order); err != nil {
 ```go
 // One call: content-type, size limit,
 // unknown fields, JSON decode.
-order := web.DecodeJSON[Order](req)
+orderResult := web.DecodeJSON[Order](req)
 ```
 
 Returns `Result[Order]` -- Ok or Err with the right HTTP status.
@@ -154,7 +154,7 @@ Each check repeats the response block.
 ```go
 // FlatMap: if decode failed, skip.
 // If validation fails, rest is skipped.
-stored := order.
+storedResult := orderResult.
   FlatMap(validateOrder). ...
 ```
 
@@ -328,13 +328,13 @@ Two branches, identical boilerplate.
 ```go
 // PathParam wraps PathValue -> Option[string].
 // OkOr bridges absent -> Err(400).
-id := web.PathParam(req, "id").
+idResult := web.PathParam(req, "id").
   OkOr(web.BadRequest("missing order id"))
 // findOrder: Option.New(store lookup).OkOr(404).
 // Standalone FlatMap because string -> Order is cross-type.
-found := rslt.FlatMap(id, findOrder)
+foundResult := rslt.FlatMap(idResult, findOrder)
 // Standalone Map because Order -> Response is cross-type.
-return rslt.Map(found, web.OK[Order])
+return rslt.Map(foundResult, web.OK[Order])
 ```
 
 `web.PathParam` wraps `PathValue` + `NonEmpty` into `Option[string]`. `.OkOr` bridges to `Result[string]`. `rslt.FlatMap` calls `findOrder` (which uses `option.New` + `.OkOr` to bridge the store lookup). `rslt.Map` wraps Ok in a 200 response. Errors propagate untouched.
@@ -389,11 +389,11 @@ Mutable variables declared before the conditional, assigned inside it.
 // NonEmpty: "" -> not-ok, non-empty -> ok.
 // Get: unpack to (value, bool).
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
-rawMinTotal := option.NonEmpty(q.Get("min_total"))
+rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
 // FlatMapResult: absent -> Ok(not-ok), valid -> Ok(Of(n)),
 // invalid -> Err(400). Three-way optional+fallible.
 minTotalResult := option.FlatMapResult(
-  rawMinTotal, parseMinTotal)
+  rawMinTotalOption, parseMinTotal)
 // Unpack: convert Result back to Go's (value, error).
 mtOption, err := minTotalResult.Unpack()
 mt, hasMinTotal := mtOption.Get()

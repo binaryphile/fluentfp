@@ -24,6 +24,18 @@ Stream name derived from project directory: `tasks.fluentfp`.
 
 Use `mcp__era__code_search` for API signatures and package details.
 
+### Container Variable Naming
+
+Variables holding `Option[T]` use a `*Option` suffix; variables holding `Result[T]` use a `*Result` suffix. This matters because fluentfp container types share method names (`FlatMap`, `Transform`, `Get`, etc.) — without the suffix, a reader seeing `order.FlatMap(validate)` can't tell if `order` is a `Result`, an `Option`, or a `Mapper` (slice). The suffix makes the container type visible at the call site:
+
+```go
+orderResult := web.DecodeJSON[Order](req)   // Result[Order]
+rawMinTotalOption := option.NonEmpty(q.Get("min_total"))  // Option[string]
+minTotalResult := option.FlatMapResult(rawMinTotalOption, parseMinTotal)  // Result[Option[int]]
+```
+
+Exceptions: when the type is obvious from context (e.g., a one-line function return), the suffix can be omitted.
+
 ### Named vs Inline Functions
 
 **Preference hierarchy** (best to worst):
