@@ -23,6 +23,7 @@ func _() {
 	_ = Fold[int, string]
 	_ = Lift[string, int]
 	_ = LiftCtx[string, int]
+	_ = RunAsync[int]
 	_ = CollectAll[int]
 	_ = CollectErr[int]
 	_ = CollectOk[int]

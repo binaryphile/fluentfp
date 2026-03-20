@@ -95,6 +95,8 @@ If the panic value was an `error`, `PanicError.Unwrap()` returns it — enabling
 
 **Side effects**: `IfOk`, `IfErr`, `Tap` (chainable Ok side effect), `TapErr` (chainable Err side effect)
 
+**Async**: `RunAsync` (typed goroutine launcher with panic recovery), `AsyncResult.Wait`, `AsyncResult.Done`
+
 **Collect**: `CollectAll` (all values or first error by index), `CollectOk` (successes only), `CollectErr` (errors only), `CollectOkAndErr` (both in one pass)
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/rslt) for complete API documentation, the [main README](../README.md) for installation, and the [showcase](../docs/showcase.md) for real-world comparisons.
