@@ -245,78 +245,35 @@ func startPipeline(ctx context.Context, postCh <-chan Order) {
 }
 
 // ---------------------------------------------------------------------------
-// HTTP handlers
+// Handler factories — each takes its runtime deps and returns a web.Handler.
+// The returned closure captures only what it needs.
 // ---------------------------------------------------------------------------
 
-func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	s := newStore()
-	var idCounter atomic.Int64
-
-	// findOrder looks up an order by ID, returning 404 on miss.
-	// option.New wraps (Order, bool) → Option; OkOr bridges to Result.
-	findOrder := func(id string) rslt.Result[Order] {
-		return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
-	}
-
+// newCreateOrder returns a handler that decodes, validates, enriches,
+// stores, and responds with a new order.
+func newCreateOrder(
+	s *store,
+	idCounter *atomic.Int64,
+	enrichWithBreaker func(context.Context, Order) (Order, error),
+	postCh chan<- Order,
+) web.Handler {
 	// withNewID assigns a sequential ID and sets initial status.
-	// Not pure (idCounter.Add is a side effect), but returns a new
-	// value — Transform is the right shape (func(T) T).
 	withNewID := func(o Order) Order {
 		o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
 		o.Status = "pending"
 		return o
 	}
 
-	// --- Circuit breaker for pricing enrichment ---
-	// call.NewBreaker creates a 3-state breaker (closed → open → half-open).
-	// call.WithBreaker wraps enrichOrder — same signature, breaker invisible.
-	// After 3 consecutive failures, calls are rejected with call.ErrCircuitOpen.
-
-	breaker := call.NewBreaker(call.BreakerConfig{
-		ResetTimeout: 10 * time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(3),
-		OnStateChange: func(t call.Transition) {
-			log.Printf("breaker: %s → %s", t.From, t.To)
-		},
-	})
-	enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
-
-	// --- Best-effort post-processing pipeline ---
-	// After the HTTP handler stores an order, it sends a copy here
-	// (non-blocking) for background audit logging and inventory tracking.
-	// startPipeline reads from this channel and fans out via toc.Tee.
-
-	postCh := make(chan Order, 20)
-	startPipeline(ctx, postCh)
-
-	// --- Error mapping ---
-
-	// WithErrorMapper translates domain errors to HTTP errors once,
-	// at the Adapt boundary — handlers just return the error.
-	errorMapper := web.WithErrorMapper(mapDomainError)
-
-	// --- POST /orders ---
-	// Handlers return Result[Response] instead of writing to ResponseWriter.
-	// Ok = success response, Err = error response. Adapt renders both.
-
-	handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
-		// Get request ID from context (set by middleware).
+	return func(req *http.Request) rslt.Result[web.Response] {
 		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-		// enrichWithBreaker is func(ctx, Order) (Order, error) — two args.
-		// The pipeline needs func(Order) Result[Order] — one arg.
-		// LiftCtx binds the context and wraps (Order, error) → Result[Order].
+		// LiftCtx binds the context and wraps (Order, error) -> Result[Order].
 		enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
-		// Side effect: log on enrichment failure.
 		logFailure := func(err error) {
 			log.Printf("[%s] enrichment failed: %v", reqID, err)
 		}
 
-		// Side effect: persist and send to background pipeline.
 		storeAndNotify := func(o Order) {
 			s.put(o)
 			log.Printf("[%s] created order %s (%d cents)", reqID, o.ID, o.TotalCents)
@@ -329,61 +286,54 @@ func main() {
 
 		// Pipeline: each step operates on the Result from the previous step.
 		// If any step fails, the rest are skipped and the error propagates.
-		orderResult := web.DecodeJSON[Order](req)    // parse JSON → Result[Order]
+		orderResult := web.DecodeJSON[Order](req)
 		storedResult := orderResult.
-			FlatMap(Order.Validate).            // validate (can fail → 400)
-			Transform(withNewID).              // assign ID + status
-			FlatMap(enrich).                   // call pricing (can fail → 502/503)
-			TapErr(logFailure).                // on error: log it
-			Tap(storeAndNotify)                // on success: persist + notify
-		return rslt.Map(storedResult, web.Created[Order]) // wrap in 201 response
+			FlatMap(Order.Validate).
+			Transform(withNewID).
+			FlatMap(enrich).
+			TapErr(logFailure).
+			Tap(storeAndNotify)
+		return rslt.Map(storedResult, web.Created[Order])
+	}
+}
+
+// newGetOrder returns a handler that looks up an order by ID.
+func newGetOrder(s *store) web.Handler {
+	// findOrder bridges the store lookup into a Result.
+	findOrder := func(id string) rslt.Result[Order] {
+		return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
 	}
 
-	// --- GET /orders/{id} ---
-
-	handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
-		// Get path param as Option; missing -> Err(400).
-		idResult := web.PathParam(req, "id").
-			OkOr(web.BadRequest("missing order id"))
-		// FlatMap: findOrder can fail (404), so it returns Result.
+	return func(req *http.Request) rslt.Result[web.Response] {
+		idResult := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
 		foundResult := rslt.FlatMap(idResult, findOrder)
-		// Map: web.OK always succeeds (just wraps in 200).
 		return rslt.Map(foundResult, web.OK[Order])
 	}
+}
 
-	// --- GET /orders?status=X&min_total=Y (cents) ---
-
-	handleListOrders := func(req *http.Request) rslt.Result[web.Response] {
+// newListOrders returns a handler that lists orders with optional filters.
+func newListOrders(s *store) web.Handler {
+	return func(req *http.Request) rslt.Result[web.Response] {
 		q := req.URL.Query()
 
-		// Parse optional query params.
-		// NonEmpty: "" → not-ok, non-empty → ok. Get: unpack to (value, bool).
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
-		// Parse min_total if present. FlatMapResult skips parsing when
-		// the param is missing, parses it when present, and returns 400
-		// if present but not a valid integer.
+		// FlatMapResult: missing -> skip, valid int -> use it, bad input -> 400.
 		parseMinTotal := func(raw string) rslt.Result[int] {
 			return option.Atoi(raw).OkOr(web.BadRequest(
-				fmt.Sprintf(
-					"min_total must be an integer (cents), got %q",
-					raw)))
+				fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 		}
 		rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
 		minTotalResult := option.FlatMapResult(rawMinTotalOption, parseMinTotal)
-		// Unpack converts Result back to Go's (value, error) pair.
 		mtOption, err := minTotalResult.Unpack()
 		if err != nil {
 			return rslt.Err[web.Response](err)
 		}
 		mt, hasMinTotal := mtOption.Get()
 
-		// Named predicates for optional filters.
 		hasMatchingStatus := func(o Order) bool { return o.Status == status }
 		totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
-		// Sort + conditional filter. KeepIf is like filter() — keeps
-		// elements where the predicate returns true.
 		orders := slice.SortBy(s.list(), orderNum)
 		if hasStatus {
 			orders = orders.KeepIf(hasMatchingStatus)
@@ -394,11 +344,42 @@ func main() {
 
 		return rslt.Ok(web.OK(orders))
 	}
+}
 
-	// --- Middleware: inject request ID via ctxval ---
-	// ctxval.With stores a value keyed by its Go type — no sentinel keys.
-	// Handlers retrieve it with ctxval.From[RequestID](ctx).
+// ---------------------------------------------------------------------------
+// main — wiring
+// ---------------------------------------------------------------------------
 
+func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	s := newStore()
+	var idCounter atomic.Int64
+
+	// Circuit breaker for pricing enrichment.
+	breaker := call.NewBreaker(call.BreakerConfig{
+		ResetTimeout: 10 * time.Second,
+		ReadyToTrip:  call.ConsecutiveFailures(3),
+		OnStateChange: func(t call.Transition) {
+			log.Printf("breaker: %s → %s", t.From, t.To)
+		},
+	})
+	enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
+
+	// Best-effort post-processing pipeline.
+	postCh := make(chan Order, 20)
+	startPipeline(ctx, postCh)
+
+	// Error mapping: domain errors -> HTTP errors, defined once.
+	errorMapper := web.WithErrorMapper(mapDomainError)
+
+	// Handlers — each factory takes only the deps it needs.
+	handleCreateOrder := newCreateOrder(s, &idCounter, enrichWithBreaker, postCh)
+	handleGetOrder := newGetOrder(s)
+	handleListOrders := newListOrders(s)
+
+	// Middleware: inject request ID via ctxval.
 	var reqCounter atomic.Int64
 	withRequestID := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -408,11 +389,7 @@ func main() {
 		})
 	}
 
-	// --- Routes ---
-	// web.Adapt converts our Result-returning handlers to standard
-	// http.HandlerFunc. It renders Ok as JSON responses and Err as
-	// JSON error responses. errorMapper translates domain errors.
-
+	// Routes.
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder, errorMapper))
 	mux.HandleFunc("GET /orders/{id}", web.Adapt(handleGetOrder, errorMapper))
