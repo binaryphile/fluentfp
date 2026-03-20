@@ -51,20 +51,13 @@ The conventional version on the left is what you'd write with the standard libra
 <td>
 
 ```go
-func handleCreateOrder(
-  w http.ResponseWriter,
-  req *http.Request,
-) {
+func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
   // --- decode ---
-  if req.Header.Get("Content-Type") !=
-      "application/json" {
-    w.Header().Set("Content-Type",
-      "application/json")
+  if req.Header.Get("Content-Type") != "application/json" {
+    w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(415)
-    json.NewEncoder(w).Encode(
-      map[string]string{
-        "error": "expected application/json",
-      })
+    json.NewEncoder(w).Encode(map[string]string{
+      "error": "expected application/json"})
     return
   }
   var order Order
@@ -72,61 +65,49 @@ func handleCreateOrder(
     http.MaxBytesReader(w, req.Body, 1<<20))
   dec.DisallowUnknownFields()
   if err := dec.Decode(&order); err != nil {
-    w.Header().Set("Content-Type",
-      "application/json")
+    w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(400)
-    json.NewEncoder(w).Encode(
-      map[string]string{
-        "error": err.Error()})
+    json.NewEncoder(w).Encode(map[string]string{
+      "error": err.Error()})
     return
   }
 
   // --- validate ---
   if order.Customer == "" {
-    w.Header().Set("Content-Type",
-      "application/json")
+    w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(400)
-    json.NewEncoder(w).Encode(
-      map[string]string{
-        "error": "customer is required"})
+    json.NewEncoder(w).Encode(map[string]string{
+      "error": "customer is required"})
     return
   }
   if len(order.Items) == 0 {
-    w.Header().Set("Content-Type",
-      "application/json")
+    w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(400)
-    json.NewEncoder(w).Encode(
-      map[string]string{
-        "error": "must have items"})
+    json.NewEncoder(w).Encode(map[string]string{
+      "error": "must have items"})
     return
   }
 
   // --- assign ID ---
-  order.ID = fmt.Sprintf("ord-%d",
-    idCounter.Add(1))
+  order.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
   order.Status = "pending"
 
   // --- enrich (with breaker) ---
   if !breaker.allow() {
-    w.Header().Set("Content-Type",
-      "application/json")
+    w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(503)
-    json.NewEncoder(w).Encode(
-      map[string]string{
-        "error": "pricing unavailable"})
+    json.NewEncoder(w).Encode(map[string]string{
+      "error": "pricing unavailable"})
     return
   }
-  enriched, err := enrichOrder(
-    req.Context(), order)
+  enriched, err := enrichOrder(req.Context(), order)
   if err != nil {
     breaker.recordFailure()
     log.Printf("enrichment failed: %v", err)
-    w.Header().Set("Content-Type",
-      "application/json")
+    w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(500)
-    json.NewEncoder(w).Encode(
-      map[string]string{
-        "error": "internal error"})
+    json.NewEncoder(w).Encode(map[string]string{
+      "error": "internal error"})
     return
   }
   breaker.recordSuccess()
@@ -139,8 +120,7 @@ func handleCreateOrder(
   default:
     log.Printf("channel full, skipping")
   }
-  w.Header().Set("Content-Type",
-    "application/json")
+  w.Header().Set("Content-Type", "application/json")
   w.WriteHeader(201)
   json.NewEncoder(w).Encode(enriched)
 }
