@@ -11,17 +11,22 @@ Every Go developer has written this handler. Decode JSON, validate, call a servi
 **Conventional Go (50 lines):**
 
 ```go
-func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
+func handleCreateOrder(
+    w http.ResponseWriter, req *http.Request,
+) {
     if req.Header.Get("Content-Type") != "application/json" {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(415)
         json.NewEncoder(w).Encode(
-            map[string]string{"error": "expected application/json"})
+            map[string]string{
+                "error": "expected application/json",
+            })
         return
     }
 
     var order Order
-    dec := json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<20))
+    dec := json.NewDecoder(
+        http.MaxBytesReader(w, req.Body, 1<<20))
     dec.DisallowUnknownFields()
     if err := dec.Decode(&order); err != nil {
         w.Header().Set("Content-Type", "application/json")
@@ -44,7 +49,9 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(503)
         json.NewEncoder(w).Encode(
-            map[string]string{"error": "pricing service unavailable"})
+            map[string]string{
+                "error": "pricing service unavailable",
+            })
         return
     }
     enriched, err := enrichOrder(req.Context(), order)
@@ -66,7 +73,7 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
 }
 ```
 
-Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of them. Each one is 3 lines of identical response-writing machinery. The actual business logic — decode, validate, enrich, store — is buried between them.
+Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of them. Each one is 3 lines of identical response-writing machinery. The actual business logic -- decode, validate, enrich, store -- is buried between them.
 
 **With fluentfp:**
 
@@ -85,11 +92,11 @@ handleCreateOrder := func(
 
     // Pipeline: each step operates on the Result from the
     // previous step. If any step fails, the rest are skipped.
-    order := web.DecodeJSON[Order](req)  // parse JSON → Result
+    order := web.DecodeJSON[Order](req)  // parse JSON -> Result
     stored := order.
-        FlatMap(validateOrder).          // validate (can fail → 400)
+        FlatMap(validateOrder).      // validate (-> 400)
         Transform(withNewID).            // assign ID + status
-        FlatMap(enrich).                 // call pricing (can fail)
+        FlatMap(enrich).             // pricing (-> 502/503)
         TapErr(logFailure).              // on error: log it
         Tap(storeAndNotify)              // on success: persist
     return rslt.Map(stored, web.Created[Order])  // wrap in 201
@@ -98,13 +105,13 @@ handleCreateOrder := func(
 
 No `if err != nil`. Each line in the pipeline does one thing:
 
-- **FlatMap** — run a function that can fail; skip the rest on error
-- **Transform** — same-type transform: `func(T) T` (can be pure or side-effecting)
-- **TapErr** — side effect on error (doesn't change the error)
-- **Tap** — side effect on success (doesn't change the value)
-- **rslt.Map** — change the type (Order → Response); standalone because Go methods can't change the generic type
+- **FlatMap** -- run a function that can fail; skip the rest on error
+- **Transform** -- same-type transform: `func(T) T` (can be pure or side-effecting)
+- **TapErr** -- side effect on error (doesn't change the error)
+- **Tap** -- side effect on success (doesn't change the value)
+- **rslt.Map** -- change the type (Order -> Response); standalone because Go methods can't change the generic type
 
-The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering — headers, status codes, JSON encoding, error formatting — happens once in `web.Adapt`.
+The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering -- headers, status codes, JSON encoding, error formatting -- happens once in `web.Adapt`.
 
 That's the core idea. Everything below builds on it.
 
@@ -127,7 +134,7 @@ mux.HandleFunc("POST /orders",
     web.Adapt(handleCreateOrder, errorMapper))
 ```
 
-The response constructors — `web.Created`, `web.OK`, `web.BadRequest`, `web.NotFound` — carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
+The response constructors -- `web.Created`, `web.OK`, `web.BadRequest`, `web.NotFound` -- carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
 
 ### Chaining decode into validation (rslt.FlatMap, web.Steps)
 
@@ -148,7 +155,7 @@ validated := order.FlatMap(validateOrder)
 
 `FlatMap` chains two operations that each return `Result`. If `order` is Err, `validateOrder` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `validateOrder` itself returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
 
-In practice: if decoding fails (wrong Content-Type → 415, malformed JSON → 400), validation is never called. If validation fails, that error propagates. The chain continues with `.Transform(withNewID).FlatMap(enrich)` — each step feeds the next, errors propagate automatically.
+In practice: if decoding fails (wrong Content-Type -> 415, malformed JSON -> 400), validation is never called. If validation fails, that error propagates. The chain continues with `.Transform(withNewID).FlatMap(enrich)` -- each step feeds the next, errors propagate automatically.
 
 The validation chain is a list of named functions:
 
@@ -163,7 +170,8 @@ Each validator has the signature `func(Order) rslt.Result[Order]` and carries it
 func itemsHavePositiveQty(o Order) rslt.Result[Order] {
     if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
         return rslt.Err[Order](
-            web.BadRequest("all items must have positive quantity"))
+            web.BadRequest(
+                "all items must have positive quantity"))
     }
     return rslt.Ok(o)
 }
@@ -193,7 +201,7 @@ In the POST handler, `rslt.LiftCtx` partially applies the request context, produ
 enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 ```
 
-No closure needed — LiftCtx does the wrapping.
+No closure needed -- LiftCtx does the wrapping.
 
 At the HTTP boundary, one error mapper translates all domain errors to HTTP responses:
 
@@ -213,37 +221,40 @@ func mapDomainError(err error) (*web.Error, bool) {
 }
 ```
 
-Defined once, applied to every handler via `web.WithErrorMapper`. Breaker-open → 503, pricing failure → 502. Unknown SKUs are caught earlier in validation (returns 400) so they never reach the breaker — bad input can't trip the circuit.
+Defined once, applied to every handler via `web.WithErrorMapper`. Breaker-open -> 503, pricing failure -> 502. Unknown SKUs are caught earlier in validation (returns 400) so they never reach the breaker -- bad input can't trip the circuit.
 
-**Try it:** send 3 orders with SKU `"FAIL-PRICE"`, then one with a normal SKU — it gets 503.
+**Try it:** send 3 orders with SKU `"FAIL-PRICE"`, then one with a normal SKU -- it gets 503.
 
-### Replacing if-not-ok with Option→Result (option)
+### Replacing if-not-ok with Option->Result (option)
 
 Looking up a resource and returning 404 on miss is two branches with identical boilerplate in conventional Go. With fluentfp, it's a pipeline:
 
 ```go
-handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
-    // Extract path param; absent → 400
+handleGetOrder := func(
+    req *http.Request,
+) rslt.Result[web.Response] {
+    // Extract path param; absent -> 400
     id := web.PathParam(req, "id").
         OkOr(web.BadRequest("missing order id"))
-    // Look up order; missing → 404
+    // Look up order; missing -> 404
     found := rslt.FlatMap(id, findOrder)
-    // Wrap in 200 response (standalone Map — type changes)
+    // Wrap in 200 response (standalone Map -- type changes)
     return rslt.Map(found, web.OK[Order])
 }
 ```
 
 Three steps, each building on the last:
 
-1. `web.PathParam` wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges absent → `Err(400)`
-2. `rslt.FlatMap(id, findOrder)` looks up the order (standalone FlatMap because string → Order is a type change)
+1. `web.PathParam` wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges absent -> `Err(400)`
+2. `rslt.FlatMap(id, findOrder)` looks up the order (standalone FlatMap because string -> Order is a type change)
 3. `rslt.Map(found, web.OK[Order])` wraps the Ok value in a 200 response
 
 `findOrder` is a named function that bridges the store lookup:
 
 ```go
 findOrder := func(id string) rslt.Result[Order] {
-    return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
+    return option.New(s.get(id)).
+        OkOr(web.NotFound("order not found"))
 }
 ```
 
@@ -257,16 +268,17 @@ price := option.Lookup(prices, item.SKU).Or(100)
 
 ### Parsing and filtering without if-blocks (option, slice)
 
-Query parameters are optional. In conventional Go, each one requires checking emptiness, parsing, handling parse errors, and conditionally filtering — each adding an `if` block that breaks the flow.
+Query parameters are optional. In conventional Go, each one requires checking emptiness, parsing, handling parse errors, and conditionally filtering -- each adding an `if` block that breaks the flow.
 
 With fluentfp, parsing is a pipeline and filtering is a chain:
 
 ```go
-// NonEmpty: "" → not-ok, non-empty → ok. Get: (value, bool).
+// NonEmpty: "" -> not-ok, non-empty -> ok. Get: (value, bool).
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
-// Parse min_total: absent → Ok(not-ok), valid → Ok(Of(n)),
-// invalid → Err(400). FlatMapResult bridges optional + fallible.
+// Parse min_total: absent -> Ok(not-ok), valid -> Ok(Of(n)),
+// invalid -> Err(400). FlatMapResult bridges
+// optional + fallible.
 parseMinTotal := func(raw string) rslt.Result[int] {
     return option.Atoi(raw).OkOr(web.BadRequest(
         fmt.Sprintf(
@@ -301,21 +313,21 @@ if hasMinTotal {
 }
 ```
 
-`option.FlatMapResult` bridges the gap between optional and fallible: absent → `Ok(NotOk)` (no filter applied), present+valid → `Ok(Of(n))`, present+invalid → `Err(400)`. This cleanly distinguishes "not provided" from "provided but wrong" — a common pattern for optional query parameters.
+`option.FlatMapResult` bridges the gap between optional and fallible: absent -> `Ok(NotOk)` (no filter applied), present+valid -> `Ok(Of(n))`, present+invalid -> `Err(400)`. This cleanly distinguishes "not provided" from "provided but wrong" -- a common pattern for optional query parameters.
 
-`slice.SortBy(list, orderNum)` sorts by a key function — `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. The conditional `KeepIf` filters are plain Go `if` statements — no special API needed when you're not inside a chain that would break.
+`slice.SortBy(list, orderNum)` sorts by a key function -- `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. The conditional `KeepIf` filters are plain Go `if` statements -- no special API needed when you're not inside a chain that would break.
 
-The conventional equivalent uses `sort.Slice` with an `i, j` closure that accesses the outer slice by index, and `var filtered []Order` with `append` inside a `for` loop for each filter. The fluentfp version uses `SortBy` with a key function and `KeepIf` with named predicates — same structure, less scaffolding.
+The conventional equivalent uses `sort.Slice` with an `i, j` closure that accesses the outer slice by index, and `var filtered []Order` with `append` inside a `for` loop for each filter. The fluentfp version uses `SortBy` with a key function and `KeepIf` with named predicates -- same structure, less scaffolding.
 
 ### Type-safe context values (ctxval)
 
 Go's `context.WithValue` requires a private key type, a type assertion on retrieval, and a nil check. Three lines of ceremony per value.
 
 ```go
-// Middleware — store by type, no key needed:
+// Middleware -- store by type, no key needed:
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
-// Handler — retrieve with fallback:
+// Handler -- retrieve with fallback:
 reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 ```
 
@@ -338,23 +350,23 @@ inventoryPipe := toc.Pipe(
     ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
 
-`toc.FromChan` bridges the plain `chan Order` into the `chan rslt.Result[Order]` that toc operators expect — no passthrough stage needed. `Tee` broadcasts each order to both branches. `Pipe` chains a function onto each branch. The pipeline runs for the lifetime of the server.
+`toc.FromChan` bridges the plain `chan Order` into the `chan rslt.Result[Order]` that toc operators expect -- no passthrough stage needed. `Tee` broadcasts each order to both branches. `Pipe` chains a function onto each branch. The pipeline runs for the lifetime of the server.
 
 What toc gives you that bare goroutines don't:
 
-- **Backpressure** — `Submit` blocks when the buffer is full, so you don't silently drop work
-- **Stats** — `stage.Stats()` tracks submitted, completed, failed, service time, idle time, blocked time — ready for a `/debug` endpoint
-- **Shutdown ordering** — closing input propagates through Stage → Tee → Pipe; context cancellation is a backstop
-- **Error propagation** — errors flow as `Result` values instead of disappearing into goroutine logs
+- **Backpressure** -- `Submit` blocks when the buffer is full, so you don't silently drop work
+- **Stats** -- `stage.Stats()` tracks submitted, completed, failed, service time, idle time, blocked time -- ready for a `/debug` endpoint
+- **Shutdown ordering** -- closing input propagates through Stage -> Tee -> Pipe; context cancellation is a backstop
+- **Error propagation** -- errors flow as `Result` values instead of disappearing into goroutine logs
 
 ## Architecture
 
 ```
 HTTP request (synchronous):
-  decode (web) → validate (web.Steps) → enrich (call.WithBreaker) → store → 201
+  decode (web) -> validate (web.Steps) -> enrich (call.WithBreaker) -> store -> 201
 
 Background (fire-and-forget):
-  postCh → toc.FromChan → toc.Tee(2) → [audit Pipe | inventory Pipe]
+  postCh -> toc.FromChan -> toc.Tee(2) -> [audit Pipe | inventory Pipe]
 ```
 
 The HTTP path is fully synchronous: the order is validated, enriched, and stored before the response is sent. Validation errors (including unknown SKUs) return 400, pricing failures return 502, and a tripped circuit breaker returns 503.

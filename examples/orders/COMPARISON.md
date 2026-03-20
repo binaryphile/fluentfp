@@ -1,4 +1,4 @@
-# Conventional Go vs fluentfp — Complete Side by Side
+# Conventional Go vs fluentfp -- Complete Side by Side
 
 This document shows every place the orders example uses fluentfp, paired with the conventional Go equivalent. Read the [README](README.md) first for the narrative walkthrough.
 
@@ -31,176 +31,262 @@ flowchart TD
 |------|----------------|----------|--------------|
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
 | **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `.FlatMap(validateOrder)` where `validateOrder = web.Steps(...)` (1 line) | Composable list of named validators, each carrying its HTTP status |
-| **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` — pure transform on Ok value (1 line) | Mutation wrapped in named function |
-| **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `.FlatMap(enrich)` in the chain (1 line) | Breaker is a decorator — invisible to caller |
-| **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` — error-side side effect in pipeline (1 line) | Logging separated from response rendering |
-| **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` — side effects in named function (1 line) | Side effects named and composable |
+| **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` -- pure transform on Ok value (1 line) | Mutation wrapped in named function |
+| **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `.FlatMap(enrich)` in the chain (1 line) | Breaker is a decorator -- invisible to caller |
+| **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` -- error-side side effect in pipeline (1 line) | Logging separated from response rendering |
+| **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` -- side effects in named function (1 line) | Side effects named and composable |
 | **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(stored, web.Created[Order])` (1 line) | `Adapt` renders once |
-| **Error → HTTP** | `if errors.Is(err, ...)` + response block, repeated per handler | `web.WithErrorMapper(mapDomainError)` defined once at boundary | One mapping function for all handlers |
+| **Error -> HTTP** | `if errors.Is(err, ...)` + response block, repeated per handler | `web.WithErrorMapper(mapDomainError)` defined once at boundary | One mapping function for all handlers |
 
 ## The Complete POST Handler
 
-The conventional version on the left is what you'd write with the standard library. The fluentfp version on the right has the same behavior. Look at the *shape* — the left is a tree of `if` branches, the right is a linear pipeline.
+The conventional version on the left is what you'd write with the standard library. The fluentfp version on the right has the same behavior. Each section below shows the same step side by side.
+
+### Signature
 
 <table>
-<tr>
-<th>Conventional Go</th>
-<th>fluentfp</th>
-</tr>
+<tr><th>Conventional</th><th>fluentfp</th></tr>
 <tr>
 <td>
 
 ```go
-func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
-  // --- decode ---
-  if req.Header.Get("Content-Type") != "application/json" {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(415)
-    json.NewEncoder(w).Encode(map[string]string{
-      "error": "expected application/json"})
-    return
-  }
-  var order Order
-  dec := json.NewDecoder(
-    http.MaxBytesReader(w, req.Body, 1<<20))
-  dec.DisallowUnknownFields()
-  if err := dec.Decode(&order); err != nil {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(400)
-    json.NewEncoder(w).Encode(map[string]string{
-      "error": err.Error()})
-    return
-  }
-
-  // --- validate ---
-  if order.Customer == "" {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(400)
-    json.NewEncoder(w).Encode(map[string]string{
-      "error": "customer is required"})
-    return
-  }
-  if len(order.Items) == 0 {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(400)
-    json.NewEncoder(w).Encode(map[string]string{
-      "error": "must have items"})
-    return
-  }
-
-  // --- assign ID ---
-  order.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
-  order.Status = "pending"
-
-  // --- enrich (with breaker) ---
-  if !breaker.allow() {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(503)
-    json.NewEncoder(w).Encode(map[string]string{
-      "error": "pricing unavailable"})
-    return
-  }
-  enriched, err := enrichOrder(req.Context(), order)
-  if err != nil {
-    breaker.recordFailure()
-    log.Printf("enrichment failed: %v", err)
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(500)
-    json.NewEncoder(w).Encode(map[string]string{
-      "error": "internal error"})
-    return
-  }
-  breaker.recordSuccess()
-
-  // --- store + respond ---
-  store.put(enriched)
-  log.Printf("created order %s", enriched.ID)
-  select {
-  case postCh <- enriched:
-  default:
-    log.Printf("channel full, skipping")
-  }
-  w.Header().Set("Content-Type", "application/json")
-  w.WriteHeader(201)
-  json.NewEncoder(w).Encode(enriched)
-}
+func handleCreateOrder(
+  w http.ResponseWriter,
+  req *http.Request,
+) {
 ```
+
+Mutates `ResponseWriter`.
 
 </td>
 <td>
 
 ```go
-// Handler returns Result[Response] — Ok or Err.
-// web.Adapt renders both as JSON.
 handleCreateOrder := func(
   req *http.Request,
 ) rslt.Result[web.Response] {
-  // Get request ID from context (set by middleware)
-  reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
-
-  // --- named operations ---
-
-  // Assigns sequential ID + initial status. Not pure
-  // (idCounter.Add), but returns a new value (func(T) T).
-  withNewID := func(o Order) Order {
-    o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
-    o.Status = "pending"
-    return o
-  }
-
-  // enrichWithBreaker is func(ctx, Order) (Order, error).
-  // LiftCtx binds the context → func(Order) Result[Order]
-  // so it fits in the pipeline's FlatMap chain.
-  enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
-
-  // Side effect on error — doesn't change the error
-  logFailure := func(err error) {
-    log.Printf("[%s] enrichment failed: %v", reqID, err)
-  }
-
-  // Side effect on success — doesn't change the value
-  storeAndNotify := func(o Order) {
-    s.put(o)
-    log.Printf("[%s] created order %s", reqID, o.ID)
-    select {
-    case postCh <- o:
-    default:
-      log.Printf("[%s] channel full", reqID)
-    }
-  }
-
-  // --- pipeline: each step operates on the Result ---
-  // If any step fails, the rest are skipped.
-
-  order := web.DecodeJSON[Order](req)   // parse JSON → Result
-  stored := order.
-    FlatMap(validateOrder).             // validate (can fail)
-    Transform(withNewID).               // assign ID + status
-    FlatMap(enrich).                    // pricing (can fail)
-    TapErr(logFailure).                 // on error: log
-    Tap(storeAndNotify)                 // on success: persist
-  return rslt.Map(stored, web.Created[Order]) // → 201
-}
 ```
+
+Returns a value. `web.Adapt` renders it.
 
 </td>
 </tr>
 </table>
 
-The left side is a tree: six `if` branches, each ending in 3-4 lines of response-writing, then `return`. The right side is a line: each step feeds the next, and errors propagate automatically. The named operations (top half) define *what* each step does; the pipeline (bottom half) defines *when*.
+### Decode
 
-What the pipeline eliminates:
+<table>
+<tr><th>Conventional</th><th>fluentfp</th></tr>
+<tr>
+<td>
 
-| Conventional | fluentfp | Why it's gone |
+```go
+ct := req.Header.Get("Content-Type")
+if ct != "application/json" {
+  w.Header().Set("Content-Type",
+    "application/json")
+  w.WriteHeader(415)
+  json.NewEncoder(w).Encode(
+    map[string]string{
+      "error": "expected application/json",
+    })
+  return
+}
+var order Order
+dec := json.NewDecoder(
+  http.MaxBytesReader(w, req.Body, 1<<20))
+dec.DisallowUnknownFields()
+if err := dec.Decode(&order); err != nil {
+  w.Header().Set("Content-Type",
+    "application/json")
+  w.WriteHeader(400)
+  json.NewEncoder(w).Encode(
+    map[string]string{
+      "error": err.Error(),
+    })
+  return
+}
+```
+
+</td>
+<td>
+
+```go
+// One call: content-type, size limit,
+// unknown fields, JSON decode.
+order := web.DecodeJSON[Order](req)
+```
+
+Returns `Result[Order]` -- Ok or Err with the right HTTP status.
+
+</td>
+</tr>
+</table>
+
+### Validate
+
+<table>
+<tr><th>Conventional</th><th>fluentfp</th></tr>
+<tr>
+<td>
+
+```go
+if order.Customer == "" {
+  w.Header().Set("Content-Type",
+    "application/json")
+  w.WriteHeader(400)
+  json.NewEncoder(w).Encode(
+    map[string]string{
+      "error": "customer is required",
+    })
+  return
+}
+if len(order.Items) == 0 {
+  // ... same 7-line block ...
+}
+```
+
+Each check repeats the response block.
+
+</td>
+<td>
+
+```go
+// FlatMap: if decode failed, skip.
+// If validation fails, stop chain.
+stored := order.
+  FlatMap(validateOrder). ...
+```
+
+`validateOrder = web.Steps(...)` -- a list of named validators, each returning `Result[Order]`.
+
+</td>
+</tr>
+</table>
+
+### Assign ID
+
+<table>
+<tr><th>Conventional</th><th>fluentfp</th></tr>
+<tr>
+<td>
+
+```go
+order.ID = fmt.Sprintf(
+  "ord-%d", idCounter.Add(1))
+order.Status = "pending"
+```
+
+Mutates `order` in place.
+
+</td>
+<td>
+
+```go
+  ... .Transform(withNewID). ...
+```
+
+`withNewID` returns a new Order with ID set. `Transform` applies `func(T) T` to the Ok value.
+
+</td>
+</tr>
+</table>
+
+### Enrich (circuit breaker)
+
+<table>
+<tr><th>Conventional</th><th>fluentfp</th></tr>
+<tr>
+<td>
+
+```go
+if !breaker.allow() {
+  w.Header().Set("Content-Type",
+    "application/json")
+  w.WriteHeader(503)
+  json.NewEncoder(w).Encode(
+    map[string]string{
+      "error": "pricing unavailable",
+    })
+  return
+}
+enriched, err := enrichOrder(
+  req.Context(), order)
+if err != nil {
+  breaker.recordFailure()
+  log.Printf(
+    "enrichment failed: %v", err)
+  // ... 7-line error response ...
+  return
+}
+breaker.recordSuccess()
+```
+
+Breaker check + call + record + error response tangled.
+
+</td>
+<td>
+
+```go
+  ... .FlatMap(enrich). ...
+```
+
+`enrich = rslt.LiftCtx(ctx, enrichWithBreaker)` -- binds context, wraps `(T, error)` -> `Result[T]`. Breaker is invisible to the pipeline.
+
+</td>
+</tr>
+</table>
+
+### Error logging + Store + Respond
+
+<table>
+<tr><th>Conventional</th><th>fluentfp</th></tr>
+<tr>
+<td>
+
+```go
+store.put(enriched)
+log.Printf(
+  "created order %s", enriched.ID)
+select {
+case postCh <- enriched:
+default:
+  log.Printf("channel full, skipping")
+}
+w.Header().Set("Content-Type",
+  "application/json")
+w.WriteHeader(201)
+json.NewEncoder(w).Encode(enriched)
+```
+
+</td>
+<td>
+
+```go
+  ... .TapErr(logFailure).  // log err
+      .Tap(storeAndNotify)  // persist
+return rslt.Map(
+  stored, web.Created[Order]) // 201
+```
+
+`TapErr`: side effect on error. `Tap`: side effect on success. `rslt.Map`: wrap Ok in 201 response.
+
+</td>
+</tr>
+</table>
+
+### What the pipeline eliminates
+
+| Conventional | fluentfp | Why |
 |---|---|---|
-| 6× `w.Header().Set` / `WriteHeader` / `Encode` blocks | Zero | `web.Adapt` renders all responses once |
-| Content-Type check + MaxBytesReader + DisallowUnknownFields | `web.DecodeJSON` | One call does all three |
-| Separate decode and validate error blocks | `rslt.FlatMap` | Chains them; errors propagate |
-| `breaker.allow()` / `recordSuccess()` / `recordFailure()` | `enrichWithBreaker` | Decorator — same signature, breaker invisible |
-| `if errors.Is(err, errCircuitOpen)` in handler | `web.WithErrorMapper` | Defined once at adapter boundary |
-| `log.Printf` on error scattered in branches | `TapErr(logFailure)` | Error-side side effect in the pipeline |
+| 6× `Set`/`WriteHeader`/`Encode` | Zero | `Adapt` renders once |
+| Content-Type + MaxBytesReader + DisallowUnknownFields | `DecodeJSON` | One call |
+| Separate decode/validate error blocks | `FlatMap` | Chains; errors propagate |
+| `allow`/`recordSuccess`/`recordFailure` | `WithBreaker` | Decorator |
+| `errors.Is` in handler | `WithErrorMapper` | At boundary |
+| `log.Printf` in error branches | `TapErr` | Pipeline side effect |
 
-The conventional version also excludes the 40+ lines needed to implement `circuitBreaker` itself.
+The conventional version also excludes the 40+ lines to implement `circuitBreaker` itself.
 
 ---
 
@@ -245,7 +331,7 @@ if err := dec.Decode(&order); err != nil {
 order := web.DecodeJSON[Order](req)
 ```
 
-Returns `Result[Order]` — the decoded order or a structured error (415, 413, 400). Content-type, body size limit, unknown fields — all handled.
+Returns `Result[Order]` -- the decoded order or a structured error (415, 413, 400). Content-type, body size limit, unknown fields -- all handled.
 
 </td>
 </tr>
@@ -290,7 +376,8 @@ A list of named functions. Each carries its own status code:
 ```go
 func itemsHavePositiveQty(o Order) rslt.Result[Order] {
   if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
-    return rslt.Err[Order](web.BadRequest("positive qty required"))
+    return rslt.Err[Order](
+      web.BadRequest("positive qty required"))
   }
   return rslt.Ok(o)
 }
@@ -302,7 +389,7 @@ Adding a validation = adding a name to the list.
 </tr>
 </table>
 
-### Chaining Decode → Validate → Transform
+### Chaining Decode -> Validate -> Transform
 
 This is where `FlatMap` and `Transform` replace `if err != nil` blocks.
 
@@ -334,9 +421,9 @@ Three blocks. Each fallible step needs its own error check and response. The ass
 <td>
 
 ```go
-order := web.DecodeJSON[Order](req)  // → Result
+order := web.DecodeJSON[Order](req)  // -> Result
 assigned := order.
-  FlatMap(validateOrder).            // can fail → stops chain
+  FlatMap(validateOrder).            // can fail -> stops chain
   Transform(withNewID)               // pure transform on Ok
 ```
 
@@ -403,11 +490,11 @@ breaker := call.NewBreaker(call.BreakerConfig{
 enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
 
 // In handler: LiftCtx binds context and wraps
-// (Order, error) → Result[Order] for the pipeline.
+// (Order, error) -> Result[Order] for the pipeline.
 enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
 // In the pipeline chain:
-.FlatMap(enrich)  // can fail → stops the chain
+.FlatMap(enrich)  // can fail -> stops the chain
 ```
 
 Same signature as `enrichOrder`. The handler doesn't know a breaker exists. Probe gating, panic recovery, cancellation handled.
@@ -424,7 +511,7 @@ Same signature as `enrichOrder`. The handler doesn't know a breaker exists. Prob
 <td>
 
 ```go
-// In handler — logging + error mapping tangled:
+// In handler -- logging + error mapping tangled:
 enriched, err := enrichOrder(
   req.Context(), order)
 if err != nil {
@@ -448,13 +535,13 @@ if err != nil {
 }
 ```
 
-Logging, error classification, and response rendering — all in one `if err` block. Repeated per handler.
+Logging, error classification, and response rendering -- all in one `if err` block. Repeated per handler.
 
 </td>
 <td>
 
 ```go
-// Side effect on error — doesn't change the error.
+// Side effect on error -- doesn't change the error.
 logFailure := func(err error) {
   log.Printf("[%s] enrichment failed: %v", reqID, err)
 }
@@ -468,7 +555,9 @@ func mapDomainError(err error) (*web.Error, bool) {
     return &web.Error{Status: 503, Message: "unavailable"}, true
   }
   if errors.Is(err, errPricingFailure) {
-    return &web.Error{Status: 502, Message: "pricing error"}, true
+    return &web.Error{
+      Status: 502, Message: "pricing error",
+    }, true
   }
   return nil, false
   // Unknown SKUs are caught in validation (400),
@@ -515,14 +604,14 @@ Two branches, identical boilerplate.
 <td>
 
 ```go
-// PathParam wraps PathValue → Option[string].
-// OkOr bridges absent → Err(400).
+// PathParam wraps PathValue -> Option[string].
+// OkOr bridges absent -> Err(400).
 id := web.PathParam(req, "id").
   OkOr(web.BadRequest("missing order id"))
 // findOrder: Option.New(store lookup).OkOr(404).
-// Standalone FlatMap because string → Order is cross-type.
+// Standalone FlatMap because string -> Order is cross-type.
 found := rslt.FlatMap(id, findOrder)
-// Standalone Map because Order → Response is cross-type.
+// Standalone Map because Order -> Response is cross-type.
 return rslt.Map(found, web.OK[Order])
 ```
 
@@ -534,7 +623,7 @@ return rslt.Map(found, web.OK[Order])
 
 ### Map Lookup
 
-The pricing function uses `prices[item.SKU]` directly — SKU validation already ran in the validation chain, so every SKU here is known-good. No error check needed.
+The pricing function uses `prices[item.SKU]` directly -- SKU validation already ran in the validation chain, so every SKU here is known-good. No error check needed.
 
 `option.Lookup` earns its keep when you need a fallback: `option.Lookup(m, k).Or(default)` replaces the entire `if !ok` block in one expression.
 
@@ -575,19 +664,20 @@ Mutable variables declared before the conditional, assigned inside it.
 <td>
 
 ```go
-// NonEmpty: "" → not-ok, non-empty → ok.
+// NonEmpty: "" -> not-ok, non-empty -> ok.
 // Get: unpack to (value, bool).
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 rawMinTotal := option.NonEmpty(q.Get("min_total"))
-// FlatMapResult: absent → Ok(not-ok), valid → Ok(Of(n)),
-// invalid → Err(400). Three-way optional+fallible.
-minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
+// FlatMapResult: absent -> Ok(not-ok), valid -> Ok(Of(n)),
+// invalid -> Err(400). Three-way optional+fallible.
+minTotalResult := option.FlatMapResult(
+  rawMinTotal, parseMinTotal)
 // Unpack: convert Result back to Go's (value, error).
 mtOption, err := minTotalResult.Unpack()
 mt, hasMinTotal := mtOption.Get()
 ```
 
-`FlatMapResult` bridges optional and fallible: absent → `Ok(NotOk)`, present+valid → `Ok(Of(n))`, present+invalid → `Err(400)`. No mutable `var` declarations. Absent vs invalid is cleanly distinguished.
+`FlatMapResult` bridges optional and fallible: absent -> `Ok(NotOk)`, present+valid -> `Ok(Of(n))`, present+invalid -> `Err(400)`. No mutable `var` declarations. Absent vs invalid is cleanly distinguished.
 
 </td>
 </tr>
@@ -642,7 +732,7 @@ if hasMinTotal {
 }
 ```
 
-`SortBy` takes a key function — `orderNum` extracts the numeric suffix for correct ordering. `KeepIf` with named predicates replaces the `for`/`append` loop. The `if` guards are plain Go — no special API needed for conditional filtering outside a chain.
+`SortBy` takes a key function -- `orderNum` extracts the numeric suffix for correct ordering. `KeepIf` with named predicates replaces the `for`/`append` loop. The `if` guards are plain Go -- no special API needed for conditional filtering outside a chain.
 
 </td>
 </tr>
@@ -678,11 +768,11 @@ Sentinel key type + type assertion + nil check.
 // With stores a value keyed by its Go type.
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
-// From retrieves by type → Option. Or provides fallback.
+// From retrieves by type -> Option. Or provides fallback.
 reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 ```
 
-The Go type itself is the key — no sentinel type to define. `From` returns an `Option`, so `.Or("unknown")` handles the absent case.
+The Go type itself is the key -- no sentinel type to define. `From` returns an `Option`, so `.Or("unknown")` handles the absent case.
 
 </td>
 </tr>
@@ -702,7 +792,7 @@ w.WriteHeader(http.StatusCreated)
 json.NewEncoder(w).Encode(enriched)
 ```
 
-3 lines of mutation, repeated per code path. Miss `Content-Type` → `text/plain`. `WriteHeader` after `Write` → silently ignored.
+3 lines of mutation, repeated per code path. Miss `Content-Type` -> `text/plain`. `WriteHeader` after `Write` -> silently ignored.
 
 </td>
 <td>
@@ -757,7 +847,7 @@ go func() {
 <td>
 
 ```go
-// FromChan: plain chan Order → chan Result[Order] for toc.
+// FromChan: plain chan Order -> chan Result[Order] for toc.
 // NewTee: broadcast each item to 2 branches.
 tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
 // Pipe: chain a processing function onto a branch.
@@ -767,7 +857,7 @@ inventoryPipe := toc.Pipe(
   ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
 
-`toc.FromChan` bridges `chan Order` → `chan rslt.Result[Order]` — no passthrough stage needed. Backpressure, cancellation, shutdown ordering, and `Stats()` built in.
+`toc.FromChan` bridges `chan Order` -> `chan rslt.Result[Order]` -- no passthrough stage needed. Backpressure, cancellation, shutdown ordering, and `Stats()` built in.
 
 </td>
 </tr>
