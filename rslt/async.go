@@ -19,15 +19,28 @@ type asyncState[R any] struct {
 // by [RunAsync]. Use [AsyncResult.Wait] to block for the result or
 // [AsyncResult.Done] to compose with select.
 //
-// AsyncResult is safe to copy — copies share the same underlying
+// AsyncResult is safe to copy -- copies share the same underlying
 // state. The zero value is not valid; use [RunAsync] to create.
+// Methods panic with a descriptive message on zero-value handles.
+//
+// AsyncResult is intentionally non-comparable to avoid accidental
+// use as a map key or in equality checks.
 type AsyncResult[R any] struct {
+	_  [0]func() // non-comparable
 	s *asyncState[R]
+}
+
+// state returns the shared state, panicking on zero-value handles.
+func (a AsyncResult[R]) state() *asyncState[R] {
+	if a.s == nil {
+		panic("rslt.AsyncResult: zero value is invalid; use rslt.RunAsync")
+	}
+	return a.s
 }
 
 // RunAsync launches fn in a goroutine and returns a handle to wait
 // on the result. Panics in fn are recovered and wrapped as
-// [*PanicError] with a stack trace — an unrecovered panic in a
+// [*PanicError] with a stack trace -- an unrecovered panic in a
 // background goroutine would crash the entire process.
 //
 // Only panics on fn's goroutine are recovered. If fn launches
@@ -54,7 +67,7 @@ func RunAsync[R any](ctx context.Context, fn func(context.Context) (R, error)) A
 					Stack: debug.Stack(),
 				}
 			}
-			close(st.done) // always last — establishes happens-before for Wait
+			close(st.done) // always last -- establishes happens-before for Wait
 		}()
 		st.val, st.err = fn(ctx)
 	}()
@@ -62,35 +75,37 @@ func RunAsync[R any](ctx context.Context, fn func(context.Context) (R, error)) A
 }
 
 // Wait blocks until the goroutine completes and returns the result.
-// Safe to call from multiple goroutines and multiple times — always
-// returns the same value.
+// Safe to call from multiple goroutines and multiple times -- always
+// returns the same value. May block forever if fn never returns.
 func (a AsyncResult[R]) Wait() (R, error) {
-	<-a.s.done
-	return a.s.val, a.s.err
+	s := a.state()
+	<-s.done
+	return s.val, s.err
 }
 
 // Done returns a channel that closes when the goroutine completes.
-// Composable with select:
+// Closes exactly once. Composable with select:
 //
 //	select {
-//	case <-resultOption.Done():
-//	    val, err := resultOption.Wait()
+//	case <-result.Done():
+//	    val, err := result.Wait()
 //	case <-ctx.Done():
 //	    // timed out waiting
 //	}
 func (a AsyncResult[R]) Done() <-chan struct{} {
-	return a.s.done
+	return a.state().done
 }
 
 // String returns a human-readable description of the async result's
 // state (pending, ok, or error).
 func (a AsyncResult[R]) String() string {
+	s := a.state()
 	select {
-	case <-a.s.done:
-		if a.s.err != nil {
-			return fmt.Sprintf("AsyncResult(err: %v)", a.s.err)
+	case <-s.done:
+		if s.err != nil {
+			return fmt.Sprintf("AsyncResult(err: %v)", s.err)
 		}
-		return fmt.Sprintf("AsyncResult(ok: %v)", a.s.val)
+		return fmt.Sprintf("AsyncResult(ok: %v)", s.val)
 	default:
 		return "AsyncResult(pending)"
 	}

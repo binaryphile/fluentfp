@@ -173,24 +173,98 @@ func TestRunAsyncNilCtxPanics(t *testing.T) {
 	})
 }
 
-func TestRunAsyncString(t *testing.T) {
+func TestRunAsyncCopyAfterCompletion(t *testing.T) {
+	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+		return 99, nil
+	})
+	a.Wait()
+	b := a
+	v, err := b.Wait()
+	if err != nil || v != 99 {
+		t.Errorf("copy after completion: (%d, %v), want (99, nil)", v, err)
+	}
+}
+
+func TestRunAsyncZeroValuePanics(t *testing.T) {
+	t.Run("Wait", func(t *testing.T) {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("expected panic")
+			}
+			msg, ok := r.(string)
+			if !ok || msg != "rslt.AsyncResult: zero value is invalid; use rslt.RunAsync" {
+				t.Errorf("wrong panic: %v", r)
+			}
+		}()
+		var a rslt.AsyncResult[int]
+		a.Wait()
+	})
+
+	t.Run("Done", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+		var a rslt.AsyncResult[int]
+		a.Done()
+	})
+
+	t.Run("String", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected panic")
+			}
+		}()
+		var a rslt.AsyncResult[int]
+		_ = a.String()
+	})
+}
+
+func TestRunAsyncStringPending(t *testing.T) {
 	ch := make(chan struct{})
 	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
 		<-ch
 		return 42, nil
 	})
-
-	// Pending.
 	s := a.String()
 	if s != "AsyncResult(pending)" {
-		t.Errorf("pending String() = %q, want AsyncResult(pending)", s)
+		t.Errorf("pending: %q", s)
 	}
-
-	// Complete.
 	close(ch)
 	a.Wait()
-	s = a.String()
+}
+
+func TestRunAsyncStringOk(t *testing.T) {
+	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+		return 42, nil
+	})
+	a.Wait()
+	s := a.String()
 	if s != "AsyncResult(ok: 42)" {
-		t.Errorf("ok String() = %q, want AsyncResult(ok: 42)", s)
+		t.Errorf("ok: %q", s)
+	}
+}
+
+func TestRunAsyncStringError(t *testing.T) {
+	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+		return 0, errors.New("fail")
+	})
+	a.Wait()
+	s := a.String()
+	if s != "AsyncResult(err: fail)" {
+		t.Errorf("error: %q", s)
+	}
+}
+
+func TestRunAsyncStringPanic(t *testing.T) {
+	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+		panic("boom")
+	})
+	a.Wait()
+	s := a.String()
+	if s != "AsyncResult(err: panic: boom)" {
+		t.Errorf("panic: %q", s)
 	}
 }
