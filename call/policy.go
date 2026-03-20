@@ -6,11 +6,11 @@ import "context"
 // a context-aware function that returns a value or an error.
 type Func[T, R any] func(context.Context, T) (R, error)
 
-// NewFunc wraps a plain function as a Func. Go infers the type
+// From wraps a plain function as a Func. Go infers the type
 // parameters, so you don't need to specify them explicitly:
 //
-//	call.NewFunc(fetchUser).With(...)
-func NewFunc[T, R any](fn func(context.Context, T) (R, error)) Func[T, R] {
+//	call.From(fetchUser).With(...)
+func From[T, R any](fn func(context.Context, T) (R, error)) Func[T, R] {
 	return fn
 }
 
