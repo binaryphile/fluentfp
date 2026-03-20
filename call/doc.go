@@ -39,6 +39,7 @@ func _() {
 
 	// Decorator composition
 	_ = Func[int, int](nil)
+	_ = NewFunc[int, int]
 	_ = Decorator[int, int](nil)
 	_ = CircuitBreaker[int, int]
 	_ = Retrier[int, int]

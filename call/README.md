@@ -5,7 +5,7 @@ Resilience decorators for communicating with runtime dependencies. Named after e
 All decorators wrap `func(context.Context, T) (R, error)` and return the same signature, so they compose by stacking. Use `Func.With` to build a stack in one expression:
 
 ```go
-safeFetch := call.Func[string, User](fetchUser).With(
+safeFetch := call.NewFunc(fetchUser).With(
     call.CircuitBreaker(breaker),
     call.Retrier(3, backoff, isTransient),
     call.ErrMapper(classifyError),
