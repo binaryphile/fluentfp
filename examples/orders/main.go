@@ -157,6 +157,11 @@ func enrichOrder(_ context.Context, o Order) (Order, error) {
 // Validation — top-level named functions
 // ---------------------------------------------------------------------------
 
+// Validators: each takes an Order and returns Result[Order].
+// Ok means valid (pass through), Err means invalid (stop the chain).
+// web.BadRequest returns a 400 error that carries the HTTP status code.
+// rslt.Ok / rslt.Err wrap the value or error in a Result.
+
 // hasCustomer validates that the customer field is non-empty.
 func hasCustomer(o Order) rslt.Result[Order] {
 	if o.Customer == "" {
@@ -174,6 +179,9 @@ func hasItems(o Order) rslt.Result[Order] {
 }
 
 // itemsHavePositiveQty validates all items have quantity > 0.
+// slice.From wraps a slice for chaining. Every returns true if the
+// predicate holds for all elements. LineItem.HasPositiveQty is a
+// method expression — Go turns the method into a plain function.
 func itemsHavePositiveQty(o Order) rslt.Result[Order] {
 	if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
 		return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
@@ -202,6 +210,8 @@ func itemsHaveKnownSKUs(o Order) rslt.Result[Order] {
 // ---------------------------------------------------------------------------
 
 // mapDomainError maps domain errors to HTTP errors at the adapter boundary.
+// web.Adapt calls this for any error that isn't already a *web.Error.
+// Return (*web.Error, true) to handle, or (nil, false) to fall through to 500.
 func mapDomainError(err error) (*web.Error, bool) {
 	if errors.Is(err, call.ErrCircuitOpen) {
 		return &web.Error{
@@ -236,6 +246,8 @@ func countItems(_ context.Context, o Order) (int, error) {
 }
 
 // drainResults logs each result or error from a pipeline branch.
+// r.Err() returns the error if this Result is Err, or nil if Ok.
+// r.Get() returns (value, true) if Ok, or (zero, false) if Err.
 func drainResults[T any](name string, ch <-chan rslt.Result[T]) {
 	for r := range ch {
 		if err := r.Err(); err != nil {
@@ -251,14 +263,13 @@ func drainResults[T any](name string, ch <-chan rslt.Result[T]) {
 // order to an audit branch and an inventory branch via Tee.
 // Post-processing is best-effort: errors are logged, not propagated.
 func startPipeline(ctx context.Context, postCh <-chan Order) {
-	// Stage accepts orders and passes them through for downstream Tee.
-	// Tee: broadcast each order to two branches.
+	// toc.FromChan bridges plain chan Order → chan Result[Order] for toc.
+	// toc.NewTee broadcasts each item to N branches (here 2).
 	tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
 
-	// Branch 0: audit log.
+	// toc.Pipe chains a processing function onto a branch's output.
+	// Branch 0: audit log. Branch 1: inventory count.
 	auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
-
-	// Branch 1: inventory count.
 	inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 
 	go drainResults("audit", auditPipe.Out())
@@ -291,6 +302,9 @@ func main() {
 	}
 
 	// --- Circuit breaker for pricing enrichment ---
+	// call.NewBreaker creates a 3-state breaker (closed → open → half-open).
+	// call.WithBreaker wraps enrichOrder — same signature, breaker invisible.
+	// After 3 consecutive failures, calls are rejected with call.ErrCircuitOpen.
 
 	breaker := call.NewBreaker(call.BreakerConfig{
 		ResetTimeout: 10 * time.Second,
@@ -316,13 +330,16 @@ func main() {
 	errorMapper := web.WithErrorMapper(mapDomainError)
 
 	// --- POST /orders ---
+	// Handlers return Result[Response] instead of writing to ResponseWriter.
+	// Ok = success response, Err = error response. Adapt renders both.
 
 	handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
 		// Get request ID from context (set by middleware).
 		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-		// Wrap the breaker-protected call for use in the pipeline.
-		// LiftCtx binds the request context, producing func(Order) Result[Order].
+		// enrichWithBreaker is func(ctx, Order) (Order, error) — two args.
+		// The pipeline needs func(Order) Result[Order] — one arg.
+		// LiftCtx binds the context and wraps (Order, error) → Result[Order].
 		enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
 		// Side effect: log on enrichment failure.
@@ -374,8 +391,10 @@ func main() {
 		// NonEmpty: "" → not-ok, non-empty → ok. Get: unpack to (value, bool).
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
-		// Parse min_total: absent → Ok(not-ok), valid int → Ok(Of(n)),
-		// invalid → Err(400). FlatMapResult bridges optional + fallible.
+		// Parse min_total if present. option.Atoi parses a string as int,
+		// returning not-ok on failure. OkOr bridges that to a Result with
+		// the 400 error. FlatMapResult handles the three-way:
+		//   absent → Ok(not-ok)  |  valid → Ok(Of(n))  |  invalid → Err
 		parseMinTotal := func(raw string) rslt.Result[int] {
 			return option.Atoi(raw).OkOr(web.BadRequest(
 				fmt.Sprintf(
@@ -384,6 +403,7 @@ func main() {
 		}
 		rawMinTotal := option.NonEmpty(q.Get("min_total"))
 		minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
+		// Unpack converts Result back to Go's (value, error) pair.
 		mtOption, err := minTotalResult.Unpack()
 		if err != nil {
 			return rslt.Err[web.Response](err)
@@ -421,6 +441,9 @@ func main() {
 	}
 
 	// --- Routes ---
+	// web.Adapt converts our Result-returning handlers to standard
+	// http.HandlerFunc. It renders Ok as JSON responses and Err as
+	// JSON error responses. errorMapper translates domain errors.
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder, errorMapper))
