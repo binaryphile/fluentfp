@@ -386,10 +386,9 @@ func main() {
 		// NonEmpty: "" → not-ok, non-empty → ok. Get: unpack to (value, bool).
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
-		// Parse min_total if present. option.Atoi parses a string as int,
-		// returning not-ok on failure. OkOr bridges that to a Result with
-		// the 400 error. FlatMapResult handles the three-way:
-		//   absent → Ok(not-ok)  |  valid → Ok(Of(n))  |  invalid → Err
+		// Parse min_total if present. FlatMapResult skips parsing when
+		// the param is missing, parses it when present, and returns 400
+		// if present but not a valid integer.
 		parseMinTotal := func(raw string) rslt.Result[int] {
 			return option.Atoi(raw).OkOr(web.BadRequest(
 				fmt.Sprintf(
