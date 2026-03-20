@@ -130,23 +130,32 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
 <td>
 
 ```go
+// Handler returns Result[Response] — Ok or Err.
+// web.Adapt renders both as JSON.
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
+  // Get request ID from context (set by middleware)
   reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
   // --- named operations ---
 
+  // Pure transform: returns new Order with ID assigned
   withNewID := func(o Order) Order {
     o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
     o.Status = "pending"
     return o
   }
 
+  // enrichWithBreaker is func(ctx, Order) (Order, error).
+  // LiftCtx binds the context → func(Order) Result[Order]
+  // so it fits in the pipeline's FlatMap chain.
   enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
+  // Side effect on error — doesn't change the error
   logFailure := func(err error) {
     log.Printf("[%s] enrichment failed: %v", reqID, err)
   }
 
+  // Side effect on success — doesn't change the value
   storeAndNotify := func(o Order) {
     s.put(o)
     log.Printf("[%s] created order %s", reqID, o.ID)
@@ -381,18 +390,20 @@ Three concerns tangled: state checking, result recording, response writing. The 
 <td>
 
 ```go
-// Setup (5 lines, once):
+// Setup (once): create breaker, wrap enrichOrder.
+// WithBreaker preserves the function signature.
 breaker := call.NewBreaker(call.BreakerConfig{
   ResetTimeout: 10 * time.Second,
   ReadyToTrip:  call.ConsecutiveFailures(3),
 })
 enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
 
-// In handler:
+// In handler: LiftCtx binds context and wraps
+// (Order, error) → Result[Order] for the pipeline.
 enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
 
-// In the chain:
-.FlatMap(enrich)
+// In the pipeline chain:
+.FlatMap(enrich)  // can fail → stops the chain
 ```
 
 Same signature as `enrichOrder`. The handler doesn't know a breaker exists. Probe gating, panic recovery, cancellation handled.
@@ -439,13 +450,15 @@ Logging, error classification, and response rendering — all in one `if err` bl
 <td>
 
 ```go
-// Error logging (in the chain):
+// Side effect on error — doesn't change the error.
 logFailure := func(err error) {
   log.Printf("[%s] enrichment failed: %v", reqID, err)
 }
-// ... chain includes: .TapErr(logFailure).Tap(storeAndNotify)
+// In the chain: TapErr runs on Err, Tap runs on Ok.
+// ... .TapErr(logFailure).Tap(storeAndNotify)
 
-// Error mapping (defined once, at boundary):
+// Error mapping (defined once, at Adapt boundary).
+// Adapt calls this for errors that aren't already *web.Error.
 func mapDomainError(err error) (*web.Error, bool) {
   if errors.Is(err, call.ErrCircuitOpen) {
     return &web.Error{Status: 503, Message: "unavailable"}, true
@@ -498,12 +511,14 @@ Two branches, identical boilerplate.
 <td>
 
 ```go
-// Extract path param; absent → 400
+// PathParam wraps PathValue → Option[string].
+// OkOr bridges absent → Err(400).
 id := web.PathParam(req, "id").
   OkOr(web.BadRequest("missing order id"))
-// Look up order; missing → 404
+// findOrder: Option.New(store lookup).OkOr(404).
+// Standalone FlatMap because string → Order is cross-type.
 found := rslt.FlatMap(id, findOrder)
-// Wrap in 200 (standalone Map — type changes)
+// Standalone Map because Order → Response is cross-type.
 return rslt.Map(found, web.OK[Order])
 ```
 
@@ -556,10 +571,14 @@ Mutable variables declared before the conditional, assigned inside it.
 <td>
 
 ```go
+// NonEmpty: "" → not-ok, non-empty → ok.
+// Get: unpack to (value, bool).
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 rawMinTotal := option.NonEmpty(q.Get("min_total"))
+// FlatMapResult: absent → Ok(not-ok), valid → Ok(Of(n)),
+// invalid → Err(400). Three-way optional+fallible.
 minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
-// err → 400 if present but invalid
+// Unpack: convert Result back to Go's (value, error).
 mtOption, err := minTotalResult.Unpack()
 mt, hasMinTotal := mtOption.Get()
 ```
@@ -652,12 +671,14 @@ Sentinel key type + type assertion + nil check.
 <td>
 
 ```go
+// With stores a value keyed by its Go type.
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
+// From retrieves by type → Option. Or provides fallback.
 reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 ```
 
-Go type is the key. `Option` fallback.
+The Go type itself is the key — no sentinel type to define. `From` returns an `Option`, so `.Or("unknown")` handles the absent case.
 
 </td>
 </tr>
@@ -732,12 +753,12 @@ go func() {
 <td>
 
 ```go
-// Bridge plain channel, broadcast to 2 branches
+// FromChan: plain chan Order → chan Result[Order] for toc.
+// NewTee: broadcast each item to 2 branches.
 tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
-// Branch 0: audit log
+// Pipe: chain a processing function onto a branch.
 auditPipe := toc.Pipe(
   ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
-// Branch 1: inventory count
 inventoryPipe := toc.Pipe(
   ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
