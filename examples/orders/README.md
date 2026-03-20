@@ -72,23 +72,35 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 
 ```go
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
+    // Get request ID from context (set by middleware)
     reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
 
-    // enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
-    // logFailure, storeAndNotify defined as closures above
+    // Bind context to breaker-wrapped call for pipeline use
+    enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
+    // Side effects: log errors, persist + notify on success
+    logFailure := func(err error) { ... }
+    storeAndNotify := func(o Order) { ... }
 
-    order := web.DecodeJSON[Order](req)
+    // Pipeline: each step operates on the Result from the
+    // previous step. If any step fails, the rest are skipped.
+    order := web.DecodeJSON[Order](req)  // parse JSON → Result
     stored := order.
-        FlatMap(validateOrder).
-        Transform(withNewID).
-        FlatMap(enrich).
-        TapErr(logFailure).
-        Tap(storeAndNotify)
-    return rslt.Map(stored, web.Created[Order])
+        FlatMap(validateOrder).          // validate (can fail → 400)
+        Transform(withNewID).            // assign ID (pure transform)
+        FlatMap(enrich).                 // call pricing (can fail)
+        TapErr(logFailure).              // on error: log it
+        Tap(storeAndNotify)              // on success: persist
+    return rslt.Map(stored, web.Created[Order])  // wrap in 201
 }
 ```
 
-No `if err != nil`. The handler is a single chain: decode → validate → assign ID → enrich → log errors → store. Each method does one thing: `FlatMap` chains operations that can fail. `Transform` is a pure same-type transform. `TapErr` is an error-side side effect. `Tap` is an Ok-side side effect. `rslt.Map` at the end is standalone because it changes the type (Order → Response).
+No `if err != nil`. Each line in the pipeline does one thing:
+
+- **FlatMap** — run a function that can fail; skip the rest on error
+- **Transform** — pure same-type transform (like map, but type stays the same)
+- **TapErr** — side effect on error (doesn't change the error)
+- **Tap** — side effect on success (doesn't change the value)
+- **rslt.Map** — change the type (Order → Response); standalone because Go methods can't change the generic type
 
 The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering — headers, status codes, JSON encoding, error formatting — happens once in `web.Adapt`.
 
@@ -208,18 +220,21 @@ Looking up a resource and returning 404 on miss is two branches with identical b
 
 ```go
 handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
+    // Extract path param; absent → 400
     id := web.PathParam(req, "id").
         OkOr(web.BadRequest("missing order id"))
+    // Look up order; missing → 404
     found := rslt.FlatMap(id, findOrder)
+    // Wrap in 200 response (standalone Map — type changes)
     return rslt.Map(found, web.OK[Order])
 }
 ```
 
 Three steps, each building on the last:
 
-1. `web.PathParam(req, "id")` — wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges to `Result[string]`
-2. `rslt.FlatMap(id, findOrder)` — looks up the order (standalone FlatMap because string → Order is cross-type)
-3. `rslt.Map(found, web.OK[Order])` — wraps the Ok value in a 200 response
+1. `web.PathParam` wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges absent → `Err(400)`
+2. `rslt.FlatMap(id, findOrder)` looks up the order (standalone FlatMap because string → Order is a type change)
+3. `rslt.Map(found, web.OK[Order])` wraps the Ok value in a 200 response
 
 `findOrder` is a named function that bridges the store lookup:
 
@@ -244,25 +259,36 @@ Query parameters are optional. In conventional Go, each one requires checking em
 With fluentfp, parsing is a pipeline and filtering is a chain:
 
 ```go
+// NonEmpty: "" → not-ok, non-empty → ok. Get: (value, bool).
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
+// Parse min_total: absent → Ok(not-ok), valid → Ok(Of(n)),
+// invalid → Err(400). FlatMapResult bridges optional + fallible.
 parseMinTotal := func(raw string) rslt.Result[int] {
     return option.Atoi(raw).OkOr(web.BadRequest(
         fmt.Sprintf(
-            "min_total must be an integer (cents), got %q", raw)))
+            "min_total must be an integer (cents), got %q",
+            raw)))
 }
-
 rawMinTotal := option.NonEmpty(q.Get("min_total"))
-minTotalResult := option.FlatMapResult(rawMinTotal, parseMinTotal)
+minTotalResult := option.FlatMapResult(
+    rawMinTotal, parseMinTotal)
 mtOption, err := minTotalResult.Unpack()
 if err != nil {
     return rslt.Err[web.Response](err)
 }
 mt, hasMinTotal := mtOption.Get()
 
-hasMatchingStatus := func(o Order) bool { return o.Status == status }
-totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
+// Named predicates for optional filters.
+hasMatchingStatus := func(o Order) bool {
+    return o.Status == status
+}
+totalAtLeast := func(o Order) bool {
+    return o.TotalCents >= mt
+}
 
+// SortBy sorts by key function. KeepIf keeps elements
+// where the predicate returns true (like filter()).
 orders := slice.SortBy(s.list(), orderNum)
 if hasStatus {
     orders = orders.KeepIf(hasMatchingStatus)

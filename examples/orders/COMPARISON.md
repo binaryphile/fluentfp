@@ -157,16 +157,17 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     }
   }
 
-  // --- pipeline ---
+  // --- pipeline: each step operates on the Result ---
+  // If any step fails, the rest are skipped.
 
-  order := web.DecodeJSON[Order](req)
+  order := web.DecodeJSON[Order](req)   // parse JSON → Result
   stored := order.
-    FlatMap(validateOrder).
-    Transform(withNewID).
-    FlatMap(enrich).
-    TapErr(logFailure).
-    Tap(storeAndNotify)
-  return rslt.Map(stored, web.Created[Order])
+    FlatMap(validateOrder).             // validate (can fail)
+    Transform(withNewID).               // assign ID (pure)
+    FlatMap(enrich).                    // pricing (can fail)
+    TapErr(logFailure).                 // on error: log
+    Tap(storeAndNotify)                 // on success: persist
+  return rslt.Map(stored, web.Created[Order]) // → 201
 }
 ```
 
@@ -320,13 +321,13 @@ Three blocks. Each fallible step needs its own error check and response. The ass
 <td>
 
 ```go
-order := web.DecodeJSON[Order](req)
+order := web.DecodeJSON[Order](req)  // → Result
 assigned := order.
-  FlatMap(validateOrder).
-  Transform(withNewID)
+  FlatMap(validateOrder).            // can fail → stops chain
+  Transform(withNewID)               // pure transform on Ok
 ```
 
-A chain. `FlatMap` passes the Ok value to `validateOrder`; if it returns Err, the chain stops. `Transform` applies `withNewID` to the Ok value. Each method returns a `Result`, so the chain continues.
+A chain. `FlatMap` passes the Ok value to `validateOrder`; if it returns Err, the chain stops. `Transform` applies `withNewID` (no error possible). Each method returns a `Result`, so the chain continues.
 
 `FlatMap` is called "flat" because `validateOrder` returns `Result[Order]`: a plain `Map` would nest that into `Result[Result[Order]]`. FlatMap keeps it one level deep.
 
@@ -497,8 +498,12 @@ Two branches, identical boilerplate.
 <td>
 
 ```go
-id := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
+// Extract path param; absent → 400
+id := web.PathParam(req, "id").
+  OkOr(web.BadRequest("missing order id"))
+// Look up order; missing → 404
 found := rslt.FlatMap(id, findOrder)
+// Wrap in 200 (standalone Map — type changes)
 return rslt.Map(found, web.OK[Order])
 ```
 
