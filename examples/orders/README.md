@@ -103,15 +103,17 @@ handleCreateOrder := func(
 }
 ```
 
-No `if err != nil`. Each line in the pipeline does one thing:
+No `if err != nil`. The value flowing through every step is a `rslt.Result[Order]` -- a type that is either `Ok(order)` or `Err(error)`, never both. Each operation in the chain receives the `Ok` value if present, or skips if the Result is already an `Err`. Errors propagate automatically to the end.
 
-- **FlatMap** -- run a function that can fail; skip the rest on error
-- **Transform** -- same-type transform: `func(T) T` (can be pure or side-effecting)
+Each line in the pipeline does one thing:
+
+- **FlatMap** -- run a function that can itself fail (returns Result); skip the rest on error
+- **Transform** -- same-type transform: `func(T) T` (infallible -- can't produce an error)
 - **TapErr** -- side effect on error (doesn't change the error)
 - **Tap** -- side effect on success (doesn't change the value)
 - **rslt.Map** -- change the type (Order -> Response); standalone because Go methods can't change the generic type
 
-The handler returns a value instead of mutating a `ResponseWriter`. All the response rendering -- headers, status codes, JSON encoding, error formatting -- happens once in `web.Adapt`.
+The handler returns a `Result[Response]` instead of mutating a `ResponseWriter`. All the response rendering -- headers, status codes, JSON encoding, error formatting -- happens once in `web.Adapt`.
 
 That's the core idea. Everything below builds on it.
 
