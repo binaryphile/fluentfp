@@ -472,10 +472,9 @@ func mapDomainError(err error) (*web.Error, bool) {
   if errors.Is(err, errPricingFailure) {
     return &web.Error{Status: 502, Message: "pricing error"}, true
   }
-  if errors.Is(err, errUnknownSKU) {
-    return &web.Error{Status: 422, Message: err.Error()}, true
-  }
   return nil, false
+  // Unknown SKUs are caught in validation (400),
+  // so they never reach the breaker.
 }
 web.Adapt(handler, web.WithErrorMapper(
   mapDomainError))
@@ -531,16 +530,9 @@ return rslt.Map(found, web.OK[Order])
 
 ### Map Lookup
 
-The pricing function uses a plain map lookup — no fluentfp needed:
+The pricing function uses `prices[item.SKU]` directly — SKU validation already ran in the validation chain, so every SKU here is known-good. No error check needed.
 
-```go
-price, ok := prices[item.SKU]
-if !ok {
-    return o, fmt.Errorf("%w: %s", errUnknownSKU, item.SKU)
-}
-```
-
-`option.Lookup` earns its keep when you want a fallback instead of an error: `option.Lookup(m, k).Or(default)` replaces the entire `if !ok` block in one expression.
+`option.Lookup` earns its keep when you need a fallback: `option.Lookup(m, k).Or(default)` replaces the entire `if !ok` block in one expression.
 
 ### Query Parameter Parsing
 

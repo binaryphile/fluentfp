@@ -194,14 +194,11 @@ func mapDomainError(err error) (*web.Error, bool) {
             Status: 502, Message: "pricing service error",
         }, true
     }
-    if errors.Is(err, errUnknownSKU) {
-        return &web.Error{Status: 422, Message: err.Error()}, true
-    }
     return nil, false
 }
 ```
 
-Defined once, applied to every handler via `web.WithErrorMapper`. Breaker-open → 503, pricing failure → 502, unknown SKU → 422. In conventional Go, every handler that calls the enrichment function needs its own `if errors.Is` block with response writing for each error type.
+Defined once, applied to every handler via `web.WithErrorMapper`. Breaker-open → 503, pricing failure → 502. Unknown SKUs are caught earlier in validation (returns 400) so they never reach the breaker — bad input can't trip the circuit.
 
 **Try it:** send 3 orders with SKU `"FAIL-PRICE"`, then one with a normal SKU — it gets 503.
 
@@ -331,7 +328,7 @@ Background (fire-and-forget):
   postCh → toc.FromChan → toc.Tee(2) → [audit Pipe | inventory Pipe]
 ```
 
-The HTTP path is fully synchronous: the order is validated, enriched, and stored before the response is sent. Validation errors return 400, pricing failures return 502, unknown SKUs return 422, and a tripped circuit breaker returns 503.
+The HTTP path is fully synchronous: the order is validated, enriched, and stored before the response is sent. Validation errors (including unknown SKUs) return 400, pricing failures return 502, and a tripped circuit breaker returns 503.
 
 After storing, the order is sent to a background pipeline for post-processing. This is best-effort: if the channel is full, it's skipped with a log message.
 
