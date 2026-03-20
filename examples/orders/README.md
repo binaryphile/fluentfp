@@ -94,7 +94,7 @@ handleCreateOrder := func(
     // previous step. If any step fails, the rest are skipped.
     orderResult := web.DecodeJSON[Order](req) // -> Result
     storedResult := orderResult.
-        FlatMap(validateOrder).      // validate (-> 400)
+        FlatMap(Order.Validate).      // validate (-> 400)
         Transform(withNewID).            // assign ID + status
         FlatMap(enrich).             // pricing (-> 502/503)
         TapErr(logFailure).              // on error: log it
@@ -138,7 +138,7 @@ mux.HandleFunc("POST /orders",
 
 The response constructors -- `web.Created`, `web.OK`, `web.BadRequest`, `web.NotFound` -- carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
 
-### Chaining decode into validation (rslt.FlatMap, web.Steps)
+### Chaining decode into validation (rslt.FlatMap)
 
 Decoding a JSON body correctly in Go requires:
 
@@ -148,38 +148,18 @@ Decoding a JSON body correctly in Go requires:
 4. Decode, check error
 5. Run validations, check each error
 
-`web.DecodeJSON[Order](req)` does steps 1-4 in one call, returning `Result[Order]`. Then `rslt.FlatMap` chains it into validation:
+`web.DecodeJSON[Order](req)` does steps 1-4 in one call, returning `Result[Order]`. Then `FlatMap` chains it into validation:
 
 ```go
 orderResult := web.DecodeJSON[Order](req)
-validatedResult := orderResult.FlatMap(validateOrder)
+validatedResult := orderResult.FlatMap(Order.Validate)
 ```
 
-`FlatMap` chains two operations that each return `Result`. If `orderResult` is Err, `validateOrder` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `validateOrder` itself returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
+`Order.Validate` is a method expression -- Go turns the method `func (o Order) Validate() rslt.Result[Order]` into a plain function `func(Order) rslt.Result[Order]`, which is exactly what `FlatMap` needs. The validation logic lives on the type where it belongs.
+
+`FlatMap` chains two operations that each return `Result`. If `orderResult` is Err, `Validate` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `Validate` returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
 
 In practice: if decoding fails (wrong Content-Type -> 415, malformed JSON -> 400), validation is never called. If validation fails, that error propagates. The chain continues with `.Transform(withNewID).FlatMap(enrich)` -- each step feeds the next, errors propagate automatically.
-
-The validation chain is a list of named functions:
-
-```go
-validateOrder := web.Steps(
-    hasCustomer, hasItems, itemsHavePositiveQty)
-```
-
-Each validator has the signature `func(Order) rslt.Result[Order]` and carries its own HTTP status code:
-
-```go
-func itemsHavePositiveQty(o Order) rslt.Result[Order] {
-    if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
-        return rslt.Err[Order](
-            web.BadRequest(
-                "all items must have positive quantity"))
-    }
-    return rslt.Ok(o)
-}
-```
-
-Adding a validation means adding a name to `web.Steps(...)`. Each validator is independently testable. In conventional Go, this is a monolithic function where every check returns a bare `error` that loses the HTTP status code.
 
 ### Wrapping functions with resilience (call)
 
@@ -368,7 +348,7 @@ What toc gives you that bare goroutines don't:
 
 ```
 HTTP request (synchronous):
-  decode (web) -> validate (web.Steps) -> enrich (call.WithBreaker) -> store -> 201
+  decode (web) -> validate (Order.Validate) -> enrich (call.WithBreaker) -> store -> 201
 
 Background (fire-and-forget):
   postCh -> toc.FromChan -> toc.Tee(2) -> [audit Pipe | inventory Pipe]

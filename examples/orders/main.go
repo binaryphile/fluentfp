@@ -148,42 +148,19 @@ func enrichOrder(_ context.Context, o Order) (Order, error) {
 // Validation — top-level named functions
 // ---------------------------------------------------------------------------
 
-// Validators: each takes an Order and returns Result[Order].
-// Ok means valid (pass through), Err means invalid (rest of chain skipped).
-// web.BadRequest returns a 400 error that carries the HTTP status code.
-// rslt.Ok / rslt.Err wrap the value or error in a Result.
-
-// hasCustomer validates that the customer field is non-empty.
-func hasCustomer(o Order) rslt.Result[Order] {
+// Validate checks all business rules on the order, returning the first
+// error as a 400 Result. As a method, it works as a method expression
+// (Order.Validate) in FlatMap chains — no wrapper variable needed.
+func (o Order) Validate() rslt.Result[Order] {
 	if o.Customer == "" {
 		return rslt.Err[Order](web.BadRequest("customer is required"))
 	}
-	return rslt.Ok(o)
-}
-
-// hasItems validates that an order has at least one item.
-func hasItems(o Order) rslt.Result[Order] {
 	if len(o.Items) == 0 {
 		return rslt.Err[Order](web.BadRequest("order must have at least one item"))
 	}
-	return rslt.Ok(o)
-}
-
-// itemsHavePositiveQty validates all items have quantity > 0.
-// slice.From wraps a slice for chaining. Every returns true if the
-// predicate holds for all elements. LineItem.HasPositiveQty is a
-// method expression — Go turns the method into a plain function.
-func itemsHavePositiveQty(o Order) rslt.Result[Order] {
 	if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
 		return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
 	}
-	return rslt.Ok(o)
-}
-
-// itemsHaveKnownSKUs validates all SKUs exist in the price table.
-// This runs before the breaker-wrapped enrichment so bad input
-// doesn't count as a service failure.
-func itemsHaveKnownSKUs(o Order) rslt.Result[Order] {
 	for _, item := range o.Items {
 		if item.SKU == "FAIL-PRICE" {
 			continue // synthetic failure SKU, not a validation error
@@ -315,11 +292,8 @@ func main() {
 	postCh := make(chan Order, 20)
 	startPipeline(ctx, postCh)
 
-	// --- Validation + error mapping ---
+	// --- Error mapping ---
 
-	// Steps chains validators — runs each in order, skips the rest on first error.
-	validateOrder := web.Steps(
-		hasCustomer, hasItems, itemsHavePositiveQty, itemsHaveKnownSKUs)
 	// WithErrorMapper translates domain errors to HTTP errors once,
 	// at the Adapt boundary — handlers just return the error.
 	errorMapper := web.WithErrorMapper(mapDomainError)
@@ -357,7 +331,7 @@ func main() {
 		// If any step fails, the rest are skipped and the error propagates.
 		orderResult := web.DecodeJSON[Order](req)    // parse JSON → Result[Order]
 		storedResult := orderResult.
-			FlatMap(validateOrder).            // validate (can fail → 400)
+			FlatMap(Order.Validate).            // validate (can fail → 400)
 			Transform(withNewID).              // assign ID + status
 			FlatMap(enrich).                   // call pricing (can fail → 502/503)
 			TapErr(logFailure).                // on error: log it
