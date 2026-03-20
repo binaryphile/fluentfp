@@ -86,7 +86,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     order := web.DecodeJSON[Order](req)  // parse JSON → Result
     stored := order.
         FlatMap(validateOrder).          // validate (can fail → 400)
-        Transform(withNewID).            // assign ID (pure transform)
+        Transform(withNewID).            // assign ID + status
         FlatMap(enrich).                 // call pricing (can fail)
         TapErr(logFailure).              // on error: log it
         Tap(storeAndNotify)              // on success: persist
@@ -97,7 +97,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
 No `if err != nil`. Each line in the pipeline does one thing:
 
 - **FlatMap** — run a function that can fail; skip the rest on error
-- **Transform** — pure same-type transform (like map, but type stays the same)
+- **Transform** — same-type transform: `func(T) T` (can be pure or side-effecting)
 - **TapErr** — side effect on error (doesn't change the error)
 - **Tap** — side effect on success (doesn't change the value)
 - **rslt.Map** — change the type (Order → Response); standalone because Go methods can't change the generic type

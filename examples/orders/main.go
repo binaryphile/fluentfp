@@ -293,8 +293,9 @@ func main() {
 		return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
 	}
 
-	// withNewID is a pure transform — returns a new Order with ID set.
-	// Used with Transform in the pipeline (same type in, same type out).
+	// withNewID assigns a sequential ID and sets initial status.
+	// Not pure (idCounter.Add is a side effect), but returns a new
+	// value — Transform is the right shape (func(T) T).
 	withNewID := func(o Order) Order {
 		o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
 		o.Status = "pending"
@@ -363,7 +364,7 @@ func main() {
 		order := web.DecodeJSON[Order](req)    // parse JSON → Result[Order]
 		stored := order.
 			FlatMap(validateOrder).            // validate (can fail → 400)
-			Transform(withNewID).              // assign ID (pure transform)
+			Transform(withNewID).              // assign ID + status
 			FlatMap(enrich).                   // call pricing (can fail → 502/503)
 			TapErr(logFailure).                // on error: log it
 			Tap(storeAndNotify)                // on success: persist + notify

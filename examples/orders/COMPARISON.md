@@ -138,7 +138,8 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
 
   // --- named operations ---
 
-  // Pure transform: returns new Order with ID assigned
+  // Assigns sequential ID + initial status. Not pure
+  // (idCounter.Add), but returns a new value (func(T) T).
   withNewID := func(o Order) Order {
     o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
     o.Status = "pending"
@@ -172,7 +173,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
   order := web.DecodeJSON[Order](req)   // parse JSON → Result
   stored := order.
     FlatMap(validateOrder).             // validate (can fail)
-    Transform(withNewID).               // assign ID (pure)
+    Transform(withNewID).               // assign ID + status
     FlatMap(enrich).                    // pricing (can fail)
     TapErr(logFailure).                 // on error: log
     Tap(storeAndNotify)                 // on success: persist
