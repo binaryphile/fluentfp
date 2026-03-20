@@ -1,4 +1,6 @@
 # Build artifacts
+bin/orders
+orders
 testbuild
 **/testbuild
 

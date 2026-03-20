@@ -17,7 +17,9 @@ Usage:
 
   Commands:
 
+    build         -- build examples/orders to bin/
     test          -- run all tests
+    clean         -- remove binaries
 
   Options:
 
@@ -26,10 +28,23 @@ Usage:
     -x | --trace    enable debug tracing
 END
 
+BinDir=bin
+
 ## commands
+
+cmd.build() {
+  mkdir -p "$BinDir"
+  mk.Cue go build -o $BinDir/orders ./examples/orders/
+}
 
 cmd.test() {
   mk.Cue go test ./...
+}
+
+cmd.clean() {
+  rm -f "$BinDir/orders"
+  rmdir "$BinDir" 2>/dev/null || true
+  echo "cleaned"
 }
 
 ## boilerplate
