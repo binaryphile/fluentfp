@@ -101,6 +101,16 @@ That's the core idea. Everything below builds on it.
 
 ## How It Works, Piece by Piece
 
+### Result, Map, and FlatMap
+
+A `Result` is either `Ok(value)` or `Err(error)`. Every step in the pipeline above produces a Result. Two operations let you chain steps without unwrapping:
+
+- **FlatMap** -- the next step can fail (it returns a Result). If the current Result is Ok, FlatMap unwraps the value and passes it to the function. If the current Result is already Err, the function is skipped entirely. Called "flat" because the function returns `Result[T]`, and without flattening you'd get `Result[Result[T]]` -- nested. FlatMap keeps it one level deep.
+
+- **Map** -- the next step always succeeds (it returns a plain value, not a Result). If the current Result is Ok, Map applies the function and wraps the output in Ok. If Err, the error propagates untouched.
+
+Both come in method and standalone forms. The method form (`result.FlatMap(fn)`) works when the type stays the same. The standalone form (`rslt.FlatMap(result, fn)` / `rslt.Map(result, fn)`) works when the type changes -- Go methods can't introduce new type parameters, so cross-type operations need standalone functions.
+
 ### Returning values instead of mutating (web, rslt)
 
 The standard `http.HandlerFunc` takes a `ResponseWriter` and mutates it. That means every code path must remember to set headers, write the status, encode the body, and return. Miss any step and you get silent bugs (headers after body, missing Content-Type, double writes).
@@ -111,23 +121,13 @@ fluentfp's `web.Handler` returns a `rslt.Result[web.Response]`:
 type Handler = func(*http.Request) rslt.Result[web.Response]
 ```
 
-A `Result` is either `Ok(value)` or `Err(error)`. The handler returns one or the other. `web.Adapt` converts it to a standard `http.HandlerFunc`:
+The handler returns Ok or Err. `web.Adapt` converts it to a standard `http.HandlerFunc`:
 
 ```go
 mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder, errorMapper))
 ```
 
 The response constructors -- `web.Created`, `web.OK`, `web.BadRequest`, `web.NotFound` -- carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
-
-### Map and FlatMap on Result
-
-Two operations let you chain steps on a Result without unwrapping it:
-
-- **FlatMap** -- the next step can fail (it returns a Result). If the current Result is Ok, FlatMap unwraps the value and passes it to the function. If the current Result is already Err, the function is skipped entirely. Called "flat" because the function returns `Result[T]`, and without flattening you'd get `Result[Result[T]]` -- nested. FlatMap keeps it one level deep.
-
-- **Map** -- the next step always succeeds (it returns a plain value, not a Result). If the current Result is Ok, Map applies the function and wraps the output in Ok. If Err, the error propagates untouched.
-
-Both come in method and standalone forms. The method form (`result.FlatMap(fn)`) works when the type stays the same. The standalone form (`rslt.FlatMap(result, fn)` / `rslt.Map(result, fn)`) works when the type changes -- Go methods can't introduce new type parameters, so cross-type operations need standalone functions.
 
 ### Chaining decode into validation (rslt.FlatMap)
 
