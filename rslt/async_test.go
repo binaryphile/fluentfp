@@ -103,7 +103,6 @@ func TestRunAsyncDone(t *testing.T) {
 
 	select {
 	case <-a.Done():
-		// expected
 	case <-time.After(time.Second):
 		t.Fatal("Done() did not close within timeout")
 	}
@@ -134,6 +133,26 @@ func TestRunAsyncDoneWithSelect(t *testing.T) {
 	}
 }
 
+func TestRunAsyncCopySafety(t *testing.T) {
+	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+		time.Sleep(10 * time.Millisecond)
+		return 42, nil
+	})
+
+	// Copy the handle before completion.
+	b := a
+
+	// Both should see the same result.
+	v1, e1 := a.Wait()
+	v2, e2 := b.Wait()
+	if v1 != v2 || e1 != e2 {
+		t.Errorf("copy diverged: (%d,%v) vs (%d,%v)", v1, e1, v2, e2)
+	}
+	if v1 != 42 {
+		t.Errorf("value = %d, want 42", v1)
+	}
+}
+
 func TestRunAsyncNilFnPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -141,4 +160,37 @@ func TestRunAsyncNilFnPanics(t *testing.T) {
 		}
 	}()
 	rslt.RunAsync[int](context.Background(), nil)
+}
+
+func TestRunAsyncNilCtxPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for nil ctx")
+		}
+	}()
+	rslt.RunAsync[int](nil, func(_ context.Context) (int, error) {
+		return 0, nil
+	})
+}
+
+func TestRunAsyncString(t *testing.T) {
+	ch := make(chan struct{})
+	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+		<-ch
+		return 42, nil
+	})
+
+	// Pending.
+	s := a.String()
+	if s != "AsyncResult(pending)" {
+		t.Errorf("pending String() = %q, want AsyncResult(pending)", s)
+	}
+
+	// Complete.
+	close(ch)
+	a.Wait()
+	s = a.String()
+	if s != "AsyncResult(ok: 42)" {
+		t.Errorf("ok String() = %q, want AsyncResult(ok: 42)", s)
+	}
 }
