@@ -265,7 +265,7 @@ func newCreateOrder(
 	}
 
 	return func(req *http.Request) rslt.Result[web.Response] {
-		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
+		reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
 		// LiftCtx binds the context and wraps (Order, error) -> Result[Order].
 		enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)

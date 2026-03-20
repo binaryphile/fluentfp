@@ -82,7 +82,7 @@ resp, err := safeFetch(ctx, url)  // returns call.ErrCircuitOpen when tripped
 ```go
 // Typed context values — no sentinel keys, no type assertions
 ctx = ctxval.With(ctx, RequestID("req-123"))
-reqID := ctxval.From[RequestID](ctx).Or("unknown")
+reqID := ctxval.Get[RequestID](ctx).Or("unknown")
 ```
 
 See the [orders example](examples/orders/) for all of these composing in a single runnable service.
@@ -308,7 +308,7 @@ mux.HandleFunc("POST /users", endpoint)
 ```go
 type RequestID string
 ctx = ctxval.With(ctx, RequestID("abc-123"))
-reqID := ctxval.From[RequestID](ctx)  // Option[RequestID]
+reqID := ctxval.Get[RequestID](ctx)  // Option[RequestID]
 ```
 
 **[rslt](rslt/)** — typed error handling as values:
@@ -349,7 +349,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Collect per-item outcomes from FanOut | `rslt.CollectOkAndErr(results)` | rslt |
 | Exhaustive two-branch dispatch | `either.Fold(e, onLeft, onRight)` | either |
 | Panic on invariant violation | `must.Get(fn())`, `must.BeNil(err)` | must |
-| Store typed values in context.Context | `ctxval.With(ctx, val)` / `ctxval.From[T](ctx)` | ctxval |
+| Store typed values in context.Context | `ctxval.With(ctx, val)` / `ctxval.Get[T](ctx)` | ctxval |
 | Build typed HTTP handlers on net/http | `web.Adapt(handler, web.WithErrorMapper(m))` | web |
 | Decode JSON request bodies | `web.DecodeJSON[T](r)` | web |
 | Extract path parameters as Option | `web.PathParam(req, "id")` | web |

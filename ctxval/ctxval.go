@@ -10,11 +10,11 @@
 //
 //	ctx = ctxval.With(ctx, RequestID("abc"))
 //	ctx = ctxval.With(ctx, TraceID("xyz"))
-//	reqID := ctxval.From[RequestID](ctx)  // Option[RequestID]("abc")
-//	trID  := ctxval.From[TraceID](ctx)    // Option[TraceID]("xyz")
+//	reqID := ctxval.Get[RequestID](ctx)  // Option[RequestID]("abc")
+//	trID  := ctxval.Get[TraceID](ctx)    // Option[TraceID]("xyz")
 //
 // For code that only needs one value per type (e.g., middleware injecting
-// a User into context), the package-level [With] and [From] functions are
+// a User into context), the package-level [With] and [Get] functions are
 // convenient. For shared or public boundaries where multiple values of the
 // same type coexist, prefer [Key] — it gives each value a unique identity
 // without requiring a new named type:
@@ -48,18 +48,18 @@ func With[T any](ctx context.Context, val T) context.Context {
 	return context.WithValue(ctx, typeKey[T]{}, box[T]{v: val})
 }
 
-// From retrieves the value of type T from ctx, returning a not-ok option
+// Get retrieves the value of type T from ctx, returning a not-ok option
 // if no value of that type is present. T must match the exact static type
 // used in [With]; interface and concrete types are distinct keys.
 //
 // Panics if ctx is nil (same as context.Context.Value).
-func From[T any](ctx context.Context) option.Option[T] {
+func Get[T any](ctx context.Context) option.Option[T] {
 	b, ok := ctx.Value(typeKey[T]{}).(box[T])
 
 	return option.New(b.v, ok)
 }
 
-// Key is a named context key for values of type T. Unlike [With]/[From],
+// Key is a named context key for values of type T. Unlike [With]/[Get],
 // which key by type alone, each Key is a unique identity — multiple keys
 // can carry the same type T without collision.
 //
@@ -82,7 +82,7 @@ func (k *Key[T]) With(ctx context.Context, val T) context.Context {
 	return context.WithValue(ctx, k, box[T]{v: val})
 }
 
-// From retrieves the value under this key from ctx, returning a not-ok
+// Get retrieves the value under this key from ctx, returning a not-ok
 // option if not present.
 //
 // Panics if k is nil (use [NewKey] to create keys).

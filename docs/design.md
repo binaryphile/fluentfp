@@ -77,7 +77,7 @@ flowchart TD
 | `combo` | Combinatorial generators — `CartesianProduct`, `Permutations`, `Combinations`, `PowerSet` |
 | `seq` | Iterator-native lazy chains wrapping `iter.Seq[T]`. Method chaining via defined type. Re-evaluates (vs stream's memoization). |
 | `toc` | Constrained stage runner — bounded input queue, serial/parallel workers, fail-fast default, atomic stats (service/idle/output-blocked time, weight-tracked InFlightWeight). Inspired by Drum-Buffer-Rope (Theory of Constraints). |
-| `ctxval` | Typed context value storage — `With[T]`/`From[T]` keyed by type, `Key[T]` for named keys. Returns `Option[T]`. |
+| `ctxval` | Typed context value storage — `With[T]`/`Get[T]` keyed by type, `Key[T]` for named keys. Returns `Option[T]`. |
 | `web` | Typed HTTP handler composition on net/http — `Handler` returns `Result[Response]`, `Adapt` bridges to `http.HandlerFunc`, `WithErrorMapper` for domain→HTTP errors, `DecodeJSON` with configurable policy, `Steps` for same-type pipeline chains. Error constructors: `BadRequest`, `Forbidden`, `NotFound`, `Conflict`, `TooManyRequests`, `StatusError`. |
 
 Every package uses a `doc.go` containing a `func _()` that references all named exports. This is a compile-time proof that the exports exist — if any are renamed or removed, the build breaks.

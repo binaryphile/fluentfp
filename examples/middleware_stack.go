@@ -88,7 +88,7 @@ func main() {
 	// --- Handler ---
 
 	handleWeather := func(req *http.Request) rslt.Result[web.Response] {
-		reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
+		reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 		city := option.NonEmpty(req.URL.Query().Get("city")).Or("london")
 
 		log.Printf("[%s] looking up weather for %s", reqID, city)

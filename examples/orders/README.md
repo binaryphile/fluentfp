@@ -67,7 +67,7 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 
 ```go
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
-    reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
+    reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
     enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)          // bind ctx to breaker call
     logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
@@ -290,10 +290,10 @@ Go's `context.WithValue` requires a private key type, a type assertion on retrie
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
 // Handler -- retrieve with fallback:
-reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
+reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 ```
 
-`ctxval.From` returns an `Option`, so `.Or("unknown")` is the fallback. No sentinel types, no type assertions.
+`ctxval.Get` returns an `Option`, so `.Or("unknown")` is the fallback. No sentinel types, no type assertions.
 
 ### Bounded background pipelines (toc)
 

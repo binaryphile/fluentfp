@@ -495,7 +495,7 @@ Sentinel key type + type assertion + nil check.
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
 // From retrieves by type -> Option. Or provides fallback.
-reqID := ctxval.From[RequestID](req.Context()).Or("unknown")
+reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 ```
 
 The Go type itself is the key -- no sentinel type to define. `From` returns an `Option`, so `.Or("unknown")` handles the absent case.
