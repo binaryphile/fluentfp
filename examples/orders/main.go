@@ -72,15 +72,6 @@ type Order struct {
 	TotalCents int        `json:"total_cents"`
 }
 
-// GetID returns the order ID (method expression: Order.GetID).
-func (o Order) GetID() string { return o.ID }
-
-// GetStatus returns the order status (method expression: Order.GetStatus).
-func (o Order) GetStatus() string { return o.Status }
-
-// GetTotalCents returns the order total in cents (method expression: Order.GetTotalCents).
-func (o Order) GetTotalCents() int { return o.TotalCents }
-
 // orderNum extracts the numeric suffix from an order ID for sorting.
 // "ord-2" → 2, "ord-10" → 10. Returns 0 if parsing fails.
 func orderNum(o Order) int {
@@ -382,7 +373,7 @@ func main() {
 			OkOr(web.BadRequest("missing order id"))
 		// Look up order — findOrder returns Result (found → Ok, missing → 404).
 		found := rslt.FlatMap(id, findOrder)
-		// Wrap in 200 response (standalone Map because string → Response is cross-type).
+		// Wrap in 200 response (standalone Map because Order → Response is cross-type).
 		return rslt.Map(found, web.OK[Order])
 	}
 
