@@ -1025,3 +1025,29 @@ Where packages depend on each other, and why:
 `hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair`; `toc` depends on `rslt` — none of these import each other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.
+
+### D37: rslt.RunAsync — typed async execution with panic recovery
+
+`RunAsync[R](ctx, fn)` launches fn in a goroutine and returns `*AsyncResult[R]` with `Wait() (R, error)` and `Done() <-chan struct{}`. Panics recovered as `*PanicError` with stack trace.
+
+**Why in rslt, not toc:** RunAsync is a goroutine launcher with panic->PanicError normalization — not a pipeline stage with bounded concurrency, stats, or backpressure. It matches rslt's existing PanicError + Lift patterns.
+
+**Why Done() + Wait():** `Done()` returns a channel composable with `select`. `Wait()` is the simple blocking form. Both safe for concurrent/multiple calls.
+
+**Why panic recovery by default:** An unrecovered panic in a background goroutine crashes the entire process. RunAsync's purpose is safe async execution — panic recovery is the core value, not optional.
+
+### D38: Stage.SetMaxWIP — dynamic rope (WIP limiting)
+
+Adds `Options.MaxWIP` (static WIP limit) and `Stage.SetMaxWIP(n)` (dynamic adjustment). Separates DBR rope from buffer.
+
+**Why separate from Capacity:** Buffer protects the constraint from upstream starvation (Capacity = channel size). Rope prevents upstream from overproducing (MaxWIP = admission limit). Conflating both in Capacity forces choosing between starvation protection and overproduction control.
+
+**Why SetMaxWIP(int) not RopeFunc func() int:** The caller knows when the limit changes; the stage shouldn't poll. SetMaxWIP broadcasts to blocked Submits immediately. A memory monitor or rate limiter calls SetMaxWIP periodically.
+
+**Why per-waiter channels not sync.Cond:** `sync.Cond.Wait()` is not context-aware — blocked Submit hangs on ctx cancel if no worker completes. Per-waiter channels integrate with `select` for cancellation, provide FIFO fairness, grant exactly N waiters for N slots (no thundering herd).
+
+**Why exact accounting:** Existing `bufferedDepth` is approximate. Correctness-sensitive gating requires exact counts. `admitted` incremented under lock before enqueue, decremented on completion or rollback. Worker panic defer also decrements — no slot leaks.
+
+**Why floor of 1:** MaxWIP=0 deadlocks. Minimum is 1.
+
+**Why default Capacity+Workers:** Maximum possible WIP. Existing code sees identical behavior — rope fast path always passes.

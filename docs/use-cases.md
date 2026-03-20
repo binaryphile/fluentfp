@@ -236,10 +236,12 @@
 - 2f. Developer needs to bridge an Option into a Result, treating absence as a specific error: System converts via `Option.OkOr(err)` (eager) or `Option.OkOrCall(fn)` (lazy).
 - 2g. Developer needs to apply a fallible function to an optional value, distinguishing absent from invalid: System applies via `option.FlatMapResult(opt, fn)` — absent → Ok(NotOk), present+valid → Ok(Of(v)), present+invalid → Err.
 - 2h. Developer needs to use a context-aware call in a Result chain: System partially applies the context via `rslt.LiftCtx(ctx, fn)`, producing `func(T) Result[R]` suitable for FlatMap.
+- 2i. Developer needs to launch typed async work with panic safety: System runs the function in a goroutine via `rslt.RunAsync(ctx, fn)`, returning `*AsyncResult[R]` with `Wait() (R, error)` and `Done() <-chan struct{}`. Panics recovered as `*PanicError` with stack trace.
 
 **Sub-Variations:**
 - Either: general two-branch sum type, left = failure convention, right = success convention
 - Result: specialized `Either[error, T]` with `Ok`/`Err` constructors, `PanicError` for recovered panics
+- Async: `RunAsync` — typed goroutine launcher with panic→PanicError normalization
 - Collectors: `CollectAll`, `CollectOk`, `CollectErr`, `CollectOkAndErr` — batch result processing returning plain slices
 - Extraction: value-and-presence pair (`Get`), error accessor (`Err`), default value (`Or`), lazy default (`OrCall`)
 - Side effects: `IfOk`, `IfErr` (void), `Tap`, `TapErr` (chainable)
@@ -613,12 +615,16 @@
 - 4a. Developer does not need individual results: Developer calls DiscardAndWait or DiscardAndCause to drain and retrieve stage-level status in one step.
 - 5a. Developer needs to distinguish success, fail-fast error, and parent cancellation: Developer calls Cause instead of Wait for the latched terminal cause.
 - 5b. Developer enables TrackAllocations and checks AllocTrackingActive to confirm the runtime supports it, then reads ObservedAllocBytes/ObservedAllocObjects from Stats as a directional signal for allocation-heavy stages. These are process-global counters sampled around each fn invocation — not exclusive to the stage, not additive across stages.
+- 6a. Developer separates buffer sizing from WIP limiting: `Capacity` sizes the buffer (protects the constraint from upstream starvation). `MaxWIP` limits total admitted-but-not-completed items (prevents overproduction). Buffer and rope are distinct DBR concerns — buffer absorbs variability, rope paces work release.
+- 6b. Developer dynamically adjusts WIP limit at runtime: `SetMaxWIP(n)` changes the admission limit while the stage is running. Blocked Submits wake immediately if the new limit is higher. Returns the applied value (clamped to floor of 1, ceiling of Capacity+Workers). A memory monitor, rate limiter, or downstream pressure signal can call SetMaxWIP periodically.
+- 6c. Submit is blocked by rope (WIP at limit): Submit waits in a cancelable select (per-waiter channel queue). Respects context cancellation and stage close while waiting. FIFO fairness — waiters are granted slots in submission order.
 
 **Sub-Variations:**
 - Capacity: zero (unbuffered — Submit blocks until a worker dequeues), positive (buffered queue)
 - Workers: 1 (serial constraint), N (limited concurrency)
+- WIP limiting: static (MaxWIP at construction), dynamic (SetMaxWIP at runtime), default (Capacity + Workers)
 - Error mode: fail-fast (default), continue-on-error
-- Stats: submitted/completed/failed/panicked/canceled counts, service time, idle time, output-blocked time, buffered depth, in-flight weight
+- Stats: submitted/completed/failed/panicked/canceled counts, service time, idle time, output-blocked time, buffered depth, in-flight weight, MaxWIP, admitted, rope wait count/time
 - Allocation tracking: disabled (default), enabled via TrackAllocations
 - Shutdown: explicit (CloseInput), fail-fast (automatic), parent cancel (automatic via cancel watcher)
 
