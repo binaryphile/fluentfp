@@ -262,7 +262,7 @@ Packages are independent — import one or all.
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
 | [call](call/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
-| [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin` |
+| [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin`, `SetMaxWIP` |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
 | [web](web/)         | Typed HTTP handlers              | `Adapt`, `DecodeJSON`, `Steps`                 |
 | [memo](memo/)       | Memoization                      | `Of`, `Fn`, `FnErr`, `NewLRU`                  |
@@ -361,6 +361,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Broadcast to N branches | `toc.NewTee(ctx, src, n)` | toc |
 | Recombine N streams into one | `toc.NewMerge(ctx, sources...)` | toc |
 | Recombine two branch results | `toc.NewJoin(ctx, srcA, srcB, fn)` | toc |
+| Dynamic WIP limiting (rope) | `stage.SetMaxWIP(n)` / `stage.MaxWIP()` | toc |
 | Lazy iterate with memoization | `stream.Generate(seed, fn).Take(10).Collect()` | stream |
 | Lazy iterate without memoization | `seq.From(s).KeepIf(f).Take(10).Collect()` | seq |
 | Memoize a function | `memo.Of(fn)` or `memo.Fn(cache, fn)` | memo |
@@ -373,7 +374,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 
 | Example | Packages | Description |
 |---------|----------|-------------|
-| [orders](examples/orders/) | web, toc, call, ctxval, option, rslt, slice | Curl-testable order processing service — full cross-package composition demo |
+| [orders](examples/orders/) | web, toc, ctxval, option, rslt, slice | Curl-testable order processing service — full cross-package composition demo |
 | [resilient_client](examples/resilient_client.go) | call | Circuit breaker + retry + error classification in 20 lines |
 | [pipeline_fanout](examples/pipeline_fanout.go) | toc, rslt | CSV ingest → parse → validate → Tee to DB + audit log with stats |
 | [tee_join_wal](examples/tee_join_wal.go) | toc, rslt | Write-ahead log + primary store dual-write via Tee/Join |

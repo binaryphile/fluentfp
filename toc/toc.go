@@ -64,10 +64,17 @@ var ErrClosed = errors.New("toc: stage closed")
 // affects stats only, not admission.
 type Options[T any] struct {
 	// Capacity is the number of items the input buffer can hold.
-	// Submit blocks when the buffer is full (the "rope").
+	// Submit blocks when the buffer is full.
 	// Zero means unbuffered: Submit blocks until a worker dequeues.
 	// Negative values panic.
 	Capacity int
+
+	// MaxWIP is the maximum number of admitted items (buffered +
+	// in-flight). Submit blocks when the limit is reached (the "rope").
+	// Zero means default: Capacity + Workers (backward compatible).
+	// Clamped to max(1, min(MaxWIP, Capacity + Workers)) at construction.
+	// Adjust at runtime with [Stage.SetMaxWIP].
+	MaxWIP int
 
 	// Weight returns the cost of item t for stats tracking only
 	// ([Stats.InFlightWeight]). Does not affect admission — capacity
@@ -143,6 +150,11 @@ type Stats struct {
 	InFlightWeight int64 // weighted cost of items currently in fn (stats-only, not admission)
 	QueueCapacity  int   // configured capacity
 
+	MaxWIP        int   // current WIP limit
+	Admitted      int64 // current admitted-not-completed count
+	RopeWaitCount int64 // submissions that blocked on rope
+	RopeWaitNs    int64 // cumulative rope wait time (nanoseconds)
+
 	// AllocTrackingActive reports whether allocation sampling is
 	// effectively enabled for this stage. False when
 	// [Options.TrackAllocations] was not set, or when the runtime does
@@ -166,6 +178,12 @@ type Stats struct {
 	// exact allocation profiling, use go tool pprof.
 	ObservedAllocBytes   uint64
 	ObservedAllocObjects uint64
+}
+
+// waiter represents a blocked Submit waiting for an admission slot.
+// grantWaiters closes ready to wake exactly this waiter.
+type waiter struct {
+	ready chan struct{}
 }
 
 // queued wraps an item with its pre-computed weight.
@@ -211,8 +229,17 @@ type Stage[T, R any] struct {
 
 	trackAllocs bool
 	capacity    int
+	workers     int
 
 	weight func(T) int64
+
+	// Rope: admission control via per-waiter channel queue.
+	admissionMu  sync.Mutex
+	admitted     int64     // items admitted but not yet completed
+	maxWIP       int       // current WIP limit; >= 1
+	waiters      []waiter  // FIFO queue of blocked Submits
+	ropeWaitCnt  atomic.Int64
+	ropeWaitNs   atomic.Int64
 
 	// err is the first observed fail-fast error (not deterministic
 	// by input order — first worker to acquire errMu wins).
@@ -263,6 +290,18 @@ func start[T, R any](
 		weight = func(_ T) int64 { return 1 }
 	}
 
+	ceiling := capacity + workers
+	maxWIP := opts.MaxWIP
+	if maxWIP <= 0 {
+		maxWIP = ceiling // default: no additional constraint
+	}
+	if maxWIP > ceiling {
+		maxWIP = ceiling
+	}
+	if maxWIP < 1 {
+		maxWIP = 1
+	}
+
 	stageCtx, cancel := context.WithCancelCause(ctx)
 
 	s := &Stage[T, R]{
@@ -274,6 +313,8 @@ func start[T, R any](
 		cancel:      cancel,
 		trackAllocs: opts.TrackAllocations && isAllocMetricsSupported(),
 		capacity:    capacity,
+		workers:     workers,
+		maxWIP:      maxWIP,
 		weight:      weight,
 	}
 
@@ -454,7 +495,95 @@ func (s *Stage[T, R]) Submit(ctx context.Context, item T) error {
 
 	q := queued[T]{item: item, weight: w}
 
-	return s.trySend(ctx, q)
+	// Rope: acquire admission slot before sending to channel.
+	if err := s.acquireAdmission(ctx); err != nil {
+		return err
+	}
+
+	if err := s.trySend(ctx, q); err != nil {
+		// Rollback: release the admission slot we acquired.
+		s.releaseAdmission()
+
+		return err
+	}
+
+	return nil
+}
+
+// acquireAdmission blocks until an admission slot is available or
+// the context/stage is canceled. Returns nil on success, error on
+// cancel/close.
+func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
+	s.admissionMu.Lock()
+
+	// Fast path: slot available.
+	if s.admitted < int64(s.maxWIP) {
+		s.admitted++
+		s.admissionMu.Unlock()
+
+		return nil
+	}
+
+	// Slow path: enqueue a waiter and block.
+	w := waiter{ready: make(chan struct{})}
+	s.waiters = append(s.waiters, w)
+	s.admissionMu.Unlock()
+
+	s.ropeWaitCnt.Add(1)
+	waitStart := time.Now()
+
+	select {
+	case <-w.ready:
+		// Slot granted by grantWaiters (admitted already incremented).
+		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
+
+		return nil
+
+	case <-ctx.Done():
+		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
+		s.admissionMu.Lock()
+		if s.removeWaiter(w) {
+			// Still in queue — remove and return error.
+			s.admissionMu.Unlock()
+
+			return ctx.Err()
+		}
+		// Already granted — honor the grant, don't leak the slot.
+		s.admissionMu.Unlock()
+
+		return nil
+
+	case <-s.closing:
+		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
+		s.admissionMu.Lock()
+		if s.removeWaiter(w) {
+			s.admissionMu.Unlock()
+
+			return ErrClosed
+		}
+		// Already granted — honor the grant.
+		s.admissionMu.Unlock()
+
+		return nil
+	}
+}
+
+// removeWaiter removes w from the waiters queue. Returns true if found
+// and removed, false if already granted (not in queue).
+// Must be called with admissionMu held.
+func (s *Stage[T, R]) removeWaiter(w waiter) bool {
+	for i, candidate := range s.waiters {
+		if candidate.ready == w.ready {
+			s.waiters = append(s.waiters[:i], s.waiters[i+1:]...)
+			if len(s.waiters) == 0 {
+				s.waiters = nil
+			}
+
+			return true
+		}
+	}
+
+	return false
 }
 
 // trySend attempts to send q to the input channel under the sendMu
@@ -628,6 +757,11 @@ func (s *Stage[T, R]) Stats() Stats {
 		depth = s.bufferedDepth.Load()
 	}
 
+	s.admissionMu.Lock()
+	admitted := s.admitted
+	maxWIP := s.maxWIP
+	s.admissionMu.Unlock()
+
 	return Stats{
 		Submitted:            s.submitted.Load(),
 		Completed:            s.completed.Load(),
@@ -643,10 +777,69 @@ func (s *Stage[T, R]) Stats() Stats {
 		BufferedDepth:        depth,
 		InFlightWeight:       s.inFlightWeight.Load(),
 		QueueCapacity:        s.capacity,
+		MaxWIP:               maxWIP,
+		Admitted:             admitted,
+		RopeWaitCount:        s.ropeWaitCnt.Load(),
+		RopeWaitNs:           s.ropeWaitNs.Load(),
 		AllocTrackingActive:  s.trackAllocs,
 		ObservedAllocBytes:   s.allocBytes.Load(),
 		ObservedAllocObjects: s.allocObjects.Load(),
 	}
+}
+
+// grantWaiters wakes blocked Submits when slots are available.
+// Must be called with admissionMu held.
+func (s *Stage[T, R]) grantWaiters() {
+	for len(s.waiters) > 0 && s.admitted < int64(s.maxWIP) {
+		w := s.waiters[0]
+		s.waiters[0] = waiter{} // clear for GC
+		s.waiters = s.waiters[1:]
+		s.admitted++
+		close(w.ready)
+	}
+	// Reclaim backing array when queue empties.
+	if len(s.waiters) == 0 {
+		s.waiters = nil
+	}
+}
+
+// releaseAdmission decrements the admitted counter and wakes waiters.
+// Called by workers on completion (including panic recovery).
+func (s *Stage[T, R]) releaseAdmission() {
+	s.admissionMu.Lock()
+	s.admitted--
+	s.grantWaiters()
+	s.admissionMu.Unlock()
+}
+
+// SetMaxWIP dynamically adjusts the WIP limit. Wakes blocked Submits
+// if the new limit is higher than the current one. The value is clamped
+// to [1, Capacity+Workers]. Returns the applied value.
+// Concurrency-safe.
+func (s *Stage[T, R]) SetMaxWIP(n int) int {
+	ceiling := s.capacity + s.workers
+	if n < 1 {
+		n = 1
+	}
+	if n > ceiling {
+		n = ceiling
+	}
+
+	s.admissionMu.Lock()
+	s.maxWIP = n
+	s.grantWaiters()
+	s.admissionMu.Unlock()
+
+	return n
+}
+
+// MaxWIP returns the current WIP limit.
+func (s *Stage[T, R]) MaxWIP() int {
+	s.admissionMu.Lock()
+	n := s.maxWIP
+	s.admissionMu.Unlock()
+
+	return n
 }
 
 // worker pulls from in, calls fn, and sends every result to out.
@@ -686,6 +879,8 @@ func (s *Stage[T, R]) worker(
 			outStart := time.Now()
 			s.out <- rslt.Err[R](context.Cause(ctx))
 			s.outputBlockedNs.Add(int64(time.Since(outStart)))
+
+			s.releaseAdmission()
 
 			continue
 		}
@@ -744,6 +939,8 @@ func (s *Stage[T, R]) worker(
 		outStart := time.Now()
 		s.out <- result
 		s.outputBlockedNs.Add(int64(time.Since(outStart)))
+
+		s.releaseAdmission()
 	}
 }
 

@@ -38,7 +38,7 @@ Drum-Buffer-Rope (DBR) is the operational policy derived from this insight: the 
 | Constraint (bottleneck) | The stage's processing capacity — `fn` execution bounded by `Workers` |
 | Drum (constraint's pace) | The stage's processing pace, primarily shaped by `fn` and `Workers` (actual throughput also depends on downstream consumption) |
 | Buffer (protective queue) | `Capacity` — bounded input queue in front of the constrained step |
-| Rope (WIP limit) | Bounded admission to the stage — `Submit` blocks when total WIP (`Capacity` + `Workers`) is saturated |
+| Rope (WIP limit) | `MaxWIP` — bounded admission to the stage. `Submit` blocks when admitted items reach the limit. Adjustable at runtime via `SetMaxWIP` |
 | Constraint monitoring | `Stats` — ServiceTime, IdleTime, OutputBlockedTime indicate constraint utilization and downstream pressure |
 
 *The hiking analogy is from Goldratt, Eliyahu M. The Goal. North River Press, 1984. DBR applied to software in Tendon, Steve and Wolfram Müller. Hyper-Productive Knowledge Work Performance, Ch 18. J. Ross Publishing, 2015.*
@@ -58,6 +58,22 @@ Drum-Buffer-Rope (DBR) is the operational policy derived from this insight: the 
 **Workers** is the number of concurrent fn invocations. Default 1 (serial constraint — the common case).
 
 **Submit's ctx is admission-only** — it controls how long Submit blocks, not what context fn receives. fn always gets the stage context (derived from Start's ctx).
+
+**MaxWIP** limits total admitted-but-not-completed items (buffered + in-flight). Default is `Capacity + Workers` (no additional constraint). Set statically via `Options.MaxWIP` or dynamically via `Stage.SetMaxWIP(n)`. When admitted items reach the limit, Submit blocks until a worker completes — this is the "rope" that prevents upstream overproduction.
+
+```go
+stage := toc.Start(ctx, processChunk, toc.Options[Chunk]{
+    Capacity: 10,
+    Workers:  4,
+    MaxWIP:   6, // at most 6 items in the system at once
+})
+
+// Dynamic adjustment based on runtime signal:
+stage.SetMaxWIP(3)  // tighten under memory pressure
+stage.SetMaxWIP(10) // relax when pressure subsides
+```
+
+`SetMaxWIP` wakes blocked Submits if the new limit is higher. Value is clamped to `[1, Capacity+Workers]`. Returns the applied value.
 
 **Output must be drained.** Workers block on the unbuffered output channel if nobody reads. Always drain `Out()` or use `DiscardAndWait()`.
 
