@@ -257,16 +257,10 @@ func newListOrders(s *store) web.Handler {
 		}
 		mt, hasMinTotal := mtOption.Get()
 
-		hasMatchingStatus := func(o Order) bool { return o.Status == status }
-		totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
+		hasMatchingStatus := func(o Order) bool { return !hasStatus || o.Status == status }
+		totalAtLeast := func(o Order) bool { return !hasMinTotal || o.TotalCents >= mt }
 
-		orders := slice.SortBy(s.list(), orderNum)
-		if hasStatus {
-			orders = orders.KeepIf(hasMatchingStatus)
-		}
-		if hasMinTotal {
-			orders = orders.KeepIf(totalAtLeast)
-		}
+		orders := slice.SortBy(s.list(), orderNum).KeepIf(hasMatchingStatus).KeepIf(totalAtLeast)
 
 		return rslt.Ok(web.OK(orders))
 	}
