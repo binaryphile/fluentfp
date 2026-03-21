@@ -182,6 +182,25 @@ type Stats struct {
 	ObservedAllocObjects uint64
 }
 
+// testHooks holds optional barrier callbacks for deterministic testing.
+// nil in production. Assigned before goroutines launch, read-only after.
+type testHooks struct {
+	afterAdmitFastPath  func() // after admitted++ and Unlock in acquireAdmission
+	afterWaiterQueued   func() // after waiters append and Unlock, before select
+	onGrant             func() // in grantWaitersLocked after close(w.ready) — UNDER LOCK, must not block
+	afterRelease        func() // after Unlock in releaseAdmission
+	afterCloseAdmission func() // in CloseInput after closedForAdmission+Unlock, before close(s.closing)
+	beforeRevokeOrHonor func() // before admissionMu.Lock in revokeOrHonor
+}
+
+// notifyNonBlocking sends to ch without blocking. Safe to call under a mutex.
+func notifyNonBlocking(ch chan<- struct{}) {
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
 // waiter represents a blocked Submit waiting for an admission slot.
 // grantWaitersLocked closes ready to wake exactly this waiter.
 type waiter struct {
@@ -203,6 +222,7 @@ type Stage[T, R any] struct {
 	closing   chan struct{}   // closed on shutdown to unblock Submit
 	stageDone <-chan struct{} // closed when stageCtx is canceled (parent or fail-fast)
 	cancel    context.CancelCauseFunc
+	hooks     *testHooks     // nil in production; set by tests for deterministic barriers
 	wg        sync.WaitGroup
 
 	// closed guards input shutdown. Once set, Submit rejects.
@@ -534,6 +554,10 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 		s.admitted++
 		s.admissionMu.Unlock()
 
+		if h := s.hooks; h != nil && h.afterAdmitFastPath != nil {
+			h.afterAdmitFastPath()
+		}
+
 		return nil
 	}
 
@@ -544,6 +568,10 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 		s.maxWaiterCount = len(s.waiters)
 	}
 	s.admissionMu.Unlock()
+
+	if h := s.hooks; h != nil && h.afterWaiterQueued != nil {
+		h.afterWaiterQueued()
+	}
 
 	s.ropeWaitCnt.Add(1)
 	waitStart := time.Now()
@@ -584,6 +612,10 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 //
 // Must NOT be called with admissionMu held.
 func (s *Stage[T, R]) revokeOrHonor(w waiter, rejectErr error) error {
+	if h := s.hooks; h != nil && h.beforeRevokeOrHonor != nil {
+		h.beforeRevokeOrHonor()
+	}
+
 	s.admissionMu.Lock()
 	if s.removeWaiter(w) {
 		s.admissionMu.Unlock()
@@ -678,6 +710,10 @@ func (s *Stage[T, R]) CloseInput() {
 		s.admissionMu.Lock()
 		s.closedForAdmission = true
 		s.admissionMu.Unlock()
+
+		if h := s.hooks; h != nil && h.afterCloseAdmission != nil {
+			h.afterCloseAdmission()
+		}
 
 		s.closed.Store(true)
 		close(s.closing) // unblock any in-flight trySend selects
@@ -855,6 +891,9 @@ func (s *Stage[T, R]) grantWaitersLocked() {
 		s.waiters = s.waiters[1:]
 		s.admitted++
 		close(w.ready)
+		if h := s.hooks; h != nil && h.onGrant != nil {
+			h.onGrant() // UNDER LOCK — must not block. Use notifyNonBlocking.
+		}
 	}
 	// Reclaim backing array when queue empties.
 	if len(s.waiters) == 0 {
@@ -869,6 +908,10 @@ func (s *Stage[T, R]) releaseAdmission() {
 	s.admitted--
 	s.grantWaitersLocked()
 	s.admissionMu.Unlock()
+
+	if h := s.hooks; h != nil && h.afterRelease != nil {
+		h.afterRelease()
+	}
 }
 
 // SetMaxWIP dynamically adjusts the WIP limit. Wakes blocked Submits
