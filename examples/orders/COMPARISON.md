@@ -477,7 +477,7 @@ ctx := ctxval.With(r.Context(), RequestID("req-1"))
 reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 ```
 
-The Go type itself is the key -- no sentinel type to define. `From` returns an `Option`, so `.Or("unknown")` handles the absent case.
+The Go type itself is the key -- no sentinel type to define. `Get` returns an `Option`, so `.Or("unknown")` handles the absent case.
 
 </td>
 </tr>
