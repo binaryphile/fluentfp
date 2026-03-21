@@ -1,6 +1,7 @@
 package toc
 
 import (
+	"container/list"
 	"context"
 	"errors"
 	"runtime/debug"
@@ -196,8 +197,11 @@ type testHooks struct {
 
 // waiter represents a blocked Submit waiting for an admission slot.
 // grantWaitersLocked closes ready to wake exactly this waiter.
+// elem is the back-pointer into the waiter list for O(1) removal;
+// nil after removal (granted or revoked).
 type waiter struct {
 	ready chan struct{}
+	elem  *list.Element
 }
 
 // queued wraps an item with its pre-computed weight.
@@ -252,9 +256,9 @@ type Stage[T, R any] struct {
 	admissionMu        sync.Mutex
 	admitted           int64    // items admitted but not yet completed
 	maxWIP             int      // current WIP limit; >= 1
-	closedForAdmission bool     // authoritative gate for permit creation; protected by admissionMu. Set by CloseInput before closed/closing. All permit paths (fast path, slow path, grantWaitersLocked) check this under lock.
-	waiters            []waiter // FIFO queue of blocked Submits
-	maxWaiterCount     int      // high-water mark for waiter queue depth
+	closedForAdmission bool      // authoritative gate for permit creation; protected by admissionMu. Set by CloseInput before closed/closing. All permit paths (fast path, slow path, grantWaitersLocked) check this under lock.
+	waiters            list.List // FIFO queue of *waiter; O(1) enqueue, grant, remove
+	maxWaiterCount     int       // high-water mark for waiter queue depth
 	ropeWaitCnt        atomic.Int64
 	ropeWaitNs         atomic.Int64
 
@@ -555,10 +559,10 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 	}
 
 	// Slow path: enqueue a waiter and block.
-	w := waiter{ready: make(chan struct{})}
-	s.waiters = append(s.waiters, w)
-	if len(s.waiters) > s.maxWaiterCount {
-		s.maxWaiterCount = len(s.waiters)
+	w := &waiter{ready: make(chan struct{})}
+	w.elem = s.waiters.PushBack(w)
+	if s.waiters.Len() > s.maxWaiterCount {
+		s.maxWaiterCount = s.waiters.Len()
 	}
 	s.admissionMu.Unlock()
 
@@ -604,7 +608,7 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 // is the source of truth for slot ownership.
 //
 // Must NOT be called with admissionMu held.
-func (s *Stage[T, R]) revokeOrHonor(w waiter, rejectErr error) error {
+func (s *Stage[T, R]) revokeOrHonor(w *waiter, rejectErr error) error {
 	if h := s.hooks.Load(); h != nil && h.beforeRevokeOrHonor != nil {
 		h.beforeRevokeOrHonor()
 	}
@@ -621,22 +625,18 @@ func (s *Stage[T, R]) revokeOrHonor(w waiter, rejectErr error) error {
 	return nil
 }
 
-// removeWaiter removes w from the waiters queue. Returns true if found
-// and removed, false if already granted (not in queue).
+// removeWaiter removes w from the waiters queue in O(1).
+// Returns true if found and removed, false if already granted/removed.
 // Must be called with admissionMu held.
-func (s *Stage[T, R]) removeWaiter(w waiter) bool {
-	for i, candidate := range s.waiters {
-		if candidate.ready == w.ready {
-			s.waiters = append(s.waiters[:i], s.waiters[i+1:]...)
-			if len(s.waiters) == 0 {
-				s.waiters = nil
-			}
-
-			return true
-		}
+func (s *Stage[T, R]) removeWaiter(w *waiter) bool {
+	if w.elem == nil {
+		return false // already removed (granted or previously revoked)
 	}
 
-	return false
+	s.waiters.Remove(w.elem)
+	w.elem = nil
+
+	return true
 }
 
 // trySend attempts to send q to the input channel under the sendMu
@@ -837,7 +837,7 @@ func (s *Stage[T, R]) Stats() Stats {
 	s.admissionMu.Lock()
 	admitted := s.admitted
 	maxWIP := s.maxWIP
-	waiterCount := len(s.waiters)
+	waiterCount := s.waiters.Len()
 	maxWaiterCount := s.maxWaiterCount
 	s.admissionMu.Unlock()
 
@@ -878,19 +878,16 @@ func (s *Stage[T, R]) grantWaitersLocked() {
 		return
 	}
 
-	for len(s.waiters) > 0 && s.admitted < int64(s.maxWIP) {
-		w := s.waiters[0]
-		s.waiters[0] = waiter{} // clear for GC
-		s.waiters = s.waiters[1:]
+	for s.waiters.Len() > 0 && s.admitted < int64(s.maxWIP) {
+		e := s.waiters.Front()
+		w := e.Value.(*waiter)
+		s.waiters.Remove(e)
+		w.elem = nil // mark as granted — removeWaiter will see nil
 		s.admitted++
 		close(w.ready)
 		if h := s.hooks.Load(); h != nil && h.onGrant != nil {
 			h.onGrant() // UNDER LOCK — must not block.
 		}
-	}
-	// Reclaim backing array when queue empties.
-	if len(s.waiters) == 0 {
-		s.waiters = nil
 	}
 }
 
