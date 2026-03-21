@@ -151,8 +151,9 @@ type Stats struct {
 	QueueCapacity  int   // configured capacity
 
 	MaxWIP        int   // current WIP limit (0 = paused)
-	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. May transiently exceed MaxWIP during close/resize races. Concurrent snapshot — not a hard invariant gauge.
-	WaiterCount   int   // current number of Submits blocked on rope
+	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. May transiently exceed MaxWIP by at most the number of granted-but-not-yet-enqueued waiters (bounded by prior WaiterCount). Concurrent snapshot — not a hard invariant gauge.
+	WaiterCount    int // current number of Submits blocked on rope
+	MaxWaiterCount int // high-water mark for waiter queue depth
 	RopeWaitCount int64 // cumulative: total submissions that blocked on rope (not current blocked count)
 	RopeWaitNs    int64 // cumulative rope wait time (nanoseconds)
 
@@ -182,7 +183,7 @@ type Stats struct {
 }
 
 // waiter represents a blocked Submit waiting for an admission slot.
-// grantWaiters closes ready to wake exactly this waiter.
+// grantWaitersLocked closes ready to wake exactly this waiter.
 type waiter struct {
 	ready chan struct{}
 }
@@ -238,8 +239,9 @@ type Stage[T, R any] struct {
 	admissionMu        sync.Mutex
 	admitted           int64    // items admitted but not yet completed
 	maxWIP             int      // current WIP limit; 0 = paused
-	closedForAdmission bool     // set under admissionMu; serializes with grantWaiters
+	closedForAdmission bool     // authoritative gate for permit creation; protected by admissionMu. Set by CloseInput before closed/closing. All permit paths (fast path, slow path, grantWaitersLocked) check this under lock.
 	waiters            []waiter // FIFO queue of blocked Submits
+	maxWaiterCount     int      // high-water mark for waiter queue depth
 	ropeWaitCnt        atomic.Int64
 	ropeWaitNs         atomic.Int64
 
@@ -518,6 +520,15 @@ func (s *Stage[T, R]) Submit(ctx context.Context, item T) error {
 func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 	s.admissionMu.Lock()
 
+	// Admission gate: closedForAdmission is the authoritative cutoff,
+	// checked under admissionMu. No permit is ever created after this
+	// point — both fast and slow paths are behind this check.
+	if s.closedForAdmission {
+		s.admissionMu.Unlock()
+
+		return ErrClosed
+	}
+
 	// Fast path: slot available.
 	if s.admitted < int64(s.maxWIP) {
 		s.admitted++
@@ -529,6 +540,9 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 	// Slow path: enqueue a waiter and block.
 	w := waiter{ready: make(chan struct{})}
 	s.waiters = append(s.waiters, w)
+	if len(s.waiters) > s.maxWaiterCount {
+		s.maxWaiterCount = len(s.waiters)
+	}
 	s.admissionMu.Unlock()
 
 	s.ropeWaitCnt.Add(1)
@@ -536,7 +550,7 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 
 	select {
 	case <-w.ready:
-		// Slot granted by grantWaiters (admitted already incremented).
+		// Slot granted by grantWaitersLocked (admitted already incremented).
 		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
 
 		return nil
@@ -563,7 +577,7 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 // If already granted, honors the grant (returns nil so the caller
 // proceeds to trySend, which will fail and rollback).
 //
-// Key invariant: a waiter removed from the queue by grantWaiters has
+// Key invariant: a waiter removed from the queue by grantWaitersLocked has
 // irrevocably consumed a permit (admitted++ under admissionMu).
 // w.ready is notification only — queue membership under admissionMu
 // is the source of truth for slot ownership.
@@ -638,6 +652,20 @@ func (s *Stage[T, R]) trySend(ctx context.Context, q queued[T]) error {
 // CloseInput signals that no more items will be submitted.
 // Workers finish processing buffered items, then shut down.
 //
+// Linearization point: closedForAdmission=true under admissionMu.
+// Any Submit whose acquireAdmission serializes after this point
+// returns ErrClosed without creating a permit. A Submit already
+// granted before this point may still succeed or roll back via
+// trySend — that is a concurrent operation that linearized before
+// close, not a post-close admission.
+//
+// Close state is split across three signals:
+//   - closedForAdmission (admissionMu): authoritative gate for permit creation
+//   - closed (atomic): fast-path rejection in Submit and trySend
+//   - closing (channel): shutdown broadcast to blocked selects
+//
+// These are set in order; closed/closing may lag closedForAdmission.
+//
 // Blocks briefly until all in-flight [Stage.Submit] calls exit, then
 // closes the input channel.
 //
@@ -646,7 +674,7 @@ func (s *Stage[T, R]) trySend(ctx context.Context, q queued[T]) error {
 func (s *Stage[T, R]) CloseInput() {
 	s.closeOnce.Do(func() {
 		// Mark admission closed under admissionMu first — serializes
-		// with grantWaiters so no grants can happen after this point.
+		// with grantWaitersLocked so no grants can happen after this point.
 		s.admissionMu.Lock()
 		s.closedForAdmission = true
 		s.admissionMu.Unlock()
@@ -781,6 +809,7 @@ func (s *Stage[T, R]) Stats() Stats {
 	admitted := s.admitted
 	maxWIP := s.maxWIP
 	waiterCount := len(s.waiters)
+	maxWaiterCount := s.maxWaiterCount
 	s.admissionMu.Unlock()
 
 	return Stats{
@@ -801,6 +830,7 @@ func (s *Stage[T, R]) Stats() Stats {
 		MaxWIP:               maxWIP,
 		Admitted:             admitted,
 		WaiterCount:          waiterCount,
+		MaxWaiterCount:       maxWaiterCount,
 		RopeWaitCount:        s.ropeWaitCnt.Load(),
 		RopeWaitNs:           s.ropeWaitNs.Load(),
 		AllocTrackingActive:  s.trackAllocs,
@@ -809,12 +839,12 @@ func (s *Stage[T, R]) Stats() Stats {
 	}
 }
 
-// grantWaiters wakes blocked Submits when slots are available.
+// grantWaitersLocked wakes blocked Submits when slots are available.
 // Does not grant once closedForAdmission is set — waiters will wake via
 // s.closing/s.stageDone channels and be rejected there.
 // Must be called with admissionMu held. closedForAdmission is also
 // protected by admissionMu, so this check has no TOCTOU race.
-func (s *Stage[T, R]) grantWaiters() {
+func (s *Stage[T, R]) grantWaitersLocked() {
 	if s.closedForAdmission {
 		return
 	}
@@ -837,7 +867,7 @@ func (s *Stage[T, R]) grantWaiters() {
 func (s *Stage[T, R]) releaseAdmission() {
 	s.admissionMu.Lock()
 	s.admitted--
-	s.grantWaiters()
+	s.grantWaitersLocked()
 	s.admissionMu.Unlock()
 }
 
@@ -857,7 +887,7 @@ func (s *Stage[T, R]) SetMaxWIP(n int) int {
 
 	s.admissionMu.Lock()
 	s.maxWIP = n
-	s.grantWaiters()
+	s.grantWaitersLocked()
 	s.admissionMu.Unlock()
 
 	return n

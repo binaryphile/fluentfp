@@ -208,7 +208,10 @@ func newCreateOrder(
 	return func(req *http.Request) rslt.Result[web.Response] {
 		reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
-		lookupPrices := rslt.LiftCtx(req.Context(), priceOrder)
+		// lookupPrices binds the request context to the pricing call.
+		lookupPrices := func(o Order) rslt.Result[Order] {
+			return rslt.Of(priceOrder(req.Context(), o))
+		}
 
 		logFailure := func(err error) {
 			log.Printf("[%s] pricing failed: %v", reqID, err)

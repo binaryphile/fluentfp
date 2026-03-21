@@ -32,7 +32,7 @@ flowchart TD
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
 | **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `.FlatMap(validateOrder)` -- named closure (1 line) | Validation as a closure over dependencies |
 | **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` -- infallible transform on Ok value (1 line) | Side effect (counter) wrapped in named function |
-| **Price** | Call `priceOrder` + error check + error response (8 lines) | `.FlatMap(lookupPrices)` where `lookupPrices = rslt.LiftCtx(ctx, priceOrder)` (1 line) | LiftCtx binds context, FlatMap chains the call |
+| **Price** | Call `priceOrder` + error check + error response (8 lines) | `.FlatMap(lookupPrices)` — closure binds context, `rslt.Of` wraps the result (2 lines) | Context binding via closure, FlatMap chains the call |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` -- error-side side effect in pipeline (1 line) | Logging separated from response rendering |
 | **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` -- side effects in named function (1 line) | Side effects named and composable |
 | **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6x) | `rslt.Map(storedResult, web.Created[Order])` (1 line) | `Adapt` renders once |
@@ -218,7 +218,7 @@ Call + error check + error response.
   ... .FlatMap(lookupPrices). ...
 ```
 
-`lookupPrices = rslt.LiftCtx(ctx, priceOrder)` -- binds context, wraps `(T, error)` -> `Result[T]`.
+`lookupPrices` is a closure that binds the request context and wraps the `(Order, error)` return with `rslt.Of`.
 
 </td>
 </tr>
@@ -522,17 +522,24 @@ go func() {
 <td>
 
 ```go
-// FromChan: plain chan Order -> chan Result[Order] for toc.
-// NewTee: broadcast each item to 2 branches.
-tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
-// Pipe: chain a processing function onto a branch.
+// Read orders from postCh, copy each
+// to 2 branches (broadcast).
+tee := toc.NewTee(
+  ctx, toc.FromChan(postCh), 2)
+
+// Branch 0: log each order for audit.
 auditPipe := toc.Pipe(
-  ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
+  ctx, tee.Branch(0),
+  logOrder, toc.Options[Order]{})
+
+// Branch 1: count items per order
+// for inventory tracking.
 inventoryPipe := toc.Pipe(
-  ctx, tee.Branch(1), countItems, toc.Options[Order]{})
+  ctx, tee.Branch(1),
+  countItems, toc.Options[Order]{})
 ```
 
-`toc.FromChan` bridges `chan Order` -> `chan rslt.Result[Order]` -- no passthrough stage needed. Backpressure, cancellation, shutdown ordering, and `Stats()` built in.
+Each order flows from `postCh` through the tee to both branches in parallel. `FromChan` bridges the plain channel into toc's Result-typed pipeline. Backpressure, cancellation, shutdown ordering, and `Stats()` are built in.
 
 </td>
 </tr>

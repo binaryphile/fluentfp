@@ -61,7 +61,9 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: five of
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
-    lookupPrices := rslt.LiftCtx(req.Context(), priceOrder)          // bind ctx to pricing call
+    lookupPrices := func(o Order) rslt.Result[Order] {               // bind ctx to pricing call
+        return rslt.Of(priceOrder(req.Context(), o))
+    }
     logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
     storeAndNotify := func(o Order) { s.put(o); /* send to postCh */ }
 
