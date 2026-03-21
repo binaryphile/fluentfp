@@ -196,8 +196,7 @@ parseMinTotal := func(raw string) rslt.Result[int] {
         web.BadRequest(fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 }
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
-minTotalResult := option.MapResult(rawMinTotalOption, parseMinTotal)
-mtOption, err := minTotalResult.Unpack()
+mtOption, err := option.MapResult(rawMinTotalOption, parseMinTotal).Unpack()
 if err != nil {
     return rslt.Err[web.Response](err)
 }

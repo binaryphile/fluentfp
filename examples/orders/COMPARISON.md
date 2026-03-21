@@ -379,10 +379,9 @@ status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
 // MapResult: missing -> skip,
 // valid int -> use it, bad input -> 400.
-minTotalResult := option.MapResult(
-  rawMinTotalOption, parseMinTotal)
 // Unpack: convert Result back to Go's (value, error).
-mtOption, err := minTotalResult.Unpack()
+mtOption, err := option.MapResult(
+  rawMinTotalOption, parseMinTotal).Unpack()
 mt, hasMinTotal := mtOption.Get()
 ```
 

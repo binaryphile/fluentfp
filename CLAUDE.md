@@ -31,7 +31,7 @@ Variables holding `Option[T]` use a `*Option` suffix; variables holding `Result[
 ```go
 orderResult := web.DecodeJSON[Order](req)   // Result[Order]
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))  // Option[string]
-minTotalResult := option.MapResult(rawMinTotalOption, parseMinTotal)  // Result[Option[int]]
+mtOption, err := option.MapResult(rawMinTotalOption, parseMinTotal).Unpack()  // (Option[int], error)
 ```
 
 Exceptions: when the type is obvious from context (e.g., a one-line function return), the suffix can be omitted.
