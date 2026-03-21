@@ -234,7 +234,7 @@
 - 2d. Developer needs a side effect on the success branch without altering the result: System runs the function via `Tap`, returning the result unchanged.
 - 2e. Developer needs a side effect on the failure branch without altering the result: System runs the function via `TapErr`, returning the result unchanged.
 - 2f. Developer needs to bridge an Option into a Result, treating absence as a specific error: System converts via `Option.OkOr(err)` (eager) or `Option.OkOrCall(fn)` (lazy).
-- 2g. Developer needs to apply a fallible function to an optional value, distinguishing absent from invalid: System applies via `option.FlatMapResult(opt, fn)` — absent → Ok(NotOk), present+valid → Ok(Of(v)), present+invalid → Err.
+- 2g. Developer needs to apply a fallible function to an optional value, distinguishing absent from invalid: System applies via `option.MapResult(opt, fn)` — absent → Ok(NotOk), present+valid → Ok(Of(v)), present+invalid → Err.
 - 2h. Developer needs to use a context-aware call in a Result chain: System partially applies the context via `rslt.LiftCtx(ctx, fn)`, producing `func(T) Result[R]` suitable for FlatMap.
 - 2i. Developer needs to launch typed async work with panic safety: System runs the function in a goroutine via `rslt.RunAsync(ctx, fn)`, returning `*AsyncResult[R]` with `Wait() (R, error)` and `Done() <-chan struct{}`. Panics recovered as `*PanicError` with stack trace.
 

@@ -354,7 +354,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Decode JSON request bodies | `web.DecodeJSON[T](r)` | web |
 | Extract path parameters as Option | `web.PathParam(req, "id")` | web |
 | Partially apply context to a call | `rslt.LiftCtx(ctx, fn)` | rslt |
-| Apply fallible fn to Option (absent=ok, invalid=err) | `option.FlatMapResult(opt, fn)` | option |
+| Apply fallible fn to Option (absent=ok, invalid=err) | `option.MapResult(opt, fn)` | option |
 | Bridge chan T to chan Result[T] for toc | `toc.FromChan(ch)` | toc |
 | Run a bounded pipeline with backpressure | `toc.Start` → `toc.Pipe` → `toc.Pipe` | toc |
 | Batch items by count or weight | `toc.NewBatcher(ctx, src, n)` | toc |

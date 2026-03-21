@@ -13,11 +13,11 @@ func (b Option[T]) OkOr(err error) rslt.Result[T] {
 	return rslt.Err[T](err)
 }
 
-// FlatMapResult applies fn to the value if opt is ok, returning Ok(NotOk) if
-// opt is not-ok. This bridges the gap between Option and Result for operations
-// that can fail: absent → Ok(not-ok), present+valid → Ok(Of(v)),
-// present+invalid → Err.
-func FlatMapResult[T, R any](opt Option[T], fn func(T) rslt.Result[R]) rslt.Result[Option[R]] {
+// MapResult applies fn to the value in opt if present.
+// If opt is empty, it returns Ok(NotOk()).
+// If fn succeeds, it returns Ok(Of(v)).
+// If fn fails, it returns Err(err).
+func MapResult[T, R any](opt Option[T], fn func(T) rslt.Result[R]) rslt.Result[Option[R]] {
 	v, ok := opt.Get()
 	if !ok {
 		return rslt.Ok(NotOk[R]())

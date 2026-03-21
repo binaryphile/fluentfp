@@ -244,13 +244,13 @@ With fluentfp, parsing is a pipeline and filtering is a chain:
 ```go
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()  // "" -> not-ok, non-empty -> ok
 
-// FlatMapResult: skip parsing when missing, parse when present, 400 when invalid.
+// MapResult: skip parsing when missing, parse when present, 400 when invalid.
 parseMinTotal := func(raw string) rslt.Result[int] {
     return option.Atoi(raw).OkOr(
         web.BadRequest(fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 }
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
-minTotalResult := option.FlatMapResult(rawMinTotalOption, parseMinTotal)
+minTotalResult := option.MapResult(rawMinTotalOption, parseMinTotal)
 mtOption, err := minTotalResult.Unpack()
 if err != nil {
     return rslt.Err[web.Response](err)
@@ -275,7 +275,7 @@ if hasMinTotal {
 }
 ```
 
-`option.FlatMapResult` handles the three cases for an optional parseable parameter: missing (skip), valid integer (use it), invalid input (400 error). This cleanly distinguishes "not provided" from "provided but wrong" -- a common pattern for optional query parameters.
+`option.MapResult` handles the three cases for an optional parseable parameter: missing (skip), valid integer (use it), invalid input (400 error). This cleanly distinguishes "not provided" from "provided but wrong" -- a common pattern for optional query parameters.
 
 `slice.SortBy(list, orderNum)` sorts by a key function -- `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. The conditional `KeepIf` filters are plain Go `if` statements -- no special API needed when you're not inside a chain that would break.
 

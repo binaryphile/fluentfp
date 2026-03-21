@@ -394,16 +394,16 @@ Mutable variables declared before the conditional, assigned inside it.
 // Get: unpack to (value, bool).
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
-// FlatMapResult: missing -> skip,
+// MapResult: missing -> skip,
 // valid int -> use it, bad input -> 400.
-minTotalResult := option.FlatMapResult(
+minTotalResult := option.MapResult(
   rawMinTotalOption, parseMinTotal)
 // Unpack: convert Result back to Go's (value, error).
 mtOption, err := minTotalResult.Unpack()
 mt, hasMinTotal := mtOption.Get()
 ```
 
-`FlatMapResult` handles the three cases for an optional parseable parameter: missing (skip), valid integer (use it), invalid input (400 error). No mutable `var` declarations.
+`MapResult` handles the three cases for an optional parseable parameter: missing (skip), valid integer (use it), invalid input (400 error). No mutable `var` declarations.
 
 </td>
 </tr>

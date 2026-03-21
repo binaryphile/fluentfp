@@ -1,5 +1,5 @@
-// Package main demonstrates fluentfp composition across 7 packages in a
-// curl-testable order processing service.
+// Package main demonstrates fluentfp composition across 6 packages
+// in a curl-testable order processing service.
 //
 // Run:
 //
@@ -10,16 +10,6 @@
 //	curl -s -X POST http://localhost:3000/orders \
 //	  -H 'Content-Type: application/json' \
 //	  -d '{"customer":"Alice","items":[{"sku":"WIDGET-1","quantity":3}]}'
-//
-// Trip the circuit breaker with SKU "FAIL-PRICE":
-//
-//	for i in 1 2 3; do curl -s -X POST http://localhost:3000/orders \
-//	  -H 'Content-Type: application/json' \
-//	  -d '{"customer":"Bob","items":[{"sku":"FAIL-PRICE","quantity":1}]}'; done
-//	curl -s -X POST http://localhost:3000/orders \
-//	  -H 'Content-Type: application/json' \
-//	  -d '{"customer":"Carol","items":[{"sku":"WIDGET-1","quantity":1}]}'
-//	# → 503: circuit breaker open
 package main
 
 import (
@@ -38,7 +28,6 @@ import (
 	"time"
 
 	"github.com/binaryphile/fluentfp/ctxval"
-	"github.com/binaryphile/fluentfp/call"
 	"github.com/binaryphile/fluentfp/option"
 	"github.com/binaryphile/fluentfp/rslt"
 	"github.com/binaryphile/fluentfp/slice"
@@ -62,8 +51,8 @@ type LineItem struct {
 // HasPositiveQty returns true if the line item has quantity > 0.
 func (li LineItem) HasPositiveQty() bool { return li.Quantity > 0 }
 
-// Order is the core domain object. TotalCents uses integer cents to avoid
-// floating-point currency errors.
+// Order is the core domain object. TotalCents uses integer cents
+// to avoid floating-point currency errors.
 type Order struct {
 	ID         string     `json:"id"`
 	Customer   string     `json:"customer"`
@@ -73,7 +62,6 @@ type Order struct {
 }
 
 // orderNum extracts the numeric suffix from an order ID for sorting.
-// "ord-2" → 2, "ord-10" → 10. Returns 0 if parsing fails.
 func orderNum(o Order) int {
 	s := strings.TrimPrefix(o.ID, "ord-")
 	n, _ := strconv.Atoi(s)
@@ -126,31 +114,24 @@ var prices = map[string]int{
 	"GIZMO-3":  500,
 }
 
-var errPricingFailure = errors.New("pricing service error")
-
 // priceOrder computes the total by looking up prices per SKU.
-// SKU "FAIL-PRICE" deterministically fails to simulate a service outage.
-// Assumes SKUs are already validated — unknown SKUs are caught in validation.
+// Assumes SKUs are already validated.
 func priceOrder(_ context.Context, o Order) (Order, error) {
 	total := 0
 	for _, item := range o.Items {
-		if item.SKU == "FAIL-PRICE" {
-			return o, errPricingFailure
-		}
 		total += prices[item.SKU] * item.Quantity
 	}
 	o.TotalCents = total
-	o.Status = "enriched"
+	o.Status = "priced"
 	return o, nil
 }
 
 // ---------------------------------------------------------------------------
-// Validation — top-level named functions
+// Validation
 // ---------------------------------------------------------------------------
 
-// Validate checks all business rules on the order, returning the first
-// error as a 400 Result. As a method, it works as a method expression
-// (Order.Validate) in FlatMap chains — no wrapper variable needed.
+// Validate checks all business rules on the order. As a method,
+// Order.Validate is a method expression usable in FlatMap chains.
 func (o Order) Validate() rslt.Result[Order] {
 	if o.Customer == "" {
 		return rslt.Err[Order](web.BadRequest("customer is required"))
@@ -162,9 +143,6 @@ func (o Order) Validate() rslt.Result[Order] {
 		return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
 	}
 	for _, item := range o.Items {
-		if item.SKU == "FAIL-PRICE" {
-			continue // synthetic failure SKU, not a validation error
-		}
 		if _, ok := prices[item.SKU]; !ok {
 			return rslt.Err[Order](web.BadRequest(
 				fmt.Sprintf("unknown SKU: %s", item.SKU)))
@@ -174,48 +152,18 @@ func (o Order) Validate() rslt.Result[Order] {
 }
 
 // ---------------------------------------------------------------------------
-// Error mapping
-// ---------------------------------------------------------------------------
-
-// mapDomainError maps domain errors to HTTP errors at the adapter boundary.
-// web.Adapt calls this for any error that isn't already a *web.Error.
-// Return (*web.Error, true) to handle, or (nil, false) to fall through to 500.
-func mapDomainError(err error) (*web.Error, bool) {
-	if errors.Is(err, call.ErrCircuitOpen) {
-		return &web.Error{
-			Status:  http.StatusServiceUnavailable,
-			Message: "pricing service unavailable",
-			Code:    "SERVICE_UNAVAILABLE",
-		}, true
-	}
-	if errors.Is(err, errPricingFailure) {
-		return &web.Error{
-			Status:  http.StatusBadGateway,
-			Message: "pricing service error",
-			Code:    "BAD_GATEWAY",
-		}, true
-	}
-	return nil, false
-}
-
-// ---------------------------------------------------------------------------
 // Background pipeline (toc) — best-effort post-processing
 // ---------------------------------------------------------------------------
 
-// logOrder logs the order for the audit trail and returns its ID.
 func logOrder(_ context.Context, o Order) (string, error) {
 	log.Printf("  postprocess: audit order %s (%d cents)", o.ID, o.TotalCents)
 	return o.ID, nil
 }
 
-// countItems counts SKU line items for inventory tracking.
 func countItems(_ context.Context, o Order) (int, error) {
 	return len(o.Items), nil
 }
 
-// drainResults logs each result or error from a pipeline branch.
-// r.Err() returns the error if this Result is Err, or nil if Ok.
-// r.Get() returns (value, true) if Ok, or (zero, false) if Err.
 func drainResults[T any](name string, ch <-chan rslt.Result[T]) {
 	for r := range ch {
 		if err := r.Err(); err != nil {
@@ -227,37 +175,23 @@ func drainResults[T any](name string, ch <-chan rslt.Result[T]) {
 	}
 }
 
-// startPipeline launches a long-lived toc pipeline that broadcasts each
-// order to an audit branch and an inventory branch via Tee.
-// Post-processing is best-effort: errors are logged, not propagated.
 func startPipeline(ctx context.Context, postCh <-chan Order) {
-	// toc.FromChan bridges plain chan Order → chan Result[Order] for toc.
-	// toc.NewTee broadcasts each item to N branches (here 2).
 	tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
-
-	// toc.Pipe chains a processing function onto a branch's output.
-	// Branch 0: audit log. Branch 1: inventory count.
 	auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
 	inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
-
 	go drainResults("audit", auditPipe.Out())
 	go drainResults("inventory", inventoryPipe.Out())
 }
 
 // ---------------------------------------------------------------------------
-// Handler factories — each takes its runtime deps and returns a web.Handler.
-// The returned closure captures only what it needs.
+// Handler factories
 // ---------------------------------------------------------------------------
 
-// newCreateOrder returns a handler that decodes, validates, prices,
-// stores, and responds with a new order.
 func newCreateOrder(
 	s *store,
 	idCounter *atomic.Int64,
-	pricingCall func(context.Context, Order) (Order, error),
 	postCh chan<- Order,
 ) web.Handler {
-	// withNewID assigns a sequential ID and sets initial status.
 	withNewID := func(o Order) Order {
 		o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
 		o.Status = "pending"
@@ -267,11 +201,10 @@ func newCreateOrder(
 	return func(req *http.Request) rslt.Result[web.Response] {
 		reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
-		// LiftCtx binds the context and wraps (Order, error) -> Result[Order].
-		lookupPrices := rslt.LiftCtx(req.Context(), pricingCall)
+		lookupPrices := rslt.LiftCtx(req.Context(), priceOrder)
 
 		logFailure := func(err error) {
-			log.Printf("[%s] enrichment failed: %v", reqID, err)
+			log.Printf("[%s] pricing failed: %v", reqID, err)
 		}
 
 		storeAndNotify := func(o Order) {
@@ -284,8 +217,6 @@ func newCreateOrder(
 			}
 		}
 
-		// Pipeline: each step operates on the Result from the previous step.
-		// If any step fails, the rest are skipped and the error propagates.
 		orderResult := web.DecodeJSON[Order](req)
 		storedResult := orderResult.
 			FlatMap(Order.Validate).
@@ -297,9 +228,7 @@ func newCreateOrder(
 	}
 }
 
-// newGetOrder returns a handler that looks up an order by ID.
 func newGetOrder(s *store) web.Handler {
-	// findOrder bridges the store lookup into a Result.
 	findOrder := func(id string) rslt.Result[Order] {
 		return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
 	}
@@ -311,20 +240,18 @@ func newGetOrder(s *store) web.Handler {
 	}
 }
 
-// newListOrders returns a handler that lists orders with optional filters.
 func newListOrders(s *store) web.Handler {
 	return func(req *http.Request) rslt.Result[web.Response] {
 		q := req.URL.Query()
 
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
-		// FlatMapResult: missing -> skip, valid int -> use it, bad input -> 400.
 		parseMinTotal := func(raw string) rslt.Result[int] {
 			return option.Atoi(raw).OkOr(web.BadRequest(
 				fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 		}
 		rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
-		minTotalResult := option.FlatMapResult(rawMinTotalOption, parseMinTotal)
+		minTotalResult := option.MapResult(rawMinTotalOption, parseMinTotal)
 		mtOption, err := minTotalResult.Unpack()
 		if err != nil {
 			return rslt.Err[web.Response](err)
@@ -357,29 +284,13 @@ func main() {
 	s := newStore()
 	var idCounter atomic.Int64
 
-	// Circuit breaker for pricing service.
-	breaker := call.NewBreaker(call.BreakerConfig{
-		ResetTimeout: 10 * time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(3),
-		OnStateChange: func(t call.Transition) {
-			log.Printf("breaker: %s → %s", t.From, t.To)
-		},
-	})
-	pricingCall := call.WithBreaker(breaker, priceOrder)
-
-	// Best-effort post-processing pipeline.
 	postCh := make(chan Order, 20)
 	startPipeline(ctx, postCh)
 
-	// Error mapping: domain errors -> HTTP errors, defined once.
-	errorMapper := web.WithErrorMapper(mapDomainError)
-
-	// Handlers — each factory takes only the deps it needs.
-	handleCreateOrder := newCreateOrder(s, &idCounter, pricingCall, postCh)
+	handleCreateOrder := newCreateOrder(s, &idCounter, postCh)
 	handleGetOrder := newGetOrder(s)
 	handleListOrders := newListOrders(s)
 
-	// Middleware: inject request ID via ctxval.
 	var reqCounter atomic.Int64
 	withRequestID := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -389,11 +300,10 @@ func main() {
 		})
 	}
 
-	// Routes.
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder, errorMapper))
-	mux.HandleFunc("GET /orders/{id}", web.Adapt(handleGetOrder, errorMapper))
-	mux.HandleFunc("GET /orders", web.Adapt(handleListOrders, errorMapper))
+	mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder))
+	mux.HandleFunc("GET /orders/{id}", web.Adapt(handleGetOrder))
+	mux.HandleFunc("GET /orders", web.Adapt(handleListOrders))
 
 	server := &http.Server{
 		Addr:              ":3000",
@@ -401,10 +311,6 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Shutdown: stop accepting requests, drain in-flight handlers.
-	// Context cancellation propagates to toc pipeline via ctx.
-	// postCh is not closed here — it is drained by context cancellation
-	// in the pipeline, avoiding send-on-closed-channel panics.
 	go func() {
 		<-ctx.Done()
 		log.Println("shutting down...")

@@ -114,7 +114,7 @@ Once you have an `Option[T]`, the same API works regardless of where the value c
 
 - **Create**: `Of`, `New`, `When`, `WhenCall`, `NotOk`, `NonZero`, `NonEmpty`, `NonNil`, `NonErr`, `Env`, `Lookup`
 - **Create + Transform**: `NonZeroCall`, `NonEmptyCall`, `NonNilCall` — check presence and apply fn in one step
-- **Bridge**: `OkOr` (eager), `OkOrCall` (lazy) — convert `Option[T]` to `rslt.Result[T]`, treating absence as an error; `FlatMapResult` — apply a fallible function, absent → Ok(NotOk), present+invalid → Err
+- **Bridge**: `OkOr` (eager), `OkOrCall` (lazy) — convert `Option[T]` to `rslt.Result[T]`, treating absence as an error; `MapResult` — apply a fallible function, absent → Ok(NotOk), present+invalid → Err
 - **Extract**: `Get`, `IsOk`, `MustGet`, `Or`, `OrCall`, `OrElse`, `OrZero`, `OrEmpty`, `OrFalse` (standalone for `Option[bool]`)
 - **Transform**: `Convert` (same type), `Map` (cross-type, standalone), `ToString`, `ToInt`, other `To*`, `ToOpt`
 - **Filter**: `KeepIf`, `RemoveIf`

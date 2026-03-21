@@ -866,7 +866,7 @@ Go methods cannot introduce extra type parameters, so same-type mapping (`func(T
 
 **Why eager + lazy:** `OkOr(err)` evaluates the error eagerly. `OkOrCall(fn)` defers error construction until the Option is actually absent. Matches the `Or`/`OrCall` pattern already on Option.
 
-**FlatMapResult — bridging optional parsing:** `option.FlatMapResult(opt, fn)` applies a fallible function (`func(T) Result[R]`) to an Option. Absent → `Ok(NotOk)`, present+valid → `Ok(Of(v))`, present+invalid → `Err`. This distinguishes "not provided" (absent) from "provided but invalid" (error) — a common pattern for optional query parameters that need validation.
+**MapResult — bridging optional parsing:** `option.MapResult(opt, fn)` applies a fallible function (`func(T) Result[R]`) to an Option. Absent → `Ok(NotOk)`, present+valid → `Ok(Of(v))`, present+invalid → `Err`. This distinguishes "not provided" (absent) from "provided but invalid" (error) — a common pattern for optional query parameters that need validation.
 
 ### D34: rslt.LiftCtx — partial context application for call-shaped functions
 
