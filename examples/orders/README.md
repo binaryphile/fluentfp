@@ -196,7 +196,7 @@ func mapDomainError(err error) (*web.Error, bool) {
 
 Defined once, applied to every handler via `web.WithErrorMapper`. Breaker-open -> 503, pricing failure -> 502. Unknown SKUs are caught earlier in validation (returns 400) so they never reach the breaker -- bad input can't trip the circuit.
 
-**Try it:** send 3 orders with SKU `"FAIL-PRICE"`, then one with a normal SKU -- it gets 503.
+**Try it:** send 3 orders with SKU `"FAIL-PRICE"` (each returns 502 -- pricing failure). The breaker trips after 3 consecutive failures. The 4th request with a normal SKU returns 503 (breaker open).
 
 ### Replacing if-not-ok with Option->Result (option)
 
