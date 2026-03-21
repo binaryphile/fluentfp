@@ -33,6 +33,25 @@ func recvErr(t *testing.T, ch <-chan error, msg string) error {
 	}
 }
 
+// oneShot is a non-blocking, non-lossy one-time signal.
+// Fire closes the channel exactly once. Waiters observe via <-C().
+type oneShot struct {
+	once sync.Once
+	ch   chan struct{}
+}
+
+func newOneShot() *oneShot {
+	return &oneShot{ch: make(chan struct{})}
+}
+
+func (o *oneShot) Fire() {
+	o.once.Do(func() { close(o.ch) })
+}
+
+func (o *oneShot) C() <-chan struct{} {
+	return o.ch
+}
+
 // countDown fires after exactly n calls. Panics on overfire.
 type countDown struct {
 	remaining atomic.Int32

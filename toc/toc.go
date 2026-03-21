@@ -194,25 +194,6 @@ type testHooks struct {
 	beforeRevokeOrHonor func() // before admissionMu.Lock in revokeOrHonor
 }
 
-// oneShot is a non-blocking, non-lossy one-time signal.
-// Fire closes the channel exactly once. Waiters observe via <-ch.
-type oneShot struct {
-	once sync.Once
-	ch   chan struct{}
-}
-
-func newOneShot() *oneShot {
-	return &oneShot{ch: make(chan struct{})}
-}
-
-func (o *oneShot) Fire() {
-	o.once.Do(func() { close(o.ch) })
-}
-
-func (o *oneShot) C() <-chan struct{} {
-	return o.ch
-}
-
 // waiter represents a blocked Submit waiting for an admission slot.
 // grantWaitersLocked closes ready to wake exactly this waiter.
 type waiter struct {
