@@ -431,7 +431,9 @@ if hasMinTotal {
 <td>
 
 ```go
-orders := slice.SortBy(s.list(), orderNum).KeepIf(hasMatchingStatus).KeepIf(totalAtLeast)
+orders := slice.SortBy(s.list(), orderNum).
+  KeepIf(hasMatchingStatus).
+  KeepIf(totalAtLeast)
 ```
 
 `SortBy` takes a key function -- `orderNum` extracts the numeric suffix for correct ordering. `KeepIf` chains with named predicates. Inactive filters pass everything through (`!hasStatus` short-circuits to true), so no `if` guards or reassignment needed.
