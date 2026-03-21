@@ -61,6 +61,12 @@ type Order struct {
 	TotalCents int        `json:"total_cents"`
 }
 
+// Order status constants.
+const (
+	statusPending = "pending"
+	statusPriced  = "priced"
+)
+
 // orderNum extracts the numeric suffix from an order ID for sorting.
 func orderNum(o Order) int {
 	s := strings.TrimPrefix(o.ID, "ord-")
@@ -108,34 +114,29 @@ func (s *store) list() []Order {
 // Pricing — simulated external service (prices in cents)
 // ---------------------------------------------------------------------------
 
-var prices = map[string]int{
-	"WIDGET-1": 999,
-	"GADGET-2": 2450,
-	"GIZMO-3":  500,
-}
-
-// priceOrder computes the total by looking up prices per SKU.
-// Assumes SKUs are already validated.
-func priceOrder(_ context.Context, o Order) (Order, error) {
-	total := 0
-	for _, item := range o.Items {
-		total += prices[item.SKU] * item.Quantity
+// priceOrder returns a pricing function that closes over the catalog.
+func priceOrder(catalog map[string]int) func(context.Context, Order) (Order, error) {
+	return func(_ context.Context, o Order) (Order, error) {
+		total := 0
+		for _, item := range o.Items {
+			total += catalog[item.SKU] * item.Quantity
+		}
+		o.TotalCents = total
+		o.Status = statusPriced
+		return o, nil
 	}
-	o.TotalCents = total
-	o.Status = "priced"
-	return o, nil
 }
 
 // ---------------------------------------------------------------------------
 // Background pipeline (toc) — best-effort post-processing
 // ---------------------------------------------------------------------------
 
-func logOrder(_ context.Context, o Order) (string, error) {
+func auditOrder(_ context.Context, o Order) (string, error) {
 	log.Printf("  postprocess: audit order %s (%d cents)", o.ID, o.TotalCents)
 	return o.ID, nil
 }
 
-func countItems(_ context.Context, o Order) (int, error) {
+func countLineItems(_ context.Context, o Order) (int, error) {
 	return len(o.Items), nil
 }
 
@@ -152,10 +153,10 @@ func drainResults[T any](name string, ch <-chan rslt.Result[T]) {
 
 func startPipeline(ctx context.Context, postCh <-chan Order) {
 	tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
-	auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
-	inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
+	auditPipe := toc.Pipe(ctx, tee.Branch(0), auditOrder, toc.Options[Order]{})
+	metricsPipe := toc.Pipe(ctx, tee.Branch(1), countLineItems, toc.Options[Order]{})
 	go drainResults("audit", auditPipe.Out())
-	go drainResults("inventory", inventoryPipe.Out())
+	go drainResults("inventory", metricsPipe.Out())
 }
 
 // ---------------------------------------------------------------------------
@@ -188,9 +189,11 @@ func newCreateOrder(
 		return rslt.Ok(o)
 	}
 
+	priceFn := priceOrder(catalog)
+
 	withNewID := func(o Order) Order {
 		o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
-		o.Status = "pending"
+		o.Status = statusPending
 		return o
 	}
 
@@ -199,7 +202,7 @@ func newCreateOrder(
 
 		// lookupPrices binds the request context to the pricing call.
 		lookupPrices := func(o Order) rslt.Result[Order] {
-			return rslt.Of(priceOrder(req.Context(), o))
+			return rslt.Of(priceFn(req.Context(), o))
 		}
 
 		logFailure := func(err error) {
@@ -278,10 +281,16 @@ func main() {
 	s := newStore()
 	var idCounter atomic.Int64
 
+	catalog := map[string]int{
+		"WIDGET-1": 999,
+		"GADGET-2": 2450,
+		"GIZMO-3":  500,
+	}
+
 	postCh := make(chan Order, 20)
 	startPipeline(ctx, postCh)
 
-	handleCreateOrder := newCreateOrder(s, &idCounter, postCh, prices)
+	handleCreateOrder := newCreateOrder(s, &idCounter, postCh, catalog)
 	handleGetOrder := newGetOrder(s)
 	handleListOrders := newListOrders(s)
 
