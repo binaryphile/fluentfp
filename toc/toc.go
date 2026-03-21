@@ -150,8 +150,8 @@ type Stats struct {
 	InFlightWeight int64 // weighted cost of items currently in fn (stats-only, not admission)
 	QueueCapacity  int   // configured capacity
 
-	MaxWIP        int   // current WIP limit (0 = paused)
-	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. May transiently exceed MaxWIP by at most the number of granted-but-not-yet-enqueued waiters (bounded by prior WaiterCount). Concurrent snapshot — not a hard invariant gauge.
+	MaxWIP        int   // current WIP limit (>= 1)
+	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. Can exceed current MaxWIP after SetMaxWIP shrinks the limit (existing permits are not revoked) or during the brief grant-to-enqueue window. Not a hard invariant gauge — use for observability, not alerting thresholds.
 	WaiterCount    int // current number of Submits blocked on rope
 	MaxWaiterCount int // high-water mark for waiter queue depth
 	RopeWaitCount int64 // cumulative: total submissions that blocked on rope (not current blocked count)
@@ -238,7 +238,7 @@ type Stage[T, R any] struct {
 	// Rope: admission control via per-waiter channel queue.
 	admissionMu        sync.Mutex
 	admitted           int64    // items admitted but not yet completed
-	maxWIP             int      // current WIP limit; 0 = paused
+	maxWIP             int      // current WIP limit; >= 1
 	closedForAdmission bool     // authoritative gate for permit creation; protected by admissionMu. Set by CloseInput before closed/closing. All permit paths (fast path, slow path, grantWaitersLocked) check this under lock.
 	waiters            []waiter // FIFO queue of blocked Submits
 	maxWaiterCount     int      // high-water mark for waiter queue depth
@@ -873,13 +873,12 @@ func (s *Stage[T, R]) releaseAdmission() {
 
 // SetMaxWIP dynamically adjusts the WIP limit. Wakes blocked Submits
 // if the new limit is higher than the current one. The value is clamped
-// to [0, Capacity+Workers]. Zero means pause: no new items are admitted,
-// but in-flight items complete normally. Returns the applied value.
+// to [1, Capacity+Workers]. Returns the applied value.
 // Concurrency-safe.
 func (s *Stage[T, R]) SetMaxWIP(n int) int {
 	ceiling := s.capacity + s.workers
-	if n < 0 {
-		n = 0
+	if n < 1 {
+		n = 1
 	}
 	if n > ceiling {
 		n = ceiling

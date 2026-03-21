@@ -72,59 +72,21 @@ func TestMaxWIPClampedToCeiling(t *testing.T) {
 	s.DiscardAndWait()
 }
 
-func TestSetMaxWIPZeroPauses(t *testing.T) {
-	// SetMaxWIP(0) pauses admission — no new items admitted.
-	ctx := context.Background()
-	s := toc.Start(ctx, slowFn, toc.Options[int]{
-		Capacity: 5,
-		Workers:  1,
-	})
-
-	applied := s.SetMaxWIP(0)
-	if applied != 0 {
-		t.Errorf("SetMaxWIP(0) = %d, want 0", applied)
-	}
-
-	// Submit should block (paused).
-	blocked := make(chan struct{})
-	go func() {
-		s.Submit(ctx, 1)
-		close(blocked)
-	}()
-
-	select {
-	case <-blocked:
-		t.Fatal("Submit should block when MaxWIP=0")
-	case <-time.After(20 * time.Millisecond):
-	}
-
-	// Unpause — submit should complete.
-	s.SetMaxWIP(1)
-
-	select {
-	case <-blocked:
-	case <-time.After(time.Second):
-		t.Fatal("Submit not unblocked after SetMaxWIP(1)")
-	}
-
-	s.CloseInput()
-
-	for range s.Out() {
-	}
-
-	s.Wait()
-}
-
-func TestSetMaxWIPNegativeClampsToZero(t *testing.T) {
+func TestMaxWIPFloorOfOne(t *testing.T) {
 	ctx := context.Background()
 	s := toc.Start(ctx, identityFn, toc.Options[int]{
 		Capacity: 3,
 		Workers:  1,
 	})
 
-	applied := s.SetMaxWIP(-5)
-	if applied != 0 {
-		t.Errorf("SetMaxWIP(-5) = %d, want 0", applied)
+	applied := s.SetMaxWIP(0)
+	if applied != 1 {
+		t.Errorf("SetMaxWIP(0) = %d, want 1", applied)
+	}
+
+	applied = s.SetMaxWIP(-5)
+	if applied != 1 {
+		t.Errorf("SetMaxWIP(-5) = %d, want 1", applied)
 	}
 
 	s.CloseInput()
