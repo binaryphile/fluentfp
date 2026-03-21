@@ -8,7 +8,7 @@ This document shows every place the orders example uses fluentfp, paired with th
 flowchart TD
     A["Decode JSON body"] --> B["Validate fields"]
     B --> C["Assign ID"]
-    C --> D["Enrich via pricing service"]
+    C --> D["Price via pricing service"]
     D --> E{"Success?"}
     E -->|Yes| F["Store order"]
     E -->|No| G["Log failure"]
@@ -32,11 +32,10 @@ flowchart TD
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
 | **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `.FlatMap(Order.Validate)` -- method expression (1 line) | Validation logic on the type, used as a plain function |
 | **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` -- pure transform on Ok value (1 line) | Mutation wrapped in named function |
-| **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `.FlatMap(lookupPrices)` in the chain (1 line) | Breaker is a decorator -- invisible to caller |
+| **Price** | Call `priceOrder` + error check + error response (8 lines) | `.FlatMap(lookupPrices)` where `lookupPrices = rslt.LiftCtx(ctx, priceOrder)` (1 line) | LiftCtx binds context, FlatMap chains the call |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` -- error-side side effect in pipeline (1 line) | Logging separated from response rendering |
 | **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` -- side effects in named function (1 line) | Side effects named and composable |
-| **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(storedResult, web.Created[Order])` (1 line) | `Adapt` renders once |
-| **Error -> HTTP** | `if errors.Is(err, ...)` + response block, repeated per handler | `web.WithErrorMapper(mapDomainError)` defined once at boundary | One mapping function for all handlers |
+| **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6x) | `rslt.Map(storedResult, web.Created[Order])` (1 line) | `Adapt` renders once |
 
 ## The Complete POST Handler
 
@@ -192,7 +191,7 @@ Mutates `order` in place.
 </tr>
 </table>
 
-### Enrich (circuit breaker)
+### Price
 
 <table>
 <tr><th>Conventional</th><th>fluentfp</th></tr>
@@ -200,29 +199,17 @@ Mutates `order` in place.
 <td>
 
 ```go
-if !breaker.allow() {
-  w.Header().Set("Content-Type",
-    "application/json")
-  w.WriteHeader(503)
-  json.NewEncoder(w).Encode(
-    map[string]string{
-      "error": "pricing unavailable",
-    })
-  return
-}
-enriched, err := enrichOrder(
+priced, err := priceOrder(
   req.Context(), order)
 if err != nil {
-  breaker.recordFailure()
   log.Printf(
-    "enrichment failed: %v", err)
+    "pricing failed: %v", err)
   // ... 7-line error response ...
   return
 }
-breaker.recordSuccess()
 ```
 
-Breaker check + call + record + error response tangled.
+Call + error check + error response.
 
 </td>
 <td>
@@ -231,7 +218,7 @@ Breaker check + call + record + error response tangled.
   ... .FlatMap(lookupPrices). ...
 ```
 
-`lookupPrices = rslt.LiftCtx(ctx, pricingCall)` -- binds context, wraps `(T, error)` -> `Result[T]`. Breaker is invisible to the pipeline.
+`lookupPrices = rslt.LiftCtx(ctx, priceOrder)` -- binds context, wraps `(T, error)` -> `Result[T]`.
 
 </td>
 </tr>
@@ -245,18 +232,18 @@ Breaker check + call + record + error response tangled.
 <td>
 
 ```go
-store.put(enriched)
+store.put(priced)
 log.Printf(
-  "created order %s", enriched.ID)
+  "created order %s", priced.ID)
 select {
-case postCh <- enriched:
+case postCh <- priced:
 default:
   log.Printf("channel full, skipping")
 }
 w.Header().Set("Content-Type",
   "application/json")
 w.WriteHeader(201)
-json.NewEncoder(w).Encode(enriched)
+json.NewEncoder(w).Encode(priced)
 ```
 
 </td>
@@ -279,14 +266,10 @@ return rslt.Map(
 
 | Conventional | fluentfp | Why |
 |---|---|---|
-| 6× `Set`/`WriteHeader`/`Encode` | Zero | `Adapt` renders once |
+| 6x `Set`/`WriteHeader`/`Encode` | Zero | `Adapt` renders once |
 | Content-Type + MaxBytesReader + DisallowUnknownFields | `DecodeJSON` | One call |
 | Separate decode/validate error blocks | `FlatMap` | Chains; errors propagate |
-| `allow`/`recordSuccess`/`recordFailure` | `WithBreaker` | Decorator |
-| `errors.Is` in handler | `WithErrorMapper` | At boundary |
 | `log.Printf` in error branches | `TapErr` | Pipeline side effect |
-
-The conventional version also excludes the 40+ lines to implement `circuitBreaker` itself.
 
 ---
 

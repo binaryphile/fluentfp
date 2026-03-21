@@ -37,31 +37,23 @@ func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
     }
     // ... more validation ...
 
-    if !breaker.allow() {
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(503)
-        json.NewEncoder(w).Encode(map[string]string{"error": "pricing service unavailable"})
-        return
-    }
-    enriched, err := enrichOrder(req.Context(), order)
+    priced, err := priceOrder(req.Context(), order)
     if err != nil {
-        breaker.recordFailure()
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(500)
         json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
         return
     }
-    breaker.recordSuccess()
 
-    store.put(enriched)
+    store.put(priced)
 
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(201)
-    json.NewEncoder(w).Encode(enriched)
+    json.NewEncoder(w).Encode(priced)
 }
 ```
 
-Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of them. Each one is 3 lines of identical response-writing machinery. The actual business logic -- decode, validate, enrich, store -- is buried between them.
+Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: five of them. Each one is 3 lines of identical response-writing machinery. The actual business logic -- decode, validate, price, store -- is buried between them.
 
 **With fluentfp:**
 
@@ -69,7 +61,7 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
-    lookupPrices := rslt.LiftCtx(req.Context(), pricingCall)          // bind ctx to breaker call
+    lookupPrices := rslt.LiftCtx(req.Context(), priceOrder)          // bind ctx to pricing call
     logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
     storeAndNotify := func(o Order) { s.put(o); /* send to postCh */ }
 
@@ -78,7 +70,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     storedResult := orderResult.
         FlatMap(Order.Validate).           // validate (-> 400)
         Transform(withNewID).              // assign ID + status
-        FlatMap(lookupPrices).                   // call pricing (-> 502/503)
+        FlatMap(lookupPrices).             // call pricing service
         TapErr(logFailure).                // on error: log it
         Tap(storeAndNotify)                // on success: persist + notify
     return rslt.Map(storedResult, web.Created[Order])
@@ -124,7 +116,7 @@ type Handler = func(*http.Request) rslt.Result[web.Response]
 The handler returns Ok or Err. `web.Adapt` converts it to a standard `http.HandlerFunc`:
 
 ```go
-mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder, errorMapper))
+mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder))
 ```
 
 The response constructors -- `web.Created`, `web.OK`, `web.BadRequest`, `web.NotFound` -- carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
@@ -151,52 +143,6 @@ validatedResult := orderResult.FlatMap(Order.Validate)
 `FlatMap` chains two operations that each return `Result`. If `orderResult` is Err, `Validate` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `Validate` returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
 
 In practice: if decoding fails (wrong Content-Type -> 415, malformed JSON -> 400), validation is never called. If validation fails, that error propagates. The chain continues with `.Transform(withNewID).FlatMap(lookupPrices)` -- each step feeds the next, errors propagate automatically.
-
-### Wrapping functions with resilience (call)
-
-The pricing service might be slow or failing. In conventional Go, adding a circuit breaker means writing 40+ lines of mutex-protected state (open/closed/half-open), then threading check/record/branch logic through the handler. The breaker becomes more code than the call it protects.
-
-With fluentfp, it's a decorator:
-
-```go
-breaker := call.NewBreaker(call.BreakerConfig{
-    ResetTimeout: 10 * time.Second,
-    ReadyToTrip:  call.ConsecutiveFailures(3),
-})
-pricingCall := call.WithBreaker(breaker, priceOrder)
-```
-
-`pricingCall` has the same signature as `priceOrder`. The handler calls it without knowing a breaker exists. After 3 consecutive failures, it rejects with `call.ErrCircuitOpen`.
-
-In the POST handler, `rslt.LiftCtx` partially applies the request context, producing a `func(Order) Result[Order]` that slots directly into the FlatMap chain:
-
-```go
-lookupPrices := rslt.LiftCtx(req.Context(), pricingCall)
-```
-
-No closure needed -- LiftCtx does the wrapping.
-
-At the HTTP boundary, one error mapper translates all domain errors to HTTP responses:
-
-```go
-func mapDomainError(err error) (*web.Error, bool) {
-    if errors.Is(err, call.ErrCircuitOpen) {
-        return &web.Error{
-            Status: 503, Message: "pricing service unavailable",
-        }, true
-    }
-    if errors.Is(err, errPricingFailure) {
-        return &web.Error{
-            Status: 502, Message: "pricing service error",
-        }, true
-    }
-    return nil, false
-}
-```
-
-Defined once, applied to every handler via `web.WithErrorMapper`. Breaker-open -> 503, pricing failure -> 502. Unknown SKUs are caught earlier in validation (returns 400) so they never reach the breaker -- bad input can't trip the circuit.
-
-**Try it:** send 3 orders with SKU `"FAIL-PRICE"` (each returns 502 -- pricing failure). The breaker trips after 3 consecutive failures. The 4th request with a normal SKU returns 503 (breaker open).
 
 ### Replacing if-not-ok with Option->Result (option)
 
@@ -325,13 +271,13 @@ What toc gives you that bare goroutines don't:
 
 ```
 HTTP request (synchronous):
-  decode (web) -> validate (Order.Validate) -> price (call.WithBreaker) -> store -> 201
+  decode (web) -> validate (Order.Validate) -> price (priceOrder) -> store -> 201
 
 Background (fire-and-forget):
   postCh -> toc.FromChan -> toc.Tee(2) -> [audit Pipe | inventory Pipe]
 ```
 
-The HTTP path is fully synchronous: the order is validated, priced, and stored before the response is sent. Validation errors (including unknown SKUs) return 400, pricing failures return 502, and a tripped circuit breaker returns 503.
+The HTTP path is fully synchronous: the order is validated, priced, and stored before the response is sent. Validation errors return 400, pricing failures return an error.
 
 After storing, the order is sent to a background pipeline for post-processing. This is best-effort: if the channel is full, it's skipped with a log message.
 
@@ -349,27 +295,13 @@ curl -s -X POST http://localhost:3000/orders \
 curl -s http://localhost:3000/orders/ord-1
 
 # List with filters (total_cents: WIDGET-1 is 999 cents)
-curl -s 'http://localhost:3000/orders?status=enriched'
+curl -s 'http://localhost:3000/orders?status=priced'
 curl -s 'http://localhost:3000/orders?min_total=3000'
 
 # Validation error
 curl -s -X POST http://localhost:3000/orders \
   -H 'Content-Type: application/json' \
   -d '{"customer":"","items":[]}'
-
-# Trip the circuit breaker (3 failures)
-for i in 1 2 3; do
-  curl -s -X POST http://localhost:3000/orders \
-    -H 'Content-Type: application/json' \
-    -d '{"customer":"Bob","items":[{"sku":"FAIL-PRICE","quantity":1}]}'
-done
-
-# Next request gets 503 (breaker open)
-curl -s -X POST http://localhost:3000/orders \
-  -H 'Content-Type: application/json' \
-  -d '{"customer":"Carol","items":[{"sku":"WIDGET-1","quantity":1}]}'
-
-# Wait 10 seconds for breaker reset, then try again
 ```
 
 ## Detailed Comparison
