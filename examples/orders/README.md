@@ -65,7 +65,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
         return rslt.Of(priceOrder(req.Context(), o))
     }
     logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
-    storeAndNotify := func(o Order) { s.put(o); /* send to postCh */ }
+    storeAndNotify := func(o Order) { s.put(o) }
 
     // Pipeline: each step operates on the Result. Errors skip the rest.
     order, err := web.DecodeJSON[Order](req)
@@ -226,43 +226,14 @@ reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
 `ctxval.Get` returns an `Option`, so `.Or("unknown")` is the fallback. No sentinel types, no type assertions.
 
-### Bounded background pipelines (toc)
-
-After storing the order, the handler sends it to a background pipeline for audit logging and inventory tracking. In conventional Go this means creating channels, writing fan-out goroutines, and manually sequencing channel closes. None of it has metrics.
-
-With toc, the pipeline is three lines:
-
-```go
-// Bridge plain channel, broadcast to 2 branches
-tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
-// Branch 0: audit log
-auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
-// Branch 1: inventory count
-inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
-```
-
-`toc.FromChan` bridges the plain `chan Order` into the `chan rslt.Result[Order]` that toc operators expect -- no passthrough stage needed. `Tee` broadcasts each order to both branches. `Pipe` chains a function onto each branch. The pipeline runs for the lifetime of the server.
-
-What toc gives you that bare goroutines don't:
-
-- **Backpressure** -- `Submit` blocks when the buffer is full, so you don't silently drop work
-- **Stats** -- `stage.Stats()` tracks submitted, completed, failed, service time, idle time, blocked time -- ready for a `/debug` endpoint
-- **Shutdown ordering** -- closing input propagates through Stage -> Tee -> Pipe; context cancellation is a backstop
-- **Error propagation** -- errors flow as `Result` values instead of disappearing into goroutine logs
-
 ## Architecture
 
 ```
 HTTP request (synchronous):
   decode (web) -> validate (validateOrder) -> price (priceOrder) -> store -> 201
-
-Background (fire-and-forget):
-  postCh -> toc.FromChan -> toc.Tee(2) -> [audit Pipe | inventory Pipe]
 ```
 
 The HTTP path is fully synchronous: the order is validated, priced, and stored before the response is sent. Validation errors return 400, pricing failures return an error.
-
-After storing, the order is sent to a background pipeline for post-processing. This is best-effort: if the channel is full, it's skipped with a log message.
 
 ## Try It
 
