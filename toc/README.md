@@ -75,6 +75,13 @@ stage.SetMaxWIP(10) // relax when pressure subsides
 
 `SetMaxWIP` wakes blocked Submits if the new limit is higher. Value is clamped to `[1, Capacity+Workers]`. Returns the applied value.
 
+**Rope design tradeoffs:**
+
+- **FIFO fairness** — blocked Submits are granted in submission order. A new Submit cannot jump ahead of a queued waiter. This is enforced by granting under `admissionMu` before releasing the lock for new fast-path admissions.
+- **Reservation before enqueue** — a granted waiter holds a permit before its item enters the channel. If the waiter goroutine is slow to run (scheduler contention), capacity sits temporarily unused. This is the price of exact no-herd handoff — each slot is reserved for exactly one waiter.
+- **`Stats.Admitted` is reserved permits, not active workers** — includes buffered items, in-flight items, and granted-but-not-yet-enqueued waiters. Can exceed current `MaxWIP` after `SetMaxWIP` shrinks the limit (existing permits are not revoked). Use for observability, not hard-threshold alerting.
+- **Permit lifetime includes output publish** — a permit is held until the worker sends the result to `Out()`. If the consumer stops draining, permits are held and upstream blocks. This is the same liveness contract as the stage itself.
+
 **Output must be drained.** Workers block on the unbuffered output channel if nobody reads. Always drain `Out()` or use `DiscardAndWait()`.
 
 ## Stats
