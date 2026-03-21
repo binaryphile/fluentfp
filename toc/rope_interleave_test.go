@@ -52,41 +52,32 @@ func TestInterleave_CloseWinsBeforeGrant(t *testing.T) {
 
 	s := Start(ctx, blockingFn(workerGate), Options[int]{Capacity: 5, Workers: 1, MaxWIP: 1})
 
-	// Hook: know when B is queued as waiter.
-	waiterQueued := make(chan struct{}, 1)
-	// Hook: pause CloseInput between closedForAdmission and close(s.closing).
+	waiterQueued := newOneShot()
 	closeReached := make(chan struct{})
 	closeProceed := make(chan struct{})
-	// Hook: know when releaseAdmission completes.
-	released := make(chan struct{}, 1)
+	released := newOneShot()
 
-	s.hooks = &testHooks{
-		afterWaiterQueued:   func() { notifyNonBlocking(waiterQueued) },
+	s.hooks.Store(&testHooks{
+		afterWaiterQueued:   waiterQueued.Fire,
 		afterCloseAdmission: func() { close(closeReached); <-closeProceed },
-		afterRelease:        func() { notifyNonBlocking(released) },
-	}
+		afterRelease:        released.Fire,
+	})
 
-	// Drain output in background so workers don't block on unbuffered send.
 	go func() { for range s.Out() {} }()
 
-	// A: fast path, worker blocks.
-	s.Submit(ctx, 1)
+	s.Submit(ctx, 1) // A: fast path, worker blocks
 
-	// B: will queue as waiter.
 	errCh := make(chan error, 1)
-	go func() { errCh <- s.Submit(ctx, 2) }()
-	recv(t, waiterQueued, "waiter B queued")
+	go func() { errCh <- s.Submit(ctx, 2) }() // B: waiter
+	recv(t, waiterQueued.C(), "waiter B queued")
 
-	// CloseInput: sets closedForAdmission, pauses before close(s.closing).
 	go s.CloseInput()
 	recv(t, closeReached, "closedForAdmission set")
 
-	// Release worker — releaseAdmission → grantWaitersLocked bails (closedForAdmission=true).
-	close(workerGate)
-	recv(t, released, "releaseAdmission completed")
+	close(workerGate) // release worker → grantWaitersLocked bails
+	recv(t, released.C(), "releaseAdmission completed")
 
-	// Let CloseInput proceed → close(s.closing) wakes waiter B.
-	close(closeProceed)
+	close(closeProceed) // close(s.closing) wakes B
 
 	err := recvErr(t, errCh, "waiter B returns")
 	if err != ErrClosed {
@@ -111,41 +102,37 @@ func TestInterleave_GrantWinsBeforeClose(t *testing.T) {
 
 	s := Start(ctx, blockingFn(workerGate), Options[int]{Capacity: 5, Workers: 1, MaxWIP: 1})
 
-	waiterQueued := make(chan struct{}, 1)
-	granted := make(chan struct{}, 1)
+	waiterQueued := newOneShot()
+	granted := newOneShot()
 
-	s.hooks = &testHooks{
-		afterWaiterQueued: func() { notifyNonBlocking(waiterQueued) },
-		onGrant:           func() { notifyNonBlocking(granted) },
-	}
+	s.hooks.Store(&testHooks{
+		afterWaiterQueued: waiterQueued.Fire,
+		onGrant:           granted.Fire, // one-shot, non-blocking, safe under lock
+	})
 
 	go func() { for range s.Out() {} }()
 
-	// A: fast path, worker blocks.
-	s.Submit(ctx, 1)
+	s.Submit(ctx, 1) // A: fast path, worker blocks
 
-	// B: queues as waiter.
 	errCh := make(chan error, 1)
-	go func() { errCh <- s.Submit(ctx, 2) }()
-	recv(t, waiterQueued, "waiter B queued")
+	go func() { errCh <- s.Submit(ctx, 2) }() // B: waiter
+	recv(t, waiterQueued.C(), "waiter B queued")
 
-	// Release worker → grant fires BEFORE close.
-	close(workerGate)
-	recv(t, granted, "waiter B granted")
+	close(workerGate) // release → grant fires
+	recv(t, granted.C(), "waiter B granted")
 
-	// Close AFTER grant.
-	s.CloseInput()
+	s.CloseInput() // close AFTER grant
 
 	err := recvErr(t, errCh, "waiter B returns")
+	// Grant linearized before close. trySend may succeed or see close.
 	if err != nil && err != ErrClosed {
 		t.Errorf("waiter B: unexpected error %v", err)
 	}
 
 	s.Wait()
 
-	stats := s.Stats()
-	if stats.Admitted != 0 {
-		t.Errorf("Admitted = %d, want 0", stats.Admitted)
+	if s.Stats().Admitted != 0 {
+		t.Errorf("Admitted = %d, want 0", s.Stats().Admitted)
 	}
 }
 
@@ -156,16 +143,12 @@ func TestInterleave_FastPathVsClose(t *testing.T) {
 		ctx := context.Background()
 		s := Start(ctx, passthrough, Options[int]{Capacity: 5, Workers: 1, MaxWIP: 5})
 
-		err := s.Submit(ctx, 1)
-		if err != nil {
+		if err := s.Submit(ctx, 1); err != nil {
 			t.Fatalf("Submit: %v", err)
 		}
 
 		s.CloseInput()
-
-		for range s.Out() {
-		}
-
+		for range s.Out() {}
 		s.Wait()
 
 		if s.Stats().Admitted != 0 {
@@ -179,14 +162,11 @@ func TestInterleave_FastPathVsClose(t *testing.T) {
 
 		s.CloseInput()
 
-		err := s.Submit(ctx, 1)
-		if err != ErrClosed {
+		if err := s.Submit(ctx, 1); err != ErrClosed {
 			t.Errorf("Submit: got %v, want ErrClosed", err)
 		}
 
-		for range s.Out() {
-		}
-
+		for range s.Out() {}
 		s.Wait()
 
 		if s.Stats().Admitted != 0 {
@@ -197,64 +177,49 @@ func TestInterleave_FastPathVsClose(t *testing.T) {
 
 func TestInterleave_HonorBranch(t *testing.T) {
 	// Deterministically prove revokeOrHonor honor path:
-	// ctx cancels → waiter enters revokeOrHonor → pauses before lock →
-	// grant happens under lock → revokeOrHonor resumes → finds waiter
-	// absent → returns nil (honors grant).
+	// ctx cancels → revokeOrHonor pauses before lock → grant happens →
+	// revokeOrHonor resumes → finds waiter absent → returns nil.
 	workerGate := make(chan struct{})
 	ctx := context.Background()
 	cancelCtx, cancel := context.WithCancel(ctx)
 
 	s := Start(ctx, blockingFn(workerGate), Options[int]{Capacity: 5, Workers: 1, MaxWIP: 1})
 
-	waiterQueued := make(chan struct{}, 1)
+	waiterQueued := newOneShot()
 	revokeReached := make(chan struct{})
 	revokeProceed := make(chan struct{})
-	granted := make(chan struct{}, 1)
+	granted := newOneShot()
 
-	s.hooks = &testHooks{
-		afterWaiterQueued: func() { notifyNonBlocking(waiterQueued) },
+	s.hooks.Store(&testHooks{
+		afterWaiterQueued: waiterQueued.Fire,
 		beforeRevokeOrHonor: func() {
-			// Signal that revokeOrHonor is entered, wait for test to proceed.
 			close(revokeReached)
 			<-revokeProceed
 		},
-		onGrant: func() { notifyNonBlocking(granted) },
-	}
+		onGrant: granted.Fire,
+	})
 
 	go func() { for range s.Out() {} }()
 
-	// A: fast path, worker blocks.
-	s.Submit(ctx, 1)
+	s.Submit(ctx, 1) // A: fast path, worker blocks
 
-	// B: queues as waiter with cancellable ctx.
 	errCh := make(chan error, 1)
-	go func() { errCh <- s.Submit(cancelCtx, 2) }()
-	recv(t, waiterQueued, "waiter B queued")
+	go func() { errCh <- s.Submit(cancelCtx, 2) }() // B: cancellable waiter
+	recv(t, waiterQueued.C(), "waiter B queued")
 
-	// Cancel B's ctx → waiter's select picks ctx.Done() → enters revokeOrHonor.
-	cancel()
-	recv(t, revokeReached, "revokeOrHonor entered")
+	cancel() // B's select picks ctx.Done() → enters revokeOrHonor
+	recv(t, revokeReached, "revokeOrHonor entered, paused before lock")
 
-	// While revokeOrHonor is paused, release worker → grant fires.
-	close(workerGate)
-	recv(t, granted, "waiter B granted under lock")
+	close(workerGate) // grant fires under lock while revokeOrHonor paused
+	recv(t, granted.C(), "waiter B granted under lock")
 
-	// Resume revokeOrHonor → finds waiter absent → honors grant.
-	close(revokeProceed)
+	close(revokeProceed) // revokeOrHonor resumes → honor path
 
-	err := recvErr(t, errCh, "waiter B returns")
-	// Honor path: revokeOrHonor returns nil, Submit proceeds to trySend.
-	// trySend sees cancelled ctx and returns ctx.Err(), Submit rolls back.
-	// The key proof: no permit leak despite grant + cancel race.
-	// err may be context.Canceled (trySend ctx check) or nil (if trySend
-	// succeeds before ctx propagates) or ErrClosed (if close races).
-	_ = err
+	_ = recvErr(t, errCh, "waiter B returns")
+	// Honor path exercised. trySend sees cancelled ctx → rolls back.
+	// No permit leak is the proof.
 
 	s.CloseInput()
-
-	for range s.Out() {
-	}
-
 	s.Wait()
 
 	if s.Stats().Admitted != 0 {
@@ -270,41 +235,40 @@ func TestInterleave_WaiterQueueDrainsOnClose(t *testing.T) {
 
 	s := Start(ctx, blockingFn(workerGate), Options[int]{Capacity: 5, Workers: 1, MaxWIP: 1})
 
-	waiterCount := make(chan struct{}, N)
+	// Use atomic counter for multi-waiter notification (oneShot is single-fire).
+	var waiterCount atomic.Int32
+	waitersDone := make(chan struct{})
 	closeReached := make(chan struct{})
 	closeProceed := make(chan struct{})
-	released := make(chan struct{}, 1)
+	released := newOneShot()
 
-	s.hooks = &testHooks{
-		afterWaiterQueued:   func() { notifyNonBlocking(waiterCount) },
+	s.hooks.Store(&testHooks{
+		afterWaiterQueued: func() {
+			if waiterCount.Add(1) == N {
+				close(waitersDone)
+			}
+		},
 		afterCloseAdmission: func() { close(closeReached); <-closeProceed },
-		afterRelease:        func() { notifyNonBlocking(released) },
-	}
+		afterRelease:        released.Fire,
+	})
 
 	go func() { for range s.Out() {} }()
 
-	// A: fast path, worker blocks.
-	s.Submit(ctx, 1)
+	s.Submit(ctx, 1) // A: fast path, worker blocks
 
-	// N waiters.
 	errs := make(chan error, N)
 	for i := range N {
 		go func() { errs <- s.Submit(ctx, i+10) }()
 	}
-	for range N {
-		recv(t, waiterCount, "waiter queued")
-	}
+	recv(t, waitersDone, "all waiters queued")
 
-	// CloseInput: pause after closedForAdmission.
 	go s.CloseInput()
 	recv(t, closeReached, "closedForAdmission set")
 
-	// Release worker — grantWaitersLocked bails.
 	close(workerGate)
-	recv(t, released, "releaseAdmission completed")
+	recv(t, released.C(), "releaseAdmission completed")
 
-	// Let CloseInput proceed — wakes all waiters.
-	close(closeProceed)
+	close(closeProceed) // wakes all waiters
 
 	for range N {
 		err := recvErr(t, errs, "waiter returns")
@@ -325,39 +289,34 @@ func TestInterleave_WaiterQueueDrainsOnClose(t *testing.T) {
 }
 
 func TestInterleave_StageDoneUnblocksWaiter(t *testing.T) {
-	// Prove: stageDone (parent cancel) wakes a blocked waiter deterministically.
+	// Prove: stageDone (parent cancel) wakes a blocked waiter.
 	workerGate := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := Start(ctx, blockingFn(workerGate), Options[int]{Capacity: 5, Workers: 1, MaxWIP: 1})
 
-	waiterQueued := make(chan struct{}, 1)
+	waiterQueued := newOneShot()
 
-	s.hooks = &testHooks{
-		afterWaiterQueued: func() { notifyNonBlocking(waiterQueued) },
-	}
+	s.hooks.Store(&testHooks{
+		afterWaiterQueued: waiterQueued.Fire,
+	})
 
 	go func() { for range s.Out() {} }()
 
-	// A: fast path, worker blocks.
-	s.Submit(ctx, 1)
+	s.Submit(ctx, 1) // A: fast path, worker blocks
 
-	// B: queues as waiter.
 	errCh := make(chan error, 1)
-	go func() { errCh <- s.Submit(ctx, 2) }()
-	recv(t, waiterQueued, "waiter B queued")
+	go func() { errCh <- s.Submit(ctx, 2) }() // B: waiter
+	recv(t, waiterQueued.C(), "waiter B queued")
 
-	// Cancel parent context → stageDone fires → waiter wakes.
-	cancel()
+	cancel() // stageDone fires → waiter wakes
 
 	err := recvErr(t, errCh, "waiter B returns")
 	if err == nil {
 		t.Fatal("expected error after parent cancel")
 	}
 
-	// Release worker so stage can shut down.
 	close(workerGate)
-
 	s.Wait()
 
 	if s.Stats().Admitted != 0 {
@@ -365,8 +324,7 @@ func TestInterleave_StageDoneUnblocksWaiter(t *testing.T) {
 	}
 }
 
-// BenchmarkAcquireAdmissionFastPath measures the fast-path overhead of
-// admission control, including the nil hook check.
+// BenchmarkAcquireAdmissionFastPath measures fast-path overhead including hook check.
 func BenchmarkAcquireAdmissionFastPath(b *testing.B) {
 	var sink atomic.Int64
 
@@ -382,7 +340,7 @@ func BenchmarkAcquireAdmissionFastPath(b *testing.B) {
 			s := Start(ctx, fn, Options[int]{Capacity: b.N, Workers: 1, MaxWIP: b.N + 1})
 
 			if withHooks {
-				s.hooks = &testHooks{} // all nil funcs — measures pointer + nil check overhead
+				s.hooks.Store(&testHooks{}) // all nil funcs — measures atomic.Load + nil check
 			}
 
 			go func() { for range s.Out() {} }()

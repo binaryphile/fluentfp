@@ -183,7 +183,8 @@ type Stats struct {
 }
 
 // testHooks holds optional barrier callbacks for deterministic testing.
-// nil in production. Assigned before goroutines launch, read-only after.
+// Published via atomic.Pointer on Stage; immutable after Store.
+// Must not be mutated after publication — treat as frozen config.
 type testHooks struct {
 	afterAdmitFastPath  func() // after admitted++ and Unlock in acquireAdmission
 	afterWaiterQueued   func() // after waiters append and Unlock, before select
@@ -193,12 +194,23 @@ type testHooks struct {
 	beforeRevokeOrHonor func() // before admissionMu.Lock in revokeOrHonor
 }
 
-// notifyNonBlocking sends to ch without blocking. Safe to call under a mutex.
-func notifyNonBlocking(ch chan<- struct{}) {
-	select {
-	case ch <- struct{}{}:
-	default:
-	}
+// oneShot is a non-blocking, non-lossy one-time signal.
+// Fire closes the channel exactly once. Waiters observe via <-ch.
+type oneShot struct {
+	once sync.Once
+	ch   chan struct{}
+}
+
+func newOneShot() *oneShot {
+	return &oneShot{ch: make(chan struct{})}
+}
+
+func (o *oneShot) Fire() {
+	o.once.Do(func() { close(o.ch) })
+}
+
+func (o *oneShot) C() <-chan struct{} {
+	return o.ch
 }
 
 // waiter represents a blocked Submit waiting for an admission slot.
@@ -222,7 +234,7 @@ type Stage[T, R any] struct {
 	closing   chan struct{}   // closed on shutdown to unblock Submit
 	stageDone <-chan struct{} // closed when stageCtx is canceled (parent or fail-fast)
 	cancel    context.CancelCauseFunc
-	hooks     *testHooks     // nil in production; set by tests for deterministic barriers
+	hooks     atomic.Pointer[testHooks] // nil in production; Store once before first Submit
 	wg        sync.WaitGroup
 
 	// closed guards input shutdown. Once set, Submit rejects.
@@ -554,7 +566,7 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 		s.admitted++
 		s.admissionMu.Unlock()
 
-		if h := s.hooks; h != nil && h.afterAdmitFastPath != nil {
+		if h := s.hooks.Load(); h != nil && h.afterAdmitFastPath != nil {
 			h.afterAdmitFastPath()
 		}
 
@@ -569,7 +581,7 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 	}
 	s.admissionMu.Unlock()
 
-	if h := s.hooks; h != nil && h.afterWaiterQueued != nil {
+	if h := s.hooks.Load(); h != nil && h.afterWaiterQueued != nil {
 		h.afterWaiterQueued()
 	}
 
@@ -612,7 +624,7 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 //
 // Must NOT be called with admissionMu held.
 func (s *Stage[T, R]) revokeOrHonor(w waiter, rejectErr error) error {
-	if h := s.hooks; h != nil && h.beforeRevokeOrHonor != nil {
+	if h := s.hooks.Load(); h != nil && h.beforeRevokeOrHonor != nil {
 		h.beforeRevokeOrHonor()
 	}
 
@@ -711,7 +723,7 @@ func (s *Stage[T, R]) CloseInput() {
 		s.closedForAdmission = true
 		s.admissionMu.Unlock()
 
-		if h := s.hooks; h != nil && h.afterCloseAdmission != nil {
+		if h := s.hooks.Load(); h != nil && h.afterCloseAdmission != nil {
 			h.afterCloseAdmission()
 		}
 
@@ -891,8 +903,8 @@ func (s *Stage[T, R]) grantWaitersLocked() {
 		s.waiters = s.waiters[1:]
 		s.admitted++
 		close(w.ready)
-		if h := s.hooks; h != nil && h.onGrant != nil {
-			h.onGrant() // UNDER LOCK — must not block. Use notifyNonBlocking.
+		if h := s.hooks.Load(); h != nil && h.onGrant != nil {
+			h.onGrant() // UNDER LOCK — must not block. Use oneShot.Fire.
 		}
 	}
 	// Reclaim backing array when queue empties.
@@ -909,7 +921,7 @@ func (s *Stage[T, R]) releaseAdmission() {
 	s.grantWaitersLocked()
 	s.admissionMu.Unlock()
 
-	if h := s.hooks; h != nil && h.afterRelease != nil {
+	if h := s.hooks.Load(); h != nil && h.afterRelease != nil {
 		h.afterRelease()
 	}
 }
