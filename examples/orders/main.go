@@ -128,10 +128,10 @@ var prices = map[string]int{
 
 var errPricingFailure = errors.New("pricing service error")
 
-// enrichOrder computes the total by looking up prices per SKU.
+// priceOrder computes the total by looking up prices per SKU.
 // SKU "FAIL-PRICE" deterministically fails to simulate a service outage.
 // Assumes SKUs are already validated — unknown SKUs are caught in validation.
-func enrichOrder(_ context.Context, o Order) (Order, error) {
+func priceOrder(_ context.Context, o Order) (Order, error) {
 	total := 0
 	for _, item := range o.Items {
 		if item.SKU == "FAIL-PRICE" {
@@ -249,12 +249,12 @@ func startPipeline(ctx context.Context, postCh <-chan Order) {
 // The returned closure captures only what it needs.
 // ---------------------------------------------------------------------------
 
-// newCreateOrder returns a handler that decodes, validates, enriches,
+// newCreateOrder returns a handler that decodes, validates, prices,
 // stores, and responds with a new order.
 func newCreateOrder(
 	s *store,
 	idCounter *atomic.Int64,
-	enrichWithBreaker func(context.Context, Order) (Order, error),
+	pricingCall func(context.Context, Order) (Order, error),
 	postCh chan<- Order,
 ) web.Handler {
 	// withNewID assigns a sequential ID and sets initial status.
@@ -268,7 +268,7 @@ func newCreateOrder(
 		reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
 		// LiftCtx binds the context and wraps (Order, error) -> Result[Order].
-		enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
+		lookupPrices := rslt.LiftCtx(req.Context(), pricingCall)
 
 		logFailure := func(err error) {
 			log.Printf("[%s] enrichment failed: %v", reqID, err)
@@ -290,7 +290,7 @@ func newCreateOrder(
 		storedResult := orderResult.
 			FlatMap(Order.Validate).
 			Transform(withNewID).
-			FlatMap(enrich).
+			FlatMap(lookupPrices).
 			TapErr(logFailure).
 			Tap(storeAndNotify)
 		return rslt.Map(storedResult, web.Created[Order])
@@ -357,7 +357,7 @@ func main() {
 	s := newStore()
 	var idCounter atomic.Int64
 
-	// Circuit breaker for pricing enrichment.
+	// Circuit breaker for pricing service.
 	breaker := call.NewBreaker(call.BreakerConfig{
 		ResetTimeout: 10 * time.Second,
 		ReadyToTrip:  call.ConsecutiveFailures(3),
@@ -365,7 +365,7 @@ func main() {
 			log.Printf("breaker: %s → %s", t.From, t.To)
 		},
 	})
-	enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
+	pricingCall := call.WithBreaker(breaker, priceOrder)
 
 	// Best-effort post-processing pipeline.
 	postCh := make(chan Order, 20)
@@ -375,7 +375,7 @@ func main() {
 	errorMapper := web.WithErrorMapper(mapDomainError)
 
 	// Handlers — each factory takes only the deps it needs.
-	handleCreateOrder := newCreateOrder(s, &idCounter, enrichWithBreaker, postCh)
+	handleCreateOrder := newCreateOrder(s, &idCounter, pricingCall, postCh)
 	handleGetOrder := newGetOrder(s)
 	handleListOrders := newListOrders(s)
 

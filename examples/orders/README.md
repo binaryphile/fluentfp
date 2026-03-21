@@ -69,7 +69,7 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: six of 
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 
-    enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)          // bind ctx to breaker call
+    lookupPrices := rslt.LiftCtx(req.Context(), pricingCall)          // bind ctx to breaker call
     logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
     storeAndNotify := func(o Order) { s.put(o); /* send to postCh */ }
 
@@ -78,7 +78,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     storedResult := orderResult.
         FlatMap(Order.Validate).           // validate (-> 400)
         Transform(withNewID).              // assign ID + status
-        FlatMap(enrich).                   // call pricing (-> 502/503)
+        FlatMap(lookupPrices).                   // call pricing (-> 502/503)
         TapErr(logFailure).                // on error: log it
         Tap(storeAndNotify)                // on success: persist + notify
     return rslt.Map(storedResult, web.Created[Order])
@@ -150,7 +150,7 @@ validatedResult := orderResult.FlatMap(Order.Validate)
 
 `FlatMap` chains two operations that each return `Result`. If `orderResult` is Err, `Validate` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `Validate` returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
 
-In practice: if decoding fails (wrong Content-Type -> 415, malformed JSON -> 400), validation is never called. If validation fails, that error propagates. The chain continues with `.Transform(withNewID).FlatMap(enrich)` -- each step feeds the next, errors propagate automatically.
+In practice: if decoding fails (wrong Content-Type -> 415, malformed JSON -> 400), validation is never called. If validation fails, that error propagates. The chain continues with `.Transform(withNewID).FlatMap(lookupPrices)` -- each step feeds the next, errors propagate automatically.
 
 ### Wrapping functions with resilience (call)
 
@@ -163,15 +163,15 @@ breaker := call.NewBreaker(call.BreakerConfig{
     ResetTimeout: 10 * time.Second,
     ReadyToTrip:  call.ConsecutiveFailures(3),
 })
-enrichWithBreaker := call.WithBreaker(breaker, enrichOrder)
+pricingCall := call.WithBreaker(breaker, priceOrder)
 ```
 
-`enrichWithBreaker` has the same signature as `enrichOrder`. The handler calls it without knowing a breaker exists. After 3 consecutive failures, it rejects with `call.ErrCircuitOpen`.
+`pricingCall` has the same signature as `priceOrder`. The handler calls it without knowing a breaker exists. After 3 consecutive failures, it rejects with `call.ErrCircuitOpen`.
 
 In the POST handler, `rslt.LiftCtx` partially applies the request context, producing a `func(Order) Result[Order]` that slots directly into the FlatMap chain:
 
 ```go
-enrich := rslt.LiftCtx(req.Context(), enrichWithBreaker)
+lookupPrices := rslt.LiftCtx(req.Context(), pricingCall)
 ```
 
 No closure needed -- LiftCtx does the wrapping.
@@ -325,13 +325,13 @@ What toc gives you that bare goroutines don't:
 
 ```
 HTTP request (synchronous):
-  decode (web) -> validate (Order.Validate) -> enrich (call.WithBreaker) -> store -> 201
+  decode (web) -> validate (Order.Validate) -> price (call.WithBreaker) -> store -> 201
 
 Background (fire-and-forget):
   postCh -> toc.FromChan -> toc.Tee(2) -> [audit Pipe | inventory Pipe]
 ```
 
-The HTTP path is fully synchronous: the order is validated, enriched, and stored before the response is sent. Validation errors (including unknown SKUs) return 400, pricing failures return 502, and a tripped circuit breaker returns 503.
+The HTTP path is fully synchronous: the order is validated, priced, and stored before the response is sent. Validation errors (including unknown SKUs) return 400, pricing failures return 502, and a tripped circuit breaker returns 503.
 
 After storing, the order is sent to a background pipeline for post-processing. This is best-effort: if the channel is full, it's skipped with a log message.
 

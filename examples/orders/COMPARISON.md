@@ -32,7 +32,7 @@ flowchart TD
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
 | **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `.FlatMap(Order.Validate)` -- method expression (1 line) | Validation logic on the type, used as a plain function |
 | **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` -- pure transform on Ok value (1 line) | Mutation wrapped in named function |
-| **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `.FlatMap(enrich)` in the chain (1 line) | Breaker is a decorator -- invisible to caller |
+| **Enrich** | `breaker.allow()` check + call + `recordSuccess`/`recordFailure` + error response (12 lines, plus 40+ line breaker impl) | `.FlatMap(lookupPrices)` in the chain (1 line) | Breaker is a decorator -- invisible to caller |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` -- error-side side effect in pipeline (1 line) | Logging separated from response rendering |
 | **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` -- side effects in named function (1 line) | Side effects named and composable |
 | **Respond** | `w.Header().Set` + `WriteHeader` + `Encode` (3 lines, repeated 6×) | `rslt.Map(storedResult, web.Created[Order])` (1 line) | `Adapt` renders once |
@@ -228,10 +228,10 @@ Breaker check + call + record + error response tangled.
 <td>
 
 ```go
-  ... .FlatMap(enrich). ...
+  ... .FlatMap(lookupPrices). ...
 ```
 
-`enrich = rslt.LiftCtx(ctx, enrichWithBreaker)` -- binds context, wraps `(T, error)` -> `Result[T]`. Breaker is invisible to the pipeline.
+`lookupPrices = rslt.LiftCtx(ctx, pricingCall)` -- binds context, wraps `(T, error)` -> `Result[T]`. Breaker is invisible to the pipeline.
 
 </td>
 </tr>
