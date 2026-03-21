@@ -201,25 +201,18 @@ if err != nil {
 }
 mt, hasMinTotal := mtOption.Get()
 
-hasMatchingStatus := func(o Order) bool { return o.Status == status }
-totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
+hasMatchingStatus := func(o Order) bool { return !hasStatus || o.Status == status }
+totalAtLeast := func(o Order) bool { return !hasMinTotal || o.TotalCents >= mt }
 
-// SortBy sorts by key function. KeepIf keeps elements
-// where the predicate returns true (like filter()).
-orders := slice.SortBy(s.list(), orderNum)
-if hasStatus {
-    orders = orders.KeepIf(hasMatchingStatus)
-}
-if hasMinTotal {
-    orders = orders.KeepIf(totalAtLeast)
-}
+// SortBy sorts by key function. KeepIf keeps elements where the predicate returns true.
+orders := slice.SortBy(s.list(), orderNum).KeepIf(hasMatchingStatus).KeepIf(totalAtLeast)
 ```
 
 `option.MapResult` handles the three cases for an optional parseable parameter: missing (skip), valid integer (use it), invalid input (400 error). This cleanly distinguishes "not provided" from "provided but wrong" -- a common pattern for optional query parameters.
 
-`slice.SortBy(list, orderNum)` sorts by a key function -- `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. The conditional `KeepIf` filters are plain Go `if` statements -- no special API needed when you're not inside a chain that would break.
+`slice.SortBy(list, orderNum)` sorts by a key function -- `orderNum` extracts the numeric suffix from `"ord-N"` for correct numeric ordering. Inactive filters pass everything through (`!hasStatus` short-circuits to true), so `KeepIf` chains without `if` guards.
 
-The conventional equivalent uses `sort.Slice` with an `i, j` closure that accesses the outer slice by index, and `var filtered []Order` with `append` inside a `for` loop for each filter. The fluentfp version uses `SortBy` with a key function and `KeepIf` with named predicates -- same structure, less scaffolding.
+The conventional equivalent uses `sort.Slice` with an `i, j` closure that accesses the outer slice by index, and `var filtered []Order` with `append` inside a `for` loop for each filter. The fluentfp version uses `SortBy` with a key function and `KeepIf` with named predicates -- one chain, no scaffolding.
 
 ### Type-safe context values (ctxval)
 
