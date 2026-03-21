@@ -183,6 +183,12 @@ func startPipeline(ctx context.Context, postCh <-chan Order) {
 	go drainResults("inventory", inventoryPipe.Out())
 }
 
+// parseMinTotal parses a min_total query parameter as an integer (cents).
+func parseMinTotal(raw string) rslt.Result[int] {
+	return option.Atoi(raw).OkOr(web.BadRequest(
+		fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
+}
+
 // ---------------------------------------------------------------------------
 // Handler factories
 // ---------------------------------------------------------------------------
@@ -246,10 +252,6 @@ func newListOrders(s *store) web.Handler {
 
 		status, hasStatus := option.NonEmpty(q.Get("status")).Get()
 
-		parseMinTotal := func(raw string) rslt.Result[int] {
-			return option.Atoi(raw).OkOr(web.BadRequest(
-				fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
-		}
 		rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
 		mtOption, err := option.MapResult(rawMinTotalOption, parseMinTotal).Unpack()
 		if err != nil {

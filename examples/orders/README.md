@@ -190,10 +190,6 @@ With fluentfp, parsing is a pipeline and filtering is a chain:
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()  // "" -> not-ok, non-empty -> ok
 
 // MapResult: skip parsing when missing, parse when present, 400 when invalid.
-parseMinTotal := func(raw string) rslt.Result[int] {
-    msg := fmt.Sprintf("min_total must be an integer (cents), got %q", raw)
-    return option.Atoi(raw).OkOr(web.BadRequest(msg))
-}
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
 mtOption, err := option.MapResult(rawMinTotalOption, parseMinTotal).Unpack()
 if err != nil {
