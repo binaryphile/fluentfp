@@ -130,26 +130,6 @@ func priceOrder(_ context.Context, o Order) (Order, error) {
 // Validation
 // ---------------------------------------------------------------------------
 
-// Validate checks all business rules on the order. As a method,
-// Order.Validate is a method expression usable in FlatMap chains.
-func (o Order) Validate() rslt.Result[Order] {
-	if o.Customer == "" {
-		return rslt.Err[Order](web.BadRequest("customer is required"))
-	}
-	if len(o.Items) == 0 {
-		return rslt.Err[Order](web.BadRequest("order must have at least one item"))
-	}
-	if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
-		return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
-	}
-	for _, item := range o.Items {
-		if _, ok := prices[item.SKU]; !ok {
-			return rslt.Err[Order](web.BadRequest(
-				fmt.Sprintf("unknown SKU: %s", item.SKU)))
-		}
-	}
-	return rslt.Ok(o)
-}
 
 // ---------------------------------------------------------------------------
 // Background pipeline (toc) — best-effort post-processing
@@ -198,6 +178,26 @@ func newCreateOrder(
 	idCounter *atomic.Int64,
 	postCh chan<- Order,
 ) web.Handler {
+	// validateOrder checks business rules, closing over the price catalog.
+	validateOrder := func(o Order) rslt.Result[Order] {
+		if o.Customer == "" {
+			return rslt.Err[Order](web.BadRequest("customer is required"))
+		}
+		if len(o.Items) == 0 {
+			return rslt.Err[Order](web.BadRequest("order must have at least one item"))
+		}
+		if !slice.From(o.Items).Every(LineItem.HasPositiveQty) {
+			return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
+		}
+		for _, item := range o.Items {
+			if _, ok := prices[item.SKU]; !ok {
+				return rslt.Err[Order](web.BadRequest(
+					fmt.Sprintf("unknown SKU: %s", item.SKU)))
+			}
+		}
+		return rslt.Ok(o)
+	}
+
 	withNewID := func(o Order) Order {
 		o.ID = fmt.Sprintf("ord-%d", idCounter.Add(1))
 		o.Status = "pending"
@@ -225,7 +225,7 @@ func newCreateOrder(
 
 		orderResult := web.DecodeJSON[Order](req)
 		storedResult := orderResult.
-			FlatMap(Order.Validate).
+			FlatMap(validateOrder).
 			Transform(withNewID).
 			FlatMap(lookupPrices).
 			TapErr(logFailure).

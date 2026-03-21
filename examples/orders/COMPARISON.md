@@ -30,7 +30,7 @@ flowchart TD
 | Step | Conventional Go | fluentfp | What changes |
 |------|----------------|----------|--------------|
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
-| **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `.FlatMap(Order.Validate)` -- method expression (1 line) | Validation logic on the type, used as a plain function |
+| **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `.FlatMap(validateOrder)` -- named closure (1 line) | Validation as a closure over dependencies |
 | **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` -- pure transform on Ok value (1 line) | Mutation wrapped in named function |
 | **Price** | Call `priceOrder` + error check + error response (8 lines) | `.FlatMap(lookupPrices)` where `lookupPrices = rslt.LiftCtx(ctx, priceOrder)` (1 line) | LiftCtx binds context, FlatMap chains the call |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` -- error-side side effect in pipeline (1 line) | Logging separated from response rendering |
@@ -154,10 +154,10 @@ Each check repeats the response block.
 // FlatMap: if decode failed, skip.
 // If validation fails, rest is skipped.
 storedResult := orderResult.
-  FlatMap(Order.Validate). ...
+  FlatMap(validateOrder). ...
 ```
 
-`Order.Validate` is a method expression -- Go turns the method into `func(Order) Result[Order]`, which is what FlatMap needs.
+`validateOrder` is a named closure that returns `Result[Order]` -- exactly what FlatMap needs. It closes over the price catalog for SKU validation.
 
 </td>
 </tr>

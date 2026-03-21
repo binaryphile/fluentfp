@@ -68,7 +68,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     // Pipeline: each step operates on the Result. Errors skip the rest.
     orderResult := web.DecodeJSON[Order](req)
     storedResult := orderResult.
-        FlatMap(Order.Validate).           // validate (-> 400)
+        FlatMap(validateOrder).            // validate (-> 400)
         Transform(withNewID).              // assign ID + status
         FlatMap(lookupPrices).             // call pricing service
         TapErr(logFailure).                // on error: log it
@@ -135,10 +135,10 @@ Decoding a JSON body correctly in Go requires:
 
 ```go
 orderResult := web.DecodeJSON[Order](req)
-validatedResult := orderResult.FlatMap(Order.Validate)
+validatedResult := orderResult.FlatMap(validateOrder)
 ```
 
-`Order.Validate` is a method expression -- Go turns the method `func (o Order) Validate() rslt.Result[Order]` into a plain function `func(Order) rslt.Result[Order]`, which is exactly what `FlatMap` needs. The validation logic lives on the type where it belongs.
+`validateOrder` is a named closure that checks business rules and returns `Result[Order]` -- exactly what `FlatMap` needs. It closes over the price catalog so validation can check SKUs against known products.
 
 `FlatMap` chains two operations that each return `Result`. If `orderResult` is Err, `Validate` is skipped entirely. If validation fails, that error propagates. The "flat" part: since `Validate` returns `Result[Order]`, a plain `Map` would nest that into `Result[Result[Order]]`. `FlatMap` keeps it one level deep.
 
@@ -252,7 +252,7 @@ What toc gives you that bare goroutines don't:
 
 ```
 HTTP request (synchronous):
-  decode (web) -> validate (Order.Validate) -> price (priceOrder) -> store -> 201
+  decode (web) -> validate (validateOrder) -> price (priceOrder) -> store -> 201
 
 Background (fire-and-forget):
   postCh -> toc.FromChan -> toc.Tee(2) -> [audit Pipe | inventory Pipe]
