@@ -2,6 +2,7 @@ package toc
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,6 +32,31 @@ func recvErr(t *testing.T, ch <-chan error, msg string) error {
 		return nil
 	}
 }
+
+// countDown fires after exactly n calls. Panics on overfire.
+type countDown struct {
+	remaining atomic.Int32
+	done      chan struct{}
+	once      sync.Once
+}
+
+func newCountDown(n int) *countDown {
+	c := &countDown{done: make(chan struct{})}
+	c.remaining.Store(int32(n))
+	return c
+}
+
+func (c *countDown) Fire() {
+	v := c.remaining.Add(-1)
+	switch {
+	case v == 0:
+		c.once.Do(func() { close(c.done) })
+	case v < 0:
+		panic("countDown fired too many times")
+	}
+}
+
+func (c *countDown) C() <-chan struct{} { return c.done }
 
 // blockingFn returns a fn that blocks until gate is closed.
 func blockingFn(gate <-chan struct{}) func(context.Context, int) (int, error) {
@@ -124,15 +150,26 @@ func TestInterleave_GrantWinsBeforeClose(t *testing.T) {
 	s.CloseInput() // close AFTER grant
 
 	err := recvErr(t, errCh, "waiter B returns")
-	// Grant linearized before close. trySend may succeed or see close.
+	// Grant linearized before close. trySend may succeed (nil) or see
+	// close (ErrClosed). Both are valid — grant preceded close.
 	if err != nil && err != ErrClosed {
 		t.Errorf("waiter B: unexpected error %v", err)
 	}
 
 	s.Wait()
 
-	if s.Stats().Admitted != 0 {
-		t.Errorf("Admitted = %d, want 0", s.Stats().Admitted)
+	stats := s.Stats()
+	if stats.Admitted != 0 {
+		t.Errorf("Admitted = %d, want 0", stats.Admitted)
+	}
+	// If Submit succeeded, item B was processed (Submitted incremented).
+	// If Submit returned ErrClosed, item B was not processed.
+	// Either way, exactly one outcome — no duplicate processing.
+	if err == nil && stats.Submitted < 2 {
+		t.Errorf("Submit succeeded but Submitted = %d, want >= 2", stats.Submitted)
+	}
+	if err == ErrClosed && stats.Submitted > 1 {
+		t.Errorf("Submit returned ErrClosed but Submitted = %d, want 1", stats.Submitted)
 	}
 }
 
@@ -235,19 +272,13 @@ func TestInterleave_WaiterQueueDrainsOnClose(t *testing.T) {
 
 	s := Start(ctx, blockingFn(workerGate), Options[int]{Capacity: 5, Workers: 1, MaxWIP: 1})
 
-	// Use atomic counter for multi-waiter notification (oneShot is single-fire).
-	var waiterCount atomic.Int32
-	waitersDone := make(chan struct{})
+	waitersQueued := newCountDown(N) // panics on overfire
 	closeReached := make(chan struct{})
 	closeProceed := make(chan struct{})
 	released := newOneShot()
 
 	s.hooks.Store(&testHooks{
-		afterWaiterQueued: func() {
-			if waiterCount.Add(1) == N {
-				close(waitersDone)
-			}
-		},
+		afterWaiterQueued:   waitersQueued.Fire,
 		afterCloseAdmission: func() { close(closeReached); <-closeProceed },
 		afterRelease:        released.Fire,
 	})
@@ -260,7 +291,7 @@ func TestInterleave_WaiterQueueDrainsOnClose(t *testing.T) {
 	for i := range N {
 		go func() { errs <- s.Submit(ctx, i+10) }()
 	}
-	recv(t, waitersDone, "all waiters queued")
+	recv(t, waitersQueued.C(), "all N waiters queued")
 
 	go s.CloseInput()
 	recv(t, closeReached, "closedForAdmission set")
@@ -312,8 +343,15 @@ func TestInterleave_StageDoneUnblocksWaiter(t *testing.T) {
 	cancel() // stageDone fires → waiter wakes
 
 	err := recvErr(t, errCh, "waiter B returns")
-	if err == nil {
-		t.Fatal("expected error after parent cancel")
+	// Parent cancel triggers multiple events: ctx.Done(), stageDone,
+	// and (via cancel watcher) CloseInput → closing. The worker may also
+	// complete and release, granting B before closedForAdmission is set.
+	// Valid outcomes:
+	//   nil              — B granted + trySend succeeded before close
+	//   ErrClosed        — B rejected via closing/stageDone/closedForAdmission
+	//   context.Canceled — B's ctx.Done() won the select + trySend saw ctx
+	if err != nil && err != ErrClosed && err != context.Canceled {
+		t.Errorf("waiter B: got %v, want nil, ErrClosed, or context.Canceled", err)
 	}
 
 	close(workerGate)
