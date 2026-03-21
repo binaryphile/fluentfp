@@ -57,14 +57,16 @@ type Order struct {
 	ID         string     `json:"id"`
 	Customer   string     `json:"customer"`
 	Items      []LineItem `json:"items"`
-	Status     string     `json:"status"`
+	Status     OrderStatus `json:"status"`
 	TotalCents int        `json:"total_cents"`
 }
 
-// Order status constants.
+// OrderStatus tracks the lifecycle of an order.
+type OrderStatus string
+
 const (
-	statusPending = "pending"
-	statusPriced  = "priced"
+	statusPending OrderStatus = "pending"
+	statusPriced  OrderStatus = "priced"
 )
 
 // orderNum extracts the numeric suffix from an order ID for sorting.
@@ -156,7 +158,7 @@ func startPipeline(ctx context.Context, postCh <-chan Order) {
 	auditPipe := toc.Pipe(ctx, tee.Branch(0), auditOrder, toc.Options[Order]{})
 	metricsPipe := toc.Pipe(ctx, tee.Branch(1), countLineItems, toc.Options[Order]{})
 	go drainResults("audit", auditPipe.Out())
-	go drainResults("inventory", metricsPipe.Out())
+	go drainResults("metrics", metricsPipe.Out())
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +208,7 @@ func newCreateOrder(
 		}
 
 		logFailure := func(err error) {
-			log.Printf("[%s] pricing failed: %v", reqID, err)
+			log.Printf("[%s] order failed: %v", reqID, err)
 		}
 
 		storeAndNotify := func(o Order) {
@@ -261,7 +263,7 @@ func newListOrders(s *store) web.Handler {
 		}
 		mt, hasMinTotal := mtOption.Get()
 
-		hasMatchingStatus := func(o Order) bool { return !hasStatus || o.Status == status }
+		hasMatchingStatus := func(o Order) bool { return !hasStatus || o.Status == OrderStatus(status) }
 		totalAtLeast := func(o Order) bool { return !hasMinTotal || o.TotalCents >= mt }
 
 		orders := slice.SortBy(s.list(), orderNum).KeepIf(hasMatchingStatus).KeepIf(totalAtLeast)
