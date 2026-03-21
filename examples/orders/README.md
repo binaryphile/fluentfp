@@ -168,8 +168,7 @@ Both are standalone (not methods) because the type changes at each step: string 
 
 ```go
 findOrder := func(id string) rslt.Result[Order] {
-    return option.New(s.get(id)).
-        OkOr(web.NotFound("order not found"))
+    return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
 }
 ```
 
@@ -192,8 +191,8 @@ status, hasStatus := option.NonEmpty(q.Get("status")).Get()  // "" -> not-ok, no
 
 // MapResult: skip parsing when missing, parse when present, 400 when invalid.
 parseMinTotal := func(raw string) rslt.Result[int] {
-    return option.Atoi(raw).OkOr(
-        web.BadRequest(fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
+    msg := fmt.Sprintf("min_total must be an integer (cents), got %q", raw)
+    return option.Atoi(raw).OkOr(web.BadRequest(msg))
 }
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))
 mtOption, err := option.MapResult(rawMinTotalOption, parseMinTotal).Unpack()
@@ -202,12 +201,8 @@ if err != nil {
 }
 mt, hasMinTotal := mtOption.Get()
 
-hasMatchingStatus := func(o Order) bool {
-    return o.Status == status
-}
-totalAtLeast := func(o Order) bool {
-    return o.TotalCents >= mt
-}
+hasMatchingStatus := func(o Order) bool { return o.Status == status }
+totalAtLeast := func(o Order) bool { return o.TotalCents >= mt }
 
 // SortBy sorts by key function. KeepIf keeps elements
 // where the predicate returns true (like filter()).
@@ -250,11 +245,9 @@ With toc, the pipeline is three lines:
 // Bridge plain channel, broadcast to 2 branches
 tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
 // Branch 0: audit log
-auditPipe := toc.Pipe(
-    ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
+auditPipe := toc.Pipe(ctx, tee.Branch(0), logOrder, toc.Options[Order]{})
 // Branch 1: inventory count
-inventoryPipe := toc.Pipe(
-    ctx, tee.Branch(1), countItems, toc.Options[Order]{})
+inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 ```
 
 `toc.FromChan` bridges the plain `chan Order` into the `chan rslt.Result[Order]` that toc operators expect -- no passthrough stage needed. `Tee` broadcasts each order to both branches. `Pipe` chains a function onto each branch. The pipeline runs for the lifetime of the server.
