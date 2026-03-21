@@ -885,7 +885,7 @@ func (s *Stage[T, R]) grantWaitersLocked() {
 		s.admitted++
 		close(w.ready)
 		if h := s.hooks.Load(); h != nil && h.onGrant != nil {
-			h.onGrant() // UNDER LOCK — must not block. Use oneShot.Fire.
+			h.onGrant() // UNDER LOCK — must not block.
 		}
 	}
 	// Reclaim backing array when queue empties.
