@@ -385,3 +385,140 @@ func TestRopeBackwardCompatible(t *testing.T) {
 
 	s.Wait()
 }
+
+func TestRopeStageDoneUnblocksWaiter(t *testing.T) {
+	// A waiter blocked in acquireAdmission must wake when stageDone fires.
+	ctx, cancel := context.WithCancel(context.Background())
+	s := toc.Start(ctx, slowFn, toc.Options[int]{
+		Capacity: 5,
+		Workers:  1,
+		MaxWIP:   1,
+	})
+
+	s.Submit(ctx, 1)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.Submit(ctx, 2)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+
+	// Cancel parent context — stageDone fires.
+	cancel()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected error after stage cancel")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("waiter not unblocked by stageDone")
+	}
+
+	for range s.Out() {
+	}
+
+	s.Wait()
+}
+
+func TestRopeCloseInputRejectsWaiters(t *testing.T) {
+	// After CloseInput, blocked waiters should be rejected, not granted.
+	ctx := context.Background()
+	s := toc.Start(ctx, slowFn, toc.Options[int]{
+		Capacity: 5,
+		Workers:  1,
+		MaxWIP:   1,
+	})
+
+	s.Submit(ctx, 1)
+
+	errs := make(chan error, 3)
+	for range 3 {
+		go func() {
+			errs <- s.Submit(ctx, 99)
+		}()
+	}
+
+	time.Sleep(10 * time.Millisecond)
+	s.CloseInput()
+
+	for range 3 {
+		select {
+		case err := <-errs:
+			if err == nil {
+				t.Error("expected ErrClosed after CloseInput, got nil")
+			}
+		case <-time.After(time.Second):
+			t.Fatal("waiter not rejected after CloseInput")
+		}
+	}
+
+	for range s.Out() {
+	}
+
+	s.Wait()
+}
+
+func TestRopeAdmittedZeroAtQuiescence(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{
+		Capacity: 5,
+		Workers:  2,
+		MaxWIP:   3,
+	})
+
+	go func() {
+		for range s.Out() {
+		}
+	}()
+
+	for i := range 20 {
+		s.Submit(ctx, i)
+	}
+
+	s.CloseInput()
+	s.Wait()
+
+	stats := s.Stats()
+	if stats.Admitted != 0 {
+		t.Errorf("Admitted = %d after quiescence, want 0", stats.Admitted)
+	}
+}
+
+func TestRopePanicReleasesPermit(t *testing.T) {
+	ctx := context.Background()
+	panicFn := func(_ context.Context, n int) (int, error) {
+		if n == 1 {
+			panic("boom")
+		}
+		return n, nil
+	}
+
+	s := toc.Start(ctx, panicFn, toc.Options[int]{
+		Capacity:        5,
+		Workers:         1,
+		MaxWIP:          2,
+		ContinueOnError: true,
+	})
+
+	go func() {
+		for range s.Out() {
+		}
+	}()
+
+	s.Submit(ctx, 1)
+	s.Submit(ctx, 2)
+	s.Submit(ctx, 3)
+
+	s.CloseInput()
+	s.Wait()
+
+	stats := s.Stats()
+	if stats.Admitted != 0 {
+		t.Errorf("Admitted = %d after panic + quiescence, want 0", stats.Admitted)
+	}
+	if stats.Completed != 3 {
+		t.Errorf("Completed = %d, want 3", stats.Completed)
+	}
+}

@@ -151,8 +151,8 @@ type Stats struct {
 	QueueCapacity  int   // configured capacity
 
 	MaxWIP        int   // current WIP limit
-	Admitted      int64 // current admitted-not-completed count
-	RopeWaitCount int64 // submissions that blocked on rope
+	Admitted      int64 // reserved permits: items admitted but not yet released (includes buffered, in-flight, and reserved-but-not-yet-enqueued)
+	RopeWaitCount int64 // cumulative: total submissions that blocked on rope (not current blocked count)
 	RopeWaitNs    int64 // cumulative rope wait time (nanoseconds)
 
 	// AllocTrackingActive reports whether allocation sampling is
@@ -541,31 +541,37 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 
 	case <-ctx.Done():
 		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
-		s.admissionMu.Lock()
-		if s.removeWaiter(w) {
-			// Still in queue — remove and return error.
-			s.admissionMu.Unlock()
 
-			return ctx.Err()
-		}
-		// Already granted — honor the grant, don't leak the slot.
-		s.admissionMu.Unlock()
-
-		return nil
+		return s.revokeOrHonor(w, ctx.Err())
 
 	case <-s.closing:
 		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
-		s.admissionMu.Lock()
-		if s.removeWaiter(w) {
-			s.admissionMu.Unlock()
 
-			return ErrClosed
-		}
-		// Already granted — honor the grant.
+		return s.revokeOrHonor(w, ErrClosed)
+
+	case <-s.stageDone:
+		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
+
+		return s.revokeOrHonor(w, ErrClosed)
+	}
+}
+
+// revokeOrHonor attempts to remove a waiter from the queue.
+// If still queued, removes it and returns rejectErr.
+// If already granted, honors the grant (returns nil so the caller
+// proceeds to trySend, which will fail and rollback).
+// Must NOT be called with admissionMu held.
+func (s *Stage[T, R]) revokeOrHonor(w waiter, rejectErr error) error {
+	s.admissionMu.Lock()
+	if s.removeWaiter(w) {
 		s.admissionMu.Unlock()
 
-		return nil
+		return rejectErr
 	}
+	// Already granted — honor the grant, don't leak the slot.
+	s.admissionMu.Unlock()
+
+	return nil
 }
 
 // removeWaiter removes w from the waiters queue. Returns true if found
@@ -788,8 +794,14 @@ func (s *Stage[T, R]) Stats() Stats {
 }
 
 // grantWaiters wakes blocked Submits when slots are available.
+// Does not grant once the stage is closed — waiters will wake via
+// s.closing/s.stageDone channels and be rejected there.
 // Must be called with admissionMu held.
 func (s *Stage[T, R]) grantWaiters() {
+	if s.closed.Load() {
+		return
+	}
+
 	for len(s.waiters) > 0 && s.admitted < int64(s.maxWIP) {
 		w := s.waiters[0]
 		s.waiters[0] = waiter{} // clear for GC
@@ -870,78 +882,84 @@ func (s *Stage[T, R]) worker(
 			return
 		}
 
-		s.bufferedDepth.Add(-1)
+		s.processItem(ctx, fn, failFast, q, samples[:])
+	}
+}
 
-		// Check cancellation before calling fn.
-		if err := ctx.Err(); err != nil {
-			s.canceled.Add(1)
+// processItem handles a single dequeued item. The admission permit is
+// released via defer, guaranteeing exactly-once release regardless of
+// panics, errors, cancellation, or future code changes.
+func (s *Stage[T, R]) processItem(
+	ctx context.Context,
+	fn func(context.Context, T) (R, error),
+	failFast bool,
+	q queued[T],
+	samples []metrics.Sample,
+) {
+	defer s.releaseAdmission()
 
-			outStart := time.Now()
-			s.out <- rslt.Err[R](context.Cause(ctx))
-			s.outputBlockedNs.Add(int64(time.Since(outStart)))
+	s.bufferedDepth.Add(-1)
 
-			s.releaseAdmission()
-
-			continue
-		}
-
-		s.inFlightWeight.Add(q.weight)
-
-		var bytesBefore, objsBefore uint64
-		if s.trackAllocs {
-			metrics.Read(samples[:])
-			bytesBefore = samples[0].Value.Uint64()
-			objsBefore = samples[1].Value.Uint64()
-		}
-
-		serviceStart := time.Now()
-		result := s.safeCall(ctx, fn, q.item)
-		s.serviceNs.Add(int64(time.Since(serviceStart)))
-
-		if s.trackAllocs {
-			metrics.Read(samples[:])
-			bytesAfter := samples[0].Value.Uint64()
-			objsAfter := samples[1].Value.Uint64()
-			// Defensive: skip if counter regressed. With probe
-			// validation this is only reachable on uint64 wrap
-			// (astronomically unlikely for cumulative alloc counters).
-			if bytesAfter >= bytesBefore {
-				s.allocBytes.Add(bytesAfter - bytesBefore)
-			}
-			if objsAfter >= objsBefore {
-				s.allocObjects.Add(objsAfter - objsBefore)
-			}
-		}
-
-		s.inFlightWeight.Add(-q.weight)
-		s.completed.Add(1)
-
-		if _, err := result.Unpack(); err != nil {
-			s.failed.Add(1)
-
-			if failFast {
-				s.errMu.Lock()
-				// Only store if this is the triggering error, not a
-				// consequence of prior cancellation.
-				first := s.err == nil && ctx.Err() == nil
-				if first {
-					s.err = err
-				}
-				s.errMu.Unlock()
-
-				if first {
-					s.cancel(err)
-					s.CloseInput() // synchronous admission closure
-				}
-			}
-		}
+	// Check cancellation before calling fn.
+	if err := ctx.Err(); err != nil {
+		s.canceled.Add(1)
 
 		outStart := time.Now()
-		s.out <- result
+		s.out <- rslt.Err[R](context.Cause(ctx))
 		s.outputBlockedNs.Add(int64(time.Since(outStart)))
 
-		s.releaseAdmission()
+		return
 	}
+
+	s.inFlightWeight.Add(q.weight)
+
+	var bytesBefore, objsBefore uint64
+	if s.trackAllocs {
+		metrics.Read(samples)
+		bytesBefore = samples[0].Value.Uint64()
+		objsBefore = samples[1].Value.Uint64()
+	}
+
+	serviceStart := time.Now()
+	result := s.safeCall(ctx, fn, q.item)
+	s.serviceNs.Add(int64(time.Since(serviceStart)))
+
+	if s.trackAllocs {
+		metrics.Read(samples)
+		bytesAfter := samples[0].Value.Uint64()
+		objsAfter := samples[1].Value.Uint64()
+		if bytesAfter >= bytesBefore {
+			s.allocBytes.Add(bytesAfter - bytesBefore)
+		}
+		if objsAfter >= objsBefore {
+			s.allocObjects.Add(objsAfter - objsBefore)
+		}
+	}
+
+	s.inFlightWeight.Add(-q.weight)
+	s.completed.Add(1)
+
+	if _, err := result.Unpack(); err != nil {
+		s.failed.Add(1)
+
+		if failFast {
+			s.errMu.Lock()
+			first := s.err == nil && ctx.Err() == nil
+			if first {
+				s.err = err
+			}
+			s.errMu.Unlock()
+
+			if first {
+				s.cancel(err)
+				s.CloseInput()
+			}
+		}
+	}
+
+	outStart := time.Now()
+	s.out <- result
+	s.outputBlockedNs.Add(int64(time.Since(outStart)))
 }
 
 // safeCall invokes fn with panic recovery, returning a Result.
