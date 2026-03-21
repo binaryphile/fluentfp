@@ -71,7 +71,7 @@ mux.HandleFunc("POST /orders",
 
 ```go
 // Custom decode options
-order := web.DecodeJSONWith[Order](req, web.DecodeOpts{
+order, err := web.DecodeJSONWith[Order](req, web.DecodeOpts{
     MaxBytes:     5 << 20,  // 5 MB
     AllowUnknown: true,     // don't reject unknown fields
 })

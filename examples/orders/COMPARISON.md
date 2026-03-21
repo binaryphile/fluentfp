@@ -151,9 +151,10 @@ Each check repeats the response block.
 <td>
 
 ```go
+// rslt.Of wraps (Order, error) into Result.
 // FlatMap: if decode failed, skip.
 // If validation fails, rest is skipped.
-storedResult := orderResult.
+storedResult := rslt.Of(order, err).
   FlatMap(validateOrder). ...
 ```
 
