@@ -241,8 +241,8 @@ func newGetOrder(s *store) web.Handler {
 
 // parseMinTotal parses a min_total query parameter as an integer (cents).
 func parseMinTotal(raw string) rslt.Result[int] {
-	return option.Atoi(raw).OkOr(web.BadRequest(
-		fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
+	msg := fmt.Sprintf("min_total must be an integer (cents), got %q", raw)
+	return option.Atoi(raw).OkOr(web.BadRequest(msg))
 }
 
 func newListOrders(s *store) web.Handler {
