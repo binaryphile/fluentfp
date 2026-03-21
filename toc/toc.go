@@ -151,7 +151,7 @@ type Stats struct {
 	QueueCapacity  int   // configured capacity
 
 	MaxWIP        int   // current WIP limit (0 = paused)
-	Admitted      int64 // reserved permits: items admitted but not yet released (includes buffered, in-flight, and reserved-but-not-yet-enqueued)
+	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. May transiently exceed MaxWIP during close/resize races. Concurrent snapshot — not a hard invariant gauge.
 	WaiterCount   int   // current number of Submits blocked on rope
 	RopeWaitCount int64 // cumulative: total submissions that blocked on rope (not current blocked count)
 	RopeWaitNs    int64 // cumulative rope wait time (nanoseconds)
@@ -235,12 +235,13 @@ type Stage[T, R any] struct {
 	weight func(T) int64
 
 	// Rope: admission control via per-waiter channel queue.
-	admissionMu  sync.Mutex
-	admitted     int64     // items admitted but not yet completed
-	maxWIP       int       // current WIP limit; >= 1
-	waiters      []waiter  // FIFO queue of blocked Submits
-	ropeWaitCnt  atomic.Int64
-	ropeWaitNs   atomic.Int64
+	admissionMu        sync.Mutex
+	admitted           int64    // items admitted but not yet completed
+	maxWIP             int      // current WIP limit; 0 = paused
+	closedForAdmission bool     // set under admissionMu; serializes with grantWaiters
+	waiters            []waiter // FIFO queue of blocked Submits
+	ropeWaitCnt        atomic.Int64
+	ropeWaitNs         atomic.Int64
 
 	// err is the first observed fail-fast error (not deterministic
 	// by input order — first worker to acquire errMu wins).
@@ -561,6 +562,12 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 // If still queued, removes it and returns rejectErr.
 // If already granted, honors the grant (returns nil so the caller
 // proceeds to trySend, which will fail and rollback).
+//
+// Key invariant: a waiter removed from the queue by grantWaiters has
+// irrevocably consumed a permit (admitted++ under admissionMu).
+// w.ready is notification only — queue membership under admissionMu
+// is the source of truth for slot ownership.
+//
 // Must NOT be called with admissionMu held.
 func (s *Stage[T, R]) revokeOrHonor(w waiter, rejectErr error) error {
 	s.admissionMu.Lock()
@@ -638,6 +645,12 @@ func (s *Stage[T, R]) trySend(ctx context.Context, q queued[T]) error {
 // Also called internally on fail-fast or parent context cancellation.
 func (s *Stage[T, R]) CloseInput() {
 	s.closeOnce.Do(func() {
+		// Mark admission closed under admissionMu first — serializes
+		// with grantWaiters so no grants can happen after this point.
+		s.admissionMu.Lock()
+		s.closedForAdmission = true
+		s.admissionMu.Unlock()
+
 		s.closed.Store(true)
 		close(s.closing) // unblock any in-flight trySend selects
 
@@ -797,11 +810,12 @@ func (s *Stage[T, R]) Stats() Stats {
 }
 
 // grantWaiters wakes blocked Submits when slots are available.
-// Does not grant once the stage is closed — waiters will wake via
+// Does not grant once closedForAdmission is set — waiters will wake via
 // s.closing/s.stageDone channels and be rejected there.
-// Must be called with admissionMu held.
+// Must be called with admissionMu held. closedForAdmission is also
+// protected by admissionMu, so this check has no TOCTOU race.
 func (s *Stage[T, R]) grantWaiters() {
-	if s.closed.Load() {
+	if s.closedForAdmission {
 		return
 	}
 
@@ -893,6 +907,11 @@ func (s *Stage[T, R]) worker(
 // processItem handles a single dequeued item. The admission permit is
 // released via defer, guaranteeing exactly-once release regardless of
 // panics, errors, cancellation, or future code changes.
+//
+// Permit lifetime covers processing AND output publish (s.out <- result).
+// If the consumer stops draining Out(), the permit is held until the
+// send unblocks. This is the same liveness contract as the stage itself:
+// consumer must drain Out() or cancel the context.
 func (s *Stage[T, R]) processItem(
 	ctx context.Context,
 	fn func(context.Context, T) (R, error),
