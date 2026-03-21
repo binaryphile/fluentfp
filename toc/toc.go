@@ -150,8 +150,9 @@ type Stats struct {
 	InFlightWeight int64 // weighted cost of items currently in fn (stats-only, not admission)
 	QueueCapacity  int   // configured capacity
 
-	MaxWIP        int   // current WIP limit
+	MaxWIP        int   // current WIP limit (0 = paused)
 	Admitted      int64 // reserved permits: items admitted but not yet released (includes buffered, in-flight, and reserved-but-not-yet-enqueued)
+	WaiterCount   int   // current number of Submits blocked on rope
 	RopeWaitCount int64 // cumulative: total submissions that blocked on rope (not current blocked count)
 	RopeWaitNs    int64 // cumulative rope wait time (nanoseconds)
 
@@ -766,6 +767,7 @@ func (s *Stage[T, R]) Stats() Stats {
 	s.admissionMu.Lock()
 	admitted := s.admitted
 	maxWIP := s.maxWIP
+	waiterCount := len(s.waiters)
 	s.admissionMu.Unlock()
 
 	return Stats{
@@ -785,6 +787,7 @@ func (s *Stage[T, R]) Stats() Stats {
 		QueueCapacity:        s.capacity,
 		MaxWIP:               maxWIP,
 		Admitted:             admitted,
+		WaiterCount:          waiterCount,
 		RopeWaitCount:        s.ropeWaitCnt.Load(),
 		RopeWaitNs:           s.ropeWaitNs.Load(),
 		AllocTrackingActive:  s.trackAllocs,
@@ -826,12 +829,13 @@ func (s *Stage[T, R]) releaseAdmission() {
 
 // SetMaxWIP dynamically adjusts the WIP limit. Wakes blocked Submits
 // if the new limit is higher than the current one. The value is clamped
-// to [1, Capacity+Workers]. Returns the applied value.
+// to [0, Capacity+Workers]. Zero means pause: no new items are admitted,
+// but in-flight items complete normally. Returns the applied value.
 // Concurrency-safe.
 func (s *Stage[T, R]) SetMaxWIP(n int) int {
 	ceiling := s.capacity + s.workers
-	if n < 1 {
-		n = 1
+	if n < 0 {
+		n = 0
 	}
 	if n > ceiling {
 		n = ceiling
