@@ -127,11 +127,6 @@ func priceOrder(_ context.Context, o Order) (Order, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
-
-// ---------------------------------------------------------------------------
 // Background pipeline (toc) — best-effort post-processing
 // ---------------------------------------------------------------------------
 
@@ -161,12 +156,6 @@ func startPipeline(ctx context.Context, postCh <-chan Order) {
 	inventoryPipe := toc.Pipe(ctx, tee.Branch(1), countItems, toc.Options[Order]{})
 	go drainResults("audit", auditPipe.Out())
 	go drainResults("inventory", inventoryPipe.Out())
-}
-
-// parseMinTotal parses a min_total query parameter as an integer (cents).
-func parseMinTotal(raw string) rslt.Result[int] {
-	return option.Atoi(raw).OkOr(web.BadRequest(
-		fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +237,12 @@ func newGetOrder(s *store) web.Handler {
 		foundResult := rslt.FlatMap(idResult, findOrder)
 		return rslt.Map(foundResult, web.OK[Order])
 	}
+}
+
+// parseMinTotal parses a min_total query parameter as an integer (cents).
+func parseMinTotal(raw string) rslt.Result[int] {
+	return option.Atoi(raw).OkOr(web.BadRequest(
+		fmt.Sprintf("min_total must be an integer (cents), got %q", raw)))
 }
 
 func newListOrders(s *store) web.Handler {
