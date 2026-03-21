@@ -177,6 +177,7 @@ func newCreateOrder(
 	s *store,
 	idCounter *atomic.Int64,
 	postCh chan<- Order,
+	catalog map[string]int,
 ) web.Handler {
 	// validateOrder checks business rules, closing over the price catalog.
 	validateOrder := func(o Order) rslt.Result[Order] {
@@ -190,7 +191,7 @@ func newCreateOrder(
 			return rslt.Err[Order](web.BadRequest("all items must have positive quantity"))
 		}
 		for _, item := range o.Items {
-			if _, ok := prices[item.SKU]; !ok {
+			if _, ok := catalog[item.SKU]; !ok {
 				return rslt.Err[Order](web.BadRequest(
 					fmt.Sprintf("unknown SKU: %s", item.SKU)))
 			}
@@ -282,7 +283,7 @@ func main() {
 	postCh := make(chan Order, 20)
 	startPipeline(ctx, postCh)
 
-	handleCreateOrder := newCreateOrder(s, &idCounter, postCh)
+	handleCreateOrder := newCreateOrder(s, &idCounter, postCh, prices)
 	handleGetOrder := newGetOrder(s)
 	handleListOrders := newListOrders(s)
 
