@@ -19,7 +19,7 @@ type ofCell[T any] struct {
 	wait   chan struct{}
 }
 
-// Of wraps a zero-arg function so it executes at most once on success.
+// From wraps a zero-arg function so it executes at most once on success.
 // The result is cached and returned on subsequent calls. Thread-safe.
 //
 // If fn panics, the cell resets to pending — subsequent calls retry the function.
@@ -29,9 +29,9 @@ type ofCell[T any] struct {
 // directly or indirectly — this would deadlock on the internal mutex.
 //
 // Panics if fn is nil.
-func Of[T any](fn func() T) func() T {
+func From[T any](fn func() T) func() T {
 	if fn == nil {
-		panic("memo.Of: fn must not be nil")
+		panic("memo.From: fn must not be nil")
 	}
 
 	c := &ofCell[T]{fn: fn}

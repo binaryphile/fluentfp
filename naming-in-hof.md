@@ -55,7 +55,7 @@ sumFloat64 := func(acc, x float64) float64 { return acc + x }
 Prefix with `must` to signal panic behavior:
 
 ```go
-mustAtoi := must.Of(strconv.Atoi)
+mustAtoi := must.From(strconv.Atoi)
 ints := slice.From(strings).ToInt(mustAtoi)
 ```
 

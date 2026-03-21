@@ -29,7 +29,7 @@ Use `mcp__era__code_search` for API signatures and package details.
 Variables holding `Option[T]` use a `*Option` suffix; variables holding `Result[T]` use a `*Result` suffix. This matters because fluentfp container types share method names (`FlatMap`, `Transform`, `Get`, etc.) — without the suffix, a reader seeing `order.FlatMap(validate)` can't tell if `order` is a `Result`, an `Option`, or a `Mapper` (slice). The suffix makes the container type visible at the call site:
 
 ```go
-orderResult := web.DecodeJSON[Order](req)   // Result[Order]
+order, err := web.DecodeJSON[Order](req)    // (Order, error)
 rawMinTotalOption := option.NonEmpty(q.Get("min_total"))  // Option[string]
 mtOption, err := option.MapResult(rawMinTotalOption, parseMinTotal).Unpack()  // (Option[int], error)
 ```

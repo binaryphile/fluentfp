@@ -24,5 +24,5 @@ func _() {
 	_ = Get[int]
 	_ = Get2[int, int]
 	_ = NonEmptyEnv
-	_ = Of[int, int]
+	_ = From[int, int]
 }

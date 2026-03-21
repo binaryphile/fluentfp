@@ -32,7 +32,7 @@ lookup := memo.Fn(expensiveLookup)
 
 ```go
 // Lazy initialization — computed once, cached permanently
-getConfig := memo.Of(loadConfig)
+getConfig := memo.From(loadConfig)
 cfg := getConfig()  // computes
 cfg = getConfig()   // returns cached result
 ```

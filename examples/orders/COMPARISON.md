@@ -31,7 +31,7 @@ flowchart TD
 |------|----------------|----------|--------------|
 | **Decode** | Content-Type check + MaxBytesReader + DisallowUnknownFields + Decode + error response (15 lines) | `web.DecodeJSON[Order](req)` (1 line) | All decoding policy in one call |
 | **Validate** | Monolithic `validateOrder()` returning bare `error` + error response block (15 lines) | `.FlatMap(validateOrder)` -- named closure (1 line) | Validation as a closure over dependencies |
-| **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` -- pure transform on Ok value (1 line) | Mutation wrapped in named function |
+| **Assign ID** | `order.ID = ...; order.Status = ...` mutating in place (2 lines) | `.Transform(withNewID)` -- infallible transform on Ok value (1 line) | Side effect (counter) wrapped in named function |
 | **Price** | Call `priceOrder` + error check + error response (8 lines) | `.FlatMap(lookupPrices)` where `lookupPrices = rslt.LiftCtx(ctx, priceOrder)` (1 line) | LiftCtx binds context, FlatMap chains the call |
 | **Log failure** | `log.Printf` inside `if err != nil` branch (1 line, tangled with response writing) | `.TapErr(logFailure)` -- error-side side effect in pipeline (1 line) | Logging separated from response rendering |
 | **Store + notify** | `store.put` + `log` + channel send (6 lines) | `.Tap(storeAndNotify)` -- side effects in named function (1 line) | Side effects named and composable |
@@ -113,10 +113,10 @@ if err := dec.Decode(&order); err != nil {
 ```go
 // One call: content-type, size limit,
 // unknown fields, JSON decode.
-orderResult := web.DecodeJSON[Order](req)
+order, err := web.DecodeJSON[Order](req)
 ```
 
-Returns `Result[Order]` -- Ok or Err with the right HTTP status.
+Returns `(Order, error)` -- standard Go pair with `*web.Error` for HTTP status.
 
 </td>
 </tr>

@@ -57,12 +57,12 @@ func NonEmptyEnv(key string) string {
 	return v
 }
 
-// Of returns the "must" version of fn.
+// From returns the "must" version of fn.
 // fn must be a single-argument function.
 // Panics immediately if fn is nil, wrapping [ErrNilFunction].
-func Of[T, R any](fn func(T) (R, error)) func(T) R {
+func From[T, R any](fn func(T) (R, error)) func(T) R {
 	if fn == nil {
-		panic(fmt.Errorf("must.Of: %w", ErrNilFunction))
+		panic(fmt.Errorf("must.From: %w", ErrNilFunction))
 	}
 
 	return func(t T) R {

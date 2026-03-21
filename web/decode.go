@@ -7,8 +7,6 @@ import (
 	"mime"
 	"net/http"
 	"strings"
-
-	"github.com/binaryphile/fluentfp/rslt"
 )
 
 const defaultMaxBytes int64 = 1 << 20 // 1MB
@@ -30,14 +28,16 @@ type DecodeOpts struct {
 //   - Empty body returns 400
 //   - Malformed JSON returns 400
 //   - Trailing garbage after valid JSON returns 400
-func DecodeJSON[T any](req *http.Request) rslt.Result[T] {
+func DecodeJSON[T any](req *http.Request) (T, error) {
 	return DecodeJSONWith[T](req, DecodeOpts{})
 }
 
 // DecodeJSONWith overrides default decode policy.
-func DecodeJSONWith[T any](req *http.Request, opts DecodeOpts) rslt.Result[T] {
+func DecodeJSONWith[T any](req *http.Request, opts DecodeOpts) (T, error) {
+	var zero T
+
 	if err := checkContentType(req); err != nil {
-		return rslt.Err[T](err)
+		return zero, err
 	}
 
 	maxBytes := opts.MaxBytes
@@ -51,18 +51,18 @@ func DecodeJSONWith[T any](req *http.Request, opts DecodeOpts) rslt.Result[T] {
 	data, err := io.ReadAll(body)
 	if err != nil {
 		if isMaxBytesError(err) {
-			return rslt.Err[T](&Error{
+			return zero, &Error{
 				Status:  http.StatusRequestEntityTooLarge,
 				Message: "request body too large",
 				Code:    "REQUEST_TOO_LARGE",
-			})
+			}
 		}
 
-		return rslt.Err[T](BadRequest("failed to read request body"))
+		return zero, BadRequest("failed to read request body")
 	}
 
 	if len(data) == 0 {
-		return rslt.Err[T](BadRequest("request body is empty"))
+		return zero, BadRequest("request body is empty")
 	}
 
 	var result T
@@ -73,15 +73,15 @@ func DecodeJSONWith[T any](req *http.Request, opts DecodeOpts) rslt.Result[T] {
 	}
 
 	if err := dec.Decode(&result); err != nil {
-		return rslt.Err[T](BadRequest("malformed JSON: " + sanitizeJSONError(err)))
+		return zero, BadRequest("malformed JSON: " + sanitizeJSONError(err))
 	}
 
 	// Check for trailing garbage.
 	if dec.More() {
-		return rslt.Err[T](BadRequest("malformed JSON: trailing data after value"))
+		return zero, BadRequest("malformed JSON: trailing data after value")
 	}
 
-	return rslt.Ok(result)
+	return result, nil
 }
 
 // checkContentType validates the Content-Type header. Missing is accepted;

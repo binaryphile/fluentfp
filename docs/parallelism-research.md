@@ -483,7 +483,7 @@ Replace `sync.WaitGroup` with pond internally. **Rejected** — semantic mismatc
 
 ### (h) Adapter direction
 
-`lof.WithCtx` + `must.Of` + `ParallelMapErr` + `either.Map/FlatMap`. **Rejected** — abstraction accretion (5 packages coordinating). Doesn't solve cancellation without explicit ctx in the parallel operator. FanOut with `Mapper[Result[R]]` replaces the entire adapter stack with one function.
+`lof.WithCtx` + `must.From` + `ParallelMapErr` + `either.Map/FlatMap`. **Rejected** — abstraction accretion (5 packages coordinating). Doesn't solve cancellation without explicit ctx in the parallel operator. FanOut with `Mapper[Result[R]]` replaces the entire adapter stack with one function.
 
 ---
 

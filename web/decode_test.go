@@ -27,11 +27,9 @@ func makeRequest(body, contentType string) *http.Request {
 func TestDecodeJSON(t *testing.T) {
 	t.Run("decodes valid JSON", func(t *testing.T) {
 		req := makeRequest(`{"name":"alice","age":30}`, "application/json")
-		result := web.DecodeJSON[testPayload](req)
+		val, err := web.DecodeJSON[testPayload](req)
 
-		val, ok := result.Get()
-		if !ok {
-			_, err := result.Unpack()
+		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if val.Name != "alice" || val.Age != 30 {
@@ -41,43 +39,38 @@ func TestDecodeJSON(t *testing.T) {
 
 	t.Run("accepts missing content-type", func(t *testing.T) {
 		req := makeRequest(`{"name":"bob"}`, "")
-		result := web.DecodeJSON[testPayload](req)
+		_, err := web.DecodeJSON[testPayload](req)
 
-		if result.IsErr() {
-			_, err := result.Unpack()
+		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
 	t.Run("accepts charset variant", func(t *testing.T) {
 		req := makeRequest(`{"name":"charlie"}`, "application/json; charset=utf-8")
-		result := web.DecodeJSON[testPayload](req)
+		_, err := web.DecodeJSON[testPayload](req)
 
-		if result.IsErr() {
-			_, err := result.Unpack()
+		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
 	t.Run("accepts +json suffix", func(t *testing.T) {
 		req := makeRequest(`{"name":"diana"}`, "application/vnd.api+json")
-		result := web.DecodeJSON[testPayload](req)
+		_, err := web.DecodeJSON[testPayload](req)
 
-		if result.IsErr() {
-			_, err := result.Unpack()
+		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
 	t.Run("rejects wrong content-type", func(t *testing.T) {
 		req := makeRequest(`{"name":"eve"}`, "text/plain")
-		result := web.DecodeJSON[testPayload](req)
+		_, err := web.DecodeJSON[testPayload](req)
 
-		if result.IsOk() {
+		if err == nil {
 			t.Fatal("expected error for wrong content type")
 		}
-
-		_, err := result.Unpack()
 
 		var webErr *web.Error
 		if !errors.As(err, &webErr) {
@@ -90,13 +83,11 @@ func TestDecodeJSON(t *testing.T) {
 
 	t.Run("rejects empty body", func(t *testing.T) {
 		req := makeRequest("", "application/json")
-		result := web.DecodeJSON[testPayload](req)
+		_, err := web.DecodeJSON[testPayload](req)
 
-		if result.IsOk() {
+		if err == nil {
 			t.Fatal("expected error for empty body")
 		}
-
-		_, err := result.Unpack()
 
 		var webErr *web.Error
 		if !errors.As(err, &webErr) {
@@ -109,13 +100,11 @@ func TestDecodeJSON(t *testing.T) {
 
 	t.Run("rejects malformed JSON", func(t *testing.T) {
 		req := makeRequest(`{invalid`, "application/json")
-		result := web.DecodeJSON[testPayload](req)
+		_, err := web.DecodeJSON[testPayload](req)
 
-		if result.IsOk() {
+		if err == nil {
 			t.Fatal("expected error for malformed JSON")
 		}
-
-		_, err := result.Unpack()
 
 		var webErr *web.Error
 		if !errors.As(err, &webErr) {
@@ -128,13 +117,11 @@ func TestDecodeJSON(t *testing.T) {
 
 	t.Run("rejects unknown fields by default", func(t *testing.T) {
 		req := makeRequest(`{"name":"frank","unknown":"field"}`, "application/json")
-		result := web.DecodeJSON[testPayload](req)
+		_, err := web.DecodeJSON[testPayload](req)
 
-		if result.IsOk() {
+		if err == nil {
 			t.Fatal("expected error for unknown fields")
 		}
-
-		_, err := result.Unpack()
 
 		var webErr *web.Error
 		if !errors.As(err, &webErr) {
@@ -147,13 +134,11 @@ func TestDecodeJSON(t *testing.T) {
 
 	t.Run("rejects trailing garbage", func(t *testing.T) {
 		req := makeRequest(`{"name":"grace"}{"extra":true}`, "application/json")
-		result := web.DecodeJSON[testPayload](req)
+		_, err := web.DecodeJSON[testPayload](req)
 
-		if result.IsOk() {
+		if err == nil {
 			t.Fatal("expected error for trailing garbage")
 		}
-
-		_, err := result.Unpack()
 
 		var webErr *web.Error
 		if !errors.As(err, &webErr) {
@@ -168,11 +153,9 @@ func TestDecodeJSON(t *testing.T) {
 func TestDecodeJSONWith(t *testing.T) {
 	t.Run("allows unknown fields when configured", func(t *testing.T) {
 		req := makeRequest(`{"name":"helen","unknown":"field"}`, "application/json")
-		result := web.DecodeJSONWith[testPayload](req, web.DecodeOpts{AllowUnknown: true})
+		val, err := web.DecodeJSONWith[testPayload](req, web.DecodeOpts{AllowUnknown: true})
 
-		val, ok := result.Get()
-		if !ok {
-			_, err := result.Unpack()
+		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if val.Name != "helen" {
@@ -182,13 +165,11 @@ func TestDecodeJSONWith(t *testing.T) {
 
 	t.Run("respects custom max bytes", func(t *testing.T) {
 		req := makeRequest(`{"name":"iris"}`, "application/json")
-		result := web.DecodeJSONWith[testPayload](req, web.DecodeOpts{MaxBytes: 5})
+		_, err := web.DecodeJSONWith[testPayload](req, web.DecodeOpts{MaxBytes: 5})
 
-		if result.IsOk() {
+		if err == nil {
 			t.Fatal("expected error for body exceeding max bytes")
 		}
-
-		_, err := result.Unpack()
 
 		var webErr *web.Error
 		if !errors.As(err, &webErr) {

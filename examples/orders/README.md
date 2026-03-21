@@ -66,8 +66,8 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     storeAndNotify := func(o Order) { s.put(o); /* send to postCh */ }
 
     // Pipeline: each step operates on the Result. Errors skip the rest.
-    orderResult := web.DecodeJSON[Order](req)
-    storedResult := orderResult.
+    order, err := web.DecodeJSON[Order](req)
+    storedResult := rslt.Of(order, err).
         FlatMap(validateOrder).            // validate (-> 400)
         Transform(withNewID).              // assign ID + status
         FlatMap(lookupPrices).             // call pricing service
@@ -131,11 +131,11 @@ Decoding a JSON body correctly in Go requires:
 4. Decode, check error
 5. Run validations, check each error
 
-`web.DecodeJSON[Order](req)` does steps 1-4 in one call, returning `Result[Order]`. Then `FlatMap` chains it into validation:
+`web.DecodeJSON[Order](req)` does steps 1-4 in one call, returning `(Order, error)`. `rslt.Of` wraps the pair into a Result, and `FlatMap` chains it into validation:
 
 ```go
-orderResult := web.DecodeJSON[Order](req)
-validatedResult := orderResult.FlatMap(validateOrder)
+order, err := web.DecodeJSON[Order](req)
+validatedResult := rslt.Of(order, err).FlatMap(validateOrder)
 ```
 
 `validateOrder` is a named closure that checks business rules and returns `Result[Order]` -- exactly what `FlatMap` needs. It closes over the price catalog so validation can check SKUs against known products.

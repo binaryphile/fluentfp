@@ -32,7 +32,7 @@ home := must.NonEmptyEnv("HOME")
 
 ```go
 // Pipeline adapter — wraps func(T)(R, error) into func(T) R
-mustAtoi := must.Of(strconv.Atoi)
+mustAtoi := must.From(strconv.Atoi)
 n := mustAtoi("42")  // 42, or panics if not a valid integer
 ```
 
@@ -51,7 +51,7 @@ err := os.MkdirAll(dataDir, 0o755)
 must.BeNil(err)
 ```
 
-Use `must.Get` when you need the value: `re := must.Get(regexp.Compile(pattern))`. Prefix `must.Of`-wrapped variables with `must` to signal panic behavior: `mustAtoi := must.Of(strconv.Atoi)`.
+Use `must.Get` when you need the value: `re := must.Get(regexp.Compile(pattern))`. Prefix `must.From`-wrapped variables with `must` to signal panic behavior: `mustAtoi := must.From(strconv.Atoi)`.
 
 ## Operations
 

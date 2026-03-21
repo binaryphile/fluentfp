@@ -271,7 +271,7 @@
 3. Developer uses resulting values without further error handling.
 
 **Extensions:**
-- 1a. Developer needs to wrap a fallible function for repeated use: System returns a new function via `must.Of` that panics on error on every call. Panics immediately if given a nil function.
+- 1a. Developer needs to wrap a fallible function for repeated use: System returns a new function via `must.From` that panics on error on every call. Panics immediately if given a nil function.
 - 1b. Developer needs a required environment variable: System reads it via `must.Env`, panics if missing or empty.
 
 ---
@@ -565,7 +565,7 @@
 3. Subsequent calls with the same input return the cached result.
 
 **Extensions:**
-- 1a. Function takes no arguments (deferred initialization): System wraps a zero-arg function via `memo.Of`; first call evaluates and caches; subsequent calls return cached value. Thread-safe.
+- 1a. Function takes no arguments (deferred initialization): System wraps a zero-arg function via `memo.From`; first call evaluates and caches; subsequent calls return cached value. Thread-safe.
 - 1b. Function is fallible (returns value and error): System caches only successes via `memo.FnErr` — errors trigger retry on subsequent calls.
 - 1c. Developer needs bounded cache size: System provides an LRU cache via `memo.NewLRU` that evicts least recently used entries when capacity is exceeded.
 - 1d. Developer needs a custom caching strategy: System accepts a caller-provided cache implementing `memo.Cache` (Load/Store). The caller is responsible for thread-safety of the provided implementation.

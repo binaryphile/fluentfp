@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-// --- Of (state machine) ---
+// --- From (state machine) ---
 
 func TestOf_ComputesOnce(t *testing.T) {
 	var calls atomic.Int32
-	fn := Of(func() int {
+	fn := From(func() int {
 		calls.Add(1)
 		return 42
 	})
@@ -30,7 +30,7 @@ func TestOf_ComputesOnce(t *testing.T) {
 
 func TestOf_Concurrent(t *testing.T) {
 	var calls atomic.Int32
-	fn := Of(func() int {
+	fn := From(func() int {
 		calls.Add(1)
 		return 99
 	})
@@ -60,7 +60,7 @@ func TestOf_Concurrent(t *testing.T) {
 
 func TestOf_PanicRetry(t *testing.T) {
 	var calls atomic.Int32
-	fn := Of(func() int {
+	fn := From(func() int {
 		n := calls.Add(1)
 		if n == 1 {
 			panic("transient failure")
@@ -100,7 +100,7 @@ func TestOf_PanicRetry(t *testing.T) {
 
 func TestOf_PermanentPanic(t *testing.T) {
 	var calls atomic.Int32
-	fn := Of(func() int {
+	fn := From(func() int {
 		calls.Add(1)
 		panic("always fails")
 	})
@@ -123,7 +123,7 @@ func TestOf_NilPanics(t *testing.T) {
 			t.Fatal("expected panic for nil fn")
 		}
 	}()
-	Of[int](nil)
+	From[int](nil)
 }
 
 // --- Fn (basic memoization) ---

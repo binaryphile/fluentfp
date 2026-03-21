@@ -1,6 +1,6 @@
 // Package memo provides memoization primitives: lazy zero-arg evaluation,
 // keyed function caching, and pluggable cache strategies. All primitives are
-// concurrent-safe. Of uses retry-on-panic semantics (matching stream's lazy
+// concurrent-safe. From uses retry-on-panic semantics (matching stream's lazy
 // evaluation). FnErr caches successes only — errors trigger retry on
 // subsequent calls.
 package memo
@@ -9,7 +9,7 @@ package memo
 // to ensure exported symbols remain available across refactors.
 func _() {
 	// Zero-arg memoization
-	_ = Of[int]
+	_ = From[int]
 
 	// Keyed memoization
 	_ = Fn[int, int]

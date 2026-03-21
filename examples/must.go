@@ -45,8 +45,8 @@ func main() {
 		return string(bodyBytes), nil
 	}
 
-	mustGet := must.Of(http.Get)
-	mustBodyFromResponse := must.Of(bodyFromResponse)
+	mustGet := must.From(http.Get)
+	mustBodyFromResponse := must.From(bodyFromResponse)
 	ids := slice.From([]int{1, 2})
 
 	urls := ids.ToString(urlFromID)

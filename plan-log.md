@@ -2571,7 +2571,7 @@ Key findings:
 - 3/11 MapCtx fit supports internal helper, not public API
 - "Internal first" not operationalized (no named owner, target sites, checkpoint)
 - Adapter direction is abstraction accretion: WithCtx fine, rest adds surface without solving cancellation
-- WithCtx+must.Of sidesteps panic policy, doesn't resolve it
+- WithCtx+must.From sidesteps panic policy, doesn't resolve it
 - Result as alias is fine only if Either already has all needed methods
 - Recommendation: bounded work queue (errgroup-style), not static chunking, for I/O workloads
 2026-03-07T00:00:00Z | Interaction: external grade FanOut proposal -> 58/100

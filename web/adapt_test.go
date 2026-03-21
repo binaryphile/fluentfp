@@ -343,12 +343,12 @@ func TestAdaptDecodeIntegration(t *testing.T) {
 				Name string `json:"name"`
 			}
 
-			return rslt.FlatMap(
-				web.DecodeJSON[Payload](r),
-				func(p Payload) rslt.Result[web.Response] {
-					return rslt.Ok(web.OK(p))
-				},
-			)
+			p, err := web.DecodeJSON[Payload](r)
+			if err != nil {
+				return rslt.Err[web.Response](err)
+			}
+
+			return rslt.Ok(web.OK(p))
 		})
 
 		w := httptest.NewRecorder()
@@ -381,12 +381,12 @@ func TestAdaptDecodeIntegration(t *testing.T) {
 					Name string `json:"name"`
 				}
 
-				return rslt.FlatMap(
-					web.DecodeJSON[Payload](r),
-					func(p Payload) rslt.Result[web.Response] {
-						return rslt.Ok(web.OK(p))
-					},
-				)
+				p, err := web.DecodeJSON[Payload](r)
+				if err != nil {
+					return rslt.Err[web.Response](err)
+				}
+
+				return rslt.Ok(web.OK(p))
 			},
 			web.WithErrorMapper(func(err error) (*web.Error, bool) {
 				mapperCalled = true

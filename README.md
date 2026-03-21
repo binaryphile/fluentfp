@@ -294,8 +294,8 @@ throttled := call.Throttle(10, protected)
 ```go
 // Handlers return Result[Response] — no ResponseWriter, no manual status codes
 var createUser web.Handler = func(r *http.Request) rslt.Result[web.Response] {
-    decoded := web.DecodeJSON[CreateReq](r)
-    return rslt.Map(decoded, createAndRespond)
+    req, err := web.DecodeJSON[CreateReq](r)
+    return rslt.Map(rslt.Of(req, err), createAndRespond)
 }
 
 // Adapt bridges to http.HandlerFunc; WithErrorMapper translates domain errors
@@ -364,7 +364,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Dynamic WIP limiting (rope) | `stage.SetMaxWIP(n)` / `stage.MaxWIP()` | toc |
 | Lazy iterate with memoization | `stream.Generate(seed, fn).Take(10).Collect()` | stream |
 | Lazy iterate without memoization | `seq.From(s).KeepIf(f).Take(10).Collect()` | seq |
-| Memoize a function | `memo.Of(fn)` or `memo.Fn(cache, fn)` | memo |
+| Memoize a function | `memo.From(fn)` or `memo.Fn(cache, fn)` | memo |
 | Work with maps functionally | `kv.Keys(m)`, `kv.MapValues(m, fn)` | kv |
 | Generate combinations/permutations | `combo.Combinations(items, k)` | combo |
 | Use a persistent priority queue | `heap.New(cmp).Insert(v)` | heap |

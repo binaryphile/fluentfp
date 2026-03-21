@@ -33,7 +33,7 @@ Twelve lines become four. No `ResponseWriter`, no manual headers, no `json.NewEn
 
 ```go
 // Decode JSON request body — Content-Type, MaxBytes, UnknownFields handled
-order := web.DecodeJSON[Order](req)  // Result[Order]
+order, err := web.DecodeJSON[Order](req)  // (Order, error)
 ```
 
 ```go
@@ -99,8 +99,8 @@ Handlers don't write errors — they return them. Adapt decides how to render.
 - `PathParam(req, name) Option[string]` — named path parameter, not-ok if missing/empty
 
 **Decode**
-- `DecodeJSON[T](req) Result[T]` — decode with defaults (1 MB limit, reject unknown fields, require `application/json`)
-- `DecodeJSONWith[T](req, opts) Result[T]` — decode with custom policy
+- `DecodeJSON[T](req) (T, error)` — decode with defaults (1 MB limit, reject unknown fields, require `application/json`)
+- `DecodeJSONWith[T](req, opts) (T, error)` — decode with custom policy
 
 **Validate**
 - `Steps[T](fns ...func(T) Result[T]) func(T) Result[T]` — chain validations, short-circuit on first error

@@ -203,12 +203,12 @@ func TestNonEmptyEnv(t *testing.T) {
 func TestOf(t *testing.T) {
 	t.Run("panic on error preserves exact error", func(t *testing.T) {
 		sentinel := errors.New("sentinel")
-		fn := Of(func(int) (int, error) { return 0, sentinel })
+		fn := From(func(int) (int, error) { return 0, sentinel })
 
 		defer func() {
 			r := recover()
 			if r == nil {
-				t.Fatal("Of-wrapped function did not panic")
+				t.Fatal("From-wrapped function did not panic")
 			}
 			if r != sentinel {
 				t.Errorf("panicked with %v, want exact error %v", r, sentinel)
@@ -219,18 +219,18 @@ func TestOf(t *testing.T) {
 	})
 
 	t.Run("return value on no error", func(t *testing.T) {
-		fn := Of(func(n int) (int, error) { return n * 2, nil })
+		fn := From(func(n int) (int, error) { return n * 2, nil })
 
 		if got := fn(21); got != 42 {
-			t.Errorf("Of-wrapped function = %v, want 42", got)
+			t.Errorf("From-wrapped function = %v, want 42", got)
 		}
 	})
 
 	t.Run("argument forwarding", func(t *testing.T) {
-		fn := Of(strconv.Atoi)
+		fn := From(strconv.Atoi)
 
 		if got := fn("123"); got != 123 {
-			t.Errorf("Of(strconv.Atoi)(\"123\") = %v, want 123", got)
+			t.Errorf("From(strconv.Atoi)(\"123\") = %v, want 123", got)
 		}
 	})
 
@@ -238,18 +238,18 @@ func TestOf(t *testing.T) {
 		defer func() {
 			r := recover()
 			if r == nil {
-				t.Fatal("Of(nil) did not panic")
+				t.Fatal("From(nil) did not panic")
 			}
 			err, ok := r.(error)
 			if !ok {
-				t.Fatalf("Of(nil) panicked with %T, want error", r)
+				t.Fatalf("From(nil) panicked with %T, want error", r)
 			}
 			if !errors.Is(err, ErrNilFunction) {
 				t.Error("expected errors.Is(err, ErrNilFunction)")
 			}
 		}()
 
-		Of[int, int](nil)
+		From[int, int](nil)
 	})
 }
 

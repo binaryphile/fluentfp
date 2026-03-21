@@ -224,8 +224,8 @@ func newCreateOrder(
 			}
 		}
 
-		orderResult := web.DecodeJSON[Order](req)
-		storedResult := orderResult.
+		order, err := web.DecodeJSON[Order](req)
+		storedResult := rslt.Of(order, err).
 			FlatMap(validateOrder).
 			Transform(withNewID).
 			FlatMap(lookupPrices).
