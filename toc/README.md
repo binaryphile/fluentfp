@@ -82,6 +82,16 @@ stage.SetMaxWIP(10) // relax when pressure subsides
 - **`Stats.Admitted` is reserved permits, not active workers** — includes buffered items, in-flight items, and granted-but-not-yet-enqueued waiters. Can exceed current `MaxWIP` after `SetMaxWIP` shrinks the limit (existing permits are not revoked). Use for observability, not hard-threshold alerting.
 - **Permit lifetime includes output publish** — a permit is held until the worker sends the result to `Out()`. If the consumer stops draining, permits are held and upstream blocks. This is the same liveness contract as the stage itself.
 
+**PauseAdmission / ResumeAdmission** explicitly pause and resume new admissions. In-flight items complete normally. Queued waiters are held (not rejected) until resume. Use for memory pressure, downstream outage, or operator intervention.
+
+```go
+stage.PauseAdmission()  // block all new Submit calls
+// ... wait for pressure to subside ...
+stage.ResumeAdmission() // wake held waiters
+```
+
+`Stats.Paused` reports the current state. `CloseInput` while paused rejects held waiters with `ErrClosed`.
+
 **Output must be drained.** Workers block on the unbuffered output channel if nobody reads. Always drain `Out()` or use `DiscardAndWait()`.
 
 ## Stats

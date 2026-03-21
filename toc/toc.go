@@ -151,6 +151,7 @@ type Stats struct {
 	InFlightWeight int64 // weighted cost of items currently in fn (stats-only, not admission)
 	QueueCapacity  int   // configured capacity
 
+	Paused        bool  // true if admission is paused via PauseAdmission
 	MaxWIP        int   // current WIP limit (>= 1)
 	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. Can exceed current MaxWIP after SetMaxWIP shrinks the limit (existing permits are not revoked) or during the brief grant-to-enqueue window. Not a hard invariant gauge — use for observability, not alerting thresholds.
 	WaiterCount    int // current number of Submits blocked on rope
@@ -257,6 +258,7 @@ type Stage[T, R any] struct {
 	admitted           int64    // items admitted but not yet completed
 	maxWIP             int      // current WIP limit; >= 1
 	closedForAdmission bool      // authoritative gate for permit creation; protected by admissionMu. Set by CloseInput before closed/closing. All permit paths (fast path, slow path, grantWaitersLocked) check this under lock.
+	paused             bool      // blocks new admission when true; under admissionMu. Held waiters wake on ResumeAdmission.
 	waiters            list.List // FIFO queue of *waiter; O(1) enqueue, grant, remove
 	maxWaiterCount     int       // high-water mark for waiter queue depth
 	ropeWaitCnt        atomic.Int64
@@ -546,8 +548,8 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 		return ErrClosed
 	}
 
-	// Fast path: slot available.
-	if s.admitted < int64(s.maxWIP) {
+	// Fast path: slot available and not paused.
+	if !s.paused && s.admitted < int64(s.maxWIP) {
 		s.admitted++
 		s.admissionMu.Unlock()
 
@@ -837,6 +839,7 @@ func (s *Stage[T, R]) Stats() Stats {
 	s.admissionMu.Lock()
 	admitted := s.admitted
 	maxWIP := s.maxWIP
+	paused := s.paused
 	waiterCount := s.waiters.Len()
 	maxWaiterCount := s.maxWaiterCount
 	s.admissionMu.Unlock()
@@ -856,6 +859,7 @@ func (s *Stage[T, R]) Stats() Stats {
 		BufferedDepth:        depth,
 		InFlightWeight:       s.inFlightWeight.Load(),
 		QueueCapacity:        s.capacity,
+		Paused:               paused,
 		MaxWIP:               maxWIP,
 		Admitted:             admitted,
 		WaiterCount:          waiterCount,
@@ -874,7 +878,7 @@ func (s *Stage[T, R]) Stats() Stats {
 // Must be called with admissionMu held. closedForAdmission is also
 // protected by admissionMu, so this check has no TOCTOU race.
 func (s *Stage[T, R]) grantWaitersLocked() {
-	if s.closedForAdmission {
+	if s.closedForAdmission || s.paused {
 		return
 	}
 
@@ -932,6 +936,33 @@ func (s *Stage[T, R]) MaxWIP() int {
 	s.admissionMu.Unlock()
 
 	return n
+}
+
+// PauseAdmission blocks all new admissions. In-flight items complete
+// normally. Queued waiters are held (not rejected) until [ResumeAdmission].
+// Concurrency-safe. Idempotent.
+func (s *Stage[T, R]) PauseAdmission() {
+	s.admissionMu.Lock()
+	s.paused = true
+	s.admissionMu.Unlock()
+}
+
+// ResumeAdmission unblocks admission and wakes held waiters.
+// Concurrency-safe. Idempotent.
+func (s *Stage[T, R]) ResumeAdmission() {
+	s.admissionMu.Lock()
+	s.paused = false
+	s.grantWaitersLocked()
+	s.admissionMu.Unlock()
+}
+
+// Paused returns true if admission is paused via [PauseAdmission].
+func (s *Stage[T, R]) Paused() bool {
+	s.admissionMu.Lock()
+	p := s.paused
+	s.admissionMu.Unlock()
+
+	return p
 }
 
 // worker pulls from in, calls fn, and sends every result to out.

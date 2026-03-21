@@ -524,3 +524,151 @@ func TestRopePanicReleasesPermit(t *testing.T) {
 		t.Errorf("Completed = %d, want 3", stats.Completed)
 	}
 }
+
+func TestPauseAdmission(t *testing.T) {
+	// Pause blocks Submit, resume unblocks.
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{Capacity: 5, Workers: 1, MaxWIP: 5})
+
+	go func() { for range s.Out() {} }()
+
+	s.PauseAdmission()
+
+	if !s.Paused() {
+		t.Fatal("expected Paused() == true")
+	}
+
+	blocked := make(chan struct{})
+	go func() {
+		s.Submit(ctx, 1)
+		close(blocked)
+	}()
+
+	select {
+	case <-blocked:
+		t.Fatal("Submit should block when paused")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	s.ResumeAdmission()
+
+	select {
+	case <-blocked:
+	case <-time.After(time.Second):
+		t.Fatal("Submit not unblocked after ResumeAdmission")
+	}
+
+	if s.Paused() {
+		t.Fatal("expected Paused() == false after resume")
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestPauseIdempotent(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{Capacity: 5, Workers: 1})
+
+	// Double pause/resume should not panic or misbehave.
+	s.PauseAdmission()
+	s.PauseAdmission()
+	s.ResumeAdmission()
+	s.ResumeAdmission()
+
+	// Should still work normally.
+	go func() { for range s.Out() {} }()
+
+	if err := s.Submit(ctx, 1); err != nil {
+		t.Fatalf("Submit after double resume: %v", err)
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestPauseDoesNotRejectWaiters(t *testing.T) {
+	// Paused waiters resume when unpaused, not rejected.
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{Capacity: 5, Workers: 1, MaxWIP: 5})
+
+	go func() { for range s.Out() {} }()
+
+	s.PauseAdmission()
+
+	const N = 3
+	errs := make(chan error, N)
+	for i := range N {
+		go func() { errs <- s.Submit(ctx, i) }()
+	}
+
+	time.Sleep(20 * time.Millisecond)
+
+	s.ResumeAdmission()
+
+	for range N {
+		select {
+		case err := <-errs:
+			if err != nil {
+				t.Errorf("waiter returned %v after resume, want nil", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("waiter not unblocked after resume")
+		}
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestPauseStats(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{Capacity: 5, Workers: 1})
+
+	if s.Stats().Paused {
+		t.Fatal("expected Paused=false initially")
+	}
+
+	s.PauseAdmission()
+
+	if !s.Stats().Paused {
+		t.Fatal("expected Paused=true after PauseAdmission")
+	}
+
+	s.ResumeAdmission()
+
+	if s.Stats().Paused {
+		t.Fatal("expected Paused=false after ResumeAdmission")
+	}
+
+	s.CloseInput()
+	s.DiscardAndWait()
+}
+
+func TestPauseThenClose(t *testing.T) {
+	// Close while paused rejects waiters with ErrClosed.
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{Capacity: 5, Workers: 1, MaxWIP: 5})
+
+	go func() { for range s.Out() {} }()
+
+	s.PauseAdmission()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- s.Submit(ctx, 1) }()
+
+	time.Sleep(20 * time.Millisecond)
+
+	s.CloseInput()
+
+	select {
+	case err := <-errCh:
+		if err != toc.ErrClosed {
+			t.Errorf("got %v, want ErrClosed", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("waiter not rejected after close")
+	}
+
+	s.Wait()
+}
