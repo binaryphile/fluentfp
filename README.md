@@ -262,7 +262,7 @@ Packages are independent — import one or all.
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
 | [call](call/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
-| [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin`, `SetMaxWIP` |
+| [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin`, `SetMaxWIP`, `SetMaxWIPWeight`, `NewReporter` |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
 | [web](web/)         | Typed HTTP handlers              | `Adapt`, `DecodeJSON`, `Steps`                 |
 | [memo](memo/)       | Memoization                      | `Of`, `Fn`, `FnErr`, `NewLRU`                  |
@@ -361,7 +361,9 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Broadcast to N branches | `toc.NewTee(ctx, src, n)` | toc |
 | Recombine N streams into one | `toc.NewMerge(ctx, sources...)` | toc |
 | Recombine two branch results | `toc.NewJoin(ctx, srcA, srcB, fn)` | toc |
-| Dynamic WIP limiting (rope) | `stage.SetMaxWIP(n)` / `stage.MaxWIP()` | toc |
+| Dynamic WIP limiting (rope) | `stage.SetMaxWIP(n)` / `stage.SetMaxWIPWeight(n)` | toc |
+| Pause/resume admission | `stage.PauseAdmission()` / `stage.ResumeAdmission()` | toc |
+| Pipeline stats reporter | `toc.NewReporter(interval).AddStage(name, stage.Stats)` | toc |
 | Lazy iterate with memoization | `stream.Generate(seed, fn).Take(10).Collect()` | stream |
 | Lazy iterate without memoization | `seq.From(s).KeepIf(f).Take(10).Collect()` | seq |
 | Memoize a function | `memo.From(fn)` or `memo.Fn(cache, fn)` | memo |
