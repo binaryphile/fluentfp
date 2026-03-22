@@ -170,6 +170,8 @@ type Stats struct {
 	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. Can exceed current MaxWIP after SetMaxWIP shrinks the limit (existing permits are not revoked) or during the brief grant-to-enqueue window. Not a hard invariant gauge — use for observability, not alerting thresholds.
 	WaiterCount    int // current number of Submits blocked on rope
 	MaxWaiterCount int // high-water mark for waiter queue depth
+	TargetWorkers  int // desired worker count from SetWorkers
+	ActiveWorkers  int // currently running workers (may lag target during drain)
 	RopeWaitCount int64 // cumulative: total submissions that blocked on rope (not current blocked count)
 	RopeWaitNs    int64 // cumulative rope wait time (nanoseconds)
 
@@ -222,9 +224,27 @@ type waiter struct {
 
 // queued wraps an item with its pre-computed weight.
 type queued[T any] struct {
-	item   T
-	weight int64
+	item        T
+	weight      int64
+	submittedAt time.Time
 }
+
+// runState holds immutable configuration captured at Start.
+// Workers reference this via pointer — never mutated after creation.
+type runState[T, R any] struct {
+	ctx      context.Context
+	fn       func(context.Context, T) (R, error)
+	failFast bool
+}
+
+// managedWorker tracks a single worker goroutine.
+type managedWorker struct {
+	cancel context.CancelFunc
+	exited chan struct{} // closed when worker goroutine returns
+}
+
+// ErrStopping is returned by SetWorkers when the stage is stopping or stopped.
+var ErrStopping = errors.New("toc: stage is stopping")
 
 // Stage is a running constrained stage. Created by [Start].
 // The zero value is not usable.
@@ -237,6 +257,13 @@ type Stage[T, R any] struct {
 	cancel    context.CancelCauseFunc
 	hooks     atomic.Pointer[testHooks] // nil in production; Store once before first Submit
 	wg        sync.WaitGroup
+
+	// Dynamic worker management.
+	run       *runState[T, R]       // immutable after Start; nil before Start
+	workersMu sync.Mutex            // protects workerHandles, targetWorkers, stopping
+	workerHandles []*managedWorker
+	targetWorkers int
+	stopping      bool              // true after CloseInput/fail-fast; no new workers
 
 	// closed guards input shutdown. Once set, Submit rejects.
 	closed    atomic.Bool
@@ -359,20 +386,22 @@ func start[T, R any](
 		weight:      weight,
 	}
 
-	// INVARIANT: every goroutine that sends to s.out must be counted here.
-	// close(s.out) happens only after wg.Wait returns. Adding a new sender
-	// without incrementing this count causes a send-on-closed-channel race.
-	senders := workers
-	if feeder != nil {
-		senders++
-	}
-	s.wg.Add(senders)
+	// Store run state for dynamic worker creation.
+	s.run = &runState[T, R]{ctx: stageCtx, fn: fn, failFast: failFast}
+	s.targetWorkers = workers
 
+	// Create initial workers with per-worker contexts.
+	s.workerHandles = make([]*managedWorker, workers)
+	s.wg.Add(workers)
 	for i := 0; i < workers; i++ {
-		go s.worker(stageCtx, fn, failFast)
+		wCtx, wCancel := context.WithCancel(stageCtx)
+		exited := make(chan struct{})
+		s.workerHandles[i] = &managedWorker{cancel: wCancel, exited: exited}
+		go s.worker(stageCtx, wCtx, fn, failFast, exited)
 	}
 
 	if feeder != nil {
+		s.wg.Add(1)
 		go feeder(s, stageCtx)
 	}
 
@@ -534,7 +563,7 @@ func (s *Stage[T, R]) Submit(ctx context.Context, item T) error {
 		panic("toc: Weight must return a non-negative value")
 	}
 
-	q := queued[T]{item: item, weight: w}
+	q := queued[T]{item: item, weight: w, submittedAt: time.Now()}
 
 	// Rope: acquire admission slot before sending to channel.
 	if err := s.acquireAdmission(ctx, w); err != nil {
@@ -724,6 +753,11 @@ func (s *Stage[T, R]) trySend(ctx context.Context, q queued[T]) error {
 // Also called internally on fail-fast or parent context cancellation.
 func (s *Stage[T, R]) CloseInput() {
 	s.closeOnce.Do(func() {
+		// Mark stopping — prevents SetWorkers from spawning new workers.
+		s.workersMu.Lock()
+		s.stopping = true
+		s.workersMu.Unlock()
+
 		// Mark admission closed under admissionMu first — serializes
 		// with grantWaitersLocked so no grants can happen after this point.
 		s.admissionMu.Lock()
@@ -892,6 +926,8 @@ func (s *Stage[T, R]) Stats() Stats {
 		Admitted:             admitted,
 		WaiterCount:          waiterCount,
 		MaxWaiterCount:       maxWaiterCount,
+		TargetWorkers:        s.TargetWorkers(),
+		ActiveWorkers:        s.ActiveWorkers(),
 		RopeWaitCount:        s.ropeWaitCnt.Load(),
 		RopeWaitNs:           s.ropeWaitNs.Load(),
 		AllocTrackingActive:  s.trackAllocs,
@@ -1038,18 +1074,98 @@ func (s *Stage[T, R]) Paused() bool {
 	return p
 }
 
+// SetWorkers adjusts the number of workers. New workers start immediately.
+// Excess workers are cancelled LIFO and drain their current item before
+// exiting. A cancelled worker MAY process one more item before exiting
+// (Go select nondeterminism). n must be >= 1. Returns the applied count
+// and nil, or (0, ErrStopping) if the stage is stopping/stopped.
+// Concurrency-safe.
+func (s *Stage[T, R]) SetWorkers(n int) (int, error) {
+	if n < 1 {
+		n = 1
+	}
+
+	s.workersMu.Lock()
+	defer s.workersMu.Unlock()
+
+	if s.stopping {
+		return 0, ErrStopping
+	}
+	if s.run == nil {
+		// Before Start: just set target.
+		s.targetWorkers = n
+
+		return n, nil
+	}
+
+	old := s.targetWorkers
+	s.targetWorkers = n
+
+	if n > old {
+		// Scale up: spawn new workers.
+		for i := old; i < n; i++ {
+			wCtx, wCancel := context.WithCancel(s.run.ctx)
+			exited := make(chan struct{})
+			mw := &managedWorker{cancel: wCancel, exited: exited}
+			s.workerHandles = append(s.workerHandles, mw)
+			s.wg.Add(1)
+			go s.worker(s.run.ctx, wCtx, s.run.fn, s.run.failFast, exited)
+		}
+	} else if n < old {
+		// Scale down: cancel excess workers LIFO (newest first).
+		for i := old - 1; i >= n; i-- {
+			s.workerHandles[i].cancel()
+			// Don't remove from slice — worker is draining.
+			// It will be cleaned up when its exited channel closes.
+		}
+	}
+
+	return n, nil
+}
+
+// TargetWorkers returns the current desired worker count.
+func (s *Stage[T, R]) TargetWorkers() int {
+	s.workersMu.Lock()
+	n := s.targetWorkers
+	s.workersMu.Unlock()
+
+	return n
+}
+
+// ActiveWorkers returns the number of live (non-cancelled) workers.
+// May differ from TargetWorkers during scale-down drain.
+func (s *Stage[T, R]) ActiveWorkers() int {
+	s.workersMu.Lock()
+	defer s.workersMu.Unlock()
+
+	count := 0
+	for _, mw := range s.workerHandles {
+		select {
+		case <-mw.exited:
+			// Worker has exited — don't count.
+		default:
+			count++
+		}
+	}
+
+	return count
+}
+
 // worker pulls from in, calls fn, and sends every result to out.
 //
-// Cancellation is cooperative: a worker that has already dequeued an item
-// and passed the pre-call ctx.Err() check may still call fn with a context
-// that becomes canceled during execution. Buffered items dequeued after
-// cancellation are emitted as canceled results without calling fn.
+// workerCtx is per-worker: cancelled by SetWorkers scale-down.
+// stageCtx is stage-wide: cancelled by parent cancel or fail-fast.
+// A cancelled worker may process one more item if both workerCtx.Done()
+// and s.in are ready simultaneously (Go select nondeterminism).
 func (s *Stage[T, R]) worker(
-	ctx context.Context,
+	stageCtx context.Context,
+	workerCtx context.Context,
 	fn func(context.Context, T) (R, error),
 	failFast bool,
+	exited chan struct{},
 ) {
 	defer s.wg.Done()
+	defer close(exited)
 
 	var samples [2]metrics.Sample
 	if s.trackAllocs {
@@ -1059,14 +1175,32 @@ func (s *Stage[T, R]) worker(
 
 	for {
 		idleStart := time.Now()
-		q, ok := <-s.in
+
+		// Try non-blocking dequeue first — process buffered items
+		// even if workerCtx is cancelled (drain semantics).
+		var q queued[T]
+		var ok bool
+
+		select {
+		case q, ok = <-s.in:
+			// Got an item (or channel closed).
+		default:
+			// Channel empty — now check cancellation.
+			select {
+			case q, ok = <-s.in:
+			case <-workerCtx.Done():
+				s.idleNs.Add(int64(time.Since(idleStart)))
+				return
+			}
+		}
+
 		s.idleNs.Add(int64(time.Since(idleStart)))
 
 		if !ok {
 			return
 		}
 
-		s.processItem(ctx, fn, failFast, q, samples[:])
+		s.processItem(stageCtx, fn, failFast, q, samples[:])
 	}
 }
 
