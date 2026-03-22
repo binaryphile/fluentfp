@@ -394,7 +394,7 @@ func start[T, R any](
 	s.workerHandles = make([]*managedWorker, workers)
 	s.wg.Add(workers)
 	for i := 0; i < workers; i++ {
-		wCtx, wCancel := context.WithCancel(stageCtx)
+		wCtx, wCancel := context.WithCancel(context.Background())
 		exited := make(chan struct{})
 		s.workerHandles[i] = &managedWorker{cancel: wCancel, exited: exited}
 		go s.worker(stageCtx, wCtx, fn, failFast, exited)
@@ -1098,25 +1098,26 @@ func (s *Stage[T, R]) SetWorkers(n int) (int, error) {
 		return n, nil
 	}
 
-	old := s.targetWorkers
-	s.targetWorkers = n
+	// Compact exited workers before reconciling.
+	s.compactWorkersLocked()
 
-	if n > old {
+	s.targetWorkers = n
+	live := len(s.workerHandles)
+
+	if n > live {
 		// Scale up: spawn new workers.
-		for i := old; i < n; i++ {
-			wCtx, wCancel := context.WithCancel(s.run.ctx)
+		for i := live; i < n; i++ {
+			rCtx, rCancel := context.WithCancel(context.Background())
 			exited := make(chan struct{})
-			mw := &managedWorker{cancel: wCancel, exited: exited}
+			mw := &managedWorker{cancel: rCancel, exited: exited}
 			s.workerHandles = append(s.workerHandles, mw)
 			s.wg.Add(1)
-			go s.worker(s.run.ctx, wCtx, s.run.fn, s.run.failFast, exited)
+			go s.worker(s.run.ctx, rCtx, s.run.fn, s.run.failFast, exited)
 		}
-	} else if n < old {
+	} else if n < live {
 		// Scale down: cancel excess workers LIFO (newest first).
-		for i := old - 1; i >= n; i-- {
+		for i := live - 1; i >= n; i-- {
 			s.workerHandles[i].cancel()
-			// Don't remove from slice — worker is draining.
-			// It will be cleaned up when its exited channel closes.
 		}
 	}
 
@@ -1132,34 +1133,50 @@ func (s *Stage[T, R]) TargetWorkers() int {
 	return n
 }
 
-// ActiveWorkers returns the number of live (non-cancelled) workers.
+// ActiveWorkers returns the number of live (non-exited) workers.
 // May differ from TargetWorkers during scale-down drain.
 func (s *Stage[T, R]) ActiveWorkers() int {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
-	count := 0
+	s.compactWorkersLocked()
+
+	return len(s.workerHandles)
+}
+
+// compactWorkersLocked removes exited workers from the handles slice.
+// Must be called with workersMu held.
+func (s *Stage[T, R]) compactWorkersLocked() {
+	live := s.workerHandles[:0]
 	for _, mw := range s.workerHandles {
 		select {
 		case <-mw.exited:
-			// Worker has exited — don't count.
+			// Exited — drop.
 		default:
-			count++
+			live = append(live, mw)
 		}
 	}
-
-	return count
+	// Clear tail for GC.
+	for i := len(live); i < len(s.workerHandles); i++ {
+		s.workerHandles[i] = nil
+	}
+	s.workerHandles = live
 }
 
 // worker pulls from in, calls fn, and sends every result to out.
 //
-// workerCtx is per-worker: cancelled by SetWorkers scale-down.
+// retireCtx is per-worker: cancelled by SetWorkers scale-down only.
 // stageCtx is stage-wide: cancelled by parent cancel or fail-fast.
-// A cancelled worker may process one more item if both workerCtx.Done()
-// and s.in are ready simultaneously (Go select nondeterminism).
+// Stage shutdown is handled by channel close (CloseInput), not by
+// stageCtx cancellation in the dequeue select — this preserves the
+// original drain-on-close behavior.
+//
+// A retiring worker stops before taking another item from the channel.
+// It MAY process one more item if both retireCtx.Done() and s.in are
+// ready simultaneously (Go select nondeterminism).
 func (s *Stage[T, R]) worker(
 	stageCtx context.Context,
-	workerCtx context.Context,
+	retireCtx context.Context,
 	fn func(context.Context, T) (R, error),
 	failFast bool,
 	exited chan struct{},
@@ -1175,23 +1192,18 @@ func (s *Stage[T, R]) worker(
 
 	for {
 		idleStart := time.Now()
-
-		// Try non-blocking dequeue first — process buffered items
-		// even if workerCtx is cancelled (drain semantics).
 		var q queued[T]
 		var ok bool
 
+		// retireCtx: stop taking new items (scale-down).
+		// s.in close: stop taking new items (shutdown).
+		// The original channel-close drain behavior is preserved —
+		// stageCtx cancel triggers CloseInput which closes s.in.
 		select {
 		case q, ok = <-s.in:
-			// Got an item (or channel closed).
-		default:
-			// Channel empty — now check cancellation.
-			select {
-			case q, ok = <-s.in:
-			case <-workerCtx.Done():
-				s.idleNs.Add(int64(time.Since(idleStart)))
-				return
-			}
+		case <-retireCtx.Done():
+			s.idleNs.Add(int64(time.Since(idleStart)))
+			return
 		}
 
 		s.idleNs.Add(int64(time.Since(idleStart)))
