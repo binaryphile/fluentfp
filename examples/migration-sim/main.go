@@ -56,8 +56,8 @@ func main() {
 
 	fmt.Println()
 	fmt.Println(divider("SCENARIO 2: Elevate embed, migrate rope, KEEP workers"))
-	fmt.Println("Tick 0-9: embed=1w. Tick 10: embed=3w (150/s > walk 200/s).")
-	fmt.Println("Tick 15: migrate rope to walk. Embed keeps 3 workers.")
+	fmt.Println("Tick 0-9: embed=1w (50/s). Tick 10: embed=5w (250/s > walk 200/s).")
+	fmt.Println("Tick 15: walk is now the drum, migrate rope. Embed keeps 5 workers.")
 	fmt.Println()
 	runScenario(scenario{
 		name:              "elevate+migrate (keep workers)",
@@ -65,24 +65,23 @@ func main() {
 		embedWorkers:      1,
 		embedMaxWIP:       3,
 		elevateEmbedAt:    10,
-		elevateEmbedTo:    3,
+		elevateEmbedTo:    5,
 		migrateToWalkAt:   15,
 		walkMaxWIPAfter:   3,
 	})
 
 	fmt.Println()
-	fmt.Println(divider("SCENARIO 3: Elevate embed, migrate rope, STEAL worker"))
-	fmt.Println("Same as 2, but at tick 15 also move 1 worker embed→walk.")
-	fmt.Println("embed drops to 2w (100/s), walk rises to 2w (400/s).")
-	fmt.Println("This is the dangerous case.")
+	fmt.Println(divider("SCENARIO 3: Elevate embed, migrate rope, STEAL workers"))
+	fmt.Println("Same as 2, but at tick 15 move 2 workers embed→walk.")
+	fmt.Println("embed drops to 3w (150/s < walk 400/s). embed may dominate again.")
 	fmt.Println()
 	runScenario(scenario{
-		name:              "elevate+migrate (steal worker)",
+		name:              "elevate+migrate (steal workers)",
 		walkWorkers:       1,
 		embedWorkers:      1,
 		embedMaxWIP:       3,
 		elevateEmbedAt:    10,
-		elevateEmbedTo:    3,
+		elevateEmbedTo:    5,
 		migrateToWalkAt:   15,
 		walkMaxWIPAfter:   3,
 		stealWorkerAtMigr: true,
@@ -201,8 +200,8 @@ func runScenario(sc scenario) {
 			ropeOn = "walk"
 
 			if sc.stealWorkerAtMigr {
-				embed.SetWorkers(sc.elevateEmbedTo - 1)
-				walk.SetWorkers(sc.walkWorkers + 1)
+				embed.SetWorkers(sc.elevateEmbedTo - 2) // 5→3 (150/s, below walk's 200/s)
+				walk.SetWorkers(sc.walkWorkers + 2)      // 1→3 (600/s)
 			}
 		}
 

@@ -48,9 +48,12 @@ const (
 	// CAUTION: do not remove workers from the old drum during
 	// migration. If embed was elevated (workers added) and then
 	// those workers are moved to walk, embed loses capacity and
-	// may become the constraint again. The rebalancer should NOT
-	// steal workers from a recently-elevated stage until the new
-	// constraint is confirmed stable across multiple intervals.
+	// may become the constraint again. Migration simulation
+	// (examples/migration-sim) demonstrated this: stealing one
+	// worker caused embed queue to spike and throughput to drop.
+	// The rebalancer should NOT steal workers from a recently-
+	// elevated stage until the new constraint is confirmed stable
+	// across multiple intervals.
 	StepPreventInertia
 )
 
