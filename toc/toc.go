@@ -179,8 +179,8 @@ type Stats struct {
 	MaxWaiterCount int // high-water mark for waiter queue depth
 	TargetWorkers  int // desired worker count from SetWorkers
 	ActiveWorkers  int // currently running workers (may lag target during drain)
-	RopeWaitCount int64 // cumulative: total submissions that blocked on rope (not current blocked count)
-	RopeWaitNs    int64 // cumulative rope wait time (nanoseconds)
+	WIPWaitCount int64 // cumulative: total submissions that blocked on WIP limit (not current blocked count)
+	WIPWaitNs    int64 // cumulative WIP-limit wait time (nanoseconds)
 
 	ServiceTimeDist ServiceTimeSummary // zero if TrackServiceTimeDist disabled
 
@@ -321,8 +321,8 @@ type Stage[T, R any] struct {
 	paused             bool      // blocks new admission when true; under admissionMu. Held waiters wake on ResumeAdmission.
 	waiters            list.List // FIFO queue of *waiter; O(1) enqueue, grant, remove
 	maxWaiterCount     int       // high-water mark for waiter queue depth
-	ropeWaitCnt        atomic.Int64
-	ropeWaitNs         atomic.Int64
+	wipWaitCnt atomic.Int64
+	wipWaitNs  atomic.Int64
 
 	// err is the first observed fail-fast error (not deterministic
 	// by input order — first worker to acquire errMu wins).
@@ -646,28 +646,28 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context, weight int64) error 
 		h.afterWaiterQueued()
 	}
 
-	s.ropeWaitCnt.Add(1)
+	s.wipWaitCnt.Add(1)
 	waitStart := time.Now()
 
 	select {
 	case <-w.ready:
 		// Slot granted by grantWaitersLocked (admitted already incremented).
-		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
+		s.wipWaitNs.Add(int64(time.Since(waitStart)))
 
 		return nil
 
 	case <-ctx.Done():
-		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
+		s.wipWaitNs.Add(int64(time.Since(waitStart)))
 
 		return s.revokeOrHonor(w, ctx.Err())
 
 	case <-s.closing:
-		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
+		s.wipWaitNs.Add(int64(time.Since(waitStart)))
 
 		return s.revokeOrHonor(w, ErrClosed)
 
 	case <-s.stageDone:
-		s.ropeWaitNs.Add(int64(time.Since(waitStart)))
+		s.wipWaitNs.Add(int64(time.Since(waitStart)))
 
 		return s.revokeOrHonor(w, ErrClosed)
 	}
@@ -949,8 +949,8 @@ func (s *Stage[T, R]) Stats() Stats {
 		MaxWaiterCount:       maxWaiterCount,
 		TargetWorkers:        s.TargetWorkers(),
 		ActiveWorkers:        s.ActiveWorkers(),
-		RopeWaitCount:        s.ropeWaitCnt.Load(),
-		RopeWaitNs:           s.ropeWaitNs.Load(),
+		WIPWaitCount:         s.wipWaitCnt.Load(),
+		WIPWaitNs:            s.wipWaitNs.Load(),
 		ServiceTimeDist:      s.mergeServiceTime(),
 		AllocTrackingActive:  s.trackAllocs,
 		ObservedAllocBytes:   s.allocBytes.Load(),

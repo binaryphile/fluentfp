@@ -181,6 +181,76 @@ func TestRecommendationBounds(t *testing.T) {
 	t.Logf("recommend: %d workers, reason: %s", rec, reason)
 }
 
+func TestDrumStarvationCount(t *testing.T) {
+	a := NewAnalyzer(time.Second)
+
+	// Set up a stage that reports starved signals (high idle, draining queue).
+	tick := int64(0)
+	a.AddStage(StageSpec{
+		Name: "embed",
+		Stats: func() toc.Stats {
+			tick++
+			return toc.Stats{
+				Submitted:     tick * 10,
+				Completed:     tick * 10,
+				ServiceTime:   time.Duration(tick) * 100 * time.Millisecond, // low util
+				IdleTime:      time.Duration(tick) * 800 * time.Millisecond, // high idle
+				ActiveWorkers: 1,
+				TargetWorkers: 1,
+			}
+		},
+		Scalable: true,
+	})
+
+	stages := make([]StageSpec, len(a.stages))
+	copy(stages, a.stages)
+	a.started = true
+
+	// Prime prevStats.
+	a.prevTime = time.Now()
+	a.analyze(stages)
+
+	// Run enough intervals to confirm constraint + see starvation.
+	// But a starved stage won't be saturated, so it won't be the constraint.
+	// DrumStarvationCount only applies when we have a confirmed constraint
+	// AND it's starved — which means the constraint was saturated, confirmed,
+	// then became starved (e.g. upstream dried up).
+	//
+	// For the test: manually set the constraint via the snapshot mechanism,
+	// then run intervals where the constraint is starved.
+
+	// Force the analyzer to have a confirmed constraint.
+	a.candidate = "embed"
+	a.consecutiveN = hysteresisIntervals
+
+	// Now run intervals where embed is starved.
+	for i := 0; i < 3; i++ {
+		a.prevTime = a.prevTime.Add(-time.Second)
+		a.analyze(stages)
+	}
+
+	snap := a.CurrentSnapshot()
+	if snap == nil {
+		t.Fatal("no snapshot")
+	}
+
+	// Embed should be classified as starved (high idle).
+	var embedState StageState
+	for _, ss := range snap.Stages {
+		if ss.Name == "embed" {
+			embedState = ss.Analysis.State
+			break
+		}
+	}
+	if embedState != StateStarved {
+		t.Fatalf("embed state = %v, want Starved", embedState)
+	}
+
+	if snap.DrumStarvationCount != 3 {
+		t.Errorf("DrumStarvationCount = %d, want 3", snap.DrumStarvationCount)
+	}
+}
+
 func TestNoRecommendation(t *testing.T) {
 	t.Run("insufficient_data", func(t *testing.T) {
 		sa, is := makeIS(0.9, 0.05, 0.05, 0.0, 1.0, 5) // < 10 completions

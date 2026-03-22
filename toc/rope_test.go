@@ -297,8 +297,8 @@ func TestRopeStats(t *testing.T) {
 	if stats.MaxWIP != 1 {
 		t.Errorf("Stats.MaxWIP = %d, want 1", stats.MaxWIP)
 	}
-	if stats.RopeWaitCount < 1 {
-		t.Errorf("Stats.RopeWaitCount = %d, want >= 1", stats.RopeWaitCount)
+	if stats.WIPWaitCount < 1 {
+		t.Errorf("Stats.WIPWaitCount = %d, want >= 1", stats.WIPWaitCount)
 	}
 
 	// Drain.

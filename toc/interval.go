@@ -49,7 +49,9 @@ type IntervalStats struct {
 	ItemsCanceled  int64
 
 	// Derived rates. Zero when Duration <= 0 or denominator is zero.
-	Throughput        float64       // completed items/sec
+	Throughput        float64       // completed items/sec (includes failed)
+	Goodput           float64       // successful completions/sec: (completed - failed) / elapsed
+	ArrivalRate       float64       // submitted items/sec at this stage
 	ErrorRate         float64       // failed / completed; bounded [0,1]
 	MeanServiceTime   time.Duration // ServiceTimeDelta / ItemsCompleted
 	ApproxUtilization float64       // ServiceTimeDelta / (Duration * avg workers); approximate
@@ -128,8 +130,17 @@ func Delta(prev, curr Stats, elapsed time.Duration) IntervalStats {
 		return is
 	}
 
+	if is.ItemsSubmitted > 0 {
+		is.ArrivalRate = float64(is.ItemsSubmitted) / elapsed.Seconds()
+	}
+
 	if is.ItemsCompleted > 0 {
 		is.Throughput = float64(is.ItemsCompleted) / elapsed.Seconds()
+		good := is.ItemsCompleted - is.ItemsFailed
+		if good < 0 {
+			good = 0 // clamp: counters are independent atomics, skew possible
+		}
+		is.Goodput = float64(good) / elapsed.Seconds()
 		is.ErrorRate = float64(is.ItemsFailed) / float64(is.ItemsCompleted)
 		is.MeanServiceTime = time.Duration(is.ServiceTimeDelta.Nanoseconds() / is.ItemsCompleted)
 	}

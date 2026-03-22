@@ -50,6 +50,14 @@ func TestDeltaHappyPath(t *testing.T) {
 	if is.Throughput != 50.0 {
 		t.Errorf("Throughput = %f, want 50.0", is.Throughput)
 	}
+	// Goodput = (100 completed - 10 failed) / 2s = 45.0
+	if is.Goodput != 45.0 {
+		t.Errorf("Goodput = %f, want 45.0", is.Goodput)
+	}
+	// ArrivalRate = 100 submitted / 2s = 50.0
+	if is.ArrivalRate != 50.0 {
+		t.Errorf("ArrivalRate = %f, want 50.0", is.ArrivalRate)
+	}
 	if is.ErrorRate != 0.1 {
 		t.Errorf("ErrorRate = %f, want 0.1", is.ErrorRate)
 	}
@@ -85,11 +93,39 @@ func TestDeltaZeroCompletions(t *testing.T) {
 	if is.Throughput != 0 {
 		t.Errorf("Throughput = %f, want 0", is.Throughput)
 	}
+	if is.Goodput != 0 {
+		t.Errorf("Goodput = %f, want 0 (no completions)", is.Goodput)
+	}
 	if is.ErrorRate != 0 {
 		t.Errorf("ErrorRate = %f, want 0 (no completions)", is.ErrorRate)
 	}
 	if is.MeanServiceTime != 0 {
 		t.Errorf("MeanServiceTime = %v, want 0", is.MeanServiceTime)
+	}
+}
+
+func TestDeltaArrivalRateZeroSubmissions(t *testing.T) {
+	prev := toc.Stats{Submitted: 50}
+	curr := toc.Stats{Submitted: 50} // no new submissions
+
+	is := toc.Delta(prev, curr, time.Second)
+
+	if is.ArrivalRate != 0 {
+		t.Errorf("ArrivalRate = %f, want 0 (no submissions)", is.ArrivalRate)
+	}
+}
+
+func TestDeltaGoodputAllFailed(t *testing.T) {
+	prev := toc.Stats{Completed: 10, Failed: 5}
+	curr := toc.Stats{Completed: 20, Failed: 15} // 10 completed, all 10 failed
+
+	is := toc.Delta(prev, curr, time.Second)
+
+	if is.Throughput != 10.0 {
+		t.Errorf("Throughput = %f, want 10.0", is.Throughput)
+	}
+	if is.Goodput != 0 {
+		t.Errorf("Goodput = %f, want 0.0 (all failed)", is.Goodput)
 	}
 }
 

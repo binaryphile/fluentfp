@@ -78,6 +78,8 @@ type StageAnalysis struct {
 	BlockedRatio    float64
 	QueueGrowth     float64
 	ErrorRate       float64
+	Goodput         float64 // successful completions/sec
+	ArrivalRate     float64 // submitted items/sec
 	CurrentWorkers  int
 	Recommendation  int    // suggested workers; 0 = no recommendation
 	RecommendReason string // human-readable explanation
@@ -91,6 +93,12 @@ type Snapshot struct {
 	Constraint string  // empty if none identified
 	Confidence float64 // 0.0-1.0
 	Stages     []StageSnapshot // ordered by registration
+
+	// DrumStarvationCount tracks consecutive intervals the identified
+	// constraint was classified as [StateStarved] (high idle ratio,
+	// queue draining). A non-zero value is a Step 2 violation — the
+	// drum is being wasted. Reset when the drum stops being starved.
+	DrumStarvationCount int
 }
 
 // StageSnapshot pairs a stage name with its analysis.
@@ -117,6 +125,9 @@ type Analyzer struct {
 	candidate    string
 	consecutiveN int
 	lastLogged   string // suppress duplicate logs
+
+	// Drum starvation tracking.
+	drumStarvationN int // consecutive intervals constraint was starved
 }
 
 // Option configures an [Analyzer].
@@ -240,6 +251,8 @@ func (a *Analyzer) analyze(stages []StageSpec) {
 
 			sa.Utilization = is.ApproxUtilization
 			sa.ErrorRate = is.ErrorRate
+			sa.Goodput = is.Goodput
+			sa.ArrivalRate = is.ArrivalRate
 			sa.QueueGrowth = is.QueueGrowthRate
 
 			// Compute idle and blocked ratios.
@@ -303,16 +316,42 @@ func (a *Analyzer) analyze(stages []StageSpec) {
 	}
 
 	// Hysteresis: confirm constraint after consecutive intervals.
+	// Once confirmed, the constraint persists until a *different* stage
+	// reaches confirmation — prevents the constraint from disappearing
+	// when conditions temporarily change (Step 5: prevent inertia, but
+	// also prevent premature abandonment).
 	if topName != "" && topName == a.candidate {
 		a.consecutiveN++
-	} else {
+	} else if topName != "" {
+		// New candidate — start counting. Reset starvation tracker.
 		a.candidate = topName
 		a.consecutiveN = 1
+		a.drumStarvationN = 0
 	}
+	// topName == "" with existing candidate: keep counting but don't increment.
+	// The constraint stays identified; we just didn't see a saturated stage this interval.
 
 	if a.consecutiveN >= hysteresisIntervals && a.candidate != "" {
 		snap.Constraint = a.candidate
 		snap.Confidence = math.Min(float64(a.consecutiveN)/10.0, 1.0)
+
+		// Track drum starvation — Step 2 violation detection.
+		// The drum being starved means it's idle with no input — upstream
+		// can't keep up. This is a critical signal: the system's constraint
+		// is being wasted.
+		drumStarved := false
+		for _, ss := range snap.Stages {
+			if ss.Name == snap.Constraint && ss.Analysis.State == StateStarved {
+				drumStarved = true
+				break
+			}
+		}
+		if drumStarved {
+			a.drumStarvationN++
+		} else {
+			a.drumStarvationN = 0
+		}
+		snap.DrumStarvationCount = a.drumStarvationN
 	}
 
 	a.snapshot.Store(snap)
@@ -357,7 +396,7 @@ func recommend(is toc.IntervalStats, sa StageAnalysis, spec StageSpec, elapsed t
 		return 0, "zero service time"
 	}
 
-	arrivalRate := float64(is.ItemsSubmitted) / elapsed.Seconds()
+	arrivalRate := is.ArrivalRate
 	serviceRatePerWorker := 1.0 / is.MeanServiceTime.Seconds()
 
 	if serviceRatePerWorker <= 0 {
