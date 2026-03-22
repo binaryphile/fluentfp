@@ -2,6 +2,7 @@ package toc
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -72,15 +73,86 @@ type IntervalStats struct {
 	QueueGrowthRate float64 // items/sec; negative = draining
 }
 
-// BufferZone returns the Goldratt fever chart zone based on CurrBufferPenetration.
-func (s IntervalStats) BufferZone() BufferZone {
+// BufferZone returns the Goldratt fever chart zone based on
+// CurrBufferPenetration. The caller provides yellowAt and redAt
+// penetration thresholds (0.0-1.0). Goldratt convention is 0.33/0.66.
+func (s IntervalStats) BufferZone(yellowAt, redAt float64) BufferZone {
 	switch {
-	case s.CurrBufferPenetration >= 0.66:
+	case s.CurrBufferPenetration >= redAt:
 		return BufferRed
-	case s.CurrBufferPenetration >= 0.33:
+	case s.CurrBufferPenetration >= yellowAt:
 		return BufferYellow
 	default:
 		return BufferGreen
+	}
+}
+
+// BufferCapacity computes how many items a buffer needs to hold to
+// protect the drum from starvation over a given protection window.
+// Goldratt's formula: ceil(throughput × protectionTime).
+//
+// The caller provides protectionTime — it might come from upstream
+// lead time measurement, drum P95, or a configured value.
+//
+// Returns 0 if throughput <= 0 or protectionTime <= 0.
+func BufferCapacity(throughput float64, protectionTime time.Duration) int {
+	if throughput <= 0 || protectionTime <= 0 {
+		return 0
+	}
+	return int(math.Ceil(throughput * protectionTime.Seconds()))
+}
+
+// MemoryFeverZone classifies memory headroom.
+type MemoryFeverZone int
+
+const (
+	// MemoryUnknown indicates the memory limit is unavailable or zero.
+	MemoryUnknown MemoryFeverZone = iota
+
+	// MemoryGreen indicates headroom is above the yellow threshold.
+	MemoryGreen
+
+	// MemoryYellow indicates headroom is between yellow and red thresholds.
+	MemoryYellow
+
+	// MemoryRed indicates headroom is below the red threshold.
+	MemoryRed
+)
+
+func (z MemoryFeverZone) String() string {
+	switch z {
+	case MemoryUnknown:
+		return "unknown"
+	case MemoryGreen:
+		return "green"
+	case MemoryYellow:
+		return "yellow"
+	case MemoryRed:
+		return "red"
+	default:
+		return fmt.Sprintf("MemoryFeverZone(%d)", int(z))
+	}
+}
+
+// MemoryFever classifies memory headroom into a fever zone.
+// yellowAt and redAt are penetration thresholds (0.0-1.0), where
+// penetration = 1.0 - (headroom / limit). Goldratt convention: 0.33/0.66.
+// Returns [MemoryUnknown] if limit == 0.
+func MemoryFever(headroom, limit uint64, yellowAt, redAt float64) MemoryFeverZone {
+	if limit == 0 {
+		return MemoryUnknown
+	}
+	penetration := 1.0 - float64(headroom)/float64(limit)
+	if penetration < 0 {
+		penetration = 0 // headroom > limit: clamp
+	}
+	switch {
+	case penetration >= redAt:
+		return MemoryRed
+	case penetration >= yellowAt:
+		return MemoryYellow
+	default:
+		return MemoryGreen
 	}
 }
 

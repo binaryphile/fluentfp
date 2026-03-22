@@ -227,7 +227,7 @@ func TestBufferZone(t *testing.T) {
 
 	for _, tt := range tests {
 		is := toc.IntervalStats{CurrBufferPenetration: tt.penetration}
-		got := is.BufferZone()
+		got := is.BufferZone(0.33, 0.66)
 		if got != tt.want {
 			t.Errorf("penetration %.2f: BufferZone = %v, want %v", tt.penetration, got, tt.want)
 		}
@@ -330,5 +330,99 @@ func TestDeltaTableDriven(t *testing.T) {
 			is := toc.Delta(tt.prev, tt.curr, tt.elapsed)
 			tt.check(t, is)
 		})
+	}
+}
+
+func TestBufferCapacity(t *testing.T) {
+	tests := []struct {
+		name       string
+		throughput float64
+		protection time.Duration
+		want       int
+	}{
+		{"basic", 100, 200 * time.Millisecond, 20},
+		{"fractional_rounds_up", 10, 150 * time.Millisecond, 2},
+		{"zero_throughput", 0, time.Second, 0},
+		{"negative_throughput", -5, time.Second, 0},
+		{"zero_duration", 50, 0, 0},
+		{"negative_duration", 50, -time.Second, 0},
+		{"small", 1, time.Millisecond, 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := toc.BufferCapacity(tt.throughput, tt.protection)
+			if got != tt.want {
+				t.Errorf("BufferCapacity(%v, %v) = %d, want %d",
+					tt.throughput, tt.protection, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMemoryFever(t *testing.T) {
+	tests := []struct {
+		name     string
+		headroom uint64
+		limit    uint64
+		yellowAt float64
+		redAt    float64
+		want     toc.MemoryFeverZone
+	}{
+		{"green", 800, 1000, 0.33, 0.66, toc.MemoryGreen},          // 20% consumed
+		{"yellow", 500, 1000, 0.33, 0.66, toc.MemoryYellow},        // 50% consumed
+		{"red", 100, 1000, 0.33, 0.66, toc.MemoryRed},              // 90% consumed
+		{"at_limit", 0, 1000, 0.33, 0.66, toc.MemoryRed},           // 100% consumed
+		{"zero_limit", 500, 0, 0.33, 0.66, toc.MemoryUnknown},      // no limit
+		{"headroom_exceeds", 1500, 1000, 0.33, 0.66, toc.MemoryGreen}, // clamp
+		{"just_yellow", 650, 1000, 0.33, 0.66, toc.MemoryYellow},  // 35% consumed
+		{"just_red", 300, 1000, 0.33, 0.66, toc.MemoryRed},        // 70% consumed
+		{"custom_thresholds", 600, 1000, 0.5, 0.8, toc.MemoryGreen}, // 40% consumed, yellowAt=0.5
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := toc.MemoryFever(tt.headroom, tt.limit, tt.yellowAt, tt.redAt)
+			if got != tt.want {
+				t.Errorf("MemoryFever(%d, %d, %.2f, %.2f) = %v, want %v",
+					tt.headroom, tt.limit, tt.yellowAt, tt.redAt, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMemoryFeverZoneString(t *testing.T) {
+	tests := []struct {
+		zone toc.MemoryFeverZone
+		want string
+	}{
+		{toc.MemoryUnknown, "unknown"},
+		{toc.MemoryGreen, "green"},
+		{toc.MemoryYellow, "yellow"},
+		{toc.MemoryRed, "red"},
+	}
+	for _, tt := range tests {
+		if got := tt.zone.String(); got != tt.want {
+			t.Errorf("%v.String() = %q, want %q", tt.zone, got, tt.want)
+		}
+	}
+}
+
+func TestBufferZoneCustomThresholds(t *testing.T) {
+	is := toc.IntervalStats{CurrBufferPenetration: 0.5}
+
+	// With Goldratt thirds: 0.5 is yellow.
+	if got := is.BufferZone(0.33, 0.66); got != toc.BufferYellow {
+		t.Errorf("BufferZone(0.33, 0.66) = %v, want yellow", got)
+	}
+
+	// With tighter thresholds: 0.5 is red.
+	if got := is.BufferZone(0.2, 0.4); got != toc.BufferRed {
+		t.Errorf("BufferZone(0.2, 0.4) = %v, want red", got)
+	}
+
+	// With looser thresholds: 0.5 is green.
+	if got := is.BufferZone(0.6, 0.8); got != toc.BufferGreen {
+		t.Errorf("BufferZone(0.6, 0.8) = %v, want green", got)
 	}
 }
