@@ -80,7 +80,7 @@ func (s FocusingStep) String() string {
 //
 // Classification priority (highest first):
 //  1. No constraint (currConstraint empty) → [StepIdentify]
-//  2. Constraint changed (prev ≠ curr, both non-empty) → [StepReassess]
+//  2. Constraint changed (prev ≠ curr, both non-empty) → [StepPreventInertia]
 //  3. Rebalancer active → [StepElevate]
 //  4. Drum starving or rope not active → [StepExploit]
 //  5. Otherwise → [StepSubordinate]
