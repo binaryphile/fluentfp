@@ -94,6 +94,28 @@ stage.ResumeAdmission() // wake held waiters
 
 **Output must be drained.** Workers block on the unbuffered output channel if nobody reads. Always drain `Out()` or use `DiscardAndWait()`.
 
+## Reporter
+
+`NewReporter` periodically logs per-stage stats and process memory.
+
+```go
+reporter := toc.NewReporter(2 * time.Second)
+reporter.AddStage("chunker", chunker.Stats)
+reporter.AddStage("embedder", embedder.Stats)
+go reporter.Run(ctx) // blocks until ctx canceled
+```
+
+Output (every 2 seconds):
+```
+[toc] mem: rss=1.2GiB go=750MiB | chunker: sub=1420 comp=1418 svc=12.3s idle=0.8s | embedder: sub=890 comp=888 depth=2
+```
+
+- `Run(ctx)` blocks — call in a goroutine. Panics if called twice.
+- `AddStage` must be called before `Run` (frozen lifecycle).
+- RSS is Linux-only (from `/proc/self/status`); omitted on other platforms.
+- Provider panics are recovered and logged; reporting continues.
+- `WithLogger(l)` injects a `*log.Logger` (default: `log.Default()`).
+
 ## Stats
 
 ```go
