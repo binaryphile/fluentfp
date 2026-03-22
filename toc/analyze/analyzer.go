@@ -116,6 +116,8 @@ type Analyzer struct {
 	stages   []StageSpec
 	started  bool
 
+	drum string // manual drum override; empty = automatic
+
 	snapshot atomic.Pointer[Snapshot]
 
 	prevStats map[string]toc.Stats
@@ -140,6 +142,22 @@ func WithLogger(l *log.Logger) Option {
 			a.logger = l
 		}
 	}
+}
+
+// SetDrum manually overrides the constraint stage. Bypasses automatic
+// identification — the analyzer will report this stage as the constraint
+// with confidence 1.0 on every interval. Must be called before Run.
+// Panics if called after Run.
+func (a *Analyzer) SetDrum(name string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.started {
+		panic("analyze: SetDrum called after Run")
+	}
+	if name == "" {
+		panic("analyze: SetDrum name must not be empty")
+	}
+	a.drum = name
 }
 
 // NewAnalyzer creates an analyzer that evaluates every interval.
@@ -202,6 +220,20 @@ func (a *Analyzer) Run(ctx context.Context) {
 	stages := make([]StageSpec, len(a.stages))
 	copy(stages, a.stages)
 	a.mu.Unlock()
+
+	// Validate manual drum against registered stages.
+	if a.drum != "" {
+		found := false
+		for _, s := range stages {
+			if s.Name == a.drum {
+				found = true
+				break
+			}
+		}
+		if !found {
+			panic("analyze: SetDrum stage not registered: " + a.drum)
+		}
+	}
 
 	a.runWithTicker(ctx, nil, stages)
 }
@@ -315,30 +347,37 @@ func (a *Analyzer) analyze(stages []StageSpec) {
 		// tied → topName stays empty (no clear winner)
 	}
 
-	// Hysteresis: confirm constraint after consecutive intervals.
-	// Once confirmed, the constraint persists until a *different* stage
-	// reaches confirmation — prevents the constraint from disappearing
-	// when conditions temporarily change (Step 5: prevent inertia, but
-	// also prevent premature abandonment).
-	if topName != "" && topName == a.candidate {
-		a.consecutiveN++
-	} else if topName != "" {
-		// New candidate — start counting. Reset starvation tracker.
-		a.candidate = topName
-		a.consecutiveN = 1
-		a.drumStarvationN = 0
+	// Resolve constraint identity: manual override or automatic hysteresis.
+	if a.drum != "" {
+		// Manual drum override — bypass hysteresis entirely.
+		snap.Constraint = a.drum
+		snap.Confidence = 1.0
+	} else {
+		// Hysteresis: confirm constraint after consecutive intervals.
+		// Once confirmed, the constraint persists until a *different* stage
+		// reaches confirmation — prevents the constraint from disappearing
+		// when conditions temporarily change (Step 5: prevent inertia, but
+		// also prevent premature abandonment).
+		if topName != "" && topName == a.candidate {
+			a.consecutiveN++
+		} else if topName != "" {
+			// New candidate — start counting. Reset starvation tracker.
+			a.candidate = topName
+			a.consecutiveN = 1
+			a.drumStarvationN = 0
+		}
+		// topName == "" with existing candidate: keep counting but don't increment.
+		// The constraint stays identified; we just didn't see a saturated stage this interval.
+
+		if a.consecutiveN >= hysteresisIntervals && a.candidate != "" {
+			snap.Constraint = a.candidate
+			snap.Confidence = math.Min(float64(a.consecutiveN)/10.0, 1.0)
+		}
 	}
-	// topName == "" with existing candidate: keep counting but don't increment.
-	// The constraint stays identified; we just didn't see a saturated stage this interval.
 
-	if a.consecutiveN >= hysteresisIntervals && a.candidate != "" {
-		snap.Constraint = a.candidate
-		snap.Confidence = math.Min(float64(a.consecutiveN)/10.0, 1.0)
-
-		// Track drum starvation — Step 2 violation detection.
-		// The drum being starved means it's idle with no input — upstream
-		// can't keep up. This is a critical signal: the system's constraint
-		// is being wasted.
+	// Track drum starvation — Step 2 violation detection.
+	// Runs for both manual and automatic constraint identity.
+	if snap.Constraint != "" {
 		drumStarved := false
 		for _, ss := range snap.Stages {
 			if ss.Name == snap.Constraint && ss.Analysis.State == StateStarved {

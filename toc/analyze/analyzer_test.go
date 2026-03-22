@@ -251,6 +251,68 @@ func TestDrumStarvationCount(t *testing.T) {
 	}
 }
 
+func TestSetDrum(t *testing.T) {
+	a := NewAnalyzer(time.Second)
+
+	tick := int64(0)
+	a.AddStage(StageSpec{
+		Name: "walk",
+		Stats: func() toc.Stats {
+			tick++
+			return toc.Stats{
+				Submitted:     tick * 100,
+				Completed:     tick * 100,
+				ServiceTime:   time.Duration(tick) * 400 * time.Millisecond,
+				IdleTime:      time.Duration(tick) * 300 * time.Millisecond,
+				ActiveWorkers: 1,
+				TargetWorkers: 1,
+			}
+		},
+		Scalable: true,
+	})
+	a.AddStage(StageSpec{
+		Name: "embed",
+		Stats: func() toc.Stats {
+			tick++
+			return toc.Stats{
+				Submitted:     tick * 50,
+				Completed:     tick * 50,
+				ServiceTime:   time.Duration(tick) * 400 * time.Millisecond,
+				IdleTime:      time.Duration(tick) * 300 * time.Millisecond,
+				ActiveWorkers: 1,
+				TargetWorkers: 1,
+			}
+		},
+		Scalable: true,
+	})
+
+	// Manual override: embed is the drum regardless of signals.
+	a.SetDrum("embed")
+
+	stages := make([]StageSpec, len(a.stages))
+	copy(stages, a.stages)
+	a.started = true
+
+	// Prime.
+	a.prevTime = time.Now()
+	a.analyze(stages)
+
+	// Run one interval.
+	a.prevTime = a.prevTime.Add(-time.Second)
+	a.analyze(stages)
+
+	snap := a.CurrentSnapshot()
+	if snap == nil {
+		t.Fatal("no snapshot")
+	}
+	if snap.Constraint != "embed" {
+		t.Errorf("Constraint = %q, want embed (manual drum)", snap.Constraint)
+	}
+	if snap.Confidence != 1.0 {
+		t.Errorf("Confidence = %f, want 1.0", snap.Confidence)
+	}
+}
+
 func TestNoRecommendation(t *testing.T) {
 	t.Run("insufficient_data", func(t *testing.T) {
 		sa, is := makeIS(0.9, 0.05, 0.05, 0.0, 1.0, 5) // < 10 completions
