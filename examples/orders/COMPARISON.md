@@ -473,7 +473,7 @@ Sentinel key type + type assertion + nil check.
 // With stores a value keyed by its Go type.
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
-// From retrieves by type -> Option. Or provides fallback.
+// Get retrieves by type -> Option. Or provides fallback.
 reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
 ```
 
