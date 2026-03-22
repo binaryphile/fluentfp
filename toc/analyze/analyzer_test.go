@@ -1,0 +1,187 @@
+package analyze
+
+import (
+	"testing"
+	"time"
+
+	"github.com/binaryphile/fluentfp/toc"
+)
+
+func makeIS(util, idle, blocked, errRate, queueGrowth float64, completed int64) (StageAnalysis, toc.IntervalStats) {
+	sa := StageAnalysis{
+		Utilization:  util,
+		IdleRatio:    idle,
+		BlockedRatio: blocked,
+		ErrorRate:    errRate,
+		QueueGrowth:  queueGrowth,
+	}
+	is := toc.IntervalStats{
+		ItemsCompleted:  completed,
+		ItemsSubmitted:  completed,
+		MeanServiceTime: 10 * time.Millisecond,
+		Duration:        time.Second,
+	}
+	return sa, is
+}
+
+func TestClassifyStarved(t *testing.T) {
+	sa := StageAnalysis{
+		Utilization:  0.1,
+		IdleRatio:    0.8,
+		BlockedRatio: 0.05,
+		ErrorRate:    0.0,
+	}
+	if got := classify(sa); got != StateStarved {
+		t.Errorf("classify = %v, want Starved", got)
+	}
+}
+
+func TestClassifyBlocked(t *testing.T) {
+	sa := StageAnalysis{
+		Utilization:  0.6,
+		IdleRatio:    0.05,
+		BlockedRatio: 0.5,
+		ErrorRate:    0.0,
+	}
+	if got := classify(sa); got != StateBlocked {
+		t.Errorf("classify = %v, want Blocked", got)
+	}
+}
+
+func TestClassifySaturated(t *testing.T) {
+	sa := StageAnalysis{
+		Utilization:  0.9,
+		IdleRatio:    0.05,
+		BlockedRatio: 0.05,
+		ErrorRate:    0.0,
+	}
+	if got := classify(sa); got != StateSaturated {
+		t.Errorf("classify = %v, want Saturated", got)
+	}
+}
+
+func TestClassifyBroken(t *testing.T) {
+	sa := StageAnalysis{
+		Utilization:  0.5,
+		IdleRatio:    0.1,
+		BlockedRatio: 0.1,
+		ErrorRate:    0.4,
+	}
+	if got := classify(sa); got != StateBroken {
+		t.Errorf("classify = %v, want Broken", got)
+	}
+}
+
+func TestClassifyHealthy(t *testing.T) {
+	sa := StageAnalysis{
+		Utilization:  0.4,
+		IdleRatio:    0.3,
+		BlockedRatio: 0.1,
+		ErrorRate:    0.0,
+	}
+	if got := classify(sa); got != StateHealthy {
+		t.Errorf("classify = %v, want Healthy", got)
+	}
+}
+
+func TestConstraintHysteresis(t *testing.T) {
+	a := NewAnalyzer(time.Second)
+
+	// Each call produces stats where delta gives ~90% busy, ~5% idle, ~5% blocked.
+	// With 1 worker and 1-second intervals:
+	// ServiceTime delta = 900ms → util = 0.9
+	// IdleTime delta = 50ms → idle ratio = 0.05
+	// OutputBlockedTime delta = 50ms → blocked ratio = 0.05
+	tick := int64(0)
+	a.AddStage(StageSpec{
+		Name: "embed",
+		Stats: func() toc.Stats {
+			tick++
+			return toc.Stats{
+				Submitted:         tick * 100,
+				Completed:         tick * 100,
+				ServiceTime:       time.Duration(tick) * 900 * time.Millisecond,
+				IdleTime:          time.Duration(tick) * 50 * time.Millisecond,
+				OutputBlockedTime: time.Duration(tick) * 50 * time.Millisecond,
+				ActiveWorkers:     1,
+				TargetWorkers:     1,
+			}
+		},
+		Scalable: true,
+	})
+
+	stages := make([]StageSpec, len(a.stages))
+	copy(stages, a.stages)
+	a.started = true
+
+	// Prime prevStats with first call.
+	a.prevTime = time.Now()
+	a.analyze(stages)
+
+	// Run hysteresisIntervals + 1 more intervals with 1-second spacing.
+	for i := 0; i < hysteresisIntervals+1; i++ {
+		a.prevTime = a.prevTime.Add(-time.Second) // simulate 1s elapsed
+		a.analyze(stages)
+	}
+
+	snap := a.CurrentSnapshot()
+	if snap == nil {
+		t.Fatal("no snapshot")
+	}
+
+	sa := snap.Stages["embed"]
+	if sa.State != StateSaturated {
+		t.Errorf("state = %v (util=%.2f idle=%.2f blocked=%.2f), want Saturated",
+			sa.State, sa.Utilization, sa.IdleRatio, sa.BlockedRatio)
+	}
+
+	if snap.Constraint != "embed" {
+		t.Errorf("constraint = %q, want embed", snap.Constraint)
+	}
+	if snap.Confidence <= 0 {
+		t.Errorf("confidence = %f, want > 0", snap.Confidence)
+	}
+}
+
+func TestRecommendationBounds(t *testing.T) {
+	sa, is := makeIS(0.9, 0.05, 0.05, 0.0, 1.0, 100)
+	spec := StageSpec{
+		Name:       "embed",
+		MinWorkers: 2,
+		MaxWorkers: 6,
+		Scalable:   true,
+	}
+
+	rec, reason := recommend(is, sa, spec, time.Second)
+
+	if rec < 2 {
+		t.Errorf("recommendation %d < MinWorkers 2", rec)
+	}
+	if rec > 6 {
+		t.Errorf("recommendation %d > MaxWorkers 6", rec)
+	}
+	if reason == "" {
+		t.Error("reason is empty")
+	}
+	t.Logf("recommend: %d workers, reason: %s", rec, reason)
+}
+
+func TestNoRecommendation(t *testing.T) {
+	t.Run("insufficient_data", func(t *testing.T) {
+		sa, is := makeIS(0.9, 0.05, 0.05, 0.0, 1.0, 5) // < 10 completions
+		spec := StageSpec{Name: "x", Scalable: true, MinWorkers: 1}
+		rec, _ := recommend(is, sa, spec, time.Second)
+		if rec != 0 {
+			t.Errorf("rec = %d, want 0 (insufficient data)", rec)
+		}
+	})
+
+	t.Run("not_scalable", func(t *testing.T) {
+		// Not scalable — recommend should not be called, but if it is, spec.Scalable=false
+		// is checked before calling recommend in the analyzer. Just verify classify works.
+		sa := StageAnalysis{Utilization: 0.9, IdleRatio: 0.05, BlockedRatio: 0.05}
+		if classify(sa) != StateSaturated {
+			t.Error("expected saturated even if not scalable")
+		}
+	})
+}
