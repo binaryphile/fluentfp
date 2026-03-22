@@ -22,6 +22,22 @@ type WeightedBatcherStats struct {
 	OutputBlockedTime time.Duration // cumulative time blocked sending to out
 }
 
+// ToStats converts WeightedBatcherStats to [Stats] for use with the analyze package.
+// Maps: Received→Received, Emitted→Submitted, BatchCount→Completed,
+// Forwarded→Forwarded, Dropped→Dropped, BufferedDepth→BufferedDepth,
+// OutputBlockedTime→OutputBlockedTime.
+func (s WeightedBatcherStats) ToStats() Stats {
+	return Stats{
+		Received:          s.Received,
+		Submitted:         s.Emitted,
+		Completed:         s.BatchCount,
+		Forwarded:         s.Forwarded,
+		Dropped:           s.Dropped,
+		BufferedDepth:     s.BufferedDepth,
+		OutputBlockedTime: s.OutputBlockedTime,
+	}
+}
+
 // WeightedBatcher accumulates Ok items from an upstream Result channel
 // into batches, flushing when accumulated weight OR item count reaches
 // the threshold. Each item's weight is determined by weightFn. Errors

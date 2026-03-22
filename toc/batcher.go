@@ -21,6 +21,19 @@ type BatcherStats struct {
 	OutputBlockedTime time.Duration // cumulative time blocked sending to out
 }
 
+// ToStats converts BatcherStats to [Stats] for use with the analyze package.
+func (s BatcherStats) ToStats() Stats {
+	return Stats{
+		Received:          s.Received,
+		Submitted:         s.Emitted,
+		Completed:         s.BatchCount,
+		Forwarded:         s.Forwarded,
+		Dropped:           s.Dropped,
+		BufferedDepth:     s.BufferedDepth,
+		OutputBlockedTime: s.OutputBlockedTime,
+	}
+}
+
 // Batcher accumulates up to n Ok items from an upstream Result channel
 // into batches, emitting each batch as rslt.Result[[]T]. Errors act as
 // batch boundaries: the partial batch is flushed, then the error is
