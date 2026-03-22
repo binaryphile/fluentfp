@@ -30,8 +30,9 @@ func TestClassifyStarved(t *testing.T) {
 		IdleRatio:    0.8,
 		BlockedRatio: 0.05,
 		ErrorRate:    0.0,
+		QueueGrowth:  -1.0, // draining — confirms starved
 	}
-	if got := classify(sa); got != StateStarved {
+	if got := classify(sa, 100); got != StateStarved {
 		t.Errorf("classify = %v, want Starved", got)
 	}
 }
@@ -43,7 +44,7 @@ func TestClassifyBlocked(t *testing.T) {
 		BlockedRatio: 0.5,
 		ErrorRate:    0.0,
 	}
-	if got := classify(sa); got != StateBlocked {
+	if got := classify(sa, 100); got != StateBlocked {
 		t.Errorf("classify = %v, want Blocked", got)
 	}
 }
@@ -55,7 +56,7 @@ func TestClassifySaturated(t *testing.T) {
 		BlockedRatio: 0.05,
 		ErrorRate:    0.0,
 	}
-	if got := classify(sa); got != StateSaturated {
+	if got := classify(sa, 100); got != StateSaturated {
 		t.Errorf("classify = %v, want Saturated", got)
 	}
 }
@@ -67,7 +68,7 @@ func TestClassifyBroken(t *testing.T) {
 		BlockedRatio: 0.1,
 		ErrorRate:    0.4,
 	}
-	if got := classify(sa); got != StateBroken {
+	if got := classify(sa, 100); got != StateBroken {
 		t.Errorf("classify = %v, want Broken", got)
 	}
 }
@@ -79,8 +80,15 @@ func TestClassifyHealthy(t *testing.T) {
 		BlockedRatio: 0.1,
 		ErrorRate:    0.0,
 	}
-	if got := classify(sa); got != StateHealthy {
+	if got := classify(sa, 100); got != StateHealthy {
 		t.Errorf("classify = %v, want Healthy", got)
+	}
+}
+
+func TestClassifyUnknown(t *testing.T) {
+	sa := StageAnalysis{} // all zero
+	if got := classify(sa, 0); got != StateUnknown {
+		t.Errorf("classify = %v, want Unknown", got)
 	}
 }
 
@@ -129,10 +137,17 @@ func TestConstraintHysteresis(t *testing.T) {
 		t.Fatal("no snapshot")
 	}
 
-	sa := snap.Stages["embed"]
-	if sa.State != StateSaturated {
+	// Find embed in ordered slice.
+	var embedAnalysis StageAnalysis
+	for _, ss := range snap.Stages {
+		if ss.Name == "embed" {
+			embedAnalysis = ss.Analysis
+			break
+		}
+	}
+	if embedAnalysis.State != StateSaturated {
 		t.Errorf("state = %v (util=%.2f idle=%.2f blocked=%.2f), want Saturated",
-			sa.State, sa.Utilization, sa.IdleRatio, sa.BlockedRatio)
+			embedAnalysis.State, embedAnalysis.Utilization, embedAnalysis.IdleRatio, embedAnalysis.BlockedRatio)
 	}
 
 	if snap.Constraint != "embed" {
@@ -180,7 +195,7 @@ func TestNoRecommendation(t *testing.T) {
 		// Not scalable — recommend should not be called, but if it is, spec.Scalable=false
 		// is checked before calling recommend in the analyzer. Just verify classify works.
 		sa := StageAnalysis{Utilization: 0.9, IdleRatio: 0.05, BlockedRatio: 0.05}
-		if classify(sa) != StateSaturated {
+		if classify(sa, 100) != StateSaturated {
 			t.Error("expected saturated even if not scalable")
 		}
 	})

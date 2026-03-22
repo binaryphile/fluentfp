@@ -83,12 +83,20 @@ type StageAnalysis struct {
 	RecommendReason string // human-readable explanation
 }
 
-// Snapshot is the analyzer's output for one interval. Immutable after creation.
+// Snapshot is the analyzer's output for one interval.
+// Published via atomic.Pointer. Callers receive a deep copy —
+// safe to read and retain without synchronization.
 type Snapshot struct {
 	At         time.Time
 	Constraint string  // empty if none identified
 	Confidence float64 // 0.0-1.0
-	Stages     map[string]StageAnalysis
+	Stages     []StageSnapshot // ordered by registration
+}
+
+// StageSnapshot pairs a stage name with its analysis.
+type StageSnapshot struct {
+	Name     string
+	Analysis StageAnalysis
 }
 
 // Analyzer periodically evaluates pipeline stages and logs constraint
@@ -210,12 +218,15 @@ func (a *Analyzer) analyze(stages []StageSpec) {
 
 	snap := &Snapshot{
 		At:     now,
-		Stages: make(map[string]StageAnalysis, len(stages)),
+		Stages: make([]StageSnapshot, 0, len(stages)),
 	}
 
 	// Collect and classify each stage.
-	var topSaturated string
-	var topUtil float64
+	type candidate struct {
+		name string
+		util float64
+	}
+	var saturated []candidate
 
 	for _, spec := range stages {
 		curr := spec.Stats()
@@ -233,13 +244,13 @@ func (a *Analyzer) analyze(stages []StageSpec) {
 
 			// Compute idle and blocked ratios.
 			avgWorkers := float64(prev.ActiveWorkers+curr.ActiveWorkers) / 2.0
-			if avgWorkers > 0 && elapsed > 0 {
+			if avgWorkers > 0 {
 				workerNs := elapsed.Seconds() * avgWorkers * 1e9
 				sa.IdleRatio = float64(is.IdleTimeDelta.Nanoseconds()) / workerNs
 				sa.BlockedRatio = float64(is.OutputBlockedDelta.Nanoseconds()) / workerNs
 			}
 
-			sa.State = classify(sa)
+			sa.State = classify(sa, is.ItemsCompleted)
 
 			// Recommendation for saturated + scalable stages.
 			if sa.State == StateSaturated && spec.Scalable {
@@ -251,10 +262,9 @@ func (a *Analyzer) analyze(stages []StageSpec) {
 				sa.RecommendReason = sa.State.String()
 			}
 
-			// Track top saturated for constraint identification.
-			if sa.State == StateSaturated && sa.Utilization > topUtil {
-				topSaturated = spec.Name
-				topUtil = sa.Utilization
+			// Track saturated candidates.
+			if sa.State == StateSaturated {
+				saturated = append(saturated, candidate{spec.Name, sa.Utilization})
 			}
 		} else {
 			sa.State = StateUnknown
@@ -262,22 +272,47 @@ func (a *Analyzer) analyze(stages []StageSpec) {
 		}
 
 		a.prevStats[spec.Name] = curr
-		snap.Stages[spec.Name] = sa
+		snap.Stages = append(snap.Stages, StageSnapshot{Name: spec.Name, Analysis: sa})
 	}
 
 	a.prevTime = now
 
+	// Pick constraint: top saturated stage, but detect ties.
+	const tieMargin = 0.05 // utilization difference below this = tie
+	topName := ""
+	if len(saturated) > 0 {
+		// Sort by utilization descending.
+		best := saturated[0]
+		for _, c := range saturated[1:] {
+			if c.util > best.util {
+				best = c
+			}
+		}
+		// Check for tie with runner-up.
+		tied := false
+		for _, c := range saturated {
+			if c.name != best.name && best.util-c.util < tieMargin {
+				tied = true
+				break
+			}
+		}
+		if !tied {
+			topName = best.name
+		}
+		// tied → topName stays empty (no clear winner)
+	}
+
 	// Hysteresis: confirm constraint after consecutive intervals.
-	if topSaturated != "" && topSaturated == a.candidate {
+	if topName != "" && topName == a.candidate {
 		a.consecutiveN++
 	} else {
-		a.candidate = topSaturated
+		a.candidate = topName
 		a.consecutiveN = 1
 	}
 
-	if a.consecutiveN >= hysteresisIntervals {
+	if a.consecutiveN >= hysteresisIntervals && a.candidate != "" {
 		snap.Constraint = a.candidate
-		snap.Confidence = math.Min(float64(a.consecutiveN)/10.0, 1.0) // grows with stability
+		snap.Confidence = math.Min(float64(a.consecutiveN)/10.0, 1.0)
 	}
 
 	a.snapshot.Store(snap)
@@ -290,11 +325,16 @@ func (a *Analyzer) analyze(stages []StageSpec) {
 	}
 }
 
-func classify(sa StageAnalysis) StageState {
+func classify(sa StageAnalysis, completions int64) StageState {
+	// Data quality gate: insufficient data → Unknown.
+	if completions == 0 && sa.Utilization == 0 && sa.IdleRatio == 0 {
+		return StateUnknown
+	}
+
 	if sa.ErrorRate > thresholdBrokenError {
 		return StateBroken
 	}
-	if sa.IdleRatio > thresholdStarvedIdle {
+	if sa.IdleRatio > thresholdStarvedIdle && sa.QueueGrowth <= 0 {
 		return StateStarved
 	}
 	if sa.BlockedRatio > thresholdBlockedBlocked {
@@ -345,21 +385,25 @@ func (a *Analyzer) formatSummary(snap *Snapshot) string {
 	var b strings.Builder
 
 	if snap.Constraint != "" {
-		sa := snap.Stages[snap.Constraint]
-		fmt.Fprintf(&b, "[toc] constraint: %s (%s, conf=%.2f)",
-			snap.Constraint, sa.State, snap.Confidence)
-		if sa.Recommendation > 0 {
-			fmt.Fprintf(&b, " | %s: %d→%d workers (%s)",
-				snap.Constraint, sa.CurrentWorkers, sa.Recommendation, sa.RecommendReason)
+		for _, ss := range snap.Stages {
+			if ss.Name == snap.Constraint {
+				fmt.Fprintf(&b, "[toc] constraint: %s (%s, conf=%.2f)",
+					snap.Constraint, ss.Analysis.State, snap.Confidence)
+				if ss.Analysis.Recommendation > 0 {
+					fmt.Fprintf(&b, " | %s: %d→%d workers (%s)",
+						snap.Constraint, ss.Analysis.CurrentWorkers,
+						ss.Analysis.Recommendation, ss.Analysis.RecommendReason)
+				}
+				break
+			}
 		}
 	} else {
 		b.WriteString("[toc] no constraint identified")
 	}
 
 	b.WriteString(" |")
-	for _, spec := range a.stages {
-		sa := snap.Stages[spec.Name]
-		fmt.Fprintf(&b, " %s=%s(%.2f)", spec.Name, sa.State, sa.Utilization)
+	for _, ss := range snap.Stages {
+		fmt.Fprintf(&b, " %s=%s(%.2f)", ss.Name, ss.Analysis.State, ss.Analysis.Utilization)
 	}
 
 	return b.String()
