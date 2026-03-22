@@ -948,3 +948,28 @@ func TestMaxWIPWeightStats(t *testing.T) {
 	s.CloseInput()
 	s.Wait()
 }
+
+func TestSetMaxWIPCeilingTracksWorkers(t *testing.T) {
+	// MaxWIP ceiling should track TargetWorkers, not initial worker count.
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{
+		Capacity: 5,
+		Workers:  2, // initial: ceiling = 5+2 = 7
+	})
+
+	go func() { for range s.Out() {} }()
+
+	// Scale up to 6 workers. New ceiling should be 5+6 = 11.
+	s.SetWorkers(6)
+
+	// SetMaxWIP to 10 — should succeed (10 < 11).
+	applied := s.SetMaxWIP(10)
+	if applied != 10 {
+		t.Errorf("SetMaxWIP(10) after SetWorkers(6) = %d, want 10 (ceiling=11)", applied)
+	}
+
+	// Before the fix, ceiling was 5+2=7, so SetMaxWIP(10) would clamp to 7.
+
+	s.CloseInput()
+	s.Wait()
+}

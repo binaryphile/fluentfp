@@ -1014,10 +1014,11 @@ func (s *Stage[T, R]) releaseAdmission(weight int64) {
 
 // SetMaxWIP dynamically adjusts the WIP limit. Wakes blocked Submits
 // if the new limit is higher than the current one. The value is clamped
-// to [1, Capacity+Workers]. Returns the applied value.
-// Concurrency-safe.
+// to [1, Capacity+TargetWorkers]. The ceiling tracks dynamic worker
+// count from [Stage.SetWorkers], not the initial construction count.
+// Returns the applied value. Concurrency-safe.
 func (s *Stage[T, R]) SetMaxWIP(n int) int {
-	ceiling := s.capacity + s.workers
+	ceiling := s.capacity + s.TargetWorkers()
 	if n < 1 {
 		n = 1
 	}
