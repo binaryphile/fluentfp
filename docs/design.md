@@ -1051,3 +1051,41 @@ Adds `Options.MaxWIP` (static WIP limit) and `Stage.SetMaxWIP(n)` (dynamic adjus
 **Why floor of 1:** MaxWIP=0 deadlocks. Minimum is 1.
 
 **Why default Capacity+Workers:** Maximum possible WIP. Existing code sees identical behavior — rope fast path always passes.
+
+### D39: Stage.SetMaxWIPWeight — weighted admission control
+
+Adds `Options.MaxWIPWeight` (weight-based WIP limit) alongside count-based `MaxWIP`. Both limits enforced simultaneously.
+
+**Why two independent limits:** Count prevents zero-weight item floods. Weight prevents memory blowout from heavy items. They serve different failure modes. Mutual exclusivity would be a footgun — disabling one silently exposes the other's weakness.
+
+**Why reject oversize items immediately:** An item with weight > MaxWIPWeight can never be admitted. In a FIFO queue, it would permanently poison the head — blocking all followers forever. `ErrWeightExceedsLimit` gives callers a clean signal to handle (skip, log, split).
+
+**Why FIFO head-of-line blocking:** A heavy item at the queue head blocks lighter followers, even if they fit by weight. This is consistent with the count-based rope and the physical rope analogy (you can't skip Herbie). Skip-ahead adds complexity and fairness problems without evidence of need.
+
+**Why overflow-safe arithmetic:** `weightAllows` uses `w <= maxWIPWeight - admittedWeight` instead of `admittedWeight + w <= maxWIPWeight` to avoid int64 overflow on large weights.
+
+**Why frozen weight:** Weight is computed once in Submit, stored in `queued[T].weight`, and carried unchanged through admission, processing, and release. Recomputing on release would invite accounting corruption if the item mutates.
+
+### D40: PauseAdmission / ResumeAdmission
+
+Explicit pause/resume for admission, separate from SetMaxWIP.
+
+**Why not SetMaxWIP(0):** `Options.MaxWIP=0` means default at construction, `SetMaxWIP(0)` would mean pause at runtime — same literal, two meanings. Pause is a distinct operational concept (memory pressure, downstream outage, operator intervention) that deserves its own API.
+
+**Why hold, not reject:** Paused waiters stay queued and wake when resumed. Rejection would lose demand and require callers to retry. Holding preserves backpressure semantics.
+
+**Why paused checked before both limits:** The `paused` flag forces the slow path regardless of count or weight capacity. Resume calls `grantWaitersLocked` to wake held waiters.
+
+### D41: Reporter — periodic pipeline stats with process memory
+
+`NewReporter(interval)` logs per-stage Stats + process memory (RSS, Go heap) every N seconds.
+
+**Why `func() Stats` not interface:** Instantiated generic types can satisfy `func() Stats` via method values (`stage.Stats`). Avoids anonymous interfaces in the public API and preserves typed Stats for future delta computation.
+
+**Why `Run(ctx)` blocks, not goroutine in constructor:** Explicit lifecycle. Constructors that spawn goroutines are harder to reason about and test. `go reporter.Run(ctx)` makes ownership clear.
+
+**Why injected `*log.Logger`:** Library code should not use global `log.Printf`. Default is `log.Default()` for convenience; `WithLogger` overrides for testing and customization.
+
+**Why panic recovery per provider:** Observability code must not crash the process. Each stage's `Stats()` call is wrapped in `recover`. Panic value + stack trace are logged; reporting continues for other stages.
+
+**Why Linux-only RSS:** `/proc/self/status` parsing is Linux-specific. Non-Linux platforms get Go heap only — RSS field omitted from output rather than showing misleading zero.

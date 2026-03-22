@@ -618,14 +618,20 @@
 - 6a. Developer separates buffer sizing from WIP limiting: `Capacity` sizes the buffer (protects the constraint from upstream starvation). `MaxWIP` limits total admitted-but-not-completed items (prevents overproduction). Buffer and rope are distinct DBR concerns — buffer absorbs variability, rope paces work release.
 - 6b. Developer dynamically adjusts WIP limit at runtime: `SetMaxWIP(n)` changes the admission limit while the stage is running. Blocked Submits wake immediately if the new limit is higher. Returns the applied value (clamped to floor of 1, ceiling of Capacity+Workers). A memory monitor, rate limiter, or downstream pressure signal can call SetMaxWIP periodically.
 - 6c. Submit is blocked by rope (WIP at limit): Submit waits in a cancelable select (per-waiter channel queue). Respects context cancellation and stage close while waiting. FIFO fairness — waiters are granted slots in submission order.
+- 6d. Developer limits admission by item weight alongside count: `MaxWIPWeight` limits accumulated weight of admitted items. Both count and weight limits enforced simultaneously — count prevents zero-weight floods, weight prevents memory blowout. Items exceeding the weight limit are rejected immediately with `ErrWeightExceedsLimit`. `SetMaxWIPWeight(n)` adjusts at runtime. FIFO with head-of-line blocking (heavy item at head blocks lighter followers).
+- 6e. Developer pauses all new admissions: `PauseAdmission()` blocks new Submits; in-flight items complete normally. Queued waiters are held until `ResumeAdmission()`. Use for memory pressure, downstream outage, operator intervention.
+- 6f. Developer monitors pipeline health mid-flight: `NewReporter(interval)` with `AddStage(name, stage.Stats)` logs per-stage stats and process memory (RSS, Go heap) every N seconds. Frozen lifecycle (AddStage before Run). Panic recovery per provider.
 
 **Sub-Variations:**
 - Capacity: zero (unbuffered — Submit blocks until a worker dequeues), positive (buffered queue)
 - Workers: 1 (serial constraint), N (limited concurrency)
 - WIP limiting: static (MaxWIP at construction), dynamic (SetMaxWIP at runtime), default (Capacity + Workers)
+- Weight limiting: static (MaxWIPWeight at construction), dynamic (SetMaxWIPWeight at runtime), disabled by default (0)
+- Admission control: active (default), paused (PauseAdmission/ResumeAdmission)
 - Error mode: fail-fast (default), continue-on-error
-- Stats: submitted/completed/failed/panicked/canceled counts, service time, idle time, output-blocked time, buffered depth, in-flight weight, MaxWIP, admitted, rope wait count/time
+- Stats: submitted/completed/failed/panicked/canceled counts, service time, idle time, output-blocked time, buffered depth, in-flight weight, MaxWIP, MaxWIPWeight, admitted count/weight, rope wait count/time, waiter count/max
 - Allocation tracking: disabled (default), enabled via TrackAllocations
+- Reporting: periodic log output via Reporter with process memory (RSS, Go heap)
 - Shutdown: explicit (CloseInput), fail-fast (automatic), parent cancel (automatic via cancel watcher)
 
 ### UC-14: Compose Multi-Stage Processing Pipelines
