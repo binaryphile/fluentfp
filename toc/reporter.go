@@ -91,18 +91,25 @@ func (r *Reporter) AddStage(name string, fn func() Stats) {
 // Run blocks, logging every interval until ctx is canceled.
 // Panics if called twice.
 func (r *Reporter) Run(ctx context.Context) {
+	stages := r.freezeStages()
+	r.runWithTicker(ctx, nil, stages)
+}
+
+// freezeStages marks the reporter as started and returns a snapshot
+// of the registered stages. Panics if already started.
+func (r *Reporter) freezeStages() []reporterEntry {
 	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.started {
-		r.mu.Unlock()
 		panic("toc.Reporter: Run called twice")
 	}
 	r.started = true
-	// Snapshot stages — frozen from this point.
+
 	stages := make([]reporterEntry, len(r.stages))
 	copy(stages, r.stages)
-	r.mu.Unlock()
 
-	r.runWithTicker(ctx, nil, stages)
+	return stages
 }
 
 // runWithTicker is the internal run loop. If ticks is non-nil, it is
@@ -164,10 +171,14 @@ func safeCallStats(fn func() Stats) (s Stats, pi *panicInfo, ok bool) {
 	defer func() {
 		if v := recover(); v != nil {
 			pi = &panicInfo{value: v, stack: debug.Stack()}
+			ok = false
 		}
 	}()
 
-	return fn(), nil, true
+	s = fn()
+	ok = true
+
+	return
 }
 
 func readMemStats() memStats {

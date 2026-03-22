@@ -28,11 +28,7 @@ func runOneTick(t *testing.T, r *Reporter) string {
 	done := make(chan struct{})
 
 	go func() {
-		r.mu.Lock()
-		r.started = true
-		stages := make([]reporterEntry, len(r.stages))
-		copy(stages, r.stages)
-		r.mu.Unlock()
+		stages := r.freezeStages()
 		r.runWithTicker(ctx, ticks, stages)
 		close(done)
 	}()
