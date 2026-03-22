@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/binaryphile/fluentfp/toc"
+	"github.com/binaryphile/fluentfp/toc/core"
 )
 
 const (
@@ -43,10 +44,10 @@ type pendingMove struct {
 	intervalsRemaining  int
 }
 
-// Rebalancer consumes [Analyzer] snapshots and moves workers between stages.
+// Rebalancer consumes [core.Diagnosis] and moves workers between stages.
 // Moves at most one worker per interval. Reverts if throughput regresses.
 type Rebalancer struct {
-	analyzer          *Analyzer
+	diagnosis         func() *core.Diagnosis // provider of latest diagnosis
 	logger            *log.Logger
 	cooldownIntervals int
 	killSwitch        func() bool
@@ -86,14 +87,16 @@ func WithKillSwitch(fn func() bool) RebalancerOption {
 	}
 }
 
-// NewRebalancer creates a rebalancer that consumes analyzer snapshots.
-func NewRebalancer(analyzer *Analyzer, opts ...RebalancerOption) *Rebalancer {
-	if analyzer == nil {
-		panic("analyze: analyzer must not be nil")
+// NewRebalancer creates a rebalancer that consumes diagnosis snapshots.
+// The diagnosis function returns the latest [core.Diagnosis], or nil
+// if no diagnosis is available yet.
+func NewRebalancer(diagnosis func() *core.Diagnosis, opts ...RebalancerOption) *Rebalancer {
+	if diagnosis == nil {
+		panic("analyze: diagnosis provider must not be nil")
 	}
 
 	r := &Rebalancer{
-		analyzer:          analyzer,
+		diagnosis:         diagnosis,
 		logger:            log.Default(),
 		cooldownIntervals: defaultCooldownIntervals,
 	}
@@ -185,12 +188,12 @@ func (r *Rebalancer) tick() {
 		return // still in cooldown
 	}
 
-	// Read analyzer snapshot.
-	snap := r.analyzer.CurrentSnapshot()
-	if snap == nil {
+	// Read latest diagnosis.
+	diag := r.diagnosis()
+	if diag == nil {
 		return
 	}
-	if snap.Constraint == "" || snap.Confidence < confidenceThreshold {
+	if diag.Constraint == "" || diag.Confidence < confidenceThreshold {
 		return
 	}
 
@@ -202,11 +205,11 @@ func (r *Rebalancer) tick() {
 	// Find receiver (constraint stage).
 	var receiver *StageControl
 	for i := range stages {
-		if stages[i].Name == snap.Constraint && stages[i].Policy.ReceiveOK {
+		if stages[i].Name == diag.Constraint && stages[i].Policy.ReceiveOK {
 			curr := stages[i].Stats()
 			if stages[i].Policy.Max > 0 && curr.ActiveWorkers >= stages[i].Policy.Max {
 				r.logger.Printf("[rebalancer] constraint %s at max workers (%d), skipping",
-					snap.Constraint, curr.ActiveWorkers)
+					diag.Constraint, curr.ActiveWorkers)
 				return
 			}
 			receiver = &stages[i]
@@ -233,11 +236,11 @@ func (r *Rebalancer) tick() {
 			continue
 		}
 
-		// Find utilization from analyzer snapshot.
+		// Find utilization from diagnosis.
 		var util float64
-		for _, ss := range snap.Stages {
-			if ss.Name == stages[i].Name {
-				util = ss.Analysis.Utilization
+		for _, sd := range diag.Stages {
+			if sd.Stage == stages[i].Name {
+				util = sd.Utilization
 				break
 			}
 		}
@@ -285,7 +288,7 @@ func (r *Rebalancer) tick() {
 	r.logger.Printf("[rebalancer] moved: %s %d→%d, %s %d→%d (constraint=%s, conf=%.2f)",
 		donor.Name, donorStats.ActiveWorkers, donorApplied,
 		receiver.Name, receiverStats.ActiveWorkers, receiverApplied,
-		snap.Constraint, snap.Confidence)
+		diag.Constraint, diag.Confidence)
 }
 
 func (r *Rebalancer) checkRevert() {

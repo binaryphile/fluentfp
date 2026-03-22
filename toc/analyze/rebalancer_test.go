@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/binaryphile/fluentfp/toc"
+	"github.com/binaryphile/fluentfp/toc/core"
 )
 
 type mockStage struct {
@@ -44,42 +45,36 @@ func (m *mockStage) control(policy WorkerPolicy) StageControl {
 	}
 }
 
-func setupAnalyzerWithConstraint(constraintName string, stages []string) *Analyzer {
-	a := NewAnalyzer(time.Second)
-	// We'll publish a fake snapshot directly.
-	snap := &Snapshot{
-		At:         time.Now(),
+func diagnosisWithConstraint(constraintName string, stages []string) func() *core.Diagnosis {
+	diag := &core.Diagnosis{
 		Constraint: constraintName,
 		Confidence: 0.8,
-		Stages:     make([]StageSnapshot, len(stages)),
+		Stages:     make([]core.StageDiagnosis, len(stages)),
 	}
 	for i, name := range stages {
-		util := 0.3 // default low util
+		util := 0.3
 		if name == constraintName {
 			util = 0.95
 		}
-		snap.Stages[i] = StageSnapshot{
-			Name: name,
-			Analysis: StageAnalysis{
-				State:       StateSaturated,
-				Utilization: util,
-			},
+		diag.Stages[i] = core.StageDiagnosis{
+			Stage:       name,
+			State:       core.StateSaturated,
+			Utilization: util,
 		}
 	}
-	a.snapshot.Store(snap)
-	return a
+	return func() *core.Diagnosis { return diag }
 }
 
 func TestRebalancerMoves(t *testing.T) {
 	embed := newMockStage("embed", 2)
 	walk := newMockStage("walk", 4)
 
-	analyzer := setupAnalyzerWithConstraint("embed", []string{"walk", "embed"})
+	diagFn := diagnosisWithConstraint("embed", []string{"walk", "embed"})
 
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 
-	rb := NewRebalancer(analyzer, WithRebalancerLogger(logger), WithCooldown(1))
+	rb := NewRebalancer(diagFn, WithRebalancerLogger(logger), WithCooldown(1))
 	rb.AddStage(walk.control(WorkerPolicy{Min: 1, DonateOK: true}))
 	rb.AddStage(embed.control(WorkerPolicy{Min: 1, Max: 8, ReceiveOK: true}))
 
@@ -115,9 +110,9 @@ func TestRebalancerCooldown(t *testing.T) {
 	embed := newMockStage("embed", 2)
 	walk := newMockStage("walk", 4)
 
-	analyzer := setupAnalyzerWithConstraint("embed", []string{"walk", "embed"})
+	diagFn := diagnosisWithConstraint("embed", []string{"walk", "embed"})
 
-	rb := NewRebalancer(analyzer, WithCooldown(3))
+	rb := NewRebalancer(diagFn, WithCooldown(3))
 	rb.AddStage(walk.control(WorkerPolicy{Min: 1, DonateOK: true}))
 	rb.AddStage(embed.control(WorkerPolicy{Min: 1, Max: 8, ReceiveOK: true}))
 
@@ -157,7 +152,7 @@ func TestRebalancerKillSwitch(t *testing.T) {
 	embed := newMockStage("embed", 2)
 	walk := newMockStage("walk", 4)
 
-	analyzer := setupAnalyzerWithConstraint("embed", []string{"walk", "embed"})
+	diagFn := diagnosisWithConstraint("embed", []string{"walk", "embed"})
 
 	killed := atomic.Bool{}
 	killed.Store(true)
@@ -165,7 +160,7 @@ func TestRebalancerKillSwitch(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 
-	rb := NewRebalancer(analyzer,
+	rb := NewRebalancer(diagFn,
 		WithRebalancerLogger(logger),
 		WithKillSwitch(func() bool { return killed.Load() }),
 	)
@@ -196,12 +191,12 @@ func TestRebalancerPolicyBounds(t *testing.T) {
 	embed := newMockStage("embed", 2)
 	walk := newMockStage("walk", 1) // at Min, can't donate
 
-	analyzer := setupAnalyzerWithConstraint("embed", []string{"walk", "embed"})
+	diagFn := diagnosisWithConstraint("embed", []string{"walk", "embed"})
 
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 
-	rb := NewRebalancer(analyzer, WithRebalancerLogger(logger))
+	rb := NewRebalancer(diagFn, WithRebalancerLogger(logger))
 	rb.AddStage(walk.control(WorkerPolicy{Min: 1, DonateOK: true})) // at Min
 	rb.AddStage(embed.control(WorkerPolicy{Min: 1, Max: 8, ReceiveOK: true}))
 
@@ -233,14 +228,16 @@ func TestRebalancerNoConstraint(t *testing.T) {
 	walk := newMockStage("walk", 4)
 
 	// No constraint identified.
-	analyzer := NewAnalyzer(time.Second)
-	snap := &Snapshot{At: time.Now(), Stages: []StageSnapshot{
-		{Name: "walk", Analysis: StageAnalysis{State: StateHealthy, Utilization: 0.3}},
-		{Name: "embed", Analysis: StageAnalysis{State: StateHealthy, Utilization: 0.4}},
-	}}
-	analyzer.snapshot.Store(snap)
+	noConstraint := func() *core.Diagnosis {
+		return &core.Diagnosis{
+			Stages: []core.StageDiagnosis{
+				{Stage: "walk", State: core.StateHealthy, Utilization: 0.3},
+				{Stage: "embed", State: core.StateHealthy, Utilization: 0.4},
+			},
+		}
+	}
 
-	rb := NewRebalancer(analyzer)
+	rb := NewRebalancer(noConstraint)
 	rb.AddStage(walk.control(WorkerPolicy{Min: 1, DonateOK: true}))
 	rb.AddStage(embed.control(WorkerPolicy{Min: 1, Max: 8, ReceiveOK: true}))
 
@@ -276,12 +273,12 @@ func TestRebalancerRevert(t *testing.T) {
 		}
 	}
 
-	analyzer := setupAnalyzerWithConstraint("embed", []string{"walk", "embed"})
+	diagFn := diagnosisWithConstraint("embed", []string{"walk", "embed"})
 
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 
-	rb := NewRebalancer(analyzer, WithRebalancerLogger(logger), WithCooldown(1))
+	rb := NewRebalancer(diagFn, WithRebalancerLogger(logger), WithCooldown(1))
 	rb.AddStage(walk.control(WorkerPolicy{Min: 1, DonateOK: true}))
 	rb.AddStage(embed.control(WorkerPolicy{Min: 1, Max: 8, ReceiveOK: true}))
 
