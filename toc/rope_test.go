@@ -672,3 +672,279 @@ func TestPauseThenClose(t *testing.T) {
 
 	s.Wait()
 }
+
+// ---------------------------------------------------------------------------
+// Weighted admission tests
+// ---------------------------------------------------------------------------
+
+func TestMaxWIPWeightDefault(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{
+		Capacity: 5,
+		Workers:  1,
+		Weight:   func(n int) int64 { return int64(n * 100) },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	for i := 1; i <= 5; i++ {
+		if err := s.Submit(ctx, i); err != nil {
+			t.Fatalf("Submit(%d): %v", i, err)
+		}
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestMaxWIPWeightBlocksHeavyItem(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, slowFn, toc.Options[int]{
+		Capacity:     5,
+		Workers:      1,
+		MaxWIP:       10,
+		MaxWIPWeight: 100,
+		Weight:       func(n int) int64 { return int64(n) },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	s.Submit(ctx, 80)
+
+	blocked := make(chan struct{})
+	go func() {
+		s.Submit(ctx, 30)
+		close(blocked)
+	}()
+
+	select {
+	case <-blocked:
+		t.Fatal("second Submit should block (weight 80+30 > 100)")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	select {
+	case <-blocked:
+	case <-time.After(time.Second):
+		t.Fatal("second Submit never unblocked")
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestMaxWIPWeightRejectsOversize(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{
+		Capacity:     5,
+		Workers:      1,
+		MaxWIPWeight: 50,
+		Weight:       func(n int) int64 { return int64(n) },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	err := s.Submit(ctx, 51)
+	if err != toc.ErrWeightExceedsLimit {
+		t.Errorf("Submit(51): got %v, want ErrWeightExceedsLimit", err)
+	}
+
+	if err := s.Submit(ctx, 10); err != nil {
+		t.Errorf("Submit(10): %v", err)
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestMaxWIPWeightAndCountBothEnforced(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, slowFn, toc.Options[int]{
+		Capacity:     5,
+		Workers:      1,
+		MaxWIP:       2,
+		MaxWIPWeight: 1000,
+		Weight:       func(n int) int64 { return 1 },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	s.Submit(ctx, 1)
+	s.Submit(ctx, 2)
+
+	blocked := make(chan struct{})
+	go func() {
+		s.Submit(ctx, 3)
+		close(blocked)
+	}()
+
+	select {
+	case <-blocked:
+		t.Fatal("third Submit should block (count limit)")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	select {
+	case <-blocked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("third Submit never unblocked")
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestMaxWIPWeightHOLBlocking(t *testing.T) {
+	// Heavy item at queue head blocks lighter items behind it.
+	workerGate := make(chan struct{})
+	ctx := context.Background()
+	s := toc.Start(ctx, func(ctx context.Context, n int) (int, error) {
+		select {
+		case <-workerGate:
+			return n, nil
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		}
+	}, toc.Options[int]{
+		Capacity:     5,
+		Workers:      1,
+		MaxWIP:       10,
+		MaxWIPWeight: 50,
+		Weight:       func(n int) int64 { return int64(n) },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	// Fill to weight 48. Worker blocks on gate.
+	s.Submit(ctx, 48)
+
+	// Heavy: weight 40. 48+40=88 > 50 → blocked.
+	heavyDone := make(chan struct{})
+	go func() {
+		s.Submit(ctx, 40)
+		close(heavyDone)
+	}()
+	time.Sleep(30 * time.Millisecond)
+
+	// Light: weight 5. 48+5=53 > 50 → also blocked. Queues behind heavy.
+	lightDone := make(chan struct{})
+	go func() {
+		s.Submit(ctx, 5)
+		close(lightDone)
+	}()
+	time.Sleep(30 * time.Millisecond)
+
+	// Neither should be done — worker is blocked.
+	select {
+	case <-lightDone:
+		t.Fatal("light item should be blocked")
+	case <-heavyDone:
+		t.Fatal("heavy item should be blocked")
+	default:
+	}
+
+	// Release worker → first item (48) completes → admittedWeight=0.
+	// grantWaitersLocked: heavy (40) fits → granted. light (5) fits → granted.
+	close(workerGate)
+
+	select {
+	case <-heavyDone:
+	case <-time.After(time.Second):
+		t.Fatal("heavy item never unblocked")
+	}
+
+	select {
+	case <-lightDone:
+	case <-time.After(time.Second):
+		t.Fatal("light item never unblocked after heavy")
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestSetMaxWIPWeight(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, slowFn, toc.Options[int]{
+		Capacity:     5,
+		Workers:      1,
+		MaxWIP:       10,
+		MaxWIPWeight: 30,
+		Weight:       func(n int) int64 { return int64(n) },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	s.Submit(ctx, 25)
+
+	blocked := make(chan struct{})
+	go func() {
+		s.Submit(ctx, 10)
+		close(blocked)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+
+	s.SetMaxWIPWeight(50)
+
+	select {
+	case <-blocked:
+	case <-time.After(time.Second):
+		t.Fatal("SetMaxWIPWeight(50) did not unblock")
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
+func TestMaxWIPWeightQuiescence(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{
+		Capacity:     5,
+		Workers:      2,
+		MaxWIPWeight: 100,
+		Weight:       func(n int) int64 { return int64(n) },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	for i := 1; i <= 10; i++ {
+		s.Submit(ctx, i)
+	}
+
+	s.CloseInput()
+	s.Wait()
+
+	stats := s.Stats()
+	if stats.AdmittedWeight != 0 {
+		t.Errorf("AdmittedWeight = %d, want 0", stats.AdmittedWeight)
+	}
+	if stats.Admitted != 0 {
+		t.Errorf("Admitted = %d, want 0", stats.Admitted)
+	}
+}
+
+func TestMaxWIPWeightStats(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, slowFn, toc.Options[int]{
+		Capacity:     5,
+		Workers:      1,
+		MaxWIPWeight: 100,
+		Weight:       func(n int) int64 { return int64(n) },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	s.Submit(ctx, 30)
+
+	stats := s.Stats()
+	if stats.MaxWIPWeight != 100 {
+		t.Errorf("MaxWIPWeight = %d, want 100", stats.MaxWIPWeight)
+	}
+	if stats.AdmittedWeight < 30 {
+		t.Errorf("AdmittedWeight = %d, want >= 30", stats.AdmittedWeight)
+	}
+
+	s.CloseInput()
+	s.Wait()
+}

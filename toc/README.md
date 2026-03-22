@@ -73,6 +73,20 @@ stage.SetMaxWIP(3)  // tighten under memory pressure
 stage.SetMaxWIP(10) // relax when pressure subsides
 ```
 
+**MaxWIPWeight** adds a weight-based limit alongside count. Both limits are enforced simultaneously — count prevents zero-weight floods, weight prevents memory blowout from heavy items. Items with weight exceeding the limit are rejected immediately with `ErrWeightExceedsLimit`.
+
+```go
+stage := toc.Start(ctx, processChunk, toc.Options[Chunk]{
+    Capacity:     10,
+    Workers:      4,
+    MaxWIP:       6,
+    MaxWIPWeight: 1 << 30, // 1 GiB weight budget
+    Weight:       func(c Chunk) int64 { return int64(len(c.Data)) },
+})
+
+stage.SetMaxWIPWeight(512 << 20) // tighten to 512 MiB under pressure
+```
+
 `SetMaxWIP` wakes blocked Submits if the new limit is higher. Value is clamped to `[1, Capacity+Workers]`. Returns the applied value.
 
 **Rope design tradeoffs:**

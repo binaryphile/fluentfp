@@ -58,6 +58,11 @@ func isAllocMetricsSupported() bool {
 // parent context cancellation. See [Stage.Submit] for race semantics.
 var ErrClosed = errors.New("toc: stage closed")
 
+// ErrWeightExceedsLimit is returned by [Stage.Submit] when the item's
+// weight exceeds the current [Options.MaxWIPWeight]. The item is rejected
+// immediately and never enqueued.
+var ErrWeightExceedsLimit = errors.New("toc: item weight exceeds MaxWIPWeight")
+
 // Options configures a [Stage].
 //
 // Total stage WIP (item count) is up to Capacity (buffered) + Workers
@@ -76,6 +81,13 @@ type Options[T any] struct {
 	// Clamped to max(1, min(MaxWIP, Capacity + Workers)) at construction.
 	// Adjust at runtime with [Stage.SetMaxWIP].
 	MaxWIP int
+
+	// MaxWIPWeight is the maximum accumulated weight of admitted items.
+	// Zero means disabled (default, backward compatible). If > 0,
+	// admission checks accumulated weight alongside count. Items with
+	// weight > MaxWIPWeight are rejected with [ErrWeightExceedsLimit].
+	// Adjust at runtime with [Stage.SetMaxWIPWeight].
+	MaxWIPWeight int64
 
 	// Weight returns the cost of item t for stats tracking only
 	// ([Stats.InFlightWeight]). Does not affect admission — capacity
@@ -152,7 +164,9 @@ type Stats struct {
 	QueueCapacity  int   // configured capacity
 
 	Paused        bool  // true if admission is paused via PauseAdmission
-	MaxWIP        int   // current WIP limit (>= 1)
+	MaxWIP         int   // current WIP limit (>= 1)
+	MaxWIPWeight   int64 // current weight limit (0 = disabled)
+	AdmittedWeight int64 // current accumulated weight of admitted items
 	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. Can exceed current MaxWIP after SetMaxWIP shrinks the limit (existing permits are not revoked) or during the brief grant-to-enqueue window. Not a hard invariant gauge — use for observability, not alerting thresholds.
 	WaiterCount    int // current number of Submits blocked on rope
 	MaxWaiterCount int // high-water mark for waiter queue depth
@@ -201,8 +215,9 @@ type testHooks struct {
 // elem is the back-pointer into the waiter list for O(1) removal;
 // nil after removal (granted or revoked).
 type waiter struct {
-	ready chan struct{}
-	elem  *list.Element
+	ready  chan struct{}
+	elem   *list.Element
+	weight int64 // frozen item weight for grant check
 }
 
 // queued wraps an item with its pre-computed weight.
@@ -257,6 +272,8 @@ type Stage[T, R any] struct {
 	admissionMu        sync.Mutex
 	admitted           int64    // items admitted but not yet completed
 	maxWIP             int      // current WIP limit; >= 1
+	admittedWeight     int64    // accumulated weight of admitted items
+	maxWIPWeight       int64    // weight-based limit; 0 = disabled
 	closedForAdmission bool      // authoritative gate for permit creation; protected by admissionMu. Set by CloseInput before closed/closing. All permit paths (fast path, slow path, grantWaitersLocked) check this under lock.
 	paused             bool      // blocks new admission when true; under admissionMu. Held waiters wake on ResumeAdmission.
 	waiters            list.List // FIFO queue of *waiter; O(1) enqueue, grant, remove
@@ -337,7 +354,8 @@ func start[T, R any](
 		trackAllocs: opts.TrackAllocations && isAllocMetricsSupported(),
 		capacity:    capacity,
 		workers:     workers,
-		maxWIP:      maxWIP,
+		maxWIP:       maxWIP,
+		maxWIPWeight: opts.MaxWIPWeight,
 		weight:      weight,
 	}
 
@@ -519,13 +537,13 @@ func (s *Stage[T, R]) Submit(ctx context.Context, item T) error {
 	q := queued[T]{item: item, weight: w}
 
 	// Rope: acquire admission slot before sending to channel.
-	if err := s.acquireAdmission(ctx); err != nil {
+	if err := s.acquireAdmission(ctx, w); err != nil {
 		return err
 	}
 
 	if err := s.trySend(ctx, q); err != nil {
 		// Rollback: release the admission slot we acquired.
-		s.releaseAdmission()
+		s.releaseAdmission(w)
 
 		return err
 	}
@@ -536,21 +554,27 @@ func (s *Stage[T, R]) Submit(ctx context.Context, item T) error {
 // acquireAdmission blocks until an admission slot is available or
 // the context/stage is canceled. Returns nil on success, error on
 // cancel/close.
-func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
+func (s *Stage[T, R]) acquireAdmission(ctx context.Context, weight int64) error {
 	s.admissionMu.Lock()
 
-	// Admission gate: closedForAdmission is the authoritative cutoff,
-	// checked under admissionMu. No permit is ever created after this
-	// point — both fast and slow paths are behind this check.
+	// Admission gate: closedForAdmission is the authoritative cutoff.
 	if s.closedForAdmission {
 		s.admissionMu.Unlock()
 
 		return ErrClosed
 	}
 
-	// Fast path: slot available and not paused.
-	if !s.paused && s.admitted < int64(s.maxWIP) {
+	// Reject oversize items immediately — they can never be admitted.
+	if s.maxWIPWeight > 0 && weight > s.maxWIPWeight {
+		s.admissionMu.Unlock()
+
+		return ErrWeightExceedsLimit
+	}
+
+	// Fast path: both count and weight allow, not paused.
+	if !s.paused && s.admitted < int64(s.maxWIP) && s.weightAllows(weight) {
 		s.admitted++
+		s.admittedWeight += weight
 		s.admissionMu.Unlock()
 
 		if h := s.hooks.Load(); h != nil && h.afterAdmitFastPath != nil {
@@ -561,7 +585,7 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context) error {
 	}
 
 	// Slow path: enqueue a waiter and block.
-	w := &waiter{ready: make(chan struct{})}
+	w := &waiter{ready: make(chan struct{}), weight: weight}
 	w.elem = s.waiters.PushBack(w)
 	if s.waiters.Len() > s.maxWaiterCount {
 		s.maxWaiterCount = s.waiters.Len()
@@ -838,7 +862,9 @@ func (s *Stage[T, R]) Stats() Stats {
 
 	s.admissionMu.Lock()
 	admitted := s.admitted
+	admittedWeight := s.admittedWeight
 	maxWIP := s.maxWIP
+	maxWIPWeight := s.maxWIPWeight
 	paused := s.paused
 	waiterCount := s.waiters.Len()
 	maxWaiterCount := s.maxWaiterCount
@@ -861,6 +887,8 @@ func (s *Stage[T, R]) Stats() Stats {
 		QueueCapacity:        s.capacity,
 		Paused:               paused,
 		MaxWIP:               maxWIP,
+		MaxWIPWeight:         maxWIPWeight,
+		AdmittedWeight:       admittedWeight,
 		Admitted:             admitted,
 		WaiterCount:          waiterCount,
 		MaxWaiterCount:       maxWaiterCount,
@@ -875,6 +903,18 @@ func (s *Stage[T, R]) Stats() Stats {
 // grantWaitersLocked wakes blocked Submits when slots are available.
 // Does not grant once closedForAdmission is set — waiters will wake via
 // s.closing/s.stageDone channels and be rejected there.
+// weightAllows returns true if admitting an item with the given weight
+// would not exceed the weight limit. Returns true when weight limiting
+// is disabled (maxWIPWeight == 0). Overflow-safe.
+// Must be called with admissionMu held.
+func (s *Stage[T, R]) weightAllows(w int64) bool {
+	if s.maxWIPWeight == 0 {
+		return true
+	}
+
+	return w <= s.maxWIPWeight-s.admittedWeight
+}
+
 // Must be called with admissionMu held. closedForAdmission is also
 // protected by admissionMu, so this check has no TOCTOU race.
 func (s *Stage[T, R]) grantWaitersLocked() {
@@ -885,9 +925,13 @@ func (s *Stage[T, R]) grantWaitersLocked() {
 	for s.waiters.Len() > 0 && s.admitted < int64(s.maxWIP) {
 		e := s.waiters.Front()
 		w := e.Value.(*waiter)
+		if !s.weightAllows(w.weight) {
+			break // FIFO head-of-line blocking: heavy item blocks lighter ones
+		}
 		s.waiters.Remove(e)
 		w.elem = nil // mark as granted — removeWaiter will see nil
 		s.admitted++
+		s.admittedWeight += w.weight
 		close(w.ready)
 		if h := s.hooks.Load(); h != nil && h.onGrant != nil {
 			h.onGrant() // UNDER LOCK — must not block.
@@ -895,11 +939,13 @@ func (s *Stage[T, R]) grantWaitersLocked() {
 	}
 }
 
-// releaseAdmission decrements the admitted counter and wakes waiters.
+// releaseAdmission decrements count and weight counters and wakes waiters.
+// weight MUST be the same value passed to acquireAdmission for this item.
 // Called by workers on completion (including panic recovery).
-func (s *Stage[T, R]) releaseAdmission() {
+func (s *Stage[T, R]) releaseAdmission(weight int64) {
 	s.admissionMu.Lock()
 	s.admitted--
+	s.admittedWeight -= weight
 	s.grantWaitersLocked()
 	s.admissionMu.Unlock()
 
@@ -933,6 +979,33 @@ func (s *Stage[T, R]) SetMaxWIP(n int) int {
 func (s *Stage[T, R]) MaxWIP() int {
 	s.admissionMu.Lock()
 	n := s.maxWIP
+	s.admissionMu.Unlock()
+
+	return n
+}
+
+// SetMaxWIPWeight dynamically adjusts the weight-based WIP limit.
+// Zero disables weight limiting. Negative values are clamped to 0.
+// Wakes blocked Submits if the new limit allows more weight.
+// Returns the applied value. Concurrency-safe.
+func (s *Stage[T, R]) SetMaxWIPWeight(n int64) int64 {
+	if n < 0 {
+		n = 0
+	}
+
+	s.admissionMu.Lock()
+	s.maxWIPWeight = n
+	s.grantWaitersLocked()
+	s.admissionMu.Unlock()
+
+	return n
+}
+
+// MaxWIPWeight returns the current weight-based WIP limit.
+// Zero means disabled.
+func (s *Stage[T, R]) MaxWIPWeight() int64 {
+	s.admissionMu.Lock()
+	n := s.maxWIPWeight
 	s.admissionMu.Unlock()
 
 	return n
@@ -1012,7 +1085,7 @@ func (s *Stage[T, R]) processItem(
 	q queued[T],
 	samples []metrics.Sample,
 ) {
-	defer s.releaseAdmission()
+	defer s.releaseAdmission(q.weight)
 
 	s.bufferedDepth.Add(-1)
 
