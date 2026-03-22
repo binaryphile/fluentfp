@@ -28,8 +28,12 @@ func runOneTick(t *testing.T, r *Reporter) string {
 	done := make(chan struct{})
 
 	go func() {
-		r.started.CompareAndSwap(false, true)
-		r.runWithTicker(ctx, ticks)
+		r.mu.Lock()
+		r.started = true
+		stages := make([]reporterEntry, len(r.stages))
+		copy(stages, r.stages)
+		r.mu.Unlock()
+		r.runWithTicker(ctx, ticks, stages)
 		close(done)
 	}()
 
@@ -63,8 +67,8 @@ func TestReporterLogs(t *testing.T) {
 	if !strings.Contains(out, "sub=100") {
 		t.Errorf("missing sub=100: %q", out)
 	}
-	if !strings.Contains(out, "go=") {
-		t.Errorf("missing go= memory: %q", out)
+	if !strings.Contains(out, "go-total=") {
+		t.Errorf("missing go-total= memory: %q", out)
 	}
 }
 

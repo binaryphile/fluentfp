@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"runtime/metrics"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
@@ -23,8 +24,9 @@ import (
 type Reporter struct {
 	interval time.Duration
 	logger   *log.Logger
+	mu       sync.Mutex // protects stages and started
 	stages   []reporterEntry
-	started  atomic.Bool
+	started  bool
 }
 
 type reporterEntry struct {
@@ -69,14 +71,18 @@ func NewReporter(interval time.Duration, opts ...ReporterOption) *Reporter {
 // Must be called before [Run]. Panics if name is empty, fn is nil,
 // or Run has already started.
 func (r *Reporter) AddStage(name string, fn func() Stats) {
-	if r.started.Load() {
-		panic("toc.Reporter: AddStage called after Run")
-	}
 	if name == "" {
 		panic("toc.Reporter: name must not be empty")
 	}
 	if fn == nil {
 		panic("toc.Reporter: fn must not be nil")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.started {
+		panic("toc.Reporter: AddStage called after Run")
 	}
 
 	r.stages = append(r.stages, reporterEntry{name: name, fn: fn})
@@ -85,16 +91,23 @@ func (r *Reporter) AddStage(name string, fn func() Stats) {
 // Run blocks, logging every interval until ctx is canceled.
 // Panics if called twice.
 func (r *Reporter) Run(ctx context.Context) {
-	if !r.started.CompareAndSwap(false, true) {
+	r.mu.Lock()
+	if r.started {
+		r.mu.Unlock()
 		panic("toc.Reporter: Run called twice")
 	}
+	r.started = true
+	// Snapshot stages — frozen from this point.
+	stages := make([]reporterEntry, len(r.stages))
+	copy(stages, r.stages)
+	r.mu.Unlock()
 
-	r.runWithTicker(ctx, nil)
+	r.runWithTicker(ctx, nil, stages)
 }
 
 // runWithTicker is the internal run loop. If ticks is non-nil, it is
 // used instead of a real ticker (for deterministic testing).
-func (r *Reporter) runWithTicker(ctx context.Context, ticks <-chan time.Time) {
+func (r *Reporter) runWithTicker(ctx context.Context, ticks <-chan time.Time, stages []reporterEntry) {
 	if ticks == nil {
 		ticker := time.NewTicker(r.interval)
 		defer ticker.Stop()
@@ -104,14 +117,14 @@ func (r *Reporter) runWithTicker(ctx context.Context, ticks <-chan time.Time) {
 	for {
 		select {
 		case <-ticks:
-			r.report()
+			r.report(stages)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (r *Reporter) report() {
+func (r *Reporter) report(stages []reporterEntry) {
 	var b strings.Builder
 
 	// Memory stats.
@@ -120,18 +133,18 @@ func (r *Reporter) report() {
 	if mem.rssOK {
 		fmt.Fprintf(&b, " rss=%s", formatBytes(mem.rss))
 	}
-	fmt.Fprintf(&b, " go=%s", formatBytes(mem.goTotal))
+	fmt.Fprintf(&b, " go-total=%s", formatBytes(mem.goTotal))
 
 	// Per-stage stats.
-	for _, e := range r.stages {
+	for _, e := range stages {
 		b.WriteString(" | ")
 		b.WriteString(e.name)
 		b.WriteString(": ")
 
-		s, panicVal, ok := safeCallStats(e.fn)
+		s, pi, ok := safeCallStats(e.fn)
 		if !ok {
-			fmt.Fprintf(&b, "<panic: %v>", panicVal)
-			r.logger.Printf("[toc] reporter: %s panicked: %v", e.name, panicVal)
+			fmt.Fprintf(&b, "<panic: %v>", pi.value)
+			r.logger.Printf("[toc] reporter: %s panicked: %v\n%s", e.name, pi.value, pi.stack)
 
 			continue
 		}
@@ -142,10 +155,15 @@ func (r *Reporter) report() {
 	r.logger.Print(b.String())
 }
 
-func safeCallStats(fn func() Stats) (s Stats, panicVal any, ok bool) {
+type panicInfo struct {
+	value any
+	stack []byte
+}
+
+func safeCallStats(fn func() Stats) (s Stats, pi *panicInfo, ok bool) {
 	defer func() {
 		if v := recover(); v != nil {
-			panicVal = v
+			pi = &panicInfo{value: v, stack: debug.Stack()}
 		}
 	}()
 
