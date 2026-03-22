@@ -55,7 +55,7 @@ Drum-Buffer-Rope (DBR) is the operational policy derived from this insight: the 
 
 **Capacity** is the input buffer size. Zero means unbuffered (Submit blocks until a worker dequeues). Submit blocks when full — this is the backpressure mechanism.
 
-**Workers** is the number of concurrent fn invocations. Default 1 (serial constraint — the common case).
+**Workers** is the number of concurrent fn invocations. Default 1 (serial constraint — the common case). Adjustable at runtime via `Stage.SetWorkers(n)` — new workers start immediately, excess workers retire after completing their current item. Returns `(applied, error)`, where error is `ErrStopping` after shutdown.
 
 **Submit's ctx is admission-only** — it controls how long Submit blocks, not what context fn receives. fn always gets the stage context (derived from Start's ctx).
 
