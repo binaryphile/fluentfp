@@ -270,8 +270,8 @@ type IncomingEdge struct {
 }
 
 // Incoming returns the incoming edges to the named stage, each with
-// its predecessor name and consumption ratio. Phase 3 uses this to
-// compute per-predecessor budget allocation at merge points.
+// its predecessor name and consumption ratio. The rope controller uses
+// this to compute per-predecessor budget allocation at merge points.
 // Panics if name is unknown or pipeline is not frozen.
 func (p *Pipeline) Incoming(name string) []IncomingEdge {
 	p.mustFrozen()
