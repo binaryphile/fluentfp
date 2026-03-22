@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	hdrhistogram "github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/binaryphile/fluentfp/rslt"
 )
 
@@ -129,6 +130,12 @@ type Options[T any] struct {
 	// stages. Silently disabled if the runtime does not support the
 	// required metrics (validated on first use via sync.Once).
 	TrackAllocations bool
+
+	// TrackServiceTimeDist, when true, records per-item service time
+	// into a per-worker HDR histogram. Stats gains [ServiceTimeSummary]
+	// with p50/p95/p99/min/max/mean/stddev. Cumulative since Start.
+	// Operational telemetry with ~1% precision.
+	TrackServiceTimeDist bool
 }
 
 // Stats holds approximate metrics for a [Stage].
@@ -174,6 +181,8 @@ type Stats struct {
 	ActiveWorkers  int // currently running workers (may lag target during drain)
 	RopeWaitCount int64 // cumulative: total submissions that blocked on rope (not current blocked count)
 	RopeWaitNs    int64 // cumulative rope wait time (nanoseconds)
+
+	ServiceTimeDist ServiceTimeSummary // zero if TrackServiceTimeDist disabled
 
 	// AllocTrackingActive reports whether allocation sampling is
 	// effectively enabled for this stage. False when
@@ -241,6 +250,8 @@ type runState[T, R any] struct {
 type managedWorker struct {
 	cancel context.CancelFunc
 	exited chan struct{} // closed when worker goroutine returns
+	histMu sync.Mutex   // protects hist; workers contend only with Stats() reads
+	hist   *hdrhistogram.Histogram // nil if TrackServiceTimeDist disabled
 }
 
 // ErrStopping is returned by SetWorkers when the stage is stopping or stopped.
@@ -289,9 +300,14 @@ type Stage[T, R any] struct {
 	allocBytes     atomic.Uint64
 	allocObjects   atomic.Uint64
 
-	trackAllocs bool
-	capacity    int
-	workers     int
+	trackAllocs          bool
+	trackServiceTimeDist bool
+	capacity             int
+	workers              int
+
+	svcTimeUnderflow atomic.Int64
+	svcTimeOverflow  atomic.Int64
+	archivedHist     *hdrhistogram.Histogram // merged data from exited workers; under workersMu
 
 	weight func(T) int64
 
@@ -378,7 +394,8 @@ func start[T, R any](
 		closing:     make(chan struct{}),
 		stageDone:   stageCtx.Done(),
 		cancel:      cancel,
-		trackAllocs: opts.TrackAllocations && isAllocMetricsSupported(),
+		trackAllocs:          opts.TrackAllocations && isAllocMetricsSupported(),
+		trackServiceTimeDist: opts.TrackServiceTimeDist,
 		capacity:    capacity,
 		workers:     workers,
 		maxWIP:       maxWIP,
@@ -396,8 +413,12 @@ func start[T, R any](
 	for i := 0; i < workers; i++ {
 		wCtx, wCancel := context.WithCancel(context.Background())
 		exited := make(chan struct{})
-		s.workerHandles[i] = &managedWorker{cancel: wCancel, exited: exited}
-		go s.worker(stageCtx, wCtx, fn, failFast, exited)
+		var hist *hdrhistogram.Histogram
+		if s.trackServiceTimeDist {
+			hist = newHist()
+		}
+		s.workerHandles[i] = &managedWorker{cancel: wCancel, exited: exited, hist: hist}
+		go s.worker(stageCtx, wCtx, fn, failFast, s.workerHandles[i])
 	}
 
 	if feeder != nil {
@@ -930,6 +951,7 @@ func (s *Stage[T, R]) Stats() Stats {
 		ActiveWorkers:        s.ActiveWorkers(),
 		RopeWaitCount:        s.ropeWaitCnt.Load(),
 		RopeWaitNs:           s.ropeWaitNs.Load(),
+		ServiceTimeDist:      s.mergeServiceTime(),
 		AllocTrackingActive:  s.trackAllocs,
 		ObservedAllocBytes:   s.allocBytes.Load(),
 		ObservedAllocObjects: s.allocObjects.Load(),
@@ -1109,10 +1131,14 @@ func (s *Stage[T, R]) SetWorkers(n int) (int, error) {
 		for i := live; i < n; i++ {
 			rCtx, rCancel := context.WithCancel(context.Background())
 			exited := make(chan struct{})
-			mw := &managedWorker{cancel: rCancel, exited: exited}
+			var hist *hdrhistogram.Histogram
+			if s.trackServiceTimeDist {
+				hist = newHist()
+			}
+			mw := &managedWorker{cancel: rCancel, exited: exited, hist: hist}
 			s.workerHandles = append(s.workerHandles, mw)
 			s.wg.Add(1)
-			go s.worker(s.run.ctx, rCtx, s.run.fn, s.run.failFast, exited)
+			go s.worker(s.run.ctx, rCtx, s.run.fn, s.run.failFast, mw)
 		}
 	} else if n < live {
 		// Scale down: cancel excess workers LIFO (newest first).
@@ -1145,13 +1171,22 @@ func (s *Stage[T, R]) ActiveWorkers() int {
 }
 
 // compactWorkersLocked removes exited workers from the handles slice.
+// Exited workers with histograms have their data merged into archivedHist.
 // Must be called with workersMu held.
 func (s *Stage[T, R]) compactWorkersLocked() {
 	live := s.workerHandles[:0]
 	for _, mw := range s.workerHandles {
 		select {
 		case <-mw.exited:
-			// Exited — drop.
+			// Exited — archive histogram data if present.
+			if mw.hist != nil {
+				if s.archivedHist == nil {
+					s.archivedHist = newHist()
+				}
+				mw.histMu.Lock()
+				s.archivedHist.Merge(mw.hist)
+				mw.histMu.Unlock()
+			}
 		default:
 			live = append(live, mw)
 		}
@@ -1179,10 +1214,10 @@ func (s *Stage[T, R]) worker(
 	retireCtx context.Context,
 	fn func(context.Context, T) (R, error),
 	failFast bool,
-	exited chan struct{},
+	mw *managedWorker,
 ) {
 	defer s.wg.Done()
-	defer close(exited)
+	defer close(mw.exited)
 
 	var samples [2]metrics.Sample
 	if s.trackAllocs {
@@ -1212,7 +1247,7 @@ func (s *Stage[T, R]) worker(
 			return
 		}
 
-		s.processItem(stageCtx, fn, failFast, q, samples[:])
+		s.processItem(stageCtx, fn, failFast, q, samples[:], mw)
 	}
 }
 
@@ -1230,6 +1265,7 @@ func (s *Stage[T, R]) processItem(
 	failFast bool,
 	q queued[T],
 	samples []metrics.Sample,
+	mw *managedWorker,
 ) {
 	defer s.releaseAdmission(q.weight)
 
@@ -1257,7 +1293,12 @@ func (s *Stage[T, R]) processItem(
 
 	serviceStart := time.Now()
 	result := s.safeCall(ctx, fn, q.item)
-	s.serviceNs.Add(int64(time.Since(serviceStart)))
+	svcDuration := time.Since(serviceStart)
+	s.serviceNs.Add(int64(svcDuration))
+
+	if mw.hist != nil {
+		workerRecord(mw, svcDuration, &s.svcTimeUnderflow, &s.svcTimeOverflow)
+	}
 
 	if s.trackAllocs {
 		metrics.Read(samples)
