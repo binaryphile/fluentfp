@@ -34,13 +34,17 @@ type LimitManager struct {
 // LimitSnapshot is a point-in-time view of effective limits.
 type LimitSnapshot struct {
 	EffectiveCount  int    // min across count proposals (always >= 1)
-	EffectiveWeight int64  // min across weight proposals (>= 1 if any active, 0 if none)
+	EffectiveWeight int64  // min across weight proposals (>= 0 if any active, 0 if none)
 	AppliedCount    int    // actual value returned by stage setter
 	AppliedWeight   int64  // actual value returned by stage setter
 	CountSource     string // which source is tightest for count
 	WeightSource    string // which source is tightest for weight
 	CountSources    int    // number of active count proposals
 	WeightSources   int    // number of active weight proposals
+
+	// Per-source proposals for debugging. Includes baseline as "default".
+	CountProposals  map[string]int   // copy of all active count proposals
+	WeightProposals map[string]int64 // copy of all active weight proposals
 }
 
 // NewLimitManager creates a limit manager with construction defaults
@@ -144,10 +148,23 @@ func (m *LimitManager) Effective() LimitSnapshot {
 	effWeight, weightSrc := m.effectiveWeight()
 	countN := len(m.countProposals)
 	weightN := len(m.weightProposals)
+
+	// Copy proposals including baseline for observability.
+	cp := make(map[string]int, countN+1)
+	for k, v := range m.countProposals {
+		cp[k] = v
+	}
 	if m.baselineCount >= 1 {
-		countN++ // baseline participates
+		cp["default"] = m.baselineCount
+		countN++
+	}
+
+	wp := make(map[string]int64, weightN+1)
+	for k, v := range m.weightProposals {
+		wp[k] = v
 	}
 	if m.baselineWeight > 0 {
+		wp["default"] = m.baselineWeight
 		weightN++
 	}
 	m.mu.Unlock()
@@ -157,6 +174,8 @@ func (m *LimitManager) Effective() LimitSnapshot {
 		EffectiveWeight: effWeight,
 		AppliedCount:    int(m.appliedCount.Load()),
 		AppliedWeight:   m.appliedWeight.Load(),
+		CountProposals:  cp,
+		WeightProposals: wp,
 		CountSource:     countSrc,
 		WeightSource:    weightSrc,
 		CountSources:    countN,

@@ -172,6 +172,26 @@ func TestLimitManagerEffectiveSnapshot(t *testing.T) {
 	if snap.WeightSource != "memory" {
 		t.Errorf("WeightSource = %q, want memory", snap.WeightSource)
 	}
+
+	// Per-source proposals visible for debugging.
+	if len(snap.CountProposals) != 2 {
+		t.Errorf("CountProposals len = %d, want 2 (default + rope)", len(snap.CountProposals))
+	}
+	if snap.CountProposals["default"] != 10 {
+		t.Errorf("CountProposals[default] = %d, want 10", snap.CountProposals["default"])
+	}
+	if snap.CountProposals["rope"] != 5 {
+		t.Errorf("CountProposals[rope] = %d, want 5", snap.CountProposals["rope"])
+	}
+	if len(snap.WeightProposals) != 2 {
+		t.Errorf("WeightProposals len = %d, want 2 (default + memory)", len(snap.WeightProposals))
+	}
+	if snap.WeightProposals["default"] != 500 {
+		t.Errorf("WeightProposals[default] = %d, want 500", snap.WeightProposals["default"])
+	}
+	if snap.WeightProposals["memory"] != 200 {
+		t.Errorf("WeightProposals[memory] = %d, want 200", snap.WeightProposals["memory"])
+	}
 }
 
 func TestLimitManagerEmptySourcePanics(t *testing.T) {
