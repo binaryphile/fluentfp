@@ -177,7 +177,7 @@ func TestMemoryRopeComposesWithProcessingRope(t *testing.T) {
 	)
 
 	// Processing rope proposes weight 500.
-	limits.ProposeWeight("processing-weight-rope", 500)
+	limits.ProposeWeight(toc.LimitSourceWeightRope, 500)
 
 	// Memory rope proposes weight 200 (tighter).
 	h := toc.MemoryRope(p, "drum", limits, 0.5, 1.0, nil)
@@ -192,7 +192,7 @@ func TestMemoryRopeComposesWithProcessingRope(t *testing.T) {
 	if snap.EffectiveWeight != 200 {
 		t.Errorf("EffectiveWeight = %d, want 200 (memory tighter)", snap.EffectiveWeight)
 	}
-	if snap.WeightSource != "memory-rope" {
+	if snap.WeightSource != toc.LimitSourceMemoryRope {
 		t.Errorf("WeightSource = %q, want memory-rope", snap.WeightSource)
 	}
 }

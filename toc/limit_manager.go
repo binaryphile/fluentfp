@@ -6,6 +6,24 @@ import (
 	"sync/atomic"
 )
 
+// LimitSource identifies a proposal source. Use the predefined constants
+// for built-in controllers. Custom sources use any non-empty string.
+type LimitSource = string
+
+const (
+	// LimitSourceProcessingRope is the count-based processing rope.
+	LimitSourceProcessingRope LimitSource = "processing-rope"
+
+	// LimitSourceWeightRope is the weight-based processing rope.
+	LimitSourceWeightRope LimitSource = "processing-weight-rope"
+
+	// LimitSourceMemoryRope is the memory headroom rope.
+	LimitSourceMemoryRope LimitSource = "memory-rope"
+
+	// limitSourceDefault is the permanent baseline (internal only).
+	limitSourceDefault LimitSource = "default"
+)
+
 // LimitManager accepts named limit proposals from multiple sources
 // and applies the tightest (min) per dimension to the stage.
 //
@@ -87,7 +105,7 @@ func NewLimitManager(
 // Panics if source is empty.
 func (m *LimitManager) ProposeCount(source string, limit int) {
 	mustSource(source)
-	if source == "default" {
+	if source == limitSourceDefault {
 		panic("toc.LimitManager: 'default' is reserved for baseline")
 	}
 
@@ -104,7 +122,7 @@ func (m *LimitManager) ProposeCount(source string, limit int) {
 // Panics if source is empty or "default" (reserved for baseline).
 func (m *LimitManager) ProposeWeight(source string, limit int64) {
 	mustSource(source)
-	if source == "default" {
+	if source == limitSourceDefault {
 		panic("toc.LimitManager: 'default' is reserved for baseline")
 	}
 
@@ -155,7 +173,7 @@ func (m *LimitManager) Effective() LimitSnapshot {
 		cp[k] = v
 	}
 	if m.baselineCount >= 1 {
-		cp["default"] = m.baselineCount
+		cp[limitSourceDefault] = m.baselineCount
 		countN++
 	}
 
@@ -164,7 +182,7 @@ func (m *LimitManager) Effective() LimitSnapshot {
 		wp[k] = v
 	}
 	if m.baselineWeight > 0 {
-		wp["default"] = m.baselineWeight
+		wp[limitSourceDefault] = m.baselineWeight
 		weightN++
 	}
 	m.mu.Unlock()
@@ -189,7 +207,7 @@ func (m *LimitManager) effectiveCount() (int, string) {
 	src := ""
 	if m.baselineCount >= 1 && m.baselineCount < best {
 		best = m.baselineCount
-		src = "default"
+		src = limitSourceDefault
 	}
 	for s, v := range m.countProposals {
 		if v < best {
@@ -212,7 +230,7 @@ func (m *LimitManager) effectiveWeight() (int64, string) {
 	src := ""
 	if m.baselineWeight > 0 && m.baselineWeight < best {
 		best = m.baselineWeight
-		src = "default"
+		src = limitSourceDefault
 	}
 	for s, v := range m.weightProposals {
 		if v < best {

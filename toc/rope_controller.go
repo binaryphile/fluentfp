@@ -124,7 +124,7 @@ func NewRopeController(
 	interval time.Duration,
 	opts ...RopeOption,
 ) *RopeController {
-	return newRopeController(pipeline, drum, limits, "processing-rope", false, stageSnapshot, interval, opts)
+	return newRopeController(pipeline, drum, limits, LimitSourceProcessingRope, false, stageSnapshot, interval, opts)
 }
 
 // NewWeightRopeController creates a weight-aware rope controller.
@@ -144,7 +144,7 @@ func NewWeightRopeController(
 	interval time.Duration,
 	opts ...RopeOption,
 ) *RopeController {
-	return newRopeController(pipeline, drum, limits, "processing-weight-rope", true, stageSnapshot, interval, opts)
+	return newRopeController(pipeline, drum, limits, LimitSourceWeightRope, true, stageSnapshot, interval, opts)
 }
 
 func newRopeController(

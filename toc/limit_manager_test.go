@@ -49,7 +49,7 @@ func TestLimitManagerWeightMin(t *testing.T) {
 		10, 500, // default weight=500
 	)
 
-	m.ProposeWeight("memory-rope", 200)
+	m.ProposeWeight(toc.LimitSourceMemoryRope, 200)
 	if applied != 200 {
 		t.Errorf("applied = %d, want 200", applied)
 	}
@@ -92,13 +92,13 @@ func TestLimitManagerWeightZero(t *testing.T) {
 	)
 
 	// Propose 0 weight → now a real zero limit (not disable).
-	m.ProposeWeight("memory-rope", 0)
+	m.ProposeWeight(toc.LimitSourceMemoryRope, 0)
 	if applied != 0 {
 		t.Errorf("applied = %d, want 0 (zero is a real limit)", applied)
 	}
 
 	// Propose negative → LimitManager clamps to 0.
-	m.ProposeWeight("memory-rope", -100)
+	m.ProposeWeight(toc.LimitSourceMemoryRope, -100)
 	if applied != 0 {
 		t.Errorf("applied = %d, want 0 (clamped negative to 0)", applied)
 	}

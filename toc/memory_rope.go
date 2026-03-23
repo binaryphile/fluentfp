@@ -161,7 +161,7 @@ func MemoryRope(
 		}
 		lastProposed = proposed
 
-		limits.ProposeWeight("memory-rope", proposed)
+		limits.ProposeWeight(LimitSourceMemoryRope, proposed)
 		snap := limits.Effective()
 		h.appliedA.Store(snap.AppliedWeight)
 		h.adjustments.Add(1)
