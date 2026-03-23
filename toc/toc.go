@@ -303,7 +303,6 @@ type Stage[T, R any] struct {
 	trackAllocs          bool
 	trackServiceTimeDist bool
 	capacity             int
-	workers              int
 
 	svcTimeUnderflow atomic.Int64
 	svcTimeOverflow  atomic.Int64
@@ -397,7 +396,6 @@ func start[T, R any](
 		trackAllocs:          opts.TrackAllocations && isAllocMetricsSupported(),
 		trackServiceTimeDist: opts.TrackServiceTimeDist,
 		capacity:    capacity,
-		workers:     workers,
 		maxWIP:       maxWIP,
 		maxWIPWeight: opts.MaxWIPWeight,
 		weight:      weight,
