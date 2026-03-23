@@ -19,16 +19,17 @@ type ropeTestPipeline struct {
 }
 
 type ropeTestStats struct {
-	admitted       int64
-	serviceTimeDt  time.Duration
-	outputBlockDt  time.Duration
-	itemsCompleted int64
-	goodput        float64
-	errorRate      float64
+	admitted        int64
+	admittedWeight  int64
+	serviceTimeDt   time.Duration
+	outputBlockDt   time.Duration
+	itemsCompleted  int64
+	goodput         float64
+	errorRate       float64
 }
 
 func (s *ropeTestStats) Stats() toc.Stats {
-	return toc.Stats{Admitted: s.admitted}
+	return toc.Stats{Admitted: s.admitted, AdmittedWeight: s.admittedWeight}
 }
 
 func (s *ropeTestStats) IntervalStats() toc.IntervalStats {
@@ -81,6 +82,28 @@ func newTestRope(tp *ropeTestPipeline, drum string, opts ...toc.RopeOption) (
 
 	rc := toc.NewRopeController(
 		tp.pipeline, drum, setHeadWIP, tp.stageSnapshot,
+		time.Second, opts...,
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ticks := make(chan time.Time, 5)
+	done := make(chan struct{})
+
+	go func() {
+		rc.RunWithTicker(ctx, ticks)
+		close(done)
+	}()
+
+	return rc, ticks, cancel, done
+}
+
+func newTestWeightRope(tp *ropeTestPipeline, drum string, opts ...toc.RopeOption) (
+	*toc.RopeController, chan time.Time, context.CancelFunc, chan struct{},
+) {
+	setHeadWIPWeight := func(n int64) int64 { return n }
+
+	rc := toc.NewWeightRopeController(
+		tp.pipeline, drum, setHeadWIPWeight, tp.stageSnapshot,
 		time.Second, opts...,
 	)
 
@@ -565,4 +588,63 @@ func TestRopeLogOutput(t *testing.T) {
 		t.Error("expected log output from rope controller")
 	}
 	t.Log(buf.String())
+}
+
+func TestWeightRopeBasicAdjustment(t *testing.T) {
+	tp := newRopeTestPipeline("head", "mid", "drum")
+
+	// Same signals as count-based test.
+	tp.stats["drum"].goodput = 50
+	tp.stats["drum"].errorRate = 0
+	tp.stats["drum"].itemsCompleted = 100
+	tp.stats["head"].serviceTimeDt = 1000 * time.Millisecond
+	tp.stats["head"].outputBlockDt = 500 * time.Millisecond
+	tp.stats["head"].itemsCompleted = 100
+	tp.stats["mid"].serviceTimeDt = 2000 * time.Millisecond
+	tp.stats["mid"].itemsCompleted = 100
+
+	// Downstream weight: mid has 500 weight.
+	tp.stats["mid"].admittedWeight = 500
+
+	rc, ticks, cancel, done := newTestWeightRope(tp, "drum")
+	defer func() { cancel(); <-done }()
+
+	ticks <- time.Now()
+	time.Sleep(5 * time.Millisecond)
+
+	stats := rc.Stats()
+	// Same rope length formula: ceil(50 * 0.035 * 1.5) = 3.
+	// But WIP is now in weight units: aggregate = head(0) + mid(500) = 500.
+	// headLimit = max(1, 3 - 500) = 1 (downstream weight exceeds rope length).
+	if stats.RopeLength != 3 {
+		t.Errorf("RopeLength = %d, want 3", stats.RopeLength)
+	}
+	if stats.RopeWIP != 500 {
+		t.Errorf("RopeWIP = %d, want 500 (aggregate weight)", stats.RopeWIP)
+	}
+	// Head applied should be 1 (floor).
+	if stats.HeadAppliedWIP != 1 {
+		t.Errorf("HeadAppliedWIP = %d, want 1 (floor, downstream exceeds)", stats.HeadAppliedWIP)
+	}
+}
+
+func TestWeightRopeLowDownstreamWeight(t *testing.T) {
+	tp := newRopeTestPipeline("head", "drum")
+	tp.stats["drum"].goodput = 100
+	tp.stats["drum"].itemsCompleted = 100
+	tp.stats["head"].serviceTimeDt = 1000 * time.Millisecond
+	tp.stats["head"].itemsCompleted = 100
+	tp.stats["head"].admittedWeight = 0 // no downstream weight
+
+	rc, ticks, cancel, done := newTestWeightRope(tp, "drum")
+	defer func() { cancel(); <-done }()
+
+	ticks <- time.Now()
+	time.Sleep(5 * time.Millisecond)
+
+	stats := rc.Stats()
+	// Head gets full rope length as weight budget.
+	if stats.HeadAppliedWIP != int(stats.RopeLength) {
+		t.Errorf("HeadAppliedWIP = %d, want %d (full rope, no downstream)", stats.HeadAppliedWIP, stats.RopeLength)
+	}
 }

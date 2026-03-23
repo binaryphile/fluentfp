@@ -36,7 +36,10 @@ type RopeController struct {
 	head      string
 	ancestors []string // AncestorsOf(drum), cached — includes head
 
-	setHeadWIP    func(int) int
+	setHeadWIP       func(int) int    // count mode actuation
+	setHeadWIPWeight func(int64) int64 // weight mode actuation
+	weightMode       bool              // true = weight-based rope
+
 	stageSnapshot func(string) IntervalStats
 	interval      time.Duration
 	safetyFactor  float64
@@ -161,6 +164,72 @@ func NewRopeController(
 		initialLength: defaultInitialRopeLength,
 		logger:        log.Default(),
 		ewmaFlowTime:  make(map[string]float64, len(ancestors)),
+	}
+
+	for _, opt := range opts {
+		opt(rc)
+	}
+
+	rc.ropeLengthA.Store(int64(rc.initialLength))
+
+	return rc
+}
+
+// NewWeightRopeController creates a weight-aware rope controller.
+// Same as [NewRopeController] but limits aggregate WEIGHT between
+// release and drum instead of item count. Items with variable
+// processing cost are properly accounted.
+//
+// setHeadWIPWeight is typically headStage.SetMaxWIPWeight.
+// The rope budget is in weight units: drumGoodput × avgItemWeight ×
+// upstreamFlowTime × safetyFactor.
+//
+// Same linear chain and single-head requirements as [NewRopeController].
+func NewWeightRopeController(
+	pipeline *Pipeline,
+	drum string,
+	setHeadWIPWeight func(int64) int64,
+	stageSnapshot func(string) IntervalStats,
+	interval time.Duration,
+	opts ...RopeOption,
+) *RopeController {
+	if pipeline == nil {
+		panic("toc.NewWeightRopeController: pipeline must not be nil")
+	}
+	pipeline.mustFrozen()
+	pipeline.mustStage(drum)
+
+	if setHeadWIPWeight == nil {
+		panic("toc.NewWeightRopeController: setHeadWIPWeight must not be nil")
+	}
+	if stageSnapshot == nil {
+		panic("toc.NewWeightRopeController: stageSnapshot must not be nil")
+	}
+	if interval <= 0 {
+		panic("toc.NewWeightRopeController: interval must be positive")
+	}
+
+	heads := pipeline.HeadsTo(drum)
+	if len(heads) != 1 {
+		panic("toc.NewWeightRopeController: exactly one head must feed the drum")
+	}
+	head := heads[0]
+	ancestors := pipeline.AncestorsOf(drum)
+	validateLinearChain(pipeline, head, drum, ancestors)
+
+	rc := &RopeController{
+		pipeline:         pipeline,
+		drum:             drum,
+		head:             head,
+		ancestors:        ancestors,
+		setHeadWIPWeight: setHeadWIPWeight,
+		weightMode:       true,
+		stageSnapshot:    stageSnapshot,
+		interval:         interval,
+		safetyFactor:     defaultSafetyFactor,
+		initialLength:    defaultInitialRopeLength,
+		logger:           log.Default(),
+		ewmaFlowTime:     make(map[string]float64, len(ancestors)),
 	}
 
 	for _, opt := range opts {
@@ -366,42 +435,56 @@ func (rc *RopeController) applyRopeLength(ropeLength int) {
 	rc.ropeLengthA.Store(int64(ropeLength))
 
 	// Compute aggregate WIP across all ancestors (includes head).
-	// Stats.Admitted is a point-in-time occupancy gauge (buffered + in-flight).
 	// Stage occupancies are sampled independently, not from a consistent
-	// snapshot. The aggregate is approximate — items in transit between
-	// stages may be double-counted or missed depending on handoff timing.
+	// snapshot. The aggregate is approximate.
 	var aggregateWIP int64
-	var headAdmitted int64
+	var headWIP int64
 	for _, name := range rc.ancestors {
 		stats := rc.pipeline.StageStats(name)()
-		admitted := stats.Admitted
-		if admitted < 0 {
-			admitted = 0
+		var wip int64
+		if rc.weightMode {
+			wip = stats.AdmittedWeight
+		} else {
+			wip = stats.Admitted
 		}
-		aggregateWIP += admitted
+		if wip < 0 {
+			wip = 0
+		}
+		aggregateWIP += wip
 		if name == rc.head {
-			headAdmitted = admitted
+			headWIP = wip
 		}
 	}
 
 	rc.ropeWIPA.Store(aggregateWIP)
 
-	// Head MaxWIP = ropeLength - WIP in downstream ancestors.
-	downstreamWIP := aggregateWIP - headAdmitted
-	headMaxWIP := ropeLength - int(downstreamWIP)
-	if headMaxWIP < 1 {
-		headMaxWIP = 1
+	downstreamWIP := aggregateWIP - headWIP
+	if downstreamWIP < 0 {
+		downstreamWIP = 0
+	}
+	headLimit := int64(ropeLength) - downstreamWIP
+	if headLimit < 1 {
+		headLimit = 1 // floor: 0 disables limiting in both SetMaxWIP and SetMaxWIPWeight
 	}
 
-	applied := rc.setHeadWIP(headMaxWIP)
-	rc.headAppliedWIPA.Store(int64(applied))
+	var applied int64
+	if rc.weightMode {
+		applied = rc.setHeadWIPWeight(headLimit)
+	} else {
+		applied = int64(rc.setHeadWIP(int(headLimit)))
+	}
+	rc.headAppliedWIPA.Store(applied)
 	rc.adjustmentCountA.Add(1)
 
-	// Log only on change (same pattern as analyzer).
-	curr := ropeLogState{length: ropeLength, wip: aggregateWIP, applied: applied}
+	// Log only on change.
+	mode := "rope"
+	if rc.weightMode {
+		mode = "weight-rope"
+	}
+	curr := ropeLogState{length: ropeLength, wip: aggregateWIP, applied: int(applied)}
 	if curr != rc.lastLog {
-		rc.logger.Printf("[rope] length=%d wip=%d head=%d→%d goodput=%.1f err=%.2f",
-			ropeLength, aggregateWIP, headMaxWIP, applied,
+		rc.logger.Printf("[%s] length=%d wip=%d head=%d→%d goodput=%.1f err=%.2f",
+			mode, ropeLength, aggregateWIP, headLimit, applied,
 			math.Float64frombits(uint64(rc.drumGoodputA.Load())),
 			math.Float64frombits(uint64(rc.drumErrorRateA.Load())))
 		rc.lastLog = curr
