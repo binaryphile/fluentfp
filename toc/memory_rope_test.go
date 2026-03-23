@@ -81,10 +81,10 @@ func TestMemoryRopeZeroHeadroom(t *testing.T) {
 	}
 	h.Callback()(context.Background(), info)
 
-	// Budget = 0. LimitManager floors weight to 1.
+	// Budget = 0. Zero is now a real limit (blocks all weighted admission).
 	snap := limits.Effective()
-	if snap.EffectiveWeight < 1 {
-		t.Errorf("EffectiveWeight = %d, want >= 1 (floor under pressure)", snap.EffectiveWeight)
+	if snap.EffectiveWeight != 0 {
+		t.Errorf("EffectiveWeight = %d, want 0 (zero headroom → zero budget)", snap.EffectiveWeight)
 	}
 }
 

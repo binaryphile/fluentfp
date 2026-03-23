@@ -83,7 +83,7 @@ func TestLimitManagerBaselineCannotBeWithdrawn(t *testing.T) {
 	}
 }
 
-func TestLimitManagerWeightFloor(t *testing.T) {
+func TestLimitManagerWeightZero(t *testing.T) {
 	var applied int64
 	m := toc.NewLimitManager(
 		func(n int) int { return n },
@@ -91,16 +91,16 @@ func TestLimitManagerWeightFloor(t *testing.T) {
 		10, 0, // no weight baseline
 	)
 
-	// Propose 0 weight → should floor to 1.
+	// Propose 0 weight → now a real zero limit (not disable).
 	m.ProposeWeight("memory-rope", 0)
-	if applied != 1 {
-		t.Errorf("applied = %d, want 1 (floor prevents disable)", applied)
+	if applied != 0 {
+		t.Errorf("applied = %d, want 0 (zero is a real limit)", applied)
 	}
 
-	// Propose negative → should floor to 1.
+	// Propose negative → Stage clamps to 0 (zero is a real limit).
 	m.ProposeWeight("memory-rope", -100)
-	if applied != 1 {
-		t.Errorf("applied = %d, want 1 (floor on negative)", applied)
+	if applied != 0 {
+		t.Errorf("applied = %d, want 0 (Stage clamps negative to 0)", applied)
 	}
 }
 

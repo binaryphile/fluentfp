@@ -172,7 +172,7 @@ type Stats struct {
 
 	Paused        bool  // true if admission is paused via PauseAdmission
 	MaxWIP         int   // current WIP limit (>= 1)
-	MaxWIPWeight   int64 // current weight limit (0 = disabled)
+	MaxWIPWeight   int64 // current weight limit (negative = disabled)
 	AdmittedWeight int64 // current accumulated weight of admitted items
 	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. Can exceed current MaxWIP after SetMaxWIP shrinks the limit (existing permits are not revoked) or during the brief grant-to-enqueue window. Not a hard invariant gauge — use for observability, not alerting thresholds.
 	WaiterCount    int // current number of Submits blocked on rope
@@ -315,7 +315,7 @@ type Stage[T, R any] struct {
 	admitted           int64    // items admitted but not yet completed
 	maxWIP             int      // current WIP limit; >= 1
 	admittedWeight     int64    // accumulated weight of admitted items
-	maxWIPWeight       int64    // weight-based limit; 0 = disabled
+	maxWIPWeight       int64    // weight-based limit; -1 = disabled, 0 = zero limit
 	closedForAdmission bool      // authoritative gate for permit creation; protected by admissionMu. Set by CloseInput before closed/closing. All permit paths (fast path, slow path, grantWaitersLocked) check this under lock.
 	paused             bool      // blocks new admission when true; under admissionMu. Held waiters wake on ResumeAdmission.
 	waiters            list.List // FIFO queue of *waiter; O(1) enqueue, grant, remove
@@ -397,7 +397,7 @@ func start[T, R any](
 		trackServiceTimeDist: opts.TrackServiceTimeDist,
 		capacity:    capacity,
 		maxWIP:       maxWIP,
-		maxWIPWeight: opts.MaxWIPWeight,
+		maxWIPWeight: maxWIPWeightFromOpts(opts.MaxWIPWeight),
 		weight:      weight,
 	}
 
@@ -613,7 +613,7 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context, weight int64) error 
 	}
 
 	// Reject oversize items immediately — they can never be admitted.
-	if s.maxWIPWeight > 0 && weight > s.maxWIPWeight {
+	if s.maxWIPWeight >= 0 && weight > s.maxWIPWeight {
 		s.admissionMu.Unlock()
 
 		return ErrWeightExceedsLimit
@@ -961,14 +961,24 @@ func (s *Stage[T, R]) Stats() Stats {
 // s.closing/s.stageDone channels and be rejected there.
 // weightAllows returns true if admitting an item with the given weight
 // would not exceed the weight limit. Returns true when weight limiting
-// is disabled (maxWIPWeight == 0). Overflow-safe.
+// is disabled (maxWIPWeight < 0). Overflow-safe.
 // Must be called with admissionMu held.
 func (s *Stage[T, R]) weightAllows(w int64) bool {
-	if s.maxWIPWeight == 0 {
-		return true
+	if s.maxWIPWeight < 0 {
+		return true // disabled
 	}
 
 	return w <= s.maxWIPWeight-s.admittedWeight
+}
+
+// maxWIPWeightFromOpts maps construction Options.MaxWIPWeight to internal
+// representation. 0 in Options means disabled (backward compatible with
+// zero-value struct). Internally, -1 means disabled.
+func maxWIPWeightFromOpts(v int64) int64 {
+	if v <= 0 {
+		return -1 // disabled
+	}
+	return v
 }
 
 // Must be called with admissionMu held. closedForAdmission is also
@@ -1042,7 +1052,9 @@ func (s *Stage[T, R]) MaxWIP() int {
 }
 
 // SetMaxWIPWeight dynamically adjusts the weight-based WIP limit.
-// Zero disables weight limiting. Negative values are clamped to 0.
+// Zero means zero limit (blocks all weighted admission). Negative
+// values are clamped to 0. To disable weight limiting entirely, use
+// [Stage.DisableMaxWIPWeight].
 // Wakes blocked Submits if the new limit allows more weight.
 // Returns the applied value. Concurrency-safe.
 func (s *Stage[T, R]) SetMaxWIPWeight(n int64) int64 {
@@ -1058,8 +1070,18 @@ func (s *Stage[T, R]) SetMaxWIPWeight(n int64) int64 {
 	return n
 }
 
+// DisableMaxWIPWeight removes the weight-based WIP limit entirely.
+// All items pass weight checks regardless of their weight.
+// Concurrency-safe.
+func (s *Stage[T, R]) DisableMaxWIPWeight() {
+	s.admissionMu.Lock()
+	s.maxWIPWeight = -1
+	s.grantWaitersLocked()
+	s.admissionMu.Unlock()
+}
+
 // MaxWIPWeight returns the current weight-based WIP limit.
-// Zero means disabled.
+// Negative means disabled (no weight limiting active).
 func (s *Stage[T, R]) MaxWIPWeight() int64 {
 	s.admissionMu.Lock()
 	n := s.maxWIPWeight

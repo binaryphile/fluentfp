@@ -202,10 +202,12 @@ func (m *LimitManager) effectiveWeight() (int64, string) {
 		}
 	}
 	if best == math.MaxInt64 {
-		return 0, ""
+		return 0, "" // no proposals
 	}
-	if best < 1 {
-		best = 1
+	// Clamp to 0: negative limits don't make sense. SetMaxWIPWeight(0)
+	// is now a real zero limit. DisableMaxWIPWeight() handles disable.
+	if best < 0 {
+		best = 0
 	}
 	return best, src
 }
