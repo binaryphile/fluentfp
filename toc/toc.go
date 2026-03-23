@@ -334,6 +334,8 @@ type Stage[T, R any] struct {
 	archivedHist     *hdrhistogram.Histogram // merged data from exited workers; under workersMu
 
 	weight func(T) int64
+	limitsOnce sync.Once
+	limits     *LimitManager // stage-owned; created by Limits()
 
 	// Rope: admission control via per-waiter channel queue.
 	admissionMu        sync.Mutex
@@ -1053,6 +1055,27 @@ func (s *Stage[T, R]) releaseAdmission(weight int64) {
 	if h := s.hooks.Load(); h != nil && h.afterRelease != nil {
 		h.afterRelease()
 	}
+}
+
+// Limits returns the stage's [LimitManager] for per-source limit
+// composition. Multiple controllers can propose limits through the
+// manager; the tightest (min) per dimension is applied.
+//
+// Created lazily on first call. The manager is bound to this stage's
+// SetMaxWIP and SetMaxWIPWeight, using the construction MaxWIP and
+// MaxWIPWeight as permanent baselines.
+//
+// This is the recommended path for rope controllers. Raw SetMaxWIP /
+// SetMaxWIPWeight remain available for simple single-controller use.
+func (s *Stage[T, R]) Limits() *LimitManager {
+	s.limitsOnce.Do(func() {
+		maxWIPWeight := s.maxWIPWeight
+		if maxWIPWeight < 0 {
+			maxWIPWeight = 0 // disabled → no weight baseline
+		}
+		s.limits = NewLimitManager(s.SetMaxWIP, s.SetMaxWIPWeight, s.maxWIP, maxWIPWeight)
+	})
+	return s.limits
 }
 
 // SetMaxWIP dynamically adjusts the WIP limit. Wakes blocked Submits

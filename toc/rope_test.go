@@ -990,6 +990,58 @@ func TestMaxWIPWeightStats(t *testing.T) {
 	s.Wait()
 }
 
+func TestStageLimitsManager(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{
+		Capacity:     5,
+		Workers:      2,
+		MaxWIP:       4,
+		MaxWIPWeight: 100,
+		Weight:       func(n int) int64 { return int64(n) },
+	})
+
+	go func() { for range s.Out() {} }()
+
+	lm := s.Limits()
+
+	// Verify baseline captured from construction.
+	snap := lm.Effective()
+	if snap.EffectiveCount != 4 {
+		t.Errorf("baseline count = %d, want 4", snap.EffectiveCount)
+	}
+	if snap.EffectiveWeight != 100 {
+		t.Errorf("baseline weight = %d, want 100", snap.EffectiveWeight)
+	}
+
+	// Propose tighter limits.
+	h := lm.Register(toc.LimitSourceProcessingRope)
+	h.ProposeCount(2)
+	h.ProposeWeight(50)
+
+	snap = lm.Effective()
+	if snap.EffectiveCount != 2 {
+		t.Errorf("effective count = %d, want 2", snap.EffectiveCount)
+	}
+	if snap.EffectiveWeight != 50 {
+		t.Errorf("effective weight = %d, want 50", snap.EffectiveWeight)
+	}
+
+	// Close handle → back to baseline.
+	h.Close()
+	snap = lm.Effective()
+	if snap.EffectiveCount != 4 {
+		t.Errorf("after close: count = %d, want 4", snap.EffectiveCount)
+	}
+
+	// Same manager on repeated Limits() call.
+	if s.Limits() != lm {
+		t.Error("Limits() should return same instance")
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
 func TestSetMaxWIPCeilingTracksWorkers(t *testing.T) {
 	// MaxWIP ceiling should track TargetWorkers, not initial worker count.
 	ctx := context.Background()
