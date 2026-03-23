@@ -60,7 +60,12 @@ func (h *MemoryRopeHandle) Stats() MemoryRopeStats {
 //
 //	headWeightBudget = (headroom × budgetFraction) - downstreamWeight
 //
-// setHeadWIPWeight is typically headStage.SetMaxWIPWeight.
+// Asymmetric damping: tightening (lower budget) is applied instantly.
+// Relaxing (higher budget) moves at relaxRate per callback — the
+// fraction of the gap between current and target to close each tick.
+// For example, relaxRate=0.2 closes 20% of the gap per callback.
+// This prevents GC-cycle-driven oscillation while responding to
+// real pressure immediately.
 //
 // Returns a [MemoryRopeHandle] for stats. Pass handle.Callback() to
 // [memctl.Watch].
@@ -69,6 +74,7 @@ func MemoryRope(
 	drum string,
 	limits *LimitManager,
 	budgetFraction float64,
+	relaxRate float64,
 	logger *log.Logger,
 ) *MemoryRopeHandle {
 	if pipeline == nil {
@@ -83,6 +89,9 @@ func MemoryRope(
 	if budgetFraction <= 0 || budgetFraction > 1.0 {
 		panic("toc.MemoryRope: budgetFraction must be in (0, 1]")
 	}
+	if relaxRate <= 0 || relaxRate > 1.0 {
+		panic("toc.MemoryRope: relaxRate must be in (0, 1]")
+	}
 	if logger == nil {
 		logger = log.Default()
 	}
@@ -96,6 +105,8 @@ func MemoryRope(
 
 	h := &MemoryRopeHandle{}
 	var lastLog memRopeLogState
+	var lastProposed int64 = math.MaxInt64 // start high so first tighten is instant
+	firstCallback := true
 
 	h.callback = func(_ context.Context, info memctl.MemInfo) {
 		headroom, ok := info.Headroom()
@@ -132,10 +143,25 @@ func MemoryRope(
 		if downstreamWeight < 0 {
 			downstreamWeight = 0 // clamp: sampling skew can make aggregate < head
 		}
-		headBudget := budget - downstreamWeight
-		// No floor needed — LimitManager handles floor-of-1.
+		target := budget - downstreamWeight
 
-		limits.ProposeWeight("memory-rope", headBudget)
+		// Asymmetric damping: tighten instantly, relax gradually.
+		var proposed int64
+		if firstCallback {
+			proposed = target
+			firstCallback = false
+		} else if target <= lastProposed {
+			// Pressure increasing or stable — apply immediately.
+			proposed = target
+		} else {
+			// Pressure decreasing — relax by relaxRate fraction of gap.
+			gap := target - lastProposed
+			step := int64(math.Ceil(float64(gap) * relaxRate))
+			proposed = lastProposed + step
+		}
+		lastProposed = proposed
+
+		limits.ProposeWeight("memory-rope", proposed)
 		snap := limits.Effective()
 		h.appliedA.Store(snap.AppliedWeight)
 		h.adjustments.Add(1)
@@ -144,7 +170,7 @@ func MemoryRope(
 		if curr != lastLog {
 			logger.Printf("[memory-rope] headroom=%dMB budget=%dMB weight=%d head=%d→%d",
 				headroom/(1024*1024), budget/(1024*1024),
-				aggregateWeight, headBudget, snap.AppliedWeight)
+				aggregateWeight, proposed, snap.AppliedWeight)
 			lastLog = curr
 		}
 	}

@@ -30,7 +30,7 @@ func memRopeTestPipeline(headWeight, midWeight int64) (*toc.Pipeline, *toc.Limit
 func TestMemoryRopeBasic(t *testing.T) {
 	p, limits := memRopeTestPipeline(100, 200)
 
-	h := toc.MemoryRope(p, "drum", limits, 0.4, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.4, 1.0, nil)
 
 	info := memctl.MemInfo{
 		CgroupCurrent: 6 * 1024 * 1024 * 1024,
@@ -59,7 +59,7 @@ func TestMemoryRopeBasic(t *testing.T) {
 func TestMemoryRopeNoHeadroom(t *testing.T) {
 	p, limits := memRopeTestPipeline(0, 0)
 
-	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, 1.0, nil)
 
 	info := memctl.MemInfo{}
 	h.Callback()(context.Background(), info)
@@ -72,7 +72,7 @@ func TestMemoryRopeNoHeadroom(t *testing.T) {
 func TestMemoryRopeZeroHeadroom(t *testing.T) {
 	p, limits := memRopeTestPipeline(100, 200)
 
-	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, 1.0, nil)
 
 	info := memctl.MemInfo{
 		CgroupCurrent: 10 * 1024 * 1024 * 1024,
@@ -101,7 +101,7 @@ func TestMemoryRopeHighDownstreamWeight(t *testing.T) {
 		100, 0,
 	)
 
-	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, 1.0, nil)
 
 	info := memctl.MemInfo{
 		SystemAvailable:   100,
@@ -122,7 +122,7 @@ func TestMemoryRopeLogOutput(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 
-	h := toc.MemoryRope(p, "drum", limits, 0.5, logger)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, 1.0, logger)
 
 	info := memctl.MemInfo{
 		SystemAvailable:   1024 * 1024 * 1024,
@@ -139,7 +139,7 @@ func TestMemoryRopeLogOutput(t *testing.T) {
 func TestMemoryRopeStats(t *testing.T) {
 	p, limits := memRopeTestPipeline(0, 0)
 
-	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, 1.0, nil)
 
 	stats := h.Stats()
 	if stats.Headroom != 0 || stats.Budget != 0 || stats.Adjustments != 0 {
@@ -180,7 +180,7 @@ func TestMemoryRopeComposesWithProcessingRope(t *testing.T) {
 	limits.ProposeWeight("processing-weight-rope", 500)
 
 	// Memory rope proposes weight 200 (tighter).
-	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, 1.0, nil)
 	info := memctl.MemInfo{
 		SystemAvailable:   400, // headroom=400, budget=200
 		SystemAvailableOK: true,
@@ -194,5 +194,58 @@ func TestMemoryRopeComposesWithProcessingRope(t *testing.T) {
 	}
 	if snap.WeightSource != "memory-rope" {
 		t.Errorf("WeightSource = %q, want memory-rope", snap.WeightSource)
+	}
+}
+
+func TestMemoryRopeAsymmetricDamping(t *testing.T) {
+	p, limits := memRopeTestPipeline(0, 0)
+
+	// relaxRate=0.2: relax 20% of gap per callback.
+	h := toc.MemoryRope(p, "drum", limits, 0.5, 0.2, nil)
+	cb := h.Callback()
+
+	// First callback: 2GB headroom → budget = 1GB. Applied instantly.
+	cb(context.Background(), memctl.MemInfo{
+		SystemAvailable:   2 * 1024 * 1024 * 1024,
+		SystemAvailableOK: true,
+	})
+	first := limits.Effective().EffectiveWeight
+
+	// Second callback: tighten to 500MB headroom → budget = 250MB.
+	// Should apply instantly (tightening).
+	cb(context.Background(), memctl.MemInfo{
+		SystemAvailable:   500 * 1024 * 1024,
+		SystemAvailableOK: true,
+	})
+	tight := limits.Effective().EffectiveWeight
+	expectedTight := int64(float64(500*1024*1024) * 0.5)
+	if tight != expectedTight {
+		t.Errorf("tighten: effective = %d, want %d (instant)", tight, expectedTight)
+	}
+
+	// Third callback: relax to 2GB again.
+	// Should NOT jump back to 1GB — relaxRate=0.2 means 20% of gap.
+	cb(context.Background(), memctl.MemInfo{
+		SystemAvailable:   2 * 1024 * 1024 * 1024,
+		SystemAvailableOK: true,
+	})
+	relaxed := limits.Effective().EffectiveWeight
+
+	// Gap = first - tight. Step = ceil(gap * 0.2). Proposed = tight + step.
+	gap := first - tight
+	step := int64(float64(gap)*0.2 + 0.999) // ceil
+	expectedRelaxed := tight + step
+
+	if relaxed != expectedRelaxed {
+		// Allow ±1 for ceiling arithmetic.
+		if relaxed < expectedRelaxed-1 || relaxed > expectedRelaxed+1 {
+			t.Errorf("relax: effective = %d, want ~%d (20%% of gap from %d to %d)",
+				relaxed, expectedRelaxed, tight, first)
+		}
+	}
+
+	// Should be less than full target (damped).
+	if relaxed >= first {
+		t.Errorf("relax: effective = %d should be < %d (damped, not instant)", relaxed, first)
 	}
 }
