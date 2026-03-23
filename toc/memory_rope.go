@@ -129,9 +129,12 @@ func MemoryRope(
 
 		// Head weight budget = total budget - downstream weight.
 		downstreamWeight := aggregateWeight - headWeight
+		if downstreamWeight < 0 {
+			downstreamWeight = 0 // clamp: sampling skew can make aggregate < head
+		}
 		headBudget := budget - downstreamWeight
-		if headBudget < 0 {
-			headBudget = 0
+		if headBudget < 1 {
+			headBudget = 1 // floor: SetMaxWIPWeight(0) disables limiting entirely
 		}
 
 		applied := setHeadWIPWeight(headBudget)

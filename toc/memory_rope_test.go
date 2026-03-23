@@ -117,9 +117,10 @@ func TestMemoryRopeZeroHeadroom(t *testing.T) {
 	}
 	h.Callback()(context.Background(), info)
 
-	// Budget = 0. Head budget = max(0, 0 - 200) = 0.
-	if appliedWeight != 0 {
-		t.Errorf("applied = %d, want 0 (zero headroom)", appliedWeight)
+	// Budget = 0. Head budget = max(1, 0 - 200) = 1 (floor, not 0).
+	// SetMaxWIPWeight(0) would disable limiting — floor of 1 prevents that.
+	if appliedWeight != 1 {
+		t.Errorf("applied = %d, want 1 (floor under pressure)", appliedWeight)
 	}
 }
 
