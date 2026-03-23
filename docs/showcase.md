@@ -1346,6 +1346,36 @@ handler := slice.Fold(middlewares, apiHandler, applyMiddleware)
 
 **What this shows:** The repeated `handler = wrapper(handler)` pattern is a left-fold over a middleware list. Making it `slice.Fold(middlewares, base, apply)` turns the handler chain into a first-class data structure — you can inspect it, filter it (e.g., skip CORS in tests), reorder it, or log it, without editing a 90-line function. go-kit's [`endpoint.Chain`](https://github.com/go-kit/kit/blob/master/endpoint/endpoint.go) and chi's [`chain.go`](https://github.com/go-chi/chi/blob/master/chain.go) already recognize this — they implement the fold explicitly.
 
+### Error-propagating fold as TryFold — event-sourced state machines
+
+**Pain point:** `for` loop with `if err != nil { return }` on every iteration
+
+Event-sourced systems fold state through a function that may fail on any event. The pattern is universal:
+
+**Original:**
+```go
+func (e *Engine) applyEvents(events []Event) (Engine, error) {
+    for _, evt := range events {
+        var err error
+        if e, err = e.apply(evt); err != nil {
+            return e, err
+        }
+    }
+    return e, nil
+}
+```
+
+**fluentfp:**
+```go
+func (e *Engine) applyEvents(events []Event) (Engine, error) {
+    return slice.TryFold(events, e, Engine.apply)
+}
+```
+
+**What this shows:** The for/if-err/return pattern is a fold with short-circuit error propagation. `TryFold` names the pattern — iteration, accumulation, and early exit are all handled. The transition function (`Engine.apply`) is independently testable. The method expression `Engine.apply` reads as "apply each event to the engine" — no wrapper closure needed.
+
+**Where this pattern appears:** Any event-sourced system, state machine, migration runner, or sequential validation pipeline. SofDevSim's engine has 7 instances. Temporal's mutable_state_rebuilder is a 664-line version of the same fold (see above) — with error handling, it would need `TryFold`.
+
 ### Saga / compensation — cockroachdb/cockroach
 
 **Source:** [replica_command.go#L3280](https://github.com/cockroachdb/cockroach/blob/master/pkg/kv/kvserver/replica_command.go#L3280)

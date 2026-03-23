@@ -252,7 +252,7 @@ Packages are independent — import one or all.
 
 | Package             | Purpose                          | Key Functions                                  |
 | ------------------- | -------------------------------- | ---------------------------------------------- |
-| [slice](slice/)     | Collection transforms            | `KeepIf`, `RemoveIf`, `Fold`, `FanOutAll`      |
+| [slice](slice/)     | Collection transforms            | `KeepIf`, `RemoveIf`, `Fold`, `TryFold`, `FanOutAll` |
 | [kv](kv/)           | Map transforms                   | `KeepIf`, `MapValues`, `Map`, `Values`         |
 | [seq](seq/)         | Fluent iter.Seq chains           | `From`, `KeepIf`, `Take`, `Collect`            |
 | [stream](stream/)   | Lazy memoized sequences          | `Generate`, `Unfold`, `Take`, `Collect`        |
@@ -337,6 +337,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | If you need to... | Use | Package |
 | --- | --- | --- |
 | Filter, map, or fold a slice | `slice.From(s).KeepIf(f).ToString(g)` | slice |
+| Fold with early exit on error | `slice.TryFold(events, state, fn)` | slice |
 | Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
 | Retry on failure with backoff | `call.Retry(3, backoff, shouldRetry, fn)` | call |
