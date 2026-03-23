@@ -1,6 +1,7 @@
 package toc
 
 import (
+	"cmp"
 	"container/list"
 	"context"
 	"errors"
@@ -255,11 +256,14 @@ type waiter struct {
 	weight int64 // frozen item weight for grant check
 }
 
-// queued wraps an item with its pre-computed weight.
+// queued wraps an item with its pre-computed weight and caller context.
+// The ctx carries trace propagation (OTel spans) from the submitter.
+// Workers use it for fn invocation; stageCtx governs cancellation.
 type queued[T any] struct {
 	item        T
 	weight      int64
 	submittedAt time.Time
+	ctx         context.Context
 }
 
 // runState holds immutable configuration captured at Start.
@@ -610,7 +614,7 @@ func (s *Stage[T, R]) Submit(ctx context.Context, item T) error {
 		panic("toc: Weight must return a non-negative value")
 	}
 
-	q := queued[T]{item: item, weight: w, submittedAt: time.Now()}
+	q := queued[T]{item: item, weight: w, submittedAt: time.Now(), ctx: ctx}
 
 	// Rope: acquire admission slot before sending to channel.
 	if err := s.acquireAdmission(ctx, w); err != nil {
@@ -1370,7 +1374,10 @@ func (s *Stage[T, R]) processItem(
 	}
 
 	serviceStart := time.Now()
-	result := s.safeCall(ctx, fn, q.item)
+	// Pass item's context to fn for trace propagation.
+	// stageCtx is checked above for cancellation; q.ctx carries
+	// the caller's trace span as parent.
+	result := s.safeCall(cmp.Or(q.ctx, ctx), fn, q.item)
 	svcDuration := time.Since(serviceStart)
 	s.serviceNs.Add(int64(svcDuration))
 
