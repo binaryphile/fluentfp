@@ -68,6 +68,21 @@ var ErrClosed = errors.New("toc: stage closed")
 // immediately and never enqueued.
 var ErrWeightExceedsLimit = errors.New("toc: item weight exceeds MaxWIPWeight")
 
+// OversizePolicy controls what happens when an item's weight exceeds
+// the current MaxWIPWeight.
+type OversizePolicy int
+
+const (
+	// OversizeReject rejects the item immediately with
+	// [ErrWeightExceedsLimit]. Default behavior.
+	OversizeReject OversizePolicy = iota
+
+	// OversizeWait blocks until the weight limit increases enough to
+	// admit the item (or context is canceled / stage closed). Use when
+	// the rope controller may raise the limit dynamically.
+	OversizeWait
+)
+
 // Options configures a [Stage].
 //
 // Total stage WIP (item count) is up to Capacity (buffered) + Workers
@@ -89,10 +104,14 @@ type Options[T any] struct {
 
 	// MaxWIPWeight is the maximum accumulated weight of admitted items.
 	// Zero means disabled (default, backward compatible). If > 0,
-	// admission checks accumulated weight alongside count. Items with
-	// weight > MaxWIPWeight are rejected with [ErrWeightExceedsLimit].
+	// admission checks accumulated weight alongside count.
 	// Adjust at runtime with [Stage.SetMaxWIPWeight].
 	MaxWIPWeight int64
+
+	// OversizePolicy controls behavior when an item's weight exceeds
+	// MaxWIPWeight. Default ([OversizeReject]) rejects immediately.
+	// [OversizeWait] blocks until the limit increases enough.
+	OversizePolicy OversizePolicy
 
 	// Weight returns the cost of item t for stats tracking only
 	// ([Stats.InFlightWeight]). Does not affect admission — capacity
@@ -308,6 +327,7 @@ type Stage[T, R any] struct {
 	trackAllocs          bool
 	trackServiceTimeDist bool
 	capacity             int
+	oversizePolicy       OversizePolicy
 
 	svcTimeUnderflow atomic.Int64
 	svcTimeOverflow  atomic.Int64
@@ -400,7 +420,8 @@ func start[T, R any](
 		cancel:      cancel,
 		trackAllocs:          opts.TrackAllocations && isAllocMetricsSupported(),
 		trackServiceTimeDist: opts.TrackServiceTimeDist,
-		capacity:    capacity,
+		capacity:       capacity,
+		oversizePolicy: opts.OversizePolicy,
 		maxWIP:       maxWIP,
 		maxWIPWeight: maxWIPWeightFromOpts(opts.MaxWIPWeight),
 		weight:      weight,
@@ -617,11 +638,15 @@ func (s *Stage[T, R]) acquireAdmission(ctx context.Context, weight int64) error 
 		return ErrClosed
 	}
 
-	// Reject oversize items immediately — they can never be admitted.
+	// Oversize items: weight exceeds the limit.
 	if s.maxWIPWeight >= 0 && weight > s.maxWIPWeight {
-		s.admissionMu.Unlock()
-
-		return ErrWeightExceedsLimit
+		if s.oversizePolicy == OversizeReject {
+			s.admissionMu.Unlock()
+			return ErrWeightExceedsLimit
+		}
+		// OversizeWait: fall through to waiter queue. The item will
+		// block until SetMaxWIPWeight raises the limit enough, or
+		// context cancel / stage close.
 	}
 
 	// Fast path: both count and weight allow, not paused.

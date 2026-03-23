@@ -757,6 +757,47 @@ func TestMaxWIPWeightRejectsOversize(t *testing.T) {
 	s.Wait()
 }
 
+func TestOversizeWaitBlocksThenAdmits(t *testing.T) {
+	ctx := context.Background()
+	s := toc.Start(ctx, identityFn, toc.Options[int]{
+		Capacity:       5,
+		Workers:        1,
+		MaxWIPWeight:   50,
+		Weight:         func(n int) int64 { return int64(n) },
+		OversizePolicy: toc.OversizeWait,
+	})
+
+	go func() { for range s.Out() {} }()
+
+	// Submit oversized item — should block, not reject.
+	done := make(chan error, 1)
+	go func() {
+		done <- s.Submit(ctx, 100) // weight 100 > limit 50
+	}()
+
+	// Should not complete immediately.
+	select {
+	case err := <-done:
+		t.Fatalf("oversize Submit should block, got %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	// Raise limit to 100 — unblocks the oversized item.
+	s.SetMaxWIPWeight(100)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Submit after limit raise: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("oversize Submit not unblocked after SetMaxWIPWeight")
+	}
+
+	s.CloseInput()
+	s.Wait()
+}
+
 func TestMaxWIPWeightAndCountBothEnforced(t *testing.T) {
 	ctx := context.Background()
 	s := toc.Start(ctx, slowFn, toc.Options[int]{
