@@ -16,7 +16,11 @@ import (
 
 // Metric names for runtime/metrics allocation sampling.
 const (
-	metricAllocBytes   = "/gc/heap/allocs:bytes"
+	metricAllocBytes = "/gc/heap/allocs:bytes"
+
+	// maxWIPWeightDisabled is the internal sentinel for "no weight limit."
+	// SetMaxWIPWeight(0) is a real zero limit; this sentinel means disabled.
+	maxWIPWeightDisabled int64 = -1
 	metricAllocObjects = "/gc/heap/allocs:objects"
 )
 
@@ -172,7 +176,8 @@ type Stats struct {
 
 	Paused        bool  // true if admission is paused via PauseAdmission
 	MaxWIP         int   // current WIP limit (>= 1)
-	MaxWIPWeight   int64 // current weight limit (negative = disabled)
+	MaxWIPWeight        int64 // current weight limit (0 when disabled; check MaxWIPWeightEnabled)
+	MaxWIPWeightEnabled bool  // true when weight limiting is active
 	AdmittedWeight int64 // current accumulated weight of admitted items
 	Admitted      int64 // reserved permits, not active workers. Includes buffered, in-flight, and reserved-but-not-yet-enqueued. Can exceed current MaxWIP after SetMaxWIP shrinks the limit (existing permits are not revoked) or during the brief grant-to-enqueue window. Not a hard invariant gauge — use for observability, not alerting thresholds.
 	WaiterCount    int // current number of Submits blocked on rope
@@ -315,7 +320,7 @@ type Stage[T, R any] struct {
 	admitted           int64    // items admitted but not yet completed
 	maxWIP             int      // current WIP limit; >= 1
 	admittedWeight     int64    // accumulated weight of admitted items
-	maxWIPWeight       int64    // weight-based limit; -1 = disabled, 0 = zero limit
+	maxWIPWeight int64 // weight-based limit; maxWIPWeightDisabled = disabled, 0 = zero limit
 	closedForAdmission bool      // authoritative gate for permit creation; protected by admissionMu. Set by CloseInput before closed/closing. All permit paths (fast path, slow path, grantWaitersLocked) check this under lock.
 	paused             bool      // blocks new admission when true; under admissionMu. Held waiters wake on ResumeAdmission.
 	waiters            list.List // FIFO queue of *waiter; O(1) enqueue, grant, remove
@@ -918,6 +923,10 @@ func (s *Stage[T, R]) Stats() Stats {
 	admittedWeight := s.admittedWeight
 	maxWIP := s.maxWIP
 	maxWIPWeight := s.maxWIPWeight
+	maxWIPWeightEnabled := maxWIPWeight >= 0
+	if maxWIPWeight < 0 {
+		maxWIPWeight = 0 // don't leak sentinel
+	}
 	paused := s.paused
 	waiterCount := s.waiters.Len()
 	maxWaiterCount := s.maxWaiterCount
@@ -941,6 +950,7 @@ func (s *Stage[T, R]) Stats() Stats {
 		Paused:               paused,
 		MaxWIP:               maxWIP,
 		MaxWIPWeight:         maxWIPWeight,
+		MaxWIPWeightEnabled: maxWIPWeightEnabled,
 		AdmittedWeight:       admittedWeight,
 		Admitted:             admitted,
 		WaiterCount:          waiterCount,
@@ -976,7 +986,7 @@ func (s *Stage[T, R]) weightAllows(w int64) bool {
 // zero-value struct). Internally, -1 means disabled.
 func maxWIPWeightFromOpts(v int64) int64 {
 	if v <= 0 {
-		return -1 // disabled
+		return maxWIPWeightDisabled
 	}
 	return v
 }
@@ -1052,14 +1062,13 @@ func (s *Stage[T, R]) MaxWIP() int {
 }
 
 // SetMaxWIPWeight dynamically adjusts the weight-based WIP limit.
-// Zero means zero limit (blocks all weighted admission). Negative
-// values are clamped to 0. To disable weight limiting entirely, use
-// [Stage.DisableMaxWIPWeight].
+// Zero means zero limit (blocks all positive-weight admission).
+// Panics if n < 0 — use [Stage.DisableMaxWIPWeight] to disable.
 // Wakes blocked Submits if the new limit allows more weight.
 // Returns the applied value. Concurrency-safe.
 func (s *Stage[T, R]) SetMaxWIPWeight(n int64) int64 {
 	if n < 0 {
-		n = 0
+		panic("toc: SetMaxWIPWeight: n must be >= 0; use DisableMaxWIPWeight to disable")
 	}
 
 	s.admissionMu.Lock()
@@ -1075,7 +1084,7 @@ func (s *Stage[T, R]) SetMaxWIPWeight(n int64) int64 {
 // Concurrency-safe.
 func (s *Stage[T, R]) DisableMaxWIPWeight() {
 	s.admissionMu.Lock()
-	s.maxWIPWeight = -1
+	s.maxWIPWeight = maxWIPWeightDisabled
 	s.grantWaitersLocked()
 	s.admissionMu.Unlock()
 }

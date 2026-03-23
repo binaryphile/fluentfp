@@ -97,10 +97,10 @@ func TestLimitManagerWeightZero(t *testing.T) {
 		t.Errorf("applied = %d, want 0 (zero is a real limit)", applied)
 	}
 
-	// Propose negative → Stage clamps to 0 (zero is a real limit).
+	// Propose negative → LimitManager clamps to 0.
 	m.ProposeWeight("memory-rope", -100)
 	if applied != 0 {
-		t.Errorf("applied = %d, want 0 (Stage clamps negative to 0)", applied)
+		t.Errorf("applied = %d, want 0 (clamped negative to 0)", applied)
 	}
 }
 
