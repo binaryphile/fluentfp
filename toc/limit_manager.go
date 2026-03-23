@@ -24,6 +24,30 @@ const (
 	limitSourceDefault LimitSource = "default"
 )
 
+// LimitHandle is returned by [LimitManager.Register]. It scopes
+// proposals to a single source and provides automatic cleanup via Close.
+type LimitHandle struct {
+	mgr    *LimitManager
+	source LimitSource
+}
+
+// ProposeCount sets a count-limit proposal for this source.
+func (h *LimitHandle) ProposeCount(limit int) {
+	h.mgr.ProposeCount(h.source, limit)
+}
+
+// ProposeWeight sets a weight-limit proposal for this source.
+func (h *LimitHandle) ProposeWeight(limit int64) {
+	h.mgr.ProposeWeight(h.source, limit)
+}
+
+// Close withdraws all proposals for this source. Safe to call
+// multiple times. Should be deferred by controllers for cleanup.
+func (h *LimitHandle) Close() {
+	h.mgr.WithdrawCount(h.source)
+	h.mgr.WithdrawWeight(h.source)
+}
+
 // LimitManager accepts named limit proposals from multiple sources
 // and applies the tightest (min) per dimension to the stage.
 //
@@ -98,6 +122,19 @@ func NewLimitManager(
 	}
 
 	return m
+}
+
+// Register creates a [LimitHandle] for the given source. The handle
+// provides scoped ProposeCount/ProposeWeight/Close methods. Defer
+// handle.Close() for automatic cleanup when a controller exits.
+//
+// Panics if source is empty or reserved.
+func (m *LimitManager) Register(source LimitSource) *LimitHandle {
+	mustSource(source)
+	if source == limitSourceDefault {
+		panic("toc.LimitManager: 'default' is reserved for baseline")
+	}
+	return &LimitHandle{mgr: m, source: source}
 }
 
 // ProposeCount sets a count-limit proposal for the named source.

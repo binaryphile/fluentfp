@@ -220,6 +220,43 @@ func TestLimitManagerEmptySourcePanics(t *testing.T) {
 	})
 }
 
+func TestLimitHandleLifecycle(t *testing.T) {
+	var appliedCount int
+	var appliedWeight int64
+	m := toc.NewLimitManager(
+		func(n int) int { appliedCount = n; return n },
+		func(n int64) int64 { appliedWeight = n; return n },
+		100, 1000,
+	)
+
+	h := m.Register(toc.LimitSourceProcessingRope)
+
+	// Propose via handle.
+	h.ProposeCount(5)
+	if appliedCount != 5 {
+		t.Errorf("count = %d, want 5", appliedCount)
+	}
+
+	h.ProposeWeight(200)
+	if appliedWeight != 200 {
+		t.Errorf("weight = %d, want 200", appliedWeight)
+	}
+
+	// Close withdraws both.
+	h.Close()
+
+	snap := m.Effective()
+	if snap.EffectiveCount != 100 {
+		t.Errorf("after Close: count = %d, want 100 (baseline)", snap.EffectiveCount)
+	}
+	if snap.EffectiveWeight != 1000 {
+		t.Errorf("after Close: weight = %d, want 1000 (baseline)", snap.EffectiveWeight)
+	}
+
+	// Close is idempotent.
+	h.Close()
+}
+
 func TestLimitManagerConcurrent(t *testing.T) {
 	m := toc.NewLimitManager(
 		func(n int) int { return n },
