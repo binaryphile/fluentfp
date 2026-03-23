@@ -144,6 +144,7 @@
 - 2o. Developer needs to combine elements without providing an initial value: System uses the first element as the seed and applies the combining function across remaining elements from left to right. Returns an option — not-ok if the collection is empty.
 - 2p. Developer needs to build a map with both key and value derived from each element: System applies a function that returns a key-value pair for each element, producing a `map[K]V`. If multiple elements produce the same key, the last one wins.
 - 2q. Developer needs to apply a side effect to each element: System calls the function for every element in order. No result is returned.
+- 2r. Developer needs to accumulate state through a function that may fail on any element: System folds left-to-right via `TryFold`. The accumulator starts at `initial`. On each element, system calls `fn(acc, elem)`. If fn succeeds, returned accumulator becomes next acc. If fn returns error, system stops immediately and returns the accumulator value returned by the failing call together with the error. Remaining elements are not processed. For empty or nil input, returns `initial` and no error.
 
 **Sub-Variations:**
 - Numeric aggregation: sum, min, max on integer or floating-point collections
