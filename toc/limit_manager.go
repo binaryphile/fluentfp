@@ -22,6 +22,8 @@ type LimitManager struct {
 	mu              sync.Mutex
 	countProposals  map[string]int
 	weightProposals map[string]int64
+	baselineCount   int   // permanent, always participates in min
+	baselineWeight  int64 // 0 = no weight baseline
 	setCount        func(int) int
 	setWeight       func(int64) int64
 
@@ -67,16 +69,10 @@ func NewLimitManager(
 	m := &LimitManager{
 		countProposals:  make(map[string]int),
 		weightProposals: make(map[string]int64),
+		baselineCount:   defaultCount,
+		baselineWeight:  defaultWeight,
 		setCount:        setCount,
 		setWeight:       setWeight,
-	}
-
-	// Baseline: permanent default proposals.
-	if defaultCount >= 1 {
-		m.countProposals["default"] = defaultCount
-	}
-	if defaultWeight > 0 {
-		m.weightProposals["default"] = defaultWeight
 	}
 
 	return m
@@ -87,71 +83,73 @@ func NewLimitManager(
 // Panics if source is empty.
 func (m *LimitManager) ProposeCount(source string, limit int) {
 	mustSource(source)
+	if source == "default" {
+		panic("toc.LimitManager: 'default' is reserved for baseline")
+	}
 
 	m.mu.Lock()
 	m.countProposals[source] = limit
-	eff, src := minCount(m.countProposals)
-	m.mu.Unlock()
-
+	eff, _ := m.effectiveCount()
 	applied := m.setCount(eff)
 	m.appliedCount.Store(int64(applied))
-	_ = src
+	m.mu.Unlock()
 }
 
 // ProposeWeight sets a weight-limit proposal for the named source.
 // Recomputes and applies the effective weight limit (min across sources).
-// Panics if source is empty.
+// Panics if source is empty or "default" (reserved for baseline).
 func (m *LimitManager) ProposeWeight(source string, limit int64) {
 	mustSource(source)
+	if source == "default" {
+		panic("toc.LimitManager: 'default' is reserved for baseline")
+	}
 
 	m.mu.Lock()
 	m.weightProposals[source] = limit
-	eff, src := minWeight(m.weightProposals)
-	m.mu.Unlock()
-
+	eff, _ := m.effectiveWeight()
 	applied := m.setWeight(eff)
 	m.appliedWeight.Store(applied)
-	_ = src
+	m.mu.Unlock()
 }
 
 // WithdrawCount removes a source's count proposal. The effective
 // limit loosens to the next tightest (or baseline if none remain).
 func (m *LimitManager) WithdrawCount(source string) {
 	m.mu.Lock()
-	if source != "default" {
-		delete(m.countProposals, source)
-	}
-	eff, _ := minCount(m.countProposals)
-	m.mu.Unlock()
-
+	delete(m.countProposals, source)
+	eff, _ := m.effectiveCount()
 	if eff > 0 {
 		applied := m.setCount(eff)
 		m.appliedCount.Store(int64(applied))
 	}
+	m.mu.Unlock()
 }
 
 // WithdrawWeight removes a source's weight proposal.
 func (m *LimitManager) WithdrawWeight(source string) {
 	m.mu.Lock()
-	if source != "default" {
-		delete(m.weightProposals, source)
-	}
-	eff, _ := minWeight(m.weightProposals)
-	m.mu.Unlock()
-
+	delete(m.weightProposals, source)
+	eff, _ := m.effectiveWeight()
 	if eff > 0 {
 		applied := m.setWeight(eff)
 		m.appliedWeight.Store(applied)
 	}
+	m.mu.Unlock()
 }
 
 // Effective returns a snapshot of the current limits.
 func (m *LimitManager) Effective() LimitSnapshot {
 	m.mu.Lock()
-	effCount, countSrc := minCount(m.countProposals)
-	effWeight, weightSrc := minWeight(m.weightProposals)
+	effCount, countSrc := m.effectiveCount()
+	effWeight, weightSrc := m.effectiveWeight()
 	countN := len(m.countProposals)
 	weightN := len(m.weightProposals)
+	if m.baselineCount >= 1 {
+		countN++ // baseline participates
+	}
+	if m.baselineWeight > 0 {
+		weightN++
+	}
 	m.mu.Unlock()
 
 	return LimitSnapshot{
@@ -166,10 +164,15 @@ func (m *LimitManager) Effective() LimitSnapshot {
 	}
 }
 
-func minCount(proposals map[string]int) (int, string) {
+// effectiveCount returns min across baseline + proposals. Must hold mu.
+func (m *LimitManager) effectiveCount() (int, string) {
 	best := math.MaxInt
-	var src string
-	for s, v := range proposals {
+	src := ""
+	if m.baselineCount >= 1 && m.baselineCount < best {
+		best = m.baselineCount
+		src = "default"
+	}
+	for s, v := range m.countProposals {
 		if v < best {
 			best = v
 			src = s
@@ -179,25 +182,30 @@ func minCount(proposals map[string]int) (int, string) {
 		return 0, ""
 	}
 	if best < 1 {
-		best = 1 // floor: SetMaxWIP(0) clamped by Stage anyway
+		best = 1
 	}
 	return best, src
 }
 
-func minWeight(proposals map[string]int64) (int64, string) {
+// effectiveWeight returns min across baseline + proposals. Must hold mu.
+func (m *LimitManager) effectiveWeight() (int64, string) {
 	var best int64 = math.MaxInt64
-	var src string
-	for s, v := range proposals {
+	src := ""
+	if m.baselineWeight > 0 && m.baselineWeight < best {
+		best = m.baselineWeight
+		src = "default"
+	}
+	for s, v := range m.weightProposals {
 		if v < best {
 			best = v
 			src = s
 		}
 	}
 	if best == math.MaxInt64 {
-		return 0, "" // no proposals
+		return 0, ""
 	}
 	if best < 1 {
-		best = 1 // floor: SetMaxWIPWeight(0) disables — prevent that
+		best = 1
 	}
 	return best, src
 }
