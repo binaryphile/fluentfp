@@ -68,20 +68,26 @@ func (tp *ropeTestPipeline) stageSnapshot(name string) toc.IntervalStats {
 	return s.IntervalStats()
 }
 
-// newTestRope creates a RopeController for a linear pipeline with manual ticks.
+func testLimits() *toc.LimitManager {
+	return toc.NewLimitManager(
+		func(n int) int { return n },
+		func(n int64) int64 { return n },
+		100, 0,
+	)
+}
+
+// newTestRope creates a count-based RopeController with a LimitManager.
 func newTestRope(tp *ropeTestPipeline, drum string, opts ...toc.RopeOption) (
 	*toc.RopeController, chan time.Time, context.CancelFunc, chan struct{},
 ) {
-	var appliedWIP int
-	// setHeadWIP records the applied value and returns it unchanged.
-	setHeadWIP := func(n int) int {
-		appliedWIP = n
-		_ = appliedWIP
-		return n
-	}
+	limits := toc.NewLimitManager(
+		func(n int) int { return n },
+		func(n int64) int64 { return n },
+		100, 0, // generous defaults
+	)
 
 	rc := toc.NewRopeController(
-		tp.pipeline, drum, setHeadWIP, tp.stageSnapshot,
+		tp.pipeline, drum, limits, tp.stageSnapshot,
 		time.Second, opts...,
 	)
 
@@ -97,13 +103,18 @@ func newTestRope(tp *ropeTestPipeline, drum string, opts ...toc.RopeOption) (
 	return rc, ticks, cancel, done
 }
 
+// newTestWeightRope creates a weight-based RopeController with a LimitManager.
 func newTestWeightRope(tp *ropeTestPipeline, drum string, opts ...toc.RopeOption) (
 	*toc.RopeController, chan time.Time, context.CancelFunc, chan struct{},
 ) {
-	setHeadWIPWeight := func(n int64) int64 { return n }
+	limits := toc.NewLimitManager(
+		func(n int) int { return n },
+		func(n int64) int64 { return n },
+		100, 1000, // generous defaults
+	)
 
 	rc := toc.NewWeightRopeController(
-		tp.pipeline, drum, setHeadWIPWeight, tp.stageSnapshot,
+		tp.pipeline, drum, limits, tp.stageSnapshot,
 		time.Second, opts...,
 	)
 
@@ -416,7 +427,7 @@ func TestRopeLinearChainValidation(t *testing.T) {
 		p.Freeze()
 
 		toc.NewRopeController(p, "D",
-			func(n int) int { return n },
+			testLimits(),
 			func(string) toc.IntervalStats { return toc.IntervalStats{} },
 			time.Second)
 	})
@@ -437,7 +448,7 @@ func TestRopeLinearChainValidation(t *testing.T) {
 		p.Freeze()
 
 		toc.NewRopeController(p, "B",
-			func(n int) int { return n },
+			testLimits(),
 			func(string) toc.IntervalStats { return toc.IntervalStats{} },
 			time.Second)
 	})
@@ -463,7 +474,7 @@ func TestRopeLinearChainValidation(t *testing.T) {
 		// HeadsTo("D") returns [A, C] → len != 1 → panics before chain validation.
 		// But even if it didn't, drum in-degree=2 would catch it.
 		toc.NewRopeController(p, "D",
-			func(n int) int { return n },
+			testLimits(),
 			func(string) toc.IntervalStats { return toc.IntervalStats{} },
 			time.Second)
 	})
@@ -484,7 +495,7 @@ func TestRopeLinearChainValidation(t *testing.T) {
 		p.Freeze()
 
 		toc.NewRopeController(p, "M",
-			func(n int) int { return n },
+			testLimits(),
 			func(string) toc.IntervalStats { return toc.IntervalStats{} },
 			time.Second)
 	})

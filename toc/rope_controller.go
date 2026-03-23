@@ -36,9 +36,9 @@ type RopeController struct {
 	head      string
 	ancestors []string // AncestorsOf(drum), cached — includes head
 
-	setHeadWIP       func(int) int    // count mode actuation
-	setHeadWIPWeight func(int64) int64 // weight mode actuation
-	weightMode       bool              // true = weight-based rope
+	limits     *LimitManager
+	source     string // proposal source name
+	weightMode bool   // true = weight-based rope
 
 	stageSnapshot func(string) IntervalStats
 	interval      time.Duration
@@ -104,25 +104,58 @@ func WithInitialRopeLength(n int) RopeOption {
 	}
 }
 
-// NewRopeController creates a rope controller for the given pipeline
-// and drum stage.
+// NewRopeController creates a count-based rope controller.
 //
 // The pipeline must be frozen and contain exactly one head feeding the
 // drum via a linear chain (no branches or joins between head and drum).
 //
-// setHeadWIP is typically headStage.SetMaxWIP.
+// limits is the [LimitManager] for the head stage. The controller
+// proposes count limits via limits.ProposeCount("processing-rope", n).
 // stageSnapshot returns the latest [IntervalStats] for a named stage.
 //
 // Panics if pipeline is not frozen, drum is unknown, topology is not a
-// single linear chain from head to drum, setHeadWIP or stageSnapshot
-// is nil, or interval <= 0.
+// single linear chain from head to drum, limits or stageSnapshot is nil,
+// or interval <= 0.
 func NewRopeController(
 	pipeline *Pipeline,
 	drum string,
-	setHeadWIP func(int) int,
+	limits *LimitManager,
 	stageSnapshot func(string) IntervalStats,
 	interval time.Duration,
 	opts ...RopeOption,
+) *RopeController {
+	return newRopeController(pipeline, drum, limits, "processing-rope", false, stageSnapshot, interval, opts)
+}
+
+// NewWeightRopeController creates a weight-aware rope controller.
+// Same as [NewRopeController] but limits aggregate WEIGHT between
+// release and drum instead of item count. Items with variable
+// processing cost are properly accounted.
+//
+// limits is the [LimitManager] for the head stage. The controller
+// proposes weight limits via limits.ProposeWeight("processing-weight-rope", n).
+//
+// Same linear chain and single-head requirements as [NewRopeController].
+func NewWeightRopeController(
+	pipeline *Pipeline,
+	drum string,
+	limits *LimitManager,
+	stageSnapshot func(string) IntervalStats,
+	interval time.Duration,
+	opts ...RopeOption,
+) *RopeController {
+	return newRopeController(pipeline, drum, limits, "processing-weight-rope", true, stageSnapshot, interval, opts)
+}
+
+func newRopeController(
+	pipeline *Pipeline,
+	drum string,
+	limits *LimitManager,
+	source string,
+	weightMode bool,
+	stageSnapshot func(string) IntervalStats,
+	interval time.Duration,
+	opts []RopeOption,
 ) *RopeController {
 	if pipeline == nil {
 		panic("toc.NewRopeController: pipeline must not be nil")
@@ -130,8 +163,8 @@ func NewRopeController(
 	pipeline.mustFrozen()
 	pipeline.mustStage(drum)
 
-	if setHeadWIP == nil {
-		panic("toc.NewRopeController: setHeadWIP must not be nil")
+	if limits == nil {
+		panic("toc.NewRopeController: limits must not be nil")
 	}
 	if stageSnapshot == nil {
 		panic("toc.NewRopeController: stageSnapshot must not be nil")
@@ -145,11 +178,7 @@ func NewRopeController(
 		panic("toc.NewRopeController: exactly one head must feed the drum")
 	}
 	head := heads[0]
-
 	ancestors := pipeline.AncestorsOf(drum)
-
-	// Validate linear chain: walk from head, each node has exactly one
-	// forward edge within the ancestor set + drum.
 	validateLinearChain(pipeline, head, drum, ancestors)
 
 	rc := &RopeController{
@@ -157,7 +186,9 @@ func NewRopeController(
 		drum:          drum,
 		head:          head,
 		ancestors:     ancestors,
-		setHeadWIP:    setHeadWIP,
+		limits:        limits,
+		source:        source,
+		weightMode:    weightMode,
 		stageSnapshot: stageSnapshot,
 		interval:      interval,
 		safetyFactor:  defaultSafetyFactor,
@@ -171,73 +202,6 @@ func NewRopeController(
 	}
 
 	rc.ropeLengthA.Store(int64(rc.initialLength))
-
-	return rc
-}
-
-// NewWeightRopeController creates a weight-aware rope controller.
-// Same as [NewRopeController] but limits aggregate WEIGHT between
-// release and drum instead of item count. Items with variable
-// processing cost are properly accounted.
-//
-// setHeadWIPWeight is typically headStage.SetMaxWIPWeight.
-// The rope budget is in weight units: drumGoodput × avgItemWeight ×
-// upstreamFlowTime × safetyFactor.
-//
-// Same linear chain and single-head requirements as [NewRopeController].
-func NewWeightRopeController(
-	pipeline *Pipeline,
-	drum string,
-	setHeadWIPWeight func(int64) int64,
-	stageSnapshot func(string) IntervalStats,
-	interval time.Duration,
-	opts ...RopeOption,
-) *RopeController {
-	if pipeline == nil {
-		panic("toc.NewWeightRopeController: pipeline must not be nil")
-	}
-	pipeline.mustFrozen()
-	pipeline.mustStage(drum)
-
-	if setHeadWIPWeight == nil {
-		panic("toc.NewWeightRopeController: setHeadWIPWeight must not be nil")
-	}
-	if stageSnapshot == nil {
-		panic("toc.NewWeightRopeController: stageSnapshot must not be nil")
-	}
-	if interval <= 0 {
-		panic("toc.NewWeightRopeController: interval must be positive")
-	}
-
-	heads := pipeline.HeadsTo(drum)
-	if len(heads) != 1 {
-		panic("toc.NewWeightRopeController: exactly one head must feed the drum")
-	}
-	head := heads[0]
-	ancestors := pipeline.AncestorsOf(drum)
-	validateLinearChain(pipeline, head, drum, ancestors)
-
-	rc := &RopeController{
-		pipeline:         pipeline,
-		drum:             drum,
-		head:             head,
-		ancestors:        ancestors,
-		setHeadWIPWeight: setHeadWIPWeight,
-		weightMode:       true,
-		stageSnapshot:    stageSnapshot,
-		interval:         interval,
-		safetyFactor:     defaultSafetyFactor,
-		initialLength:    defaultInitialRopeLength,
-		logger:           log.Default(),
-		ewmaFlowTime:     make(map[string]float64, len(ancestors)),
-	}
-
-	for _, opt := range opts {
-		opt(rc)
-	}
-
-	rc.ropeLengthA.Store(int64(rc.initialLength))
-
 	return rc
 }
 
@@ -467,11 +431,17 @@ func (rc *RopeController) applyRopeLength(ropeLength int) {
 		headLimit = 1 // floor: 0 disables limiting in both SetMaxWIP and SetMaxWIPWeight
 	}
 
+	if rc.weightMode {
+		rc.limits.ProposeWeight(rc.source, headLimit)
+	} else {
+		rc.limits.ProposeCount(rc.source, int(headLimit))
+	}
+	snap := rc.limits.Effective()
 	var applied int64
 	if rc.weightMode {
-		applied = rc.setHeadWIPWeight(headLimit)
+		applied = snap.AppliedWeight
 	} else {
-		applied = int64(rc.setHeadWIP(int(headLimit)))
+		applied = int64(snap.AppliedCount)
 	}
 	rc.headAppliedWIPA.Store(applied)
 	rc.adjustmentCountA.Add(1)

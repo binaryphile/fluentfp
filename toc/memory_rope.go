@@ -67,7 +67,7 @@ func (h *MemoryRopeHandle) Stats() MemoryRopeStats {
 func MemoryRope(
 	pipeline *Pipeline,
 	drum string,
-	setHeadWIPWeight func(int64) int64,
+	limits *LimitManager,
 	budgetFraction float64,
 	logger *log.Logger,
 ) *MemoryRopeHandle {
@@ -77,8 +77,8 @@ func MemoryRope(
 	pipeline.mustFrozen()
 	pipeline.mustStage(drum)
 
-	if setHeadWIPWeight == nil {
-		panic("toc.MemoryRope: setHeadWIPWeight must not be nil")
+	if limits == nil {
+		panic("toc.MemoryRope: limits must not be nil")
 	}
 	if budgetFraction <= 0 || budgetFraction > 1.0 {
 		panic("toc.MemoryRope: budgetFraction must be in (0, 1]")
@@ -133,19 +133,18 @@ func MemoryRope(
 			downstreamWeight = 0 // clamp: sampling skew can make aggregate < head
 		}
 		headBudget := budget - downstreamWeight
-		if headBudget < 1 {
-			headBudget = 1 // floor: SetMaxWIPWeight(0) disables limiting entirely
-		}
+		// No floor needed — LimitManager handles floor-of-1.
 
-		applied := setHeadWIPWeight(headBudget)
-		h.appliedA.Store(applied)
+		limits.ProposeWeight("memory-rope", headBudget)
+		snap := limits.Effective()
+		h.appliedA.Store(snap.AppliedWeight)
 		h.adjustments.Add(1)
 
-		curr := memRopeLogState{budget: budget, weight: aggregateWeight, applied: applied}
+		curr := memRopeLogState{budget: budget, weight: aggregateWeight, applied: snap.AppliedWeight}
 		if curr != lastLog {
 			logger.Printf("[memory-rope] headroom=%dMB budget=%dMB weight=%d head=%d→%d",
 				headroom/(1024*1024), budget/(1024*1024),
-				aggregateWeight, headBudget, applied)
+				aggregateWeight, headBudget, snap.AppliedWeight)
 			lastLog = curr
 		}
 	}

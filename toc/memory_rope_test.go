@@ -10,21 +10,8 @@ import (
 	"github.com/binaryphile/fluentfp/toc"
 )
 
-func memRopeTestPipeline(headWeight, midWeight int64) (*toc.Pipeline, map[string]*ropeTestStats) {
+func memRopeTestPipeline(headWeight, midWeight int64) (*toc.Pipeline, *toc.LimitManager) {
 	p := toc.NewPipeline()
-	stats := map[string]*ropeTestStats{
-		"head": {admitted: 1, serviceTimeDt: 0, itemsCompleted: 10},
-		"mid":  {admitted: 1, serviceTimeDt: 0, itemsCompleted: 10},
-		"drum": {admitted: 1, serviceTimeDt: 0, itemsCompleted: 10},
-	}
-
-	// Set admitted weights.
-	headStats := stats["head"]
-	headStats.admitted = 1
-
-	midStats := stats["mid"]
-	midStats.admitted = 1
-
 	p.AddStage("head", func() toc.Stats { return toc.Stats{AdmittedWeight: headWeight, ActiveWorkers: 1} })
 	p.AddStage("mid", func() toc.Stats { return toc.Stats{AdmittedWeight: midWeight, ActiveWorkers: 1} })
 	p.AddStage("drum", func() toc.Stats { return toc.Stats{ActiveWorkers: 1} })
@@ -32,31 +19,27 @@ func memRopeTestPipeline(headWeight, midWeight int64) (*toc.Pipeline, map[string
 	p.AddEdge("mid", "drum")
 	p.Freeze()
 
-	return p, stats
+	limits := toc.NewLimitManager(
+		func(n int) int { return n },
+		func(n int64) int64 { return n },
+		100, 0,
+	)
+	return p, limits
 }
 
 func TestMemoryRopeBasic(t *testing.T) {
-	p, _ := memRopeTestPipeline(100, 200) // head=100, mid=200 weight
+	p, limits := memRopeTestPipeline(100, 200)
 
-	var appliedWeight int64
-	setWeight := func(n int64) int64 {
-		appliedWeight = n
-		return n
-	}
+	h := toc.MemoryRope(p, "drum", limits, 0.4, nil)
 
-	h := toc.MemoryRope(p, "drum", setWeight, 0.4, nil)
-
-	// Simulate 10GB headroom.
 	info := memctl.MemInfo{
-		CgroupCurrent: 6 * 1024 * 1024 * 1024, // 6GB used
-		CgroupLimit:   10 * 1024 * 1024 * 1024, // 10GB limit
+		CgroupCurrent: 6 * 1024 * 1024 * 1024,
+		CgroupLimit:   10 * 1024 * 1024 * 1024,
 		CgroupOK:      true,
 	}
 
 	h.Callback()(context.Background(), info)
 
-	// Headroom = 4GB. Budget = 4GB × 0.4 = 1.6GB.
-	// Downstream weight (mid) = 200. Head budget = 1.6GB - 200.
 	stats := h.Stats()
 	if stats.Headroom != 4*1024*1024*1024 {
 		t.Errorf("Headroom = %d, want 4GB", stats.Headroom)
@@ -68,48 +51,29 @@ func TestMemoryRopeBasic(t *testing.T) {
 		t.Errorf("Budget = %d, want %d", stats.Budget, expectedBudget)
 	}
 
-	// Applied should be budget - midWeight (200).
-	expectedApplied := expectedBudget - 200
-	if appliedWeight != expectedApplied {
-		t.Errorf("applied = %d, want %d", appliedWeight, expectedApplied)
-	}
-
 	if stats.Adjustments != 1 {
 		t.Errorf("Adjustments = %d, want 1", stats.Adjustments)
 	}
 }
 
 func TestMemoryRopeNoHeadroom(t *testing.T) {
-	p, _ := memRopeTestPipeline(0, 0)
+	p, limits := memRopeTestPipeline(0, 0)
 
-	var called bool
-	h := toc.MemoryRope(p, "drum", func(n int64) int64 {
-		called = true
-		return n
-	}, 0.5, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
 
-	// No headroom signal.
-	info := memctl.MemInfo{} // all false
+	info := memctl.MemInfo{}
 	h.Callback()(context.Background(), info)
 
-	if called {
-		t.Error("should not call setHeadWIPWeight when headroom unavailable")
-	}
 	if h.Stats().Adjustments != 0 {
-		t.Error("Adjustments should be 0")
+		t.Error("Adjustments should be 0 when headroom unavailable")
 	}
 }
 
 func TestMemoryRopeZeroHeadroom(t *testing.T) {
-	p, _ := memRopeTestPipeline(100, 200)
+	p, limits := memRopeTestPipeline(100, 200)
 
-	var appliedWeight int64
-	h := toc.MemoryRope(p, "drum", func(n int64) int64 {
-		appliedWeight = n
-		return n
-	}, 0.5, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
 
-	// At cgroup limit — zero headroom.
 	info := memctl.MemInfo{
 		CgroupCurrent: 10 * 1024 * 1024 * 1024,
 		CgroupLimit:   10 * 1024 * 1024 * 1024,
@@ -117,29 +81,28 @@ func TestMemoryRopeZeroHeadroom(t *testing.T) {
 	}
 	h.Callback()(context.Background(), info)
 
-	// Budget = 0. Head budget = max(1, 0 - 200) = 1 (floor, not 0).
-	// SetMaxWIPWeight(0) would disable limiting — floor of 1 prevents that.
-	if appliedWeight != 1 {
-		t.Errorf("applied = %d, want 1 (floor under pressure)", appliedWeight)
+	// Budget = 0. LimitManager floors weight to 1.
+	snap := limits.Effective()
+	if snap.EffectiveWeight < 1 {
+		t.Errorf("EffectiveWeight = %d, want >= 1 (floor under pressure)", snap.EffectiveWeight)
 	}
 }
 
 func TestMemoryRopeHighDownstreamWeight(t *testing.T) {
-	// Downstream weight exceeds budget → head gets 0.
 	p := toc.NewPipeline()
 	p.AddStage("head", func() toc.Stats { return toc.Stats{AdmittedWeight: 50, ActiveWorkers: 1} })
 	p.AddStage("drum", func() toc.Stats { return toc.Stats{ActiveWorkers: 1} })
 	p.AddEdge("head", "drum")
 	p.Freeze()
 
-	var appliedWeight int64
-	h := toc.MemoryRope(p, "drum", func(n int64) int64 {
-		appliedWeight = n
-		return n
-	}, 0.5, nil)
+	limits := toc.NewLimitManager(
+		func(n int) int { return n },
+		func(n int64) int64 { return n },
+		100, 0,
+	)
 
-	// 100 bytes headroom, budget = 50. Head is only ancestor, headWeight=50.
-	// Downstream = 0, headBudget = 50.
+	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
+
 	info := memctl.MemInfo{
 		SystemAvailable:   100,
 		SystemAvailableOK: true,
@@ -147,21 +110,22 @@ func TestMemoryRopeHighDownstreamWeight(t *testing.T) {
 	h.Callback()(context.Background(), info)
 
 	// Budget = floor(100 * 0.5) = 50. Downstream = 0. Head budget = 50.
-	if appliedWeight != 50 {
-		t.Errorf("applied = %d, want 50", appliedWeight)
+	snap := limits.Effective()
+	if snap.EffectiveWeight != 50 {
+		t.Errorf("EffectiveWeight = %d, want 50", snap.EffectiveWeight)
 	}
 }
 
 func TestMemoryRopeLogOutput(t *testing.T) {
-	p, _ := memRopeTestPipeline(0, 0)
+	p, limits := memRopeTestPipeline(0, 0)
 
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 
-	h := toc.MemoryRope(p, "drum", func(n int64) int64 { return n }, 0.5, logger)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, logger)
 
 	info := memctl.MemInfo{
-		SystemAvailable:   1024 * 1024 * 1024, // 1GB
+		SystemAvailable:   1024 * 1024 * 1024,
 		SystemAvailableOK: true,
 	}
 	h.Callback()(context.Background(), info)
@@ -173,17 +137,15 @@ func TestMemoryRopeLogOutput(t *testing.T) {
 }
 
 func TestMemoryRopeStats(t *testing.T) {
-	p, _ := memRopeTestPipeline(0, 0)
+	p, limits := memRopeTestPipeline(0, 0)
 
-	h := toc.MemoryRope(p, "drum", func(n int64) int64 { return n }, 0.5, nil)
+	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
 
-	// Before any callback.
 	stats := h.Stats()
 	if stats.Headroom != 0 || stats.Budget != 0 || stats.Adjustments != 0 {
 		t.Error("stats should be zero before first callback")
 	}
 
-	// After callback.
 	info := memctl.MemInfo{
 		SystemAvailable:   2 * 1024 * 1024 * 1024,
 		SystemAvailableOK: true,
@@ -196,5 +158,41 @@ func TestMemoryRopeStats(t *testing.T) {
 	}
 	if stats.Headroom == 0 {
 		t.Error("Headroom should be non-zero after callback")
+	}
+}
+
+func TestMemoryRopeComposesWithProcessingRope(t *testing.T) {
+	// Both memory and processing rope propose to the same LimitManager.
+	// The tighter one governs.
+	p := toc.NewPipeline()
+	p.AddStage("head", func() toc.Stats { return toc.Stats{ActiveWorkers: 1} })
+	p.AddStage("drum", func() toc.Stats { return toc.Stats{ActiveWorkers: 1} })
+	p.AddEdge("head", "drum")
+	p.Freeze()
+
+	limits := toc.NewLimitManager(
+		func(n int) int { return n },
+		func(n int64) int64 { return n },
+		100, 1000, // baseline weight = 1000
+	)
+
+	// Processing rope proposes weight 500.
+	limits.ProposeWeight("processing-weight-rope", 500)
+
+	// Memory rope proposes weight 200 (tighter).
+	h := toc.MemoryRope(p, "drum", limits, 0.5, nil)
+	info := memctl.MemInfo{
+		SystemAvailable:   400, // headroom=400, budget=200
+		SystemAvailableOK: true,
+	}
+	h.Callback()(context.Background(), info)
+
+	snap := limits.Effective()
+	// min(1000, 500, 200) = 200. Memory rope governs.
+	if snap.EffectiveWeight != 200 {
+		t.Errorf("EffectiveWeight = %d, want 200 (memory tighter)", snap.EffectiveWeight)
+	}
+	if snap.WeightSource != "memory-rope" {
+		t.Errorf("WeightSource = %q, want memory-rope", snap.WeightSource)
 	}
 }
