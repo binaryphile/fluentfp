@@ -970,6 +970,15 @@ func TestSetMaxWIPCeilingTracksWorkers(t *testing.T) {
 
 	// Before the fix, ceiling was 5+2=7, so SetMaxWIP(10) would clamp to 7.
 
+	// Scale down: ceiling shrinks to 5+2=7. SetMaxWIP(10) clamps again.
+	// Note: existing MaxWIP stays at 10 until someone calls SetMaxWIP.
+	// The ceiling is enforced only on SetMaxWIP calls, not continuously.
+	s.SetWorkers(2)
+	applied = s.SetMaxWIP(10)
+	if applied != 7 {
+		t.Errorf("SetMaxWIP(10) after SetWorkers(2) = %d, want 7 (ceiling=7)", applied)
+	}
+
 	s.CloseInput()
 	s.Wait()
 }
