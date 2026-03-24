@@ -1,0 +1,105 @@
+// Canonical TOC observation and diagnosis model.
+//
+// Maps to Go types in github.com/binaryphile/fluentfp/toc/core.
+// Cross-language consumers (Java/Pepin, Perl/Ventus) use this schema
+// for NATS transport and sidecar adapters.
+//
+// Presence model: fields whose observability varies use proto3
+// optional. Absent means "not observed this window." Present with
+// value zero means "observed zero."
+syntax = "proto3";
+
+package toc.v1;
+
+option go_package = "github.com/binaryphile/fluentfp/toc/tocpb";
+
+// StageObservation is the canonical input to the analyzer.
+// One per stage per analysis window.
+//
+// Invariant: busy_work + idle_work + blocked_work <= capacity_work.
+// Failures is a subset of completions. Adapters should aim for
+// equality in the work invariant; the analyzer tolerates inequality.
+//
+// Presence: idle_work, blocked_work, completions, failures, and
+// queue_depth are optional — not all adapters can observe them.
+// Non-optional scalars (busy_work, capacity_work, arrivals, workers)
+// use proto3 default zero when absent. Converters validate semantics
+// (e.g., stage name non-empty, counts non-negative).
+message StageObservation {
+  string stage = 1;
+
+  // Work accounting (abstract units — nanoseconds or ticks).
+  uint64 busy_work = 2;
+  uint64 capacity_work = 3;
+
+  // Optional work accounting — absent means not observed.
+  optional uint64 idle_work = 4;
+  optional uint64 blocked_work = 5;
+
+  // Item counters over the window.
+  int64 arrivals = 6;
+  optional int64 completions = 7;
+  optional int64 failures = 8;
+
+  // Point-in-time gauges (end of window).
+  optional int64 queue_depth = 9;
+  int32 workers = 10;
+}
+
+// StageState classifies a stage's operational state.
+enum StageState {
+  STAGE_STATE_UNSPECIFIED = 0;
+  STAGE_STATE_HEALTHY = 1;
+  STAGE_STATE_STARVED = 2;
+  STAGE_STATE_BLOCKED = 3;
+  STAGE_STATE_SATURATED = 4;
+  STAGE_STATE_BROKEN = 5;
+}
+
+// StageDiagnosis holds the classification for one stage.
+// Contains ratios and counts, NOT rates. The caller converts to
+// rates using their own time model (wall-clock or ticks).
+message StageDiagnosis {
+  string stage = 1;
+  StageState state = 2;
+
+  double utilization = 3;
+
+  // Optional ratios — absent when the source observation lacked
+  // the corresponding work data.
+  optional double idle_ratio = 4;
+  optional double blocked_ratio = 5;
+
+  double error_rate = 6;
+  int64 queue_growth = 7;
+
+  // Passthrough counts for consumer rate computation.
+  int64 completions = 8;
+  int64 failures = 9;
+  int64 arrivals = 10;
+}
+
+// Diagnosis is the output of one analyzer step.
+message Diagnosis {
+  string constraint = 1;
+  double confidence = 2;
+  repeated StageDiagnosis stages = 3;
+  int64 starvation_count = 4;
+}
+
+// ObservationBatch wraps a set of observations for one analysis window.
+// This is the wire message for NATS transport.
+//
+// All observations in a batch MUST refer to the same analysis window.
+// The batch is produced by a single aggregator — there is no
+// cross-host assembly. Stage names MUST be unique within a batch.
+//
+// timestamp_unix_nano is the window end time (when the aggregator
+// sampled). window_duration_nano is the length of the analysis
+// window. Together they define [end - duration, end).
+message ObservationBatch {
+  string pipeline_id = 1;
+  int64 timestamp_unix_nano = 2;  // window end, UTC nanoseconds
+  int64 window_duration_nano = 3; // must be > 0
+  repeated StageObservation observations = 4;
+}
