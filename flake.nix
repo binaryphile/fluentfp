@@ -20,6 +20,8 @@
             gh
             nodejs
             sqlite
+            buf
+            protoc-gen-go
           ];
         };
       });
