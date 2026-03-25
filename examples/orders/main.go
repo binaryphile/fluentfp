@@ -31,7 +31,6 @@ import (
 	"github.com/binaryphile/fluentfp/option"
 	"github.com/binaryphile/fluentfp/rslt"
 	"github.com/binaryphile/fluentfp/slice"
-	"github.com/binaryphile/fluentfp/toc"
 	"github.com/binaryphile/fluentfp/web"
 )
 
@@ -130,35 +129,16 @@ func priceOrder(catalog map[string]int) func(context.Context, Order) (Order, err
 }
 
 // ---------------------------------------------------------------------------
-// Background pipeline (toc) — best-effort post-processing
+// Background post-processing — best-effort audit and metrics
 // ---------------------------------------------------------------------------
 
-func auditOrder(_ context.Context, o Order) (string, error) {
-	log.Printf("  postprocess: audit order %s (%d cents)", o.ID, o.TotalCents)
-	return o.ID, nil
-}
-
-func countLineItems(_ context.Context, o Order) (int, error) {
-	return len(o.Items), nil
-}
-
-func drainResults[T any](name string, ch <-chan rslt.Result[T]) {
-	for r := range ch {
-		if err := r.Err(); err != nil {
-			log.Printf("  postprocess: %s error: %v", name, err)
-			continue
+func startPipeline(_ context.Context, postCh <-chan Order) {
+	go func() {
+		for o := range postCh {
+			log.Printf("  postprocess: audit order %s (%d cents)", o.ID, o.TotalCents)
+			log.Printf("  postprocess: metrics %d line items", len(o.Items))
 		}
-		v, _ := r.Get()
-		log.Printf("  postprocess: %s result: %v", name, v)
-	}
-}
-
-func startPipeline(ctx context.Context, postCh <-chan Order) {
-	tee := toc.NewTee(ctx, toc.FromChan(postCh), 2)
-	auditPipe := toc.Pipe(ctx, tee.Branch(0), auditOrder, toc.Options[Order]{})
-	metricsPipe := toc.Pipe(ctx, tee.Branch(1), countLineItems, toc.Options[Order]{})
-	go drainResults("audit", auditPipe.Out())
-	go drainResults("metrics", metricsPipe.Out())
+	}()
 }
 
 // ---------------------------------------------------------------------------
