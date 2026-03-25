@@ -10,17 +10,23 @@ func TestAssociate(t *testing.T) {
 
 	toEntry := func(u user) (int, string) { return u.id, u.name }
 
-	t.Run("nil returns nil map", func(t *testing.T) {
+	t.Run("nil returns empty writable map", func(t *testing.T) {
 		got := Associate[user](nil, toEntry)
-		if got != nil {
-			t.Errorf("expected nil, got %v", got)
+		if got == nil {
+			t.Fatal("expected non-nil empty map")
+		}
+		if len(got) != 0 {
+			t.Errorf("expected empty, got %v", got)
 		}
 	})
 
-	t.Run("empty returns nil map", func(t *testing.T) {
+	t.Run("empty returns empty writable map", func(t *testing.T) {
 		got := Associate([]user{}, toEntry)
-		if got != nil {
-			t.Errorf("expected nil, got %v", got)
+		if got == nil {
+			t.Fatal("expected non-nil empty map")
+		}
+		if len(got) != 0 {
+			t.Errorf("expected empty, got %v", got)
 		}
 	})
 

@@ -13,6 +13,7 @@ func _() {
 	_ = Mapper[int].DropLastWhile
 	_ = Mapper[int].DropWhile
 	_ = Mapper[int].Each
+	_ = Mapper[int].EachIndexed
 	_ = Mapper[int].Every
 	_ = Mapper[int].Find
 	_ = Mapper[int].FindLast
@@ -85,19 +86,25 @@ func _() {
 	_ = Int.Sum
 
 	_ = Associate[int, int, int]
+	_ = AssociateIndexed[int, int, int]
 	_ = Chunk[int]
 	_ = NonEmpty
 	_ = NonZero[int]
+	_ = Compact[int]
 	_ = Contains[int]
+	_ = ContainsAll[int]
+	_ = ContainsAny[int]
 	_ = Difference[int]
 	_ = Enumerate[int]
 	_ = FilterMap[int, int]
+	_ = FilterMapIndexed[int, int]
 	_ = IndexOf[int]
 	_ = FlatMap[int, int]
 	_ = Flatten[int]
 	_ = FromSet[int]
 	_ = Group[int, int]{}
 	_ = GroupBy[int, int]
+	_ = GroupToMap[int, int, int]
 	_ = Intersect[int]
 	_ = KeyBy[int, int]
 	_ = LastIndexOf[int]
@@ -128,6 +135,7 @@ func _() {
 	_ = Window[int]
 	_ = Fold[int, int]
 	_ = Map[int, int]
+	_ = MapIndexed[int, int]
 	_ = MapAccum[int, int, int]
 	_ = MaxBy[int, int]
 	_ = MinBy[int, int]

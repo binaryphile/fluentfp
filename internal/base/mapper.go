@@ -96,6 +96,14 @@ func (ts Mapper[T]) Each(fn func(T)) {
 	}
 }
 
+// EachIndexed applies fn to each element's index and value in index order.
+// fn must not be nil.
+func (ts Mapper[T]) EachIndexed(fn func(int, T)) {
+	for i, t := range ts {
+		fn(i, t)
+	}
+}
+
 // First returns the first element, or not-ok if the slice is empty.
 func (ts Mapper[T]) First() option.Option[T] {
 	if len(ts) == 0 {
