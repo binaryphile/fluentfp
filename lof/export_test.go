@@ -1,4 +1,6 @@
-package lof
+package lof_test
+
+import . "github.com/binaryphile/fluentfp/lof"
 
 func _() {
 	_ = Asc[int]

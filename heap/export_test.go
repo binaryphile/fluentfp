@@ -1,4 +1,6 @@
-package heap
+package heap_test
+
+import . "github.com/binaryphile/fluentfp/heap"
 
 func _() {
 	// Heap methods

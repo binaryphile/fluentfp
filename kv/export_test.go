@@ -1,4 +1,6 @@
-package kv
+package kv_test
+
+import . "github.com/binaryphile/fluentfp/kv"
 
 func _() {
 	_ = From[int, int]

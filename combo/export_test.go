@@ -1,5 +1,6 @@
-package combo
+package combo_test
 
+import . "github.com/binaryphile/fluentfp/combo"
 import "github.com/binaryphile/fluentfp/tuple/pair"
 
 func _() {
