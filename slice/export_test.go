@@ -90,6 +90,7 @@ func _() {
 	_ = Chunk[int]
 	_ = NonEmpty
 	_ = NonZero[int]
+	_ = CollectGroups[int, int]
 	_ = Compact[int]
 	_ = Contains[int]
 	_ = ContainsAll[int]
