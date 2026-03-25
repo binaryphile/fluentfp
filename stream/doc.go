@@ -7,4 +7,7 @@
 //
 // This package supports pure/in-memory sources only. Effectful sources
 // (channels, iterators) are deferred to a future version.
+//
+// For non-memoized lazy sequences that re-evaluate on each iteration,
+// see [seq.Seq].
 package stream

@@ -2,6 +2,7 @@ package slice
 
 // Union returns the deduplicated combination of a and b, preserving
 // first-occurrence order (all of a first, then extras from b).
+// Returns empty when both inputs are nil/empty.
 func Union[T comparable](a, b []T) Mapper[T] {
 	if len(a) == 0 && len(b) == 0 {
 		return Mapper[T]{}

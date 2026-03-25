@@ -10,4 +10,7 @@
 //
 // Option is not a pointer wrapper. It distinguishes "value is T's zero"
 // from "no value at all" — a distinction bare T cannot make.
+//
+// To bridge into error handling, see [Option.OkOr] and [MapResult]
+// which convert to [rslt.Result].
 package option

@@ -1,7 +1,8 @@
 package slice
 
 // Flatten concatenates nested slices into a single flat slice,
-// preserving element order.
+// preserving element order. Returns empty for nil/empty input.
+// Nil inner slices are treated as empty.
 func Flatten[T any](tss [][]T) Mapper[T] {
 	if len(tss) == 0 {
 		return Mapper[T]{}

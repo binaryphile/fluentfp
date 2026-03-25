@@ -8,4 +8,7 @@
 // [From] converts a plain map to Entries without copying. Start there for
 // method chaining; use standalone functions when the result type differs
 // from the input.
+//
+// Many operations return [slice.Mapper] for further chaining ([Map],
+// [Values], [Keys], [ToPairs]).
 package kv

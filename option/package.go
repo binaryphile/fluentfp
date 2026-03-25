@@ -12,8 +12,8 @@ func Env(key string) String {
 	return NonEmpty(os.Getenv(key))
 }
 
-// Map returns an option of the result of applying fn to the option's value if ok, or not-ok otherwise.
-// For same-type mapping, use the Transform method.
+// Map applies fn to the contained value if the option is ok, or returns not-ok otherwise.
+// If the option is ok, fn must not be nil. For same-type mapping, use [Option.Transform].
 func Map[T, R any](b Option[T], fn func(T) R) (_ Option[R]) {
 	if !b.ok {
 		return
@@ -22,7 +22,8 @@ func Map[T, R any](b Option[T], fn func(T) R) (_ Option[R]) {
 	return Of(fn(b.t))
 }
 
-// FlatMap returns the result of applying fn to the option's value if ok, or not-ok otherwise.
+// FlatMap applies fn to the contained value if the option is ok, or returns not-ok otherwise.
+// If the option is ok, fn must not be nil.
 func FlatMap[T, R any](b Option[T], fn func(T) Option[R]) (_ Option[R]) {
 	if !b.ok {
 		return

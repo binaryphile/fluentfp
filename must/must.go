@@ -15,15 +15,17 @@ var ErrEnvEmpty = errors.New("environment variable empty")
 // ErrNilFunction indicates a nil function was passed where one is required.
 var ErrNilFunction = errors.New("nil function")
 
-// BeNil panics if err is not nil.
+// BeNil panics if err is not nil. The panic value is err itself,
+// preserving error chains for errors.Is/errors.As after recovery.
 func BeNil(err error) {
 	if err != nil {
 		panic(err)
 	}
 }
 
-// Get returns the value of a (value, error) pair of arguments unless error is non-nil.
-// In that case, it panics.
+// Get returns the value of a (value, error) pair, or panics if error is non-nil.
+// The panic value is the original error, preserving error chains for
+// errors.Is/errors.As after recovery.
 func Get[T any](t T, err error) T {
 	if err != nil {
 		panic(err)
@@ -32,8 +34,9 @@ func Get[T any](t T, err error) T {
 	return t
 }
 
-// Get2 returns the value of a (value, value, error) set of arguments unless error is non-nil.
-// In that case, it panics.
+// Get2 returns the values of a (value, value, error) triple, or panics if error is non-nil.
+// The panic value is the original error, preserving error chains for
+// errors.Is/errors.As after recovery.
 func Get2[T, T2 any](t T, t2 T2, err error) (T, T2) {
 	if err != nil {
 		panic(err)

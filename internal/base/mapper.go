@@ -7,8 +7,9 @@ import (
 	"github.com/binaryphile/fluentfp/option"
 )
 
-// Mapper is a fluent slice usable anywhere a regular slice is, but provides additional fluent fp methods.
-// Its underlying type is []T.
+// Mapper is a defined type over []T. It preserves indexing, range, and len
+// while adding chainable functional methods. The zero value is a nil slice;
+// methods treat it like an empty slice.
 type Mapper[T any] []T
 
 // FindAs returns the first element that type-asserts to R, or not-ok if none match.
@@ -23,6 +24,7 @@ func FindAs[R, T any](ts []T) option.Option[R] {
 }
 
 // Transform returns the result of applying fn to each member of ts.
+// fn must not be nil.
 func (ts Mapper[T]) Transform(fn func(T) T) Mapper[T] {
 	results := make([]T, len(ts))
 	for i := range ts {
@@ -34,6 +36,7 @@ func (ts Mapper[T]) Transform(fn func(T) T) Mapper[T] {
 
 // Drop returns ts without the first n elements.
 // Returns empty if n >= len(ts). Negative n is treated as zero.
+// The result aliases the input backing array.
 func (ts Mapper[T]) Drop(n int) Mapper[T] {
 	if len(ts) == 0 {
 		return Mapper[T]{}
@@ -45,6 +48,7 @@ func (ts Mapper[T]) Drop(n int) Mapper[T] {
 
 // DropLast returns ts without the last n elements.
 // Returns empty if n >= len(ts). Negative n is treated as zero.
+// The result aliases the input backing array.
 func (ts Mapper[T]) DropLast(n int) Mapper[T] {
 	if len(ts) == 0 {
 		return Mapper[T]{}
@@ -53,7 +57,8 @@ func (ts Mapper[T]) DropLast(n int) Mapper[T] {
 }
 
 // DropWhile returns the suffix of ts remaining after dropping the longest prefix
-// of elements that satisfy fn.
+// of elements that satisfy fn. The result aliases the input backing array.
+// fn must not be nil.
 func (ts Mapper[T]) DropWhile(fn func(T) bool) Mapper[T] {
 	if len(ts) == 0 {
 		return Mapper[T]{}
@@ -68,7 +73,8 @@ func (ts Mapper[T]) DropWhile(fn func(T) bool) Mapper[T] {
 }
 
 // DropLastWhile returns the prefix of ts remaining after dropping the longest suffix
-// of elements that satisfy fn.
+// of elements that satisfy fn. The result aliases the input backing array.
+// fn must not be nil.
 func (ts Mapper[T]) DropLastWhile(fn func(T) bool) Mapper[T] {
 	if len(ts) == 0 {
 		return Mapper[T]{}
@@ -82,7 +88,8 @@ func (ts Mapper[T]) DropLastWhile(fn func(T) bool) Mapper[T] {
 	return ts[:0]
 }
 
-// Each applies fn to each member of ts.
+// Each applies fn to each member of ts in index order.
+// fn must not be nil.
 func (ts Mapper[T]) Each(fn func(T)) {
 	for _, t := range ts {
 		fn(t)
@@ -105,7 +112,9 @@ func (ts Mapper[T]) Last() option.Option[T] {
 	return option.Of(ts[len(ts)-1])
 }
 
-// Any returns true if fn returns true for any element.
+// Any reports whether fn returns true for any element.
+// Scans elements in index order and stops at the first match.
+// fn must not be nil.
 func (ts Mapper[T]) Any(fn func(T) bool) bool {
 	for _, t := range ts {
 		if fn(t) {
@@ -115,8 +124,9 @@ func (ts Mapper[T]) Any(fn func(T) bool) bool {
 	return false
 }
 
-// Every returns true if fn returns true for every element.
-// Returns true for an empty slice (vacuous truth).
+// Every reports whether fn returns true for every element.
+// Scans elements in index order and stops at the first mismatch.
+// Returns true for an empty slice (vacuous truth). fn must not be nil.
 func (ts Mapper[T]) Every(fn func(T) bool) bool {
 	for _, t := range ts {
 		if !fn(t) {
@@ -126,8 +136,9 @@ func (ts Mapper[T]) Every(fn func(T) bool) bool {
 	return true
 }
 
-// None returns true if fn returns false for every element.
-// Returns true for an empty slice (no elements match).
+// None reports whether fn returns false for every element.
+// Scans elements in index order and stops at the first match.
+// Returns true for an empty slice (no elements match). fn must not be nil.
 func (ts Mapper[T]) None(fn func(T) bool) bool {
 	return !ts.Any(fn)
 }
@@ -152,6 +163,8 @@ func (ts Mapper[T]) Single() either.Either[int, T] {
 }
 
 // Find returns the first element matching the predicate, or not-ok if none match.
+// Scans elements in index order and stops at the first match.
+// fn must not be nil.
 func (ts Mapper[T]) Find(fn func(T) bool) option.Option[T] {
 	for _, t := range ts {
 		if fn(t) {
@@ -162,6 +175,8 @@ func (ts Mapper[T]) Find(fn func(T) bool) option.Option[T] {
 }
 
 // FindLast returns the last element matching the predicate, or not-ok if none match.
+// Scans elements in reverse index order and stops at the first match.
+// fn must not be nil.
 func (ts Mapper[T]) FindLast(fn func(T) bool) option.Option[T] {
 	for i := len(ts) - 1; i >= 0; i-- {
 		if fn(ts[i]) {
@@ -172,8 +187,9 @@ func (ts Mapper[T]) FindLast(fn func(T) bool) option.Option[T] {
 	return option.NotOk[T]()
 }
 
-// FlatMap applies fn to each element, concatenating the resulting slices in iteration order.
+// FlatMap applies fn to each element, concatenating the resulting slices in index order.
 // Nil slices returned by fn are treated as empty. The result is always non-nil.
+// fn must not be nil.
 func (ts Mapper[T]) FlatMap(fn func(T) []T) Mapper[T] {
 	results := make([]T, 0, len(ts))
 	for _, t := range ts {
@@ -183,6 +199,8 @@ func (ts Mapper[T]) FlatMap(fn func(T) []T) Mapper[T] {
 }
 
 // IndexWhere returns the index of the first element matching the predicate, or not-ok if none match.
+// Scans elements in index order and stops at the first match.
+// fn must not be nil.
 func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Option[int] {
 	for i, t := range ts {
 		if fn(t) {
@@ -193,6 +211,8 @@ func (ts Mapper[T]) IndexWhere(fn func(T) bool) option.Option[int] {
 }
 
 // LastIndexWhere returns the index of the last element matching the predicate, or not-ok if none match.
+// Scans elements in reverse index order and stops at the first match.
+// fn must not be nil.
 func (ts Mapper[T]) LastIndexWhere(fn func(T) bool) option.Option[int] {
 	for i := len(ts) - 1; i >= 0; i-- {
 		if fn(ts[i]) {
@@ -236,7 +256,7 @@ func (ts Mapper[T]) KeyByString(fn func(T) string) map[string]T {
 }
 
 // KeepIf returns a new slice containing the members of ts for which fn returns true.
-// It is the complement of RemoveIf.
+// It is the complement of [Mapper.RemoveIf]. fn must not be nil.
 func (ts Mapper[T]) KeepIf(fn func(T) bool) Mapper[T] {
 	results := make([]T, 0, len(ts))
 	for _, t := range ts {
@@ -248,9 +268,10 @@ func (ts Mapper[T]) KeepIf(fn func(T) bool) Mapper[T] {
 	return results
 }
 
-// KeepIfWhen conditionally filters: when cond is true, behaves like KeepIf;
+// KeepIfWhen conditionally filters: when cond is true, behaves like [Mapper.KeepIf];
 // when cond is false, returns ts unchanged. This preserves method chaining
 // when a filter should only apply based on an external condition (e.g., an optional query parameter).
+// If cond is true, fn must not be nil.
 func (ts Mapper[T]) KeepIfWhen(cond bool, fn func(T) bool) Mapper[T] {
 	if !cond {
 		return ts
@@ -274,7 +295,7 @@ func (ts Mapper[T]) Reverse() Mapper[T] {
 }
 
 // RemoveIf returns a new slice containing members for which fn returns false.
-// It is the complement of KeepIf.
+// It is the complement of [Mapper.KeepIf]. fn must not be nil.
 func (ts Mapper[T]) RemoveIf(fn func(T) bool) Mapper[T] {
 	results := make([]T, 0, len(ts))
 	for _, t := range ts {
@@ -286,9 +307,10 @@ func (ts Mapper[T]) RemoveIf(fn func(T) bool) Mapper[T] {
 	return results
 }
 
-// RemoveIfWhen conditionally filters: when cond is true, behaves like RemoveIf;
+// RemoveIfWhen conditionally filters: when cond is true, behaves like [Mapper.RemoveIf];
 // when cond is false, returns ts unchanged. This preserves method chaining
 // when a filter should only apply based on an external condition.
+// If cond is true, fn must not be nil.
 func (ts Mapper[T]) RemoveIfWhen(cond bool, fn func(T) bool) Mapper[T] {
 	if !cond {
 		return ts
@@ -297,14 +319,15 @@ func (ts Mapper[T]) RemoveIfWhen(cond bool, fn func(T) bool) Mapper[T] {
 }
 
 // Partition splits ts into two slices: elements where fn returns true, and elements where it returns false.
-// Single pass. Both results are independent slices.
+// Single pass. Both results are independent slices. fn must not be nil.
 // For use in standalone form, see the Partition function in the slice package.
 func (ts Mapper[T]) Partition(fn func(T) bool) (Mapper[T], Mapper[T]) {
 	match, rest := Partition(ts, fn)
 	return match, rest
 }
 
-// Take returns the first n elements of ts.
+// Take returns the first n elements of ts. Negative n is treated as zero;
+// n greater than len(ts) is treated as len(ts). The result aliases the input backing array.
 func (ts Mapper[T]) Take(n int) Mapper[T] {
 	if len(ts) == 0 {
 		return Mapper[T]{}
@@ -317,7 +340,8 @@ func (ts Mapper[T]) Take(n int) Mapper[T] {
 	return ts[:n]
 }
 
-// TakeLast returns the last n elements of ts.
+// TakeLast returns the last n elements of ts. Negative n is treated as zero;
+// n greater than len(ts) returns the entire slice. The result aliases the input backing array.
 func (ts Mapper[T]) TakeLast(n int) Mapper[T] {
 	if len(ts) == 0 {
 		return Mapper[T]{}
@@ -328,6 +352,7 @@ func (ts Mapper[T]) TakeLast(n int) Mapper[T] {
 }
 
 // TakeWhile returns the longest prefix of elements that satisfy fn.
+// The result aliases the input backing array. fn must not be nil.
 func (ts Mapper[T]) TakeWhile(fn func(T) bool) Mapper[T] {
 	if len(ts) == 0 {
 		return Mapper[T]{}
@@ -341,7 +366,7 @@ func (ts Mapper[T]) TakeWhile(fn func(T) bool) Mapper[T] {
 	return ts
 }
 
-// ToAny returns the result of applying fn to each member of ts.
+// ToAny returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToAny(fn func(T) any) Mapper[any] {
 	results := make([]any, len(ts))
 	for i, t := range ts {
@@ -351,7 +376,7 @@ func (ts Mapper[T]) ToAny(fn func(T) any) Mapper[any] {
 	return results
 }
 
-// ToBool returns the result of applying fn to each member of ts.
+// ToBool returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToBool(fn func(T) bool) Mapper[bool] {
 	results := make([]bool, len(ts))
 	for i, t := range ts {
@@ -361,7 +386,7 @@ func (ts Mapper[T]) ToBool(fn func(T) bool) Mapper[bool] {
 	return results
 }
 
-// ToByte returns the result of applying fn to each member of ts.
+// ToByte returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToByte(fn func(T) byte) Mapper[byte] {
 	results := make([]byte, len(ts))
 	for i, t := range ts {
@@ -371,7 +396,7 @@ func (ts Mapper[T]) ToByte(fn func(T) byte) Mapper[byte] {
 	return results
 }
 
-// ToError returns the result of applying fn to each member of ts.
+// ToError returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToError(fn func(T) error) Mapper[error] {
 	results := make([]error, len(ts))
 	for i, t := range ts {
@@ -381,7 +406,7 @@ func (ts Mapper[T]) ToError(fn func(T) error) Mapper[error] {
 	return results
 }
 
-// ToFloat32 returns the result of applying fn to each member of ts.
+// ToFloat32 returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToFloat32(fn func(T) float32) Mapper[float32] {
 	results := make([]float32, len(ts))
 	for i, t := range ts {
@@ -391,7 +416,7 @@ func (ts Mapper[T]) ToFloat32(fn func(T) float32) Mapper[float32] {
 	return results
 }
 
-// ToFloat64 returns the result of applying fn to each member of ts.
+// ToFloat64 returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToFloat64(fn func(T) float64) Float64 {
 	results := make([]float64, len(ts))
 	for i, t := range ts {
@@ -401,7 +426,7 @@ func (ts Mapper[T]) ToFloat64(fn func(T) float64) Float64 {
 	return results
 }
 
-// ToInt returns the result of applying fn to each member of ts.
+// ToInt returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToInt(fn func(T) int) Int {
 	results := make([]int, len(ts))
 	for i, t := range ts {
@@ -411,7 +436,7 @@ func (ts Mapper[T]) ToInt(fn func(T) int) Int {
 	return results
 }
 
-// ToInt32 returns the result of applying fn to each member of ts.
+// ToInt32 returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToInt32(fn func(T) int32) Mapper[int32] {
 	results := make([]int32, len(ts))
 	for i, t := range ts {
@@ -421,7 +446,7 @@ func (ts Mapper[T]) ToInt32(fn func(T) int32) Mapper[int32] {
 	return results
 }
 
-// ToInt64 returns the result of applying fn to each member of ts.
+// ToInt64 returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToInt64(fn func(T) int64) Mapper[int64] {
 	results := make([]int64, len(ts))
 	for i, t := range ts {
@@ -431,7 +456,7 @@ func (ts Mapper[T]) ToInt64(fn func(T) int64) Mapper[int64] {
 	return results
 }
 
-// ToRune returns the result of applying fn to each member of ts.
+// ToRune returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToRune(fn func(T) rune) Mapper[rune] {
 	results := make([]rune, len(ts))
 	for i, t := range ts {
@@ -441,7 +466,7 @@ func (ts Mapper[T]) ToRune(fn func(T) rune) Mapper[rune] {
 	return results
 }
 
-// ToString returns the result of applying fn to each member of ts.
+// ToString returns the result of applying fn to each member of ts. fn must not be nil.
 func (ts Mapper[T]) ToString(fn func(T) string) String {
 	results := make([]string, len(ts))
 	for i, t := range ts {

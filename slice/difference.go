@@ -1,7 +1,7 @@
 package slice
 
 // Difference returns elements in a that are not in b, deduplicated,
-// preserving first-occurrence order from a.
+// preserving first-occurrence order from a. Returns empty for nil/empty input.
 func Difference[T comparable](a, b []T) Mapper[T] {
 	if len(a) == 0 {
 		return Mapper[T]{}

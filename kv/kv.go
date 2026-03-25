@@ -17,13 +17,13 @@ func From[K comparable, V any](m map[K]V) Entries[K, V] {
 }
 
 // Values extracts the values of m as a Mapper for further transformation.
-// Shortcut for From(m).Values().
+// Order is not guaranteed (map iteration order). Shortcut for From(m).Values().
 func Values[K comparable, V any](m map[K]V) base.Mapper[V] {
 	return From(m).Values()
 }
 
 // Keys extracts the keys of m as a Mapper for further transformation.
-// Shortcut for From(m).Keys().
+// Order is not guaranteed (map iteration order). Shortcut for From(m).Keys().
 func Keys[K comparable, V any](m map[K]V) base.Mapper[K] {
 	return From(m).Keys()
 }
@@ -127,7 +127,7 @@ func Merge[K comparable, V any](maps ...map[K]V) map[K]V {
 }
 
 // PickByKeys returns a new map containing only entries whose keys appear in keys.
-// Keys not present in m are silently ignored.
+// Keys not present in m are silently ignored. Returns empty map for nil input.
 func PickByKeys[K comparable, V any](m map[K]V, keys []K) map[K]V {
 	result := make(map[K]V, len(keys))
 	for _, k := range keys {
@@ -139,6 +139,7 @@ func PickByKeys[K comparable, V any](m map[K]V, keys []K) map[K]V {
 }
 
 // OmitByKeys returns a new map containing entries whose keys do NOT appear in keys.
+// Returns empty map for nil input.
 func OmitByKeys[K comparable, V any](m map[K]V, keys []K) map[K]V {
 	exclude := make(map[K]bool, len(keys))
 	for _, k := range keys {

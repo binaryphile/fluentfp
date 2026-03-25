@@ -9,4 +9,7 @@
 // standalone functions because Go methods cannot introduce new type parameters.
 // They accept and return []T / Mapper[T], so standalone and method calls
 // interleave freely.
+//
+// Several methods return [option.Option] ([Mapper.Find], [Mapper.First],
+// [Mapper.Last], [Mapper.IndexWhere]) or [either.Either] ([Mapper.Single]).
 package slice

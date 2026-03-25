@@ -12,7 +12,7 @@ import "github.com/binaryphile/fluentfp/internal/base"
 // Panics in fn are recovered, converted to *[rslt.PanicError] with a stack captured
 // during recovery, and re-panicked on the calling goroutine after all workers exit.
 //
-// Panics if workers <= 0.
+// fn must not be nil. Panics if workers <= 0.
 func PFlatMap[T, R any](ts []T, workers int, fn func(T) []R) Mapper[R] {
 	return base.PFlatMap(ts, workers, fn)
 }

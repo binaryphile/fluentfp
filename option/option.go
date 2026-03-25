@@ -95,10 +95,8 @@ func (b Option[T]) IsOk() bool {
 	return b.ok
 }
 
-// KeepIf returns b provided that applying fn to an ok option's value returns true, or the original option otherwise.
-// It is the filter operation.
-// Since Go doesn't offer a convenient lambda syntax for constructing the negation of a function's output,
-// there is a RemoveIf method as well.
+// KeepIf returns b if fn returns true for an ok option's value, or not-ok otherwise.
+// It is the complement of [Option.RemoveIf]. If the option is ok, fn must not be nil.
 func (b Option[T]) KeepIf(fn func(T) bool) (_ Option[T]) {
 	if !b.ok {
 		return b
@@ -238,10 +236,8 @@ func (b Option[T]) ToInt(fn func(T) int) (_ Option[int]) {
 	return Of(fn(b.t))
 }
 
-// RemoveIf returns a not-ok option provided that applying fn to an ok option's value returns true, or the original option otherwise.
-// It is the filter operation with negation.
-// Since Go doesn't offer a convenient lambda syntax for constructing the negation of a function's output,
-// having negation built-in is both a convenience and keeps consuming code readable.
+// RemoveIf returns not-ok if fn returns true for an ok option's value, or the original option otherwise.
+// It is the complement of [Option.KeepIf]. If the option is ok, fn must not be nil.
 func (b Option[T]) RemoveIf(fn func(T) bool) (_ Option[T]) {
 	if !b.ok {
 		return b
@@ -284,7 +280,8 @@ func (b Option[T]) ToOpt() (_ *T) {
 	return &b.t
 }
 
-// Transform returns the result of applying fn to the option's value provided that the option is ok, or not-ok otherwise.
+// Transform applies fn to the contained value if the option is ok, or returns not-ok otherwise.
+// If the option is ok, fn must not be nil.
 func (b Option[T]) Transform(fn func(T) T) (_ Option[T]) {
 	if !b.ok {
 		return
@@ -293,7 +290,8 @@ func (b Option[T]) Transform(fn func(T) T) (_ Option[T]) {
 	return Of(fn(b.t))
 }
 
-// FlatMap returns the result of applying fn to the option's value if ok, or not-ok otherwise.
+// FlatMap applies fn to the contained value if the option is ok, or returns not-ok otherwise.
+// If the option is ok, fn must not be nil.
 func (b Option[T]) FlatMap(fn func(T) Option[T]) (_ Option[T]) {
 	if !b.ok {
 		return

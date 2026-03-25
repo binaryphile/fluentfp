@@ -2,6 +2,7 @@ package slice
 
 // GroupBy groups elements by the key returned by fn.
 // Groups preserve first-seen key order; items within each group preserve input order.
+// fn must not be nil.
 func GroupBy[T any, K comparable](ts []T, fn func(T) K) Mapper[Group[K, T]] {
 	if len(ts) == 0 {
 		return Mapper[Group[K, T]]{}
