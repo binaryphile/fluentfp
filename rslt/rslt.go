@@ -74,6 +74,7 @@ func (r Result[R]) Or(defaultVal R) R {
 }
 
 // OrCall returns the value if r is Ok, or the result of calling fn if r is Err.
+// fn is called at most once and only when r is Err.
 func (r Result[R]) OrCall(fn func() R) R {
 	if r.err != nil {
 		return fn()
@@ -102,10 +103,9 @@ func (r Result[R]) Err() error {
 	return r.err
 }
 
-// Transform returns the result of applying fn to the value if r is Ok, or r unchanged if r is Err.
-// For cross-type mapping (R -> S), use the standalone [Map] function.
-// Transform is the same-type method form; Go does not allow generic methods with
-// extra type parameters, so cross-type mapping requires a standalone function.
+// Transform applies fn to the value if r is Ok. Returns r unchanged if Err.
+// fn is called at most once and is not retained. Panics if fn is nil and r is Ok.
+// For cross-type mapping (R → S), use standalone [Map].
 func (r Result[R]) Transform(fn func(R) R) Result[R] {
 	if r.err != nil {
 		return r
@@ -114,7 +114,8 @@ func (r Result[R]) Transform(fn func(R) R) Result[R] {
 	return Ok(fn(r.value))
 }
 
-// FlatMap returns the result of applying fn to the value if Ok, or r unchanged if Err.
+// FlatMap applies fn to the value if r is Ok. Returns r unchanged if Err.
+// fn is called at most once and is not retained. Panics if fn is nil and r is Ok.
 func (r Result[R]) FlatMap(fn func(R) Result[R]) Result[R] {
 	if r.err != nil {
 		return r
@@ -182,7 +183,8 @@ func (r Result[R]) MapErr(fn func(error) error) Result[R] {
 
 // standalone functions
 
-// Map returns the result of applying fn to the value if res is Ok, or an Err with the same error if res is Err.
+// Map applies fn to the value if res is Ok, returning a new Ok. Returns Err unchanged.
+// fn is called at most once and is not retained. Panics if fn is nil and res is Ok.
 func Map[R, S any](res Result[R], fn func(R) S) Result[S] {
 	if res.err != nil {
 		return Err[S](res.err)
@@ -191,7 +193,8 @@ func Map[R, S any](res Result[R], fn func(R) S) Result[S] {
 	return Ok(fn(res.value))
 }
 
-// FlatMap returns the result of applying fn to the value if Ok, or Err with same error if Err.
+// FlatMap applies fn to the value if res is Ok, returning fn's Result. Returns Err unchanged.
+// fn is called at most once and is not retained. Panics if fn is nil and res is Ok.
 func FlatMap[R, S any](res Result[R], fn func(R) Result[S]) Result[S] {
 	if res.err != nil {
 		return Err[S](res.err)

@@ -1,4 +1,3 @@
-// Package lof provides utility functions for functional programming.
 package lof
 
 import (

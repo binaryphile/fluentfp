@@ -1,4 +1,3 @@
-// Package kv provides fluent operations on Go maps (key-value collections).
 package kv
 
 import (

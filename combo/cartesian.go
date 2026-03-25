@@ -1,5 +1,3 @@
-// Package combo provides combinatorial constructions: Cartesian products,
-// permutations, combinations, and power sets.
 package combo
 
 import (
