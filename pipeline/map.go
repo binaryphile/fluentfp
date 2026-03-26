@@ -19,7 +19,7 @@ type workResult[R any] struct {
 	res rslt.Result[R]
 }
 
-// Map applies fn to each input using workers persistent goroutines (pull model).
+// FanOut applies fn to each input using workers persistent goroutines (pull model).
 // Output order matches input order via a reorder buffer.
 // Workers pull from input — blocked workers create natural backpressure.
 // Panics in fn are recovered as *[rslt.PanicError].
