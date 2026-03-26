@@ -2,7 +2,7 @@
 
 **Fluent functional programming for Go.**
 
-Type-safe collection chains, composable resilience (retry, circuit breaker, throttle), bounded concurrency pipelines, typed HTTP handlers, and optional/result types — all on standard Go, no framework required.
+Type-safe collection chains, composable resilience (retry, circuit breaker, throttle), typed HTTP handlers, and optional/result types — all on standard Go, no framework required.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for API docs and the **[showcase](docs/showcase.md)** for 16 before/after rewrites from real GitHub projects.
 
@@ -262,8 +262,6 @@ Packages are independent — import one or all.
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
 | [call](call/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
-| [pipeline](pipeline/) | Channel streaming with worker pools | `FanOut`, `Filter`, `Batch`, `Merge`, `Tee` |
-| [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin`, `SetMaxWIP`, `SetMaxWIPWeight`, `SetWorkers`, `NewReporter` |
 | [memctl](memctl/)   | Memory-aware controller          | `Watch`, `MemInfo`, `Headroom`                 |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
 | [web](web/)         | Typed HTTP handlers              | `Adapt`, `DecodeJSON`, `Steps`                 |
@@ -313,17 +311,6 @@ ctx = ctxval.With(ctx, RequestID("abc-123"))
 reqID := ctxval.Get[RequestID](ctx)  // Option[RequestID]
 ```
 
-**[pipeline](pipeline/)** — channel streaming with worker-pool backpressure:
-
-```go
-// Compose resilience, then stream through 8 workers
-safeFetch := fetchOrder.With(call.Retrier(3, backoff, isRetryable))
-results := pipeline.FanOut(ctx, orderIDs, 8, safeFetch)
-for r := range results {  // ordered, backpressure-aware
-    r.IfOk(store)
-}
-```
-
 **[rslt](rslt/)** — typed error handling as values:
 
 ```go
@@ -352,11 +339,6 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Fold with early exit on error | `slice.TryFold(events, state, fn)` | slice |
 | Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
-| Stream items through worker pools | `pipeline.FanOut(ctx, in, 8, fn)` | pipeline |
-| Filter a channel stream | `pipeline.Filter(ctx, in, pred)` | pipeline |
-| Batch channel items by count | `pipeline.Batch(ctx, in, 100)` | pipeline |
-| Fan-in multiple channels | `pipeline.Merge(ctx, a, b, c)` | pipeline |
-| Duplicate a stream to N consumers | `pipeline.Tee(ctx, in, 3)` | pipeline |
 | Retry on failure with backoff | `call.Retry(3, backoff, shouldRetry, fn)` | call |
 | Circuit-break an unhealthy dependency | `call.WithBreaker(breaker, fn)` | call |
 | Throttle concurrent access | `call.Throttle(n, fn)` | call |
@@ -374,15 +356,6 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Extract path parameters as Option | `web.PathParam(req, "id")` | web |
 | Partially apply context to a call | `rslt.LiftCtx(ctx, fn)` | rslt |
 | Apply fallible fn to Option (absent=ok, invalid=err) | `option.MapResult(opt, fn)` | option |
-| Bridge chan T to chan Result[T] for toc | `toc.FromChan(ch)` | toc |
-| Run a bounded pipeline with backpressure | `toc.Start` → `toc.Pipe` → `toc.Pipe` | toc |
-| Batch items by count or weight | `toc.NewBatcher(ctx, src, n)` | toc |
-| Broadcast to N branches | `toc.NewTee(ctx, src, n)` | toc |
-| Recombine N streams into one | `toc.NewMerge(ctx, sources...)` | toc |
-| Recombine two branch results | `toc.NewJoin(ctx, srcA, srcB, fn)` | toc |
-| Dynamic WIP limiting (rope) | `stage.SetMaxWIP(n)` / `stage.SetMaxWIPWeight(n)` | toc |
-| Pause/resume admission | `stage.PauseAdmission()` / `stage.ResumeAdmission()` | toc |
-| Pipeline stats reporter | `toc.NewReporter(interval).AddStage(name, stage.Stats)` | toc |
 | Lazy iterate with memoization | `stream.Generate(seed, fn).Take(10).Collect()` | stream |
 | Lazy iterate without memoization | `seq.From(s).KeepIf(f).Take(10).Collect()` | seq |
 | Memoize a function | `memo.From(fn)` or `memo.Fn(cache, fn)` | memo |
@@ -395,10 +368,8 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 
 | Example | Packages | Description |
 |---------|----------|-------------|
-| [orders](examples/orders/) | web, toc, ctxval, option, rslt, slice | Curl-testable order processing service — full cross-package composition demo |
+| [orders](examples/orders/) | web, ctxval, option, rslt, slice | Curl-testable order processing service — full cross-package composition demo |
 | [resilient_client](examples/resilient_client.go) | call | Circuit breaker + retry + error classification in 20 lines |
-| [pipeline_fanout](examples/pipeline_fanout.go) | toc, rslt | CSV ingest → parse → validate → Tee to DB + audit log with stats |
-| [tee_join_wal](examples/tee_join_wal.go) | toc, rslt | Write-ahead log + primary store dual-write via Tee/Join |
 | [middleware_stack](examples/middleware_stack.go) | web, call, ctxval, option, rslt | HTTP middleware stack with breaker, request ID, and error mapping |
 
 Run with `go run ./examples/orders/` or `go run examples/<file>.go`.
