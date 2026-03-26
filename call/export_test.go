@@ -32,6 +32,7 @@ func _() {
 	_ = Func[int, int](nil)
 	_ = From[int, int]
 	_ = Decorator[int, int](nil)
+	_ = Bracket[int, int]
 	_ = CircuitBreaker[int, int]
 	_ = Retrier[int, int]
 	_ = Throttler[int, int]
