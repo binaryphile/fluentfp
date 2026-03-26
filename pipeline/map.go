@@ -24,7 +24,7 @@ type workResult[R any] struct {
 // Workers pull from input — blocked workers create natural backpressure.
 // Panics in fn are recovered as *[rslt.PanicError].
 // Panics if workers <= 0. fn must not be nil.
-func Map[T, R any](ctx context.Context, in <-chan T, fn call.Func[T, R], workers int) <-chan rslt.Result[R] {
+func Map[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Func[T, R]) <-chan rslt.Result[R] {
 	if workers <= 0 {
 		panic("pipeline.Map: workers must be > 0")
 	}
@@ -140,7 +140,7 @@ func Map[T, R any](ctx context.Context, in <-chan T, fn call.Func[T, R], workers
 // processing times vary.
 // Panics in fn are recovered as *[rslt.PanicError].
 // Panics if workers <= 0. fn must not be nil.
-func MapUnordered[T, R any](ctx context.Context, in <-chan T, fn call.Func[T, R], workers int) <-chan rslt.Result[R] {
+func MapUnordered[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Func[T, R]) <-chan rslt.Result[R] {
 	if workers <= 0 {
 		panic("pipeline.MapUnordered: workers must be > 0")
 	}

@@ -11,7 +11,7 @@
 // through Map:
 //
 //	fn := fetchOrder.With(call.Retrier(3, call.ExponentialBackoff(time.Second), isRetryable))
-//	results := pipeline.Map(ctx, orderIDs, fn, 8)
+//	results := pipeline.Map(ctx, orderIDs, 8, fn)
 //
 // [MapUnordered] emits results in completion order for higher throughput.
 //

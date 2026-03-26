@@ -24,7 +24,7 @@ func _() {
 	// Map and MapUnordered require call.Func signature verification.
 	var fn func(context.Context, int) (string, error)
 	var outR <-chan rslt.Result[string]
-	outR = Map(ctx, inT, fn, 1)
-	outR = MapUnordered(ctx, inT, fn, 1)
+	outR = Map(ctx, inT, 1, fn)
+	outR = MapUnordered(ctx, inT, 1, fn)
 	_ = outR
 }

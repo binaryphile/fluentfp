@@ -34,7 +34,7 @@ func TestMap_orderPreservation(t *testing.T) {
 	}
 
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5, 6, 7, 8})
-	out := pipeline.Map(ctx, in, variableLatency, 4)
+	out := pipeline.Map(ctx, in, 4, variableLatency)
 
 	var got []int
 
@@ -56,7 +56,7 @@ func TestMap_orderPreservation(t *testing.T) {
 func TestMap_singleWorker(t *testing.T) {
 	ctx := context.Background()
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3})
-	out := pipeline.Map(ctx, in, double, 1)
+	out := pipeline.Map(ctx, in, 1, double)
 
 	var got []int
 
@@ -73,7 +73,7 @@ func TestMap_singleWorker(t *testing.T) {
 func TestMap_emptyInput(t *testing.T) {
 	ctx := context.Background()
 	in := pipeline.FromSlice(ctx, []int{})
-	out := pipeline.Map(ctx, in, double, 4)
+	out := pipeline.Map(ctx, in, 4, double)
 
 	count := 0
 
@@ -99,7 +99,7 @@ func TestMap_errorPropagation(t *testing.T) {
 	}
 
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4})
-	out := pipeline.Map(ctx, in, failOnThree, 2)
+	out := pipeline.Map(ctx, in, 2, failOnThree)
 
 	var oks []int
 	var errs []error
@@ -134,7 +134,7 @@ func TestMap_panicRecovery(t *testing.T) {
 	}
 
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3})
-	out := pipeline.Map(ctx, in, panicOnTwo, 1)
+	out := pipeline.Map(ctx, in, 1, panicOnTwo)
 
 	var results []rslt.Result[int]
 
@@ -173,7 +173,7 @@ func TestMap_cancellation(t *testing.T) {
 
 	// Large input that workers will block on.
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
-	out := pipeline.Map(ctx, in, slow, 4)
+	out := pipeline.Map(ctx, in, 4, slow)
 
 	// Read one result to ensure pipeline is running, then cancel.
 	cancel()
@@ -202,13 +202,13 @@ func TestMap_panicsOnInvalidWorkers(t *testing.T) {
 		}
 	}()
 
-	pipeline.Map(context.Background(), make(<-chan int), double, 0)
+	pipeline.Map(context.Background(), make(<-chan int), 0, double)
 }
 
 func TestMapUnordered_sameResults(t *testing.T) {
 	ctx := context.Background()
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5})
-	out := pipeline.MapUnordered(ctx, in, double, 3)
+	out := pipeline.MapUnordered(ctx, in, 3, double)
 
 	var got []int
 
@@ -235,7 +235,7 @@ func TestMapUnordered_completesAllItems(t *testing.T) {
 	}
 
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
-	out := pipeline.MapUnordered(ctx, in, counter, 4)
+	out := pipeline.MapUnordered(ctx, in, 4, counter)
 
 	for range out {
 	}

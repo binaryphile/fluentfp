@@ -318,7 +318,7 @@ reqID := ctxval.Get[RequestID](ctx)  // Option[RequestID]
 ```go
 // Compose resilience, then stream through 8 workers
 safeFetch := fetchOrder.With(call.Retrier(3, backoff, isRetryable))
-results := pipeline.Map(ctx, orderIDs, safeFetch, 8)
+results := pipeline.Map(ctx, orderIDs, 8, safeFetch)
 for r := range results {  // ordered, backpressure-aware
     r.IfOk(store)
 }
@@ -352,7 +352,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Fold with early exit on error | `slice.TryFold(events, state, fn)` | slice |
 | Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
-| Stream items through worker pools | `pipeline.Map(ctx, in, fn, 8)` | pipeline |
+| Stream items through worker pools | `pipeline.Map(ctx, in, 8, fn)` | pipeline |
 | Filter a channel stream | `pipeline.Filter(ctx, in, pred)` | pipeline |
 | Batch channel items by count | `pipeline.Batch(ctx, in, 100)` | pipeline |
 | Fan-in multiple channels | `pipeline.Merge(ctx, a, b, c)` | pipeline |
