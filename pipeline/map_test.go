@@ -20,7 +20,7 @@ func double(_ context.Context, n int) (int, error) {
 	return n * 2, nil
 }
 
-func TestMap_orderPreservation(t *testing.T) {
+func TestFanOut_orderPreservation(t *testing.T) {
 	ctx := context.Background()
 
 	// variableLatency simulates variable processing time to stress reorder buffer.
@@ -34,7 +34,7 @@ func TestMap_orderPreservation(t *testing.T) {
 	}
 
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5, 6, 7, 8})
-	out := pipeline.Map(ctx, in, 4, variableLatency)
+	out := pipeline.FanOut(ctx, in, 4, variableLatency)
 
 	var got []int
 
@@ -53,10 +53,10 @@ func TestMap_orderPreservation(t *testing.T) {
 	}
 }
 
-func TestMap_singleWorker(t *testing.T) {
+func TestFanOut_singleWorker(t *testing.T) {
 	ctx := context.Background()
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3})
-	out := pipeline.Map(ctx, in, 1, double)
+	out := pipeline.FanOut(ctx, in, 1, double)
 
 	var got []int
 
@@ -70,10 +70,10 @@ func TestMap_singleWorker(t *testing.T) {
 	}
 }
 
-func TestMap_emptyInput(t *testing.T) {
+func TestFanOut_emptyInput(t *testing.T) {
 	ctx := context.Background()
 	in := pipeline.FromSlice(ctx, []int{})
-	out := pipeline.Map(ctx, in, 4, double)
+	out := pipeline.FanOut(ctx, in, 4, double)
 
 	count := 0
 
@@ -86,7 +86,7 @@ func TestMap_emptyInput(t *testing.T) {
 	}
 }
 
-func TestMap_errorPropagation(t *testing.T) {
+func TestFanOut_errorPropagation(t *testing.T) {
 	ctx := context.Background()
 
 	// failOnThree returns an error for input 3.
@@ -99,7 +99,7 @@ func TestMap_errorPropagation(t *testing.T) {
 	}
 
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4})
-	out := pipeline.Map(ctx, in, 2, failOnThree)
+	out := pipeline.FanOut(ctx, in, 2, failOnThree)
 
 	var oks []int
 	var errs []error
@@ -121,7 +121,7 @@ func TestMap_errorPropagation(t *testing.T) {
 	}
 }
 
-func TestMap_panicRecovery(t *testing.T) {
+func TestFanOut_panicRecovery(t *testing.T) {
 	ctx := context.Background()
 
 	// panicOnTwo panics when input is 2.
@@ -134,7 +134,7 @@ func TestMap_panicRecovery(t *testing.T) {
 	}
 
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3})
-	out := pipeline.Map(ctx, in, 1, panicOnTwo)
+	out := pipeline.FanOut(ctx, in, 1, panicOnTwo)
 
 	var results []rslt.Result[int]
 
@@ -161,7 +161,7 @@ func TestMap_panicRecovery(t *testing.T) {
 	}
 }
 
-func TestMap_cancellation(t *testing.T) {
+func TestFanOut_cancellation(t *testing.T) {
 	before := runtime.NumGoroutine()
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -173,7 +173,7 @@ func TestMap_cancellation(t *testing.T) {
 
 	// Large input that workers will block on.
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
-	out := pipeline.Map(ctx, in, 4, slow)
+	out := pipeline.FanOut(ctx, in, 4, slow)
 
 	// Read one result to ensure pipeline is running, then cancel.
 	cancel()
@@ -195,20 +195,20 @@ func TestMap_cancellation(t *testing.T) {
 	}
 }
 
-func TestMap_panicsOnInvalidWorkers(t *testing.T) {
+func TestFanOut_panicsOnInvalidWorkers(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic for workers <= 0")
 		}
 	}()
 
-	pipeline.Map(context.Background(), make(<-chan int), 0, double)
+	pipeline.FanOut(context.Background(), make(<-chan int), 0, double)
 }
 
-func TestMapUnordered_sameResults(t *testing.T) {
+func TestFanOutUnordered_sameResults(t *testing.T) {
 	ctx := context.Background()
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5})
-	out := pipeline.MapUnordered(ctx, in, 3, double)
+	out := pipeline.FanOutUnordered(ctx, in, 3, double)
 
 	var got []int
 
@@ -224,7 +224,7 @@ func TestMapUnordered_sameResults(t *testing.T) {
 	}
 }
 
-func TestMapUnordered_completesAllItems(t *testing.T) {
+func TestFanOutUnordered_completesAllItems(t *testing.T) {
 	ctx := context.Background()
 	var count atomic.Int64
 
@@ -235,7 +235,7 @@ func TestMapUnordered_completesAllItems(t *testing.T) {
 	}
 
 	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
-	out := pipeline.MapUnordered(ctx, in, 4, counter)
+	out := pipeline.FanOutUnordered(ctx, in, 4, counter)
 
 	for range out {
 	}

@@ -79,7 +79,7 @@ flowchart TD
 | `heap` | Persistent (immutable) pairing heap parameterized by comparator. Based on Stone Ch 4. O(1) insert/merge, O(log n) amortized delete-min. |
 | `combo` | Combinatorial generators — `CartesianProduct`, `Permutations`, `Combinations`, `PowerSet` |
 | `seq` | Iterator-native lazy chains wrapping `iter.Seq[T]`. Method chaining via defined type. Re-evaluates (vs stream's memoization). |
-| `pipeline` | Channel-based streaming with persistent worker pools — Map (ordered/unordered), Filter, Batch, Merge, Tee, FromSlice, Generate. Pull model with natural backpressure. Map takes `call.Func` for resilience composition. |
+| `pipeline` | Channel-based streaming with persistent worker pools — FanOut (ordered/unordered), Filter, Batch, Merge, Tee, FromSlice, Generate. Pull model with natural backpressure. FanOut takes `call.Func` for resilience composition. |
 | `toc` | Constrained stage runner — bounded input queue, serial/parallel workers, fail-fast default, atomic stats (service/idle/output-blocked time, weight-tracked InFlightWeight). Inspired by Drum-Buffer-Rope (Theory of Constraints). |
 | `ctxval` | Typed context value storage — `With[T]`/`Get[T]` keyed by type, `Key[T]` for named keys. Returns `Option[T]`. |
 | `web` | Typed HTTP handler composition on net/http — `Handler` returns `Result[Response]`, `Adapt` bridges to `http.HandlerFunc`, `WithErrorMapper` for domain→HTTP errors, `DecodeJSON` with configurable policy, `Steps` for same-type pipeline chains. Error constructors: `BadRequest`, `Forbidden`, `NotFound`, `Conflict`, `TooManyRequests`, `StatusError`. |
@@ -1096,14 +1096,14 @@ Explicit pause/resume for admission, separate from SetMaxWIP.
 
 ### D42: pipeline — Channel FP with persistent worker pools
 
-`pipeline.Map(ctx, in, fn, workers)` applies a `call.Func[T,R]` to each item from `<-chan T` using N persistent worker goroutines. Results emit as `<-chan rslt.Result[R]`.
+`pipeline.FanOut(ctx, in, workers, fn)` applies a `call.Func[T,R]` to each item from `<-chan T` using N persistent worker goroutines. Results emit as `<-chan rslt.Result[R]`. Named to match `slice.FanOut` — same pattern (ctx, concurrency limit, data, fn), different input type (channel vs slice).
 
-**Why pull model, not push:** FanOut (slice package) uses semaphore-per-call — each item gets its own goroutine bounded by a semaphore. This is push-model: the dispatcher pushes work, workers hold permits even when output-blocked. In a streaming pipeline, output-blocked workers must stop pulling input to create backpressure. Persistent workers pulling from an unbuffered work channel achieve this naturally.
+**Why pull model, not push:** `slice.FanOut` uses semaphore-per-call — each item gets its own goroutine bounded by a semaphore. This is push-model: the dispatcher pushes work, workers hold permits even when output-blocked. In a streaming pipeline, output-blocked workers must stop pulling input to create backpressure. Persistent workers pulling from an unbuffered work channel achieve this naturally.
 
-**Why ordered by default:** Map preserves input order via dispatcher → workers → reorder collector (sequence numbers + buffer). MapUnordered skips the reorder buffer for throughput. FanOut already preserves order; users expect it.
+**Why ordered by default:** FanOut preserves input order via dispatcher → workers → reorder collector (sequence numbers + buffer). FanOutUnordered skips the reorder buffer for throughput. `slice.FanOut` already preserves order; users expect it.
 
-**Why `call.Func[T,R]`:** This is the library's composition point for context-aware, error-returning functions. Callers compose resilience first (`fn.With(call.Retrier(...), call.CircuitBreaker(...))`), then execute through Map. Plain functions would bypass the decorator stack.
+**Why `call.Func[T,R]`:** This is the library's composition point for context-aware, error-returning functions. Callers compose resilience first (`fn.With(call.Retrier(...), call.CircuitBreaker(...))`), then execute through FanOut. Plain functions would bypass the decorator stack.
 
 **Why supporting primitives are plain `T`:** Filter, Batch, Merge, Tee operate on `T` directly. When `T` is `rslt.Result[R]`, errors pass through naturally without special handling. This keeps combinators simple and composable.
 
-**Layering:** `call.Func` → `call` decorators → `pipeline.Map` → `toc.Stage` (adds Stats + WIP limits + constraint analysis).
+**Layering:** `call.Func` → `call` decorators → `pipeline.FanOut` → `toc.Stage` (adds Stats + WIP limits + constraint analysis).

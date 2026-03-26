@@ -262,7 +262,7 @@ Packages are independent — import one or all.
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
 | [call](call/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
-| [pipeline](pipeline/) | Channel streaming with worker pools | `Map`, `MapUnordered`, `Filter`, `Batch`, `Merge`, `Tee` |
+| [pipeline](pipeline/) | Channel streaming with worker pools | `FanOut`, `FanOutUnordered`, `Filter`, `Batch`, `Merge`, `Tee` |
 | [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin`, `SetMaxWIP`, `SetMaxWIPWeight`, `SetWorkers`, `NewReporter` |
 | [memctl](memctl/)   | Memory-aware controller          | `Watch`, `MemInfo`, `Headroom`                 |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
@@ -318,7 +318,7 @@ reqID := ctxval.Get[RequestID](ctx)  // Option[RequestID]
 ```go
 // Compose resilience, then stream through 8 workers
 safeFetch := fetchOrder.With(call.Retrier(3, backoff, isRetryable))
-results := pipeline.Map(ctx, orderIDs, 8, safeFetch)
+results := pipeline.FanOut(ctx, orderIDs, 8, safeFetch)
 for r := range results {  // ordered, backpressure-aware
     r.IfOk(store)
 }
@@ -352,7 +352,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Fold with early exit on error | `slice.TryFold(events, state, fn)` | slice |
 | Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
-| Stream items through worker pools | `pipeline.Map(ctx, in, 8, fn)` | pipeline |
+| Stream items through worker pools | `pipeline.FanOut(ctx, in, 8, fn)` | pipeline |
 | Filter a channel stream | `pipeline.Filter(ctx, in, pred)` | pipeline |
 | Batch channel items by count | `pipeline.Batch(ctx, in, 100)` | pipeline |
 | Fan-in multiple channels | `pipeline.Merge(ctx, a, b, c)` | pipeline |

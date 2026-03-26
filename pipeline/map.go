@@ -24,9 +24,9 @@ type workResult[R any] struct {
 // Workers pull from input — blocked workers create natural backpressure.
 // Panics in fn are recovered as *[rslt.PanicError].
 // Panics if workers <= 0. fn must not be nil.
-func Map[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Func[T, R]) <-chan rslt.Result[R] {
+func FanOut[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Func[T, R]) <-chan rslt.Result[R] {
 	if workers <= 0 {
-		panic("pipeline.Map: workers must be > 0")
+		panic("pipeline.FanOut: workers must be > 0")
 	}
 
 	out := make(chan rslt.Result[R])
@@ -135,14 +135,14 @@ func Map[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Func[T
 	return out
 }
 
-// MapUnordered applies fn to each input using workers persistent goroutines.
+// FanOutUnordered applies fn to each input using workers persistent goroutines.
 // Results are emitted in completion order for higher throughput when
 // processing times vary.
 // Panics in fn are recovered as *[rslt.PanicError].
 // Panics if workers <= 0. fn must not be nil.
-func MapUnordered[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Func[T, R]) <-chan rslt.Result[R] {
+func FanOutUnordered[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Func[T, R]) <-chan rslt.Result[R] {
 	if workers <= 0 {
-		panic("pipeline.MapUnordered: workers must be > 0")
+		panic("pipeline.FanOutUnordered: workers must be > 0")
 	}
 
 	out := make(chan rslt.Result[R], workers)

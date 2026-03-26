@@ -708,20 +708,20 @@
 
 **Main Scenario:**
 1. Developer creates a source channel with FromSlice or Generate (or any `<-chan T`).
-2. Developer applies Map with a call.Func and worker count. Workers pull items from the input channel — blocked workers create natural backpressure upstream.
-3. Map emits results in input order via a reorder buffer. Each result is rslt.Result[R] — successes and errors are values.
+2. Developer applies FanOut with a call.Func and worker count. Workers pull items from the input channel — blocked workers create natural backpressure upstream.
+3. FanOut emits results in input order via a reorder buffer. Each result is rslt.Result[R] — successes and errors are values.
 4. Developer drains the output channel to receive results.
 
 **Extensions:**
-- 2a. Developer uses MapUnordered for higher throughput when order doesn't matter.
-- 2b. Developer composes resilience before Map: `fn.With(call.Retrier(...), call.CircuitBreaker(...))`.
+- 2a. Developer uses FanOutUnordered for higher throughput when order doesn't matter.
+- 2b. Developer composes resilience before FanOut: `fn.With(call.Retrier(...), call.CircuitBreaker(...))`.
 - 2c. fn panics: recovered as *rslt.PanicError in the result stream. Pipeline continues.
-- 1a. Developer applies Filter before Map to skip items without error wrapping.
-- 4a. Developer applies Batch after Map to collect results into fixed-size groups.
+- 1a. Developer applies Filter before FanOut to skip items without error wrapping.
+- 4a. Developer applies Batch after FanOut to collect results into fixed-size groups.
 - 1b. Developer uses Merge to combine multiple source channels.
 - 4b. Developer uses Tee to duplicate a stream to multiple consumers.
 
 **Sub-Variations:**
-- Linear: FromSlice → Filter → Map → Batch → drain
+- Linear: FromSlice → Filter → FanOut → Batch → drain
 - Fan-in: Merge(srcA, srcB) → Map → drain
 - Fan-out: src → Tee(2) → (consumerA, consumerB)
