@@ -3,8 +3,8 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, constrained stage processing (bounded worker with backpressure and stats), pipeline composition (multi-stage with error passthrough, fan-out/fan-in, and per-stage observability)
-**Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive. Constrained stage processing (`toc`) is in scope as a pipeline building block — it runs items through a known bottleneck with observability, not a general job queue.
+**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, channel-based streaming pipelines (worker-pool execution with backpressure), constrained stage processing (bounded worker with backpressure and stats), pipeline composition (multi-stage with error passthrough, fan-out/fan-in, and per-stage observability)
+**Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive. Channel-based pipeline (`pipeline`) is in scope as a streaming execution layer — it runs items through worker pools with backpressure, not a general concurrency framework. Constrained stage processing (`toc`) is in scope as a pipeline building block — it runs items through a known bottleneck with observability, not a general job queue.
 
 ## System Invariants
 
@@ -38,6 +38,7 @@
 | Generate combinatorial selections from a collection | Blue | low |
 | Cache expensive function results | Blue | low |
 | Maintain a persistent priority queue | Blue | low |
+| Stream items through channel-based worker pools with backpressure | Blue | med |
 | Process items through a known bottleneck with bounded concurrency and observability | Blue | med |
 | Compose multi-stage processing pipelines with per-stage observability and error passthrough | Blue | med |
 | Replace manual loop patterns with composable operations across the codebase | White | — |
@@ -685,3 +686,42 @@
 - Merge stats: per-source received, forwarded, dropped
 - Join shape: Start → Tee → (Pipe, Pipe) → Join(fn) → Pipe — fan-out, independent processing, branch recombination
 - Join stats: ReceivedA, ReceivedB, Combined, Errors, DiscardedA, DiscardedB, ExtraA, ExtraB
+
+### UC-15: Stream Items Through Channel-Based Worker Pools
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: items streamed through a channel pipeline with concurrent processing and natural backpressure
+- Code reviewer: pipeline reads as a composition of named stages, not goroutine/channel wiring
+
+**Postconditions:**
+- All input items have been processed or accounted for (completed or ctx-canceled)
+- Output channel is closed when input is exhausted or ctx cancels
+- No goroutine leaks
+
+**Minimal Guarantee:** All spawned goroutines exit when ctx cancels or input channel closes.
+
+**Preconditions:**
+- Developer has a channel of items to process with a context-aware function
+- Developer wants concurrent processing with backpressure (not batch-over-slice)
+
+**Main Scenario:**
+1. Developer creates a source channel with FromSlice or Generate (or any `<-chan T`).
+2. Developer applies Map with a call.Func and worker count. Workers pull items from the input channel — blocked workers create natural backpressure upstream.
+3. Map emits results in input order via a reorder buffer. Each result is rslt.Result[R] — successes and errors are values.
+4. Developer drains the output channel to receive results.
+
+**Extensions:**
+- 2a. Developer uses MapUnordered for higher throughput when order doesn't matter.
+- 2b. Developer composes resilience before Map: `fn.With(call.Retrier(...), call.CircuitBreaker(...))`.
+- 2c. fn panics: recovered as *rslt.PanicError in the result stream. Pipeline continues.
+- 1a. Developer applies Filter before Map to skip items without error wrapping.
+- 4a. Developer applies Batch after Map to collect results into fixed-size groups.
+- 1b. Developer uses Merge to combine multiple source channels.
+- 4b. Developer uses Tee to duplicate a stream to multiple consumers.
+
+**Sub-Variations:**
+- Linear: FromSlice → Filter → Map → Batch → drain
+- Fan-in: Merge(srcA, srcB) → Map → drain
+- Fan-out: src → Tee(2) → (consumerA, consumerB)

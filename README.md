@@ -262,6 +262,7 @@ Packages are independent — import one or all.
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
 | [call](call/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
+| [pipeline](pipeline/) | Channel streaming with worker pools | `Map`, `MapUnordered`, `Filter`, `Batch`, `Merge`, `Tee` |
 | [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin`, `SetMaxWIP`, `SetMaxWIPWeight`, `SetWorkers`, `NewReporter` |
 | [memctl](memctl/)   | Memory-aware controller          | `Watch`, `MemInfo`, `Headroom`                 |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
@@ -312,6 +313,17 @@ ctx = ctxval.With(ctx, RequestID("abc-123"))
 reqID := ctxval.Get[RequestID](ctx)  // Option[RequestID]
 ```
 
+**[pipeline](pipeline/)** — channel streaming with worker-pool backpressure:
+
+```go
+// Compose resilience, then stream through 8 workers
+safeFetch := fetchOrder.With(call.Retrier(3, backoff, isRetryable))
+results := pipeline.Map(ctx, orderIDs, safeFetch, 8)
+for r := range results {  // ordered, backpressure-aware
+    r.IfOk(store)
+}
+```
+
 **[rslt](rslt/)** — typed error handling as values:
 
 ```go
@@ -340,6 +352,11 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Fold with early exit on error | `slice.TryFold(events, state, fn)` | slice |
 | Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
+| Stream items through worker pools | `pipeline.Map(ctx, in, fn, 8)` | pipeline |
+| Filter a channel stream | `pipeline.Filter(ctx, in, pred)` | pipeline |
+| Batch channel items by count | `pipeline.Batch(ctx, in, 100)` | pipeline |
+| Fan-in multiple channels | `pipeline.Merge(ctx, a, b, c)` | pipeline |
+| Duplicate a stream to N consumers | `pipeline.Tee(ctx, in, 3)` | pipeline |
 | Retry on failure with backoff | `call.Retry(3, backoff, shouldRetry, fn)` | call |
 | Circuit-break an unhealthy dependency | `call.WithBreaker(breaker, fn)` | call |
 | Throttle concurrent access | `call.Throttle(n, fn)` | call |
