@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
-	"sort"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -205,42 +203,3 @@ func TestFanOut_panicsOnInvalidWorkers(t *testing.T) {
 	pipeline.FanOut(context.Background(), make(<-chan int), 0, double)
 }
 
-func TestFanOutUnordered_sameResults(t *testing.T) {
-	ctx := context.Background()
-	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5})
-	out := pipeline.FanOutUnordered(ctx, in, 3, double)
-
-	var got []int
-
-	for r := range out {
-		got = append(got, r.Or(0))
-	}
-
-	sort.Ints(got)
-
-	want := []int{2, 4, 6, 8, 10}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %v, want %v", got, want)
-	}
-}
-
-func TestFanOutUnordered_completesAllItems(t *testing.T) {
-	ctx := context.Background()
-	var count atomic.Int64
-
-	// counter increments a counter and returns the input.
-	counter := func(_ context.Context, n int) (int, error) {
-		count.Add(1)
-		return n, nil
-	}
-
-	in := pipeline.FromSlice(ctx, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
-	out := pipeline.FanOutUnordered(ctx, in, 4, counter)
-
-	for range out {
-	}
-
-	if count.Load() != 10 {
-		t.Errorf("expected 10 calls, got %d", count.Load())
-	}
-}

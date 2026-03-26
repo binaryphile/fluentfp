@@ -713,8 +713,7 @@
 4. Developer drains the output channel to receive results.
 
 **Extensions:**
-- 2a. Developer uses FanOutUnordered for higher throughput when order doesn't matter.
-- 2b. Developer composes resilience before FanOut: `fn.With(call.Retrier(...), call.CircuitBreaker(...))`.
+- 2a. Developer composes resilience before FanOut: `fn.With(call.Retrier(...), call.CircuitBreaker(...))`.
 - 2c. fn panics: recovered as *rslt.PanicError in the result stream. Pipeline continues.
 - 1a. Developer applies Filter before FanOut to skip items without error wrapping.
 - 4a. Developer applies Batch after FanOut to collect results into fixed-size groups.

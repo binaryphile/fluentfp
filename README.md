@@ -262,7 +262,7 @@ Packages are independent — import one or all.
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
 | [call](call/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
-| [pipeline](pipeline/) | Channel streaming with worker pools | `FanOut`, `FanOutUnordered`, `Filter`, `Batch`, `Merge`, `Tee` |
+| [pipeline](pipeline/) | Channel streaming with worker pools | `FanOut`, `Filter`, `Batch`, `Merge`, `Tee` |
 | [toc](toc/)         | Bounded pipeline stages          | `Start`, `Pipe`, `NewBatcher`, `NewTee`, `NewMerge`, `NewJoin`, `SetMaxWIP`, `SetMaxWIPWeight`, `SetWorkers`, `NewReporter` |
 | [memctl](memctl/)   | Memory-aware controller          | `Watch`, `MemInfo`, `Headroom`                 |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |

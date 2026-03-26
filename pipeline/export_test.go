@@ -21,10 +21,9 @@ func _() {
 	_ = Merge[int]
 	_ = Tee[int]
 
-	// Map and MapUnordered require call.Func signature verification.
+	// FanOut requires call.Func signature verification.
 	var fn func(context.Context, int) (string, error)
 	var outR <-chan rslt.Result[string]
 	outR = FanOut(ctx, inT, 1, fn)
-	outR = FanOutUnordered(ctx, inT, 1, fn)
 	_ = outR
 }

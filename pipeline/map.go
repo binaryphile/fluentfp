@@ -135,55 +135,6 @@ func FanOut[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Fun
 	return out
 }
 
-// FanOutUnordered applies fn to each input using workers persistent goroutines.
-// Results are emitted in completion order for higher throughput when
-// processing times vary.
-// Panics in fn are recovered as *[rslt.PanicError].
-// Panics if workers <= 0. fn must not be nil.
-func FanOutUnordered[T, R any](ctx context.Context, in <-chan T, workers int, fn call.Func[T, R]) <-chan rslt.Result[R] {
-	if workers <= 0 {
-		panic("pipeline.FanOutUnordered: workers must be > 0")
-	}
-
-	out := make(chan rslt.Result[R], workers)
-
-	// Workers pull directly from input, send directly to output.
-	var wg sync.WaitGroup
-
-	for range workers {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case val, ok := <-in:
-					if !ok {
-						return
-					}
-
-					res := runItem(ctx, val, fn)
-
-					select {
-					case <-ctx.Done():
-						return
-					case out <- res:
-					}
-				}
-			}
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-
-	return out
-}
 
 // runItem calls fn with panic recovery, returning the result as rslt.Result.
 func runItem[T, R any](ctx context.Context, t T, fn func(context.Context, T) (R, error)) (res rslt.Result[R]) {

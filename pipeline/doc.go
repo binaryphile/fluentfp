@@ -13,7 +13,6 @@
 //	fn := fetchOrder.With(call.Retrier(3, call.ExponentialBackoff(time.Second), isRetryable))
 //	results := pipeline.FanOut(ctx, orderIDs, 8, fn)
 //
-// [FanOutUnordered] emits results in completion order for higher throughput.
 //
 // Supporting primitives ([Filter], [Batch], [Merge], [Tee]) compose freely
 // with FanOut. They operate on plain T values — when T is [rslt.Result],
