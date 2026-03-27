@@ -2,7 +2,7 @@
 
 **Fluent functional programming for Go.**
 
-Type-safe collection chains, composable resilience (retry, circuit breaker, throttle), typed HTTP handlers, and optional/result types — all on standard Go, no framework required.
+Type-safe collection chains, composable resilience (retry, circuit breaker), typed HTTP handlers, and optional/result types — all on standard Go, no framework required.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for API docs and the **[showcase](docs/showcase.md)** for 16 before/after rewrites from real GitHub projects.
 
@@ -70,14 +70,14 @@ mux.HandleFunc("GET /users/{id}", web.Adapt(handleGetUser))
 ```
 
 ```go
-// Chainable resilience — retry, breaker, throttle
+// Chainable resilience — retry, then circuit breaker
 breaker := wrap.NewBreaker(wrap.BreakerConfig{
     ResetTimeout: 10 * time.Second,
     ReadyToTrip:  wrap.ConsecutiveFailures(3),
 })
 safeFetch := wrap.Func(fetchFromAPI).
-    WithRetry(3, wrap.ExpBackoff(time.Second), nil).
-    WithBreaker(breaker)
+    Retry(3, wrap.ExpBackoff(time.Second), nil).
+    Breaker(breaker)
 resp, err := safeFetch(ctx, url)  // returns wrap.ErrCircuitOpen when tripped
 ```
 
@@ -263,7 +263,7 @@ Packages are independent — import one or all.
 | [rslt](rslt/)       | Typed error handling             | `Ok`, `Err`, `CollectAll`, `CollectOkAndErr`   |
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
-| [wrap](wrap/)           | Resilience decorators              | `Func`, `WithRetry`, `WithBreaker`, `WithThrottle` |
+| [wrap](wrap/)           | Resilience decorators              | `Func`, `Retry`, `Breaker`, `MapError`, `OnError` |
 | [memctl](memctl/)   | Memory-aware controller          | `Watch`, `MemInfo`, `Headroom`                 |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
 | [web](web/)         | Typed HTTP handlers              | `Adapt`, `DecodeJSON`, `Steps`                 |
@@ -278,13 +278,12 @@ Packages are independent — import one or all.
 **[wrap](wrap/)** — chainable resilience decorators:
 
 ```go
-// Chain retry, breaker, and throttle — reads top to bottom
+// Retry transient errors, then circuit-break the dependency
 breaker := wrap.NewBreaker(wrap.BreakerConfig{ResetTimeout: 30 * time.Second})
 
 safeFetch := wrap.Func(fetchData).
-    WithRetry(3, wrap.ExpBackoff(100*time.Millisecond), isTransient).
-    WithBreaker(breaker).
-    WithThrottle(10)
+    Retry(3, wrap.ExpBackoff(100*time.Millisecond), isTransient).
+    Breaker(breaker)
 ```
 
 **[web](web/)** — typed HTTP handlers on net/http:
@@ -337,10 +336,9 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Fold with early exit on error | `slice.TryFold(events, state, fn)` | slice |
 | Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
-| Retry on failure with backoff | `wrap.Func(fn).WithRetry(3, backoff, pred)` | wrap |
-| Circuit-break an unhealthy dependency | `wrap.Func(fn).WithBreaker(breaker)` | wrap |
-| Throttle concurrent access | `wrap.Func(fn).WithThrottle(n)` | wrap |
-| Transform errors in a decorator chain | `wrap.Func(fn).WithMapError(mapper)` | wrap |
+| Retry on failure with backoff | `wrap.Func(fn).Retry(3, backoff, pred)` | wrap |
+| Circuit-break an unhealthy dependency | `wrap.Func(fn).Breaker(breaker)` | wrap |
+| Transform errors in a decorator chain | `wrap.Func(fn).MapError(mapper)` | wrap |
 | Debounce rapid calls | `hof.NewDebouncer(wait, fn)` | hof |
 | Represent optional values | `option.Of(v)`, `option.NonZero(v)`, `option.Env("KEY")` | option |
 | Inline conditional (no ternary in Go) | `option.When(cond, val).Or(fallback)` | option |
