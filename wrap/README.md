@@ -1,16 +1,12 @@
 # wrap
 
-Resilience decorators for context-aware functions. Wrap a function with retry, circuit breaking, throttling, and error handling — all configured in one struct.
+Resilience decorators for context-aware functions. Wrap a function with retry and circuit breaking — chainable methods, no type arguments needed.
 
 ```go
-safeFetch := wrap.Func(fetchUser).With(wrap.Features{
-    Breaker:  breaker,
-    Retry:    wrap.Retry(3, wrap.ExpBackoff(time.Second), isTransient),
-    Throttle: wrap.Throttle(10),
-})
+safeFetch := wrap.Func(fetchUser).
+    Retry(3, wrap.ExpBackoff(time.Second), nil).
+    Breaker(breaker)
 ```
-
-The library controls decorator order (OnError → MapError → Retry → Breaker → Throttle). Nil fields are skipped.
 
 ## What It Looks Like
 
@@ -20,49 +16,47 @@ breaker := wrap.NewBreaker(wrap.BreakerConfig{
     ResetTimeout: 30 * time.Second,
     ReadyToTrip:  wrap.ConsecutiveFailures(5),
 })
-safeFetch := wrap.Func(fetchFromAPI).WithBreaker(breaker)
+safeFetch := wrap.Func(fetchFromAPI).Breaker(breaker)
 resp, err := safeFetch(ctx, url)  // returns wrap.ErrCircuitOpen when tripped
 ```
 
 ```go
-// Chain convenience methods for single decorators
+// Retry transient errors, then circuit-break the dependency
 resilient := wrap.Func(fetchData).
-    WithRetry(3, wrap.ExpBackoff(100*time.Millisecond), isTransient).
-    WithBreaker(breaker).
-    WithThrottle(10)
+    Retry(3, wrap.ExpBackoff(100*time.Millisecond), isTransient).
+    Breaker(breaker)
 ```
 
-## Features Struct
+```go
+// Error observation and transformation
+observed := wrap.Func(fetchUser).OnError(logErr).MapError(annotate)
+```
 
-| Field | Type | Factory | Skip value |
-|-------|------|---------|------------|
-| Breaker | `*Breaker` | `NewBreaker(cfg)` | nil |
-| MapError | `func(error) error` | — | nil |
-| OnError | `func(error)` | — | nil |
-| Retry | `*RetryConfig` | `Retry(max, backoff, pred)` | nil |
-| Throttle | `*ThrottleConfig` | `Throttle(n)` | nil |
+```go
+// Custom decorators via Apply
+wrap.Func(fn).Retry(3, backoff, nil).Apply(myCustomDecorator)
+```
 
-`WithThrottleWeighted(capacity, cost)` is available as a method only — the cost function requires type `T`.
+## Methods on Fn[T, R]
 
-## Operations
+| Method | Purpose |
+|--------|---------|
+| `Breaker(b)` | Circuit breaker — shared `*Breaker` from `NewBreaker(cfg)` |
+| `MapError(mapper)` | Transform errors via mapping function |
+| `OnError(handler)` | Side-effect handler on error |
+| `Retry(max, backoff, pred)` | Retry on error with backoff strategy |
+| `Apply(ds...)` | Apply custom `Decorator` values |
 
-**Circuit Breaking**
-- `NewBreaker(cfg BreakerConfig) *Breaker` — 3-state: closed → open → half-open → closed
+## Backoff
+
+`ExpBackoff(initial)` — randomized exponential: uniform random in [0, initial * 2^n). Spreads retries to minimize collisions under contention.
+
+## Circuit Breaker
+
+- `NewBreaker(cfg) *Breaker` — 3-state: closed → open → half-open → closed
 - `ConsecutiveFailures(n) func(Snapshot) bool` — ReadyToTrip predicate
 - `ErrCircuitOpen` — sentinel error when breaker rejects
 
-**Retry**
-- `Retry(max, backoff, shouldRetry) *RetryConfig` — factory for Features
-- `ExpBackoff(initial) Backoff` — randomized exponential: random in [0, initial * 2^n)
-
-**Concurrency Control**
-- `Throttle(n) *ThrottleConfig` — factory for Features (count-based)
-- `WithThrottleWeighted(capacity, cost)` — method only (cost-based)
-
-**Error Handling**
-- `MapError` field — transform errors via mapping function
-- `OnError` field — side-effect handler on error
-
-All context-aware decorators return `ctx.Err()` on cancellation. Circuit breaker does not count `context.Canceled` as a failure. All functions panic on nil inputs.
+All context-aware decorators return `ctx.Err()` on cancellation. Circuit breaker does not count `context.Canceled` as a failure.
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/wrap) for complete API documentation.
