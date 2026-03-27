@@ -3,8 +3,8 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, channel-based streaming pipelines (worker-pool execution with backpressure), constrained stage processing (bounded worker with backpressure and stats), pipeline composition (multi-stage with error passthrough, fan-out/fan-in, and per-stage observability)
-**Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive. Channel-based pipeline (`pipeline`) is in scope as a streaming execution layer — it runs items through worker pools with backpressure, not a general concurrency framework. Constrained stage processing (`toc`) is in scope as a pipeline building block — it runs items through a known bottleneck with observability, not a general job queue.
+**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics
+**Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive.
 
 ## System Invariants
 
@@ -38,9 +38,6 @@
 | Generate combinatorial selections from a collection | Blue | low |
 | Cache expensive function results | Blue | low |
 | Maintain a persistent priority queue | Blue | low |
-| Stream items through channel-based worker pools with backpressure | Blue | med |
-| Process items through a known bottleneck with bounded concurrency and observability | Blue | med |
-| Compose multi-stage processing pipelines with per-stage observability and error passthrough | Blue | med |
 | Replace manual loop patterns with composable operations across the codebase | White | — |
 
 ## Use Cases
@@ -578,149 +575,3 @@
 - Keyed memoization (`Fn`, `FnErr`): function caching by input
 - Cache strategies: unbounded map (`NewMap`), bounded LRU (`NewLRU`), custom (`Cache` interface with `Load`/`Store`)
 
----
-
-### UC-13: Process Items Through a Constrained Stage
-
-**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
-
-**Stakeholders:**
-- Developer: items processed through a known bottleneck with bounded concurrency and backpressure
-- Operator: constraint utilization visible via stats — can verify the bottleneck is real and detect downstream shifts
-
-**Postconditions:**
-- Every submitted item has a corresponding result
-- Stage has shut down cleanly — no goroutine leaks, no abandoned resources
-- Stats reflect actual constraint behavior (service time, idle time, output-blocked time, and optionally observed allocation bytes/objects)
-
-**Minimal Guarantee:** Stage always shuts down if the consumer drains output. No goroutine leaks on normal completion, fail-fast, or parent cancellation. Panics in the processing function are recovered as error results, not process crashes.
-
-**Preconditions:**
-- Developer has a processing function and a known bottleneck stage in a pipeline
-- Developer knows the constraint's concurrency limit (often 1 for serial resources)
-
-**Main Scenario:**
-1. Developer starts a stage with a processing function and options (capacity, workers).
-2. Developer submits items from one or more goroutines; the stage buffers them up to capacity.
-3. Workers dequeue items, process them through the function, and emit results.
-4. Developer reads results from the output channel until it closes.
-5. Developer calls Wait to confirm clean shutdown and retrieve any stage-level error.
-
-**Extensions:**
-- 2a. Buffer is full: Submit blocks the caller until capacity is available (backpressure / "rope").
-- 2b. Stage is shut down: Submit returns an error without blocking.
-- 2c. Caller's context is canceled while Submit is blocked: Submit returns the context error.
-- 3a. Processing function returns an error (fail-fast mode): Stage cancels remaining work, drains buffered items as canceled results, and shuts down. Wait returns the triggering error.
-- 3b. Processing function returns an error (continue-on-error mode): Stage continues processing remaining items. The error appears in the individual result.
-- 3c. Processing function panics: Stage recovers the panic and emits an error result with the panic value and stack trace. Stage continues processing (or shuts down if fail-fast).
-- 3d. Parent context is canceled: Stage stops accepting new items, drains buffered items as canceled results, and shuts down. Wait returns nil; Cause returns the parent's cancel cause.
-- 4a. Developer does not need individual results: Developer calls DiscardAndWait or DiscardAndCause to drain and retrieve stage-level status in one step.
-- 5a. Developer needs to distinguish success, fail-fast error, and parent cancellation: Developer calls Cause instead of Wait for the latched terminal cause.
-- 5b. Developer enables TrackAllocations and checks AllocTrackingActive to confirm the runtime supports it, then reads ObservedAllocBytes/ObservedAllocObjects from Stats as a directional signal for allocation-heavy stages. These are process-global counters sampled around each fn invocation — not exclusive to the stage, not additive across stages.
-- 6a. Developer separates buffer sizing from WIP limiting: `Capacity` sizes the buffer (protects the constraint from upstream starvation). `MaxWIP` limits total admitted-but-not-completed items (prevents overproduction). Buffer and rope are distinct DBR concerns — buffer absorbs variability, rope paces work release.
-- 6b. Developer dynamically adjusts WIP limit at runtime: `SetMaxWIP(n)` changes the admission limit while the stage is running. Blocked Submits wake immediately if the new limit is higher. Returns the applied value (clamped to floor of 1, ceiling of Capacity+Workers). A memory monitor, rate limiter, or downstream pressure signal can call SetMaxWIP periodically.
-- 6c. Submit is blocked by rope (WIP at limit): Submit waits in a cancelable select (per-waiter channel queue). Respects context cancellation and stage close while waiting. FIFO fairness — waiters are granted slots in submission order.
-- 6d. Developer limits admission by item weight alongside count: `MaxWIPWeight` limits accumulated weight of admitted items. Both count and weight limits enforced simultaneously — count prevents zero-weight floods, weight prevents memory blowout. Items exceeding the weight limit are rejected immediately with `ErrWeightExceedsLimit`. `SetMaxWIPWeight(n)` adjusts at runtime. FIFO with head-of-line blocking (heavy item at head blocks lighter followers).
-- 6e. Developer pauses all new admissions: `PauseAdmission()` blocks new Submits; in-flight items complete normally. Queued waiters are held until `ResumeAdmission()`. Use for memory pressure, downstream outage, operator intervention.
-- 6f. Developer monitors pipeline health mid-flight: `NewReporter(interval)` with `AddStage(name, stage.Stats)` logs per-stage stats and process memory (RSS, Go heap) every N seconds. Frozen lifecycle (AddStage before Run). Panic recovery per provider.
-
-**Sub-Variations:**
-- Capacity: zero (unbuffered — Submit blocks until a worker dequeues), positive (buffered queue)
-- Workers: 1 (serial constraint), N (limited concurrency)
-- WIP limiting: static (MaxWIP at construction), dynamic (SetMaxWIP at runtime), default (Capacity + Workers)
-- Weight limiting: static (MaxWIPWeight at construction), dynamic (SetMaxWIPWeight at runtime), disabled by default (0)
-- Admission control: active (default), paused (PauseAdmission/ResumeAdmission)
-- Error mode: fail-fast (default), continue-on-error
-- Stats: submitted/completed/failed/panicked/canceled counts, service time, idle time, output-blocked time, buffered depth, in-flight weight, MaxWIP, MaxWIPWeight, admitted count/weight, rope wait count/time, waiter count/max
-- Allocation tracking: disabled (default), enabled via TrackAllocations
-- Reporting: periodic log output via Reporter with process memory (RSS, Go heap)
-- Shutdown: explicit (CloseInput), fail-fast (automatic), parent cancel (automatic via cancel watcher)
-
-### UC-14: Compose Multi-Stage Processing Pipelines
-
-**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
-
-**Stakeholders:**
-- Developer: items processed through a chain of constrained stages with per-stage observability, error passthrough, and backpressure
-- Operator: per-stage stats reveal which stage is the bottleneck (the DBR "drum")
-
-**Postconditions:**
-- Every item from the source has been processed or accounted for (completed, forwarded, or dropped)
-- All stages have shut down cleanly — no goroutine leaks, no upstream deadlocks
-- Per-stage stats reflect actual constraint behavior independently
-
-**Minimal Guarantee:** Pipeline always shuts down if the tail consumer drains output. Source ownership rule: every library-owned operator drains its upstream to completion, preventing deadlocks on unbuffered channels.
-
-**Preconditions:**
-- Developer has multiple processing stages with different concurrency or resource profiles
-- Developer knows the constraint topology (which stages are CPU-bound, I/O-bound, serial)
-
-**Main Scenario:**
-1. Developer starts a head stage with Start, submitting items from a producer goroutine.
-2. Developer creates intermediate stages with Pipe (or NewBatcher for accumulation, or NewWeightedBatcher for weight-based accumulation, or NewTee for broadcast, or NewMerge for fan-in, or NewJoin for branch recombination), each reading from the previous stage's Out().
-3. Each Pipe stage's feeder reads upstream results: Ok values go to workers, Err values pass through directly to the output.
-4. Developer drains the tail stage's Out() to receive final results (successes and forwarded errors).
-5. Developer calls Wait on each stage in reverse order to confirm clean shutdown.
-
-**Extensions:**
-- 3a. Upstream error in a Pipe stage: Error bypasses workers and appears directly in the output (data-plane error). The stage continues processing subsequent items. Wait returns nil — forwarded errors do not trigger fail-fast.
-- 3b. Pipe stage's fn returns an error (fail-fast mode): Stage cancels its own workers. Upstream stages continue until backpressure stalls them or parent context is canceled. Feeder continues draining source (source ownership rule).
-- 3c. Parent context canceled mid-pipeline: All stages observe cancellation. Pipe feeders and Batchers switch to discard mode — continue draining source but discard items. Partial Batcher batches are discarded (not flushed). Stats reflect all drops.
-- 2a. Batcher between stages: Batcher accumulates up to n Ok items. Errors act as batch boundaries — flush partial batch, forward error, start fresh accumulator.
-- 2b. WeightedBatcher between stages: accumulates items by weight or count (whichever reaches threshold first), preventing unbounded accumulation of zero/low-weight items. Same error-as-batch-boundary semantics.
-- 2c. Tee between stages: Developer fans out one stream to multiple downstream paths. All branches observe the same logical sequence. Backpressure is preserved across the fan-out.
-- 2d. Merge between stages: Developer recombines multiple upstream paths into a single stream for downstream processing. Items from all sources appear in the merged output.
-- 2e. Join between stages: Developer recombines results from two Tee branches. Join reads one result from each source, combines Ok/Ok pairs via a function, and forwards errors. Structural mismatches (extra or missing items from either source) are contract violations visible in stats.
-- 5a. Wait called in forward order: Also valid — Wait may be called in any order after tail Out() is drained. Reverse order is recommended but not required.
-
-**Sub-Variations:**
-- Pipeline shape: Start → Pipe, Start → Batcher → Pipe, Start → Batcher → Pipe → Pipe (4-handle)
-- Fan-out shape: Start → Tee → (Pipe, Pipe) — broadcast to N branches with independent downstream processing
-- Per-stage workers: different worker counts per stage (e.g., N chunkers, E embedders, 1 writer)
-- Error modes: per-stage fail-fast or continue-on-error (independent per stage)
-- Pipe stats: Received = Submitted + Forwarded + Dropped
-- Batcher stats: Received = Emitted + Forwarded + Dropped
-- WeightedBatcher stats: Received = Emitted + Forwarded + Dropped, BufferedWeight tracks accumulated cost
-- Tee stats: Received = FullyDelivered + PartiallyDelivered + Undelivered, per-branch BranchDelivered/BranchBlockedTime
-- DAG shape: Start → Tee → (Pipe, Pipe) → Merge → Pipe — fan-out then fan-in with independent downstream processing
-- Merge stats: per-source received, forwarded, dropped
-- Join shape: Start → Tee → (Pipe, Pipe) → Join(fn) → Pipe — fan-out, independent processing, branch recombination
-- Join stats: ReceivedA, ReceivedB, Combined, Errors, DiscardedA, DiscardedB, ExtraA, ExtraB
-
-### UC-15: Stream Items Through Channel-Based Worker Pools
-
-**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
-
-**Stakeholders:**
-- Developer: items streamed through a channel pipeline with concurrent processing and natural backpressure
-- Code reviewer: pipeline reads as a composition of named stages, not goroutine/channel wiring
-
-**Postconditions:**
-- All input items have been processed or accounted for (completed or ctx-canceled)
-- Output channel is closed when input is exhausted or ctx cancels
-- No goroutine leaks
-
-**Minimal Guarantee:** All spawned goroutines exit when ctx cancels or input channel closes.
-
-**Preconditions:**
-- Developer has a channel of items to process with a context-aware function
-- Developer wants concurrent processing with backpressure (not batch-over-slice)
-
-**Main Scenario:**
-1. Developer creates a source channel with FromSlice or Generate (or any `<-chan T`).
-2. Developer applies FanOut with a call.Func and worker count. Workers pull items from the input channel — blocked workers create natural backpressure upstream.
-3. FanOut emits results in input order via a reorder buffer. Each result is rslt.Result[R] — successes and errors are values.
-4. Developer drains the output channel to receive results.
-
-**Extensions:**
-- 2a. Developer composes resilience before FanOut: `fn.With(call.Retrier(...), call.CircuitBreaker(...))`.
-- 2c. fn panics: recovered as *rslt.PanicError in the result stream. Pipeline continues.
-- 1a. Developer applies Filter before FanOut to skip items without error wrapping.
-- 4a. Developer applies Batch after FanOut to collect results into fixed-size groups.
-- 1b. Developer uses Merge to combine multiple source channels.
-- 4b. Developer uses Tee to duplicate a stream to multiple consumers.
-
-**Sub-Variations:**
-- Linear: FromSlice → Filter → FanOut → Batch → drain
-- Fan-in: Merge(srcA, srcB) → Map → drain
-- Fan-out: src → Tee(2) → (consumerA, consumerB)

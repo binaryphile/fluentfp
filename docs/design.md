@@ -654,195 +654,6 @@ future release.
 **Re-iteration is stateful:** Like `FromNext`, `FromChannel` wraps a stateful source.
 Second iteration continues from whatever channel state exists, not from the beginning.
 
-### D26: toc — Constrained stage runner
-
-Bounded input queue with serial/parallel workers, inspired by Drum-Buffer-Rope (Theory of Constraints).
-
-```go
-type Stage[T, R any] struct { /* unexported */ }
-
-func Start[T, R any](ctx context.Context, fn func(context.Context, T) (R, error), opts Options[T]) *Stage[T, R]
-func (s *Stage[T, R]) Submit(ctx context.Context, item T) error
-func (s *Stage[T, R]) CloseInput()
-func (s *Stage[T, R]) Out() <-chan rslt.Result[R]
-func (s *Stage[T, R]) Wait() error
-func (s *Stage[T, R]) Cause() error
-```
-
-**Why a stage runner over raw channels:** Go's `chan T` + `errgroup` can wire a bounded pipeline, but they don't give you: constraint-centric stats (starvation, utilization, output-blocked time), standard lifecycle contract (Submit → CloseInput → drain Out → Wait), or panic recovery. You re-invent the same 80 lines every time you have a known bottleneck.
-
-**RWMutex-based send coordination:** Senders hold RLock in `trySend`; `CloseInput` acquires Lock after closing a signal channel. This eliminates send-on-closed-channel panics without panic/recover. Prior approaches: (1) panic/recover — race detector flags concurrent close+send; (2) WaitGroup for sender tracking — `Add(1)` concurrent with `Wait()` when counter is 0 violates WaitGroup contract.
-
-**Unbuffered output channel:** Workers block on `s.out <- result` if nobody reads. This preserves downstream backpressure and makes output-blocked time measurable. The tradeoff is a liveness contract: callers MUST drain Out to prevent goroutine leaks.
-
-**Submit ctx is admission-only:** The `ctx` parameter to Submit controls only admission blocking — it is not passed to fn. The stage's own context (derived from Start's ctx) is what fn receives. This prevents items from being processed under a context that may be canceled before the worker picks them up.
-
-**Latched terminal cause:** The closer goroutine writes `cause` exactly once before `close(done)`. Wait/Cause read without lock after `<-done` per Go memory model (channel close synchronizes before zero-value receive). Cause distinguishes success, fail-fast error, and parent cancellation.
-
-**Fail-fast default:** First fn error cancels remaining work. Workers that already dequeued items and passed the ctx.Err() check may still call fn — cancellation is cooperative. ContinueOnError mode is opt-in.
-
-**Not an abstraction over errgroup:** Different concern. errgroup manages N goroutines with shared error. toc manages a bounded queue + worker pool with per-item results, stats, and lifecycle. `FanOut` in slice covers the errgroup-shaped case.
-
-### D27: Pipeline composition via free functions (Pipe, Batcher, Tee, Merge, Join)
-
-```go
-func Pipe[T, R any](ctx context.Context, src <-chan rslt.Result[T],
-    fn func(context.Context, T) (R, error), opts Options[T]) *Stage[T, R]
-func NewBatcher[T any](ctx context.Context, src <-chan rslt.Result[T], n int) *Batcher[T]
-```
-
-**Context:** Composing multiple toc stages requires manual channel wiring — goroutine management, error forwarding, lifecycle coordination. Evaluated 6 alternatives on Go generics feasibility, type safety, ergonomics, per-stage backpressure, per-stage stats, and lifecycle complexity.
-
-| | Hetero chains | Type safety | Ergonomics | Per-stage BP | Per-stage stats | Lifecycle |
-|---|---|---|---|---|---|---|
-| Manual wiring | yes | high | low | yes | no | high |
-| Fluent builder | blocked (Go ≤1.26) | high | high | yes | yes | medium |
-| Binary Compose | yes | high | medium | yes | yes | high |
-| hof.PipeErr | yes | high | high | no | no | low |
-| **Pipe + Batcher** | **yes** | **high** | **medium** | **yes** | **yes** | **medium** |
-
-**Decision:** Free-function composition. Pipe creates stages from upstream Result channels with error passthrough (upstream Err bypasses fn, flows directly to output). Batcher accumulates items between stages with error-as-batch-boundary semantics. Internal `start` constructor registers all out-senders (workers + feeder) in WaitGroup before any goroutine launches.
-
-**Two error planes:** Data-plane errors (per-item `rslt.Err` in Out()) vs control-plane errors (Wait()/Cause()). Forwarded upstream errors are always data-plane — they never trigger fail-fast in the downstream stage.
-
-**Alternatives evaluated:**
-- Pipeline builder (5 variants: fluent method, free-function chain, interface-erased, codegen, homogeneous-only — all blocked by Go type system or unacceptable tradeoffs)
-- Binary Compose (insufficient incremental value + temporal ownership complexity where stage2 was usable before compose, creating validity window — deferred to v2)
-- fn-only hof.PipeErr (complementary for cheap transforms where per-stage observability is unnecessary — separate task)
-- Existing libraries: rill, go-streams, splunk/pipelines, conduit (all own execution internally, conflicting with toc's worker pool + stats)
-- Bidirectional flow (different problem — request/response needs correlation, deferred)
-- Manual wiring (baseline — Pipe standardizes error passthrough, source drain, stats accounting)
-
-**Consequences:**
-- Pipe returns `*Stage[T, R]`, exposing Submit/CloseInput which are misuse on Pipe stages. Both handled gracefully (no panic, no deadlock). Narrower type can be added in v2.
-- Stats struct grows 24 bytes for Received/Forwarded/Dropped atomics (always zero for Start-created stages).
-- Batcher introduces n-1 items of hidden buffering. Downstream capacity counts batches, not original items. WeightedBatcher adds dual flush (weight OR item count reaches threshold) for variable-cost items — prevents unbounded accumulation of zero/low-weight items. Same cancel patterns. Negative weights panic.
-- Cancellation is stage-local by policy. Pipeline-wide shutdown requires shared parent context cancellation. Source ownership rule: operators drain src to completion, provided consumer drains Out or ctx is canceled and src eventually closes. Error passthrough during shutdown is best-effort (cancel-aware sends may race).
-
-### D28: Approximate allocation observation (process-global counters)
-
-```go
-type Options[T any] struct {
-    TrackAllocations bool // opt-in; samples runtime/metrics around each fn call
-}
-type Stats struct {
-    ObservedAllocBytes   uint64 // cumulative heap bytes observed during fn windows
-    ObservedAllocObjects uint64 // cumulative heap objects observed during fn windows
-}
-```
-
-**Why `runtime/metrics`:** `/gc/heap/allocs:bytes` and `/gc/heap/allocs:objects` are the only production-suitable cumulative allocation counters in the Go standard library. `runtime.ReadMemStats` is heavier and stops-the-world on some paths. `runtime.MemProfile` is sampled, not exact, and suited for offline diagnostics. There is no per-goroutine allocation counter in the Go runtime.
-
-**Per-invocation sampling vs stage-active-window:** Per-invocation (sample before/after each `safeCall`) was chosen for consistency with the existing `serviceNs` timing pattern and implementation simplicity. Stage-active-window (sample on 0→1/1→0 active-worker transitions) would reduce intra-stage double-counting when workers overlap, but adds mutex/CAS on the hot path and loses per-call granularity. Both approaches still include cross-stage process noise — the fundamental limitation is process-global counters.
-
-**Semantic caveats:** These counters are not exclusive to the stage. They capture all process-wide heap allocations during each fn execution window. With Workers > 1, overlapping execution windows can capture the same unrelated allocation in multiple workers — per-stage totals can exceed actual process allocations over the same period. Long-running fn calls are biased upward simply because they keep the observation window open longer. Not additive across stages. Best used as a directional signal under stable workload where the stage dominates allocations.
-
-**Opt-in default:** On the order of 1µs overhead per item in single-worker throughput benchmarks (two `metrics.Read` calls at ~320ns each, plus counter extraction and atomic accumulation). Multi-worker contention on shared atomic counters may increase this. The ~2x throughput regression for no-op fns means default-on would penalize all users for an inherently approximate metric. Opt-in lets users who need allocation visibility accept the cost explicitly. Benchmarks: `metrics.Read` is allocation-free (0 allocs/op, confirmed via escape analysis and `AllocsPerRun`); per-worker `[2]metrics.Sample` array stays on the stack.
-
-**Runtime contract validation:** Both metric names and their `KindUint64` type are validated once on first use via `sync.Once` + `metrics.All()`. The probe (`allocMetricsProbe`) is a pure function taking `[]metrics.Description`, table-tested with synthetic inputs (missing names, wrong kinds, duplicates). If either metric is absent, has a different kind, or appears more than once, tracking is disabled. `Stats.AllocTrackingActive` reports the effective state so callers can distinguish "unsupported" from "not requested" from "active but zero allocations."
-
-**Counter regression guard:** If the post-sample is less than the pre-sample (theoretically possible on runtime counter wrap), the delta is silently skipped rather than accumulating a huge spurious value.
-
-**Panic path:** `safeCall` returns normally even when fn panics (named return + defer/recover), so the post-sample always fires. `debug.Stack()` allocations from panic recovery fall within the measurement window — acceptable since the panic is directly caused by the user's fn.
-
-**Stats accounting with tracking enabled:** Allocation sampling sits outside the `serviceNs` window but inside the `inFlightWeight` window. This is intentional: `ServiceTime` reflects only fn execution cost (comparable across tracked and untracked runs), while `InFlightWeight` reflects total worker occupancy including instrumentation overhead. `Completed` is also incremented after sampling, so in-progress snapshots during a tracked stage show slightly higher occupancy-to-completion ratios than untracked. Final stats after Wait are consistent.
-
-### D29: Synchronous broadcast via Tee
-
-```go
-func NewTee[T any](ctx context.Context, src <-chan rslt.Result[T], n int) *Tee[T]
-```
-
-**Operator semantics:** Synchronous lockstep broadcast. Single goroutine sends to each branch sequentially. Slowest consumer governs pace. No branch isolation, no fairness (branch 0 gets first send), no independent progress.
-
-**No deep copy:** Tee does not clone payloads. Channel sends copy values, but reference-containing payloads (pointers, slices, maps, structs containing these) alias across branches. Consumers must treat received values as immutable; mutation after receipt is a data race. No clone hook in v1 — immutability contract is doc-enforced.
-
-**Liveness contract (downstream):** All branch consumers must continuously read until channel close, or cancel the shared context promptly. Tee cannot enforce this — it is caller convention. An abandoned branch without ctx cancel wedges Tee and stalls all branches.
-
-**Liveness contract (upstream):** On cancellation, Tee drains src until src is closed. Upstream must eventually close src, including on cancellation paths. Branch channels and `done` do not close until src closes. Same source ownership rule as Batcher/Pipe.
-
-**Fail-fast-all:** Not Tee-enforced. Tee reacts to ctx cancellation but does not create or supervise downstream stages. Fail-fast-all requires the caller to wire downstream stages with a shared cancellable context. Documented as a wiring pattern, not a Tee guarantee.
-
-**Partial delivery and cancellation:** Cancellation is best-effort (Go select nondeterminism). After ctx cancel, the current item may still reach additional branches whose receivers happen to be ready. PartiallyDelivered means "≥1 and <N branches received before the goroutine stopped trying," not a precise cutoff. Branch 0 is systematically favored. Stats distinguish FullyDelivered, PartiallyDelivered, and Undelivered. PartiallyDelivered is at most 1 per Tee lifetime: once cancellation interrupts delivery mid-item, the goroutine enters discard mode and does not attempt delivery on subsequent items.
-
-**Downstream buffering absorbs branch skew:** Tee itself provides no buffering — branches are unbuffered channels. Any decoupling between branches comes from downstream consumers. When a branch feeds a Pipe stage with Capacity > 0, the Pipe's feeder accepts items into the stage's input buffer. The Tee's branch send unblocks as soon as the Pipe's feeder dequeues — it does not wait for fn to complete. With `Pipe(ctx, tee.Branch(0), fn, Options{Capacity: 10})`, the Tee gets up to 10 items of slack on that branch before blocking. For raw channel consumers with no internal buffering, coupling is maximal — a slow receiver directly stalls the Tee. Downstream buffering (via Pipe Capacity or other means) is the tuning knob, not a Tee feature.
-
-**Alternatives considered:**
-- Per-branch goroutines with buffer(1) internal channels: decouples branches by one item, adds N+1 goroutines + N channels. Redundant when downstream Pipe stages already provide buffering via Capacity. Complicates stats accounting (split between coordinator and senders). Deferred to AsyncTee if needed.
-- Clone hook (`func(T) T`): prevents aliasing but adds allocation cost per branch per item. Deferred — doc-enforced immutability is sufficient for era's use case (StoredVector is a value type with defensively-copied Vec).
-
-**Per-branch observability:** BranchDelivered[i] and BranchBlockedTime[i] expose which branch is the bottleneck. Aggregate stats (FullyDelivered etc.) show system-level health. Per-branch stats show where skew or stalls originate. BranchBlockedTime[i] measures direct send-wait time on branch i, not end-to-end latency imposed by other branches. Because branches are sent in index order, earlier branches' blocked time reflects their consumer's speed directly; later branches' blocked time is near zero even if they are throttled by earlier branches.
-
-**Acyclic pipelines only:** Tee (like Pipe and Batcher) assumes acyclic DAG topologies. Cycles (feeding a Tee branch back to its own upstream) will deadlock because the single run goroutine cannot simultaneously send and receive.
-
-**Non-copyable:** Tee contains atomic fields and must not be copied after first use. Returned as `*Tee[T]`. Godoc will state this.
-
-**Measurement overhead:** Per-branch blocked time calls `time.Now()` before and `time.Since()` after each branch send. This is always-on, not opt-in (unlike TrackAllocations). Acceptable for v1 — Tee items are typically coarser-grained than Stage items (batches, not individual records). If profiling shows overhead matters, a future version can make timing opt-in.
-
-**`ctxErr` synchronization:** `ctxErr` is written only in the run goroutine (before closing `done`) and read only in `Wait()` (after `<-done`). No concurrent access — happens-before via channel close.
-
-**Construction order:** NewTee starts immediately. All branch consumers should be wired before upstream produces items. With unbuffered outputs, if a branch is not yet being read, Tee blocks on that branch's send.
-
-### D30: Nondeterministic fan-in via Merge
-
-```go
-func NewMerge[T any](ctx context.Context, sources ...<-chan rslt.Result[T]) *Merge[T]
-```
-
-**Operator semantics:** Nondeterministic interleaving fan-in. One goroutine per source, all forwarding to a shared unbuffered output channel. Go runtime scheduler determines send order. No cross-source ordering guarantee, no fairness guarantee, no provenance tracking. Per-source order IS preserved: items from each individual source appear in the merged output in the same order they were received from that source (follows from one goroutine per source with sequential receive/send).
-
-**Not the inverse of Tee.** Tee broadcasts identical items to all branches. Merge interleaves distinct items from independent sources. `Tee → ... → Merge` does not restore original ordering, does not correlate outputs from sibling branches, and does not pair items across sources. Merge only interleaves values from homogeneous streams.
-
-**Why observational cancellation:** Cancellation is advisory — each source goroutine observes it at its next checkpoint rather than being preempted. Two checkpoints per iteration: a non-blocking pre-send check (bounds post-cancel forwarding to at most 1 item per source) and a blocking send-select (prevents deadlock when downstream stops reading). The goroutine cannot observe cancellation while blocked in `range src` — only when the source produces an item or closes. This means `Wait()` requires all sources to close, even after cancellation. The alternative (force-closing sources) would violate the source ownership contract and leave upstream senders blocked.
-
-**Why drain-after-cancel:** After observing cancellation, each goroutine continues draining its source to completion rather than abandoning it. This prevents upstream senders from blocking on sends into channels nobody reads. The cost is that `Wait()` may block until slow sources close. The alternative (abandon source, let upstream block) creates harder-to-diagnose deadlocks.
-
-**Why per-source atomics (not shared aggregates):** Each source goroutine writes only its own index — no cross-goroutine contention on the hot path (2 atomic ops per item instead of 4). Aggregates are derived by summing per-source slices in `Stats()`. Some cache-line false sharing may occur on adjacent atomic slots, but there is no logical write-sharing. This design prioritizes throughput over snapshot convenience.
-
-**Why sync.Once for ctxErr:** Unlike Tee (single goroutine that can write ctxErr directly), Merge has N source goroutines that may independently observe cancellation. `ctxErr` is latched by the first goroutine to take a cancel path via `sync.Once`. The closer goroutine does NOT write ctxErr — it only waits, closes output, and closes done. This prevents a late cancel (after natural completion) from falsely making `Wait()` return `context.Canceled`. Happens-before: `sync.Once` → `wg.Done()` → `wg.Wait()` → `close(out)` → `close(done)` → `<-done`.
-
-**Wait() nil-return after cancellation:** `Wait()` returns the latched context error only if a goroutine actually entered a cancel path. It may return nil even after cancellation — when all sources close before any goroutine loops back to the pre-send check, or when a goroutine is blocked in `range src` when cancel fires and the source closes without sending. This is intentional: the operator completed its work, cancellation had no observable effect, and reporting it would be a false positive.
-
-**No SourceOutputBlockedTime:** Unlike Tee's BranchBlockedTime (which reflects consumer speed per branch), Merge's output blocked time reflects shared downstream consumer speed plus scheduler contention — not attributable to individual sources. Dropped to avoid misleading metrics.
-
-**No provenance tracking:** Merge discards source identity. If downstream needs to know which source produced an item, the caller must tag items before merging. Deliberate non-goal — Merge is a stream combiner, not a correlator.
-
-**Distinct sources required:** Each source channel must be exclusively owned by the Merge. Duplicate channels create two goroutines racing on one source, breaking per-source ordering and stats. The constructor does not enforce this — while channels are comparable (O(N) map dedup is possible), it adds constructor complexity for a contract trivially satisfied by correct pipeline wiring. Expected N is 2-4; duplicate sources are a programming error, not a runtime condition.
-
-**Expected N:** Small (2-4 for typical DAG pipeline recombination). One goroutine per source is O(N). Not designed for large or unbounded N.
-
-**Acyclic pipelines only:** Same constraint as Tee/Pipe/Batcher.
-
-### D31: Strict branch recombination via Join
-
-```go
-func NewJoin[A, B, R any](ctx context.Context, srcA <-chan rslt.Result[A], srcB <-chan rslt.Result[B], fn func(A, B) R) *Join[R]
-```
-
-**Why Join, not Zip2 or Collector:** Three design iterations refined the abstraction.
-
-Collector (windowed fold, grade C) consumed N items from a merged stream — destroying provenance. Window boundaries were nondeterministic: `Merge(branchA, branchB)` could produce (ErrA, OkB) or (OkB, ErrA), yielding different fold results for the same logical upstream. Collector solved a different problem than branch recombination.
-
-Zip2 (positional zipper, grade B-) kept two channels but split the difference between strict join and general zipper. Four goroutines (2 readers + combiner + closer) were overkill for arity 2 — Go's `select` can multiplex both channels directly. Silent truncation hid contract violations (extra items are bugs, not benign). Err/Err → 2 outputs broke cardinality.
-
-Join (strict branch recombination) is the clean design: one goroutine, one item from each side, one output. Missing and extra items are contract violations visible in stats, not silently hidden.
-
-**Error matrix design:** Ok/Ok → combine. Any error taints the pair. Err/Err uses `errors.Join` to preserve both (not just the first). Missing items use typed `MissingResultError` with Source field, composable with branch errors via `errors.Join`. Always at most 1 output — preserves cardinality.
-
-**Why typed MissingResultError (not sentinel):** `errors.As` extracts the Source field ("A" or "B"), enabling callers to determine which side was missing. Composes cleanly with `errors.Join` when the other side also has an error.
-
-**Why per-side state machine:** The original boolean `haveA/haveB` design had a deadlock: both channels nil'd after first item, then both close empty → select has no readable cases → hang. The state machine (open/gotFirst/closedEmpty/closed) keeps channels selectable after first item and handles all close combinations without deadlock. Extra items read during the collect phase are absorbed and counted.
-
-**Why channels stay selectable after first item:** The original design nil'd channels after reading the first item. This creates two problems: (1) backpressures buggy producers that send multiple items — they block on the send, potentially hanging the pipeline; (2) defers extra-item counting to the drain phase, making Phase 1 exit conditions incomplete. Keeping channels selectable absorbs extras during collect and avoids both problems.
-
-**Why separate DiscardedX and ExtraX counters:** A single "DroppedX" counter would conflate first-item discards (error path, cancel, panic) with extra-item drains (contract violations). These are different diagnostic signals: DiscardedA > 0 means the join failed or was canceled; ExtraA > 0 means the upstream produced more than expected. Conservation invariant: `ReceivedX = Combined + DiscardedX + ExtraX`.
-
-**Why single goroutine:** Go's `select` can multiplex both source channels and `ctx.Done()` without reflection, making a single goroutine sufficient for arity 2. The drain phase uses the same select pattern (nil out closed channels). No internal channels, no reader goroutines, no close choreography. Compare with Merge's N+1 goroutines — necessary there because Go's `select` requires a fixed number of cases, but Join has exactly 2 sources.
-
-**fn contract — pure combiner, not processing stage:** `func(A, B) R` — no context, no error return. This keeps Join focused on structural combination. If combining can fail, downstream Pipe handles the error-capable transform. Panics in fn are recovered as `PanicError`, consistent with Stage's panic recovery.
-
-**Type erasure — Join[R], not Join[A, B, R]:** The struct type only needs R (the output type). A and B exist in the constructor and the goroutine closure but are erased from the struct. Same pattern as Pipe erasing T from Stage. Callers interact with `*Join[R]`, not `*Join[A, B, R]`.
-
 ### D32: Transform / Map / Tap / TapErr — naming for container operations
 
 Go methods cannot introduce extra type parameters, so same-type mapping (`func(T) T`) must be a method while cross-type mapping (`func(T) S`) must be a standalone function. This constraint requires two names for the same FP concept (functor map).
@@ -869,13 +680,9 @@ Go methods cannot introduce extra type parameters, so same-type mapping (`func(T
 
 **Why needed:** The POST handler's enrich step wraps a context-aware function for use in a Result chain. Without LiftCtx, this requires a closure: `func(o Order) rslt.Result[Order] { return rslt.Of(fn(ctx, o)) }`. LiftCtx eliminates the closure.
 
-### D35: web.PathParam and toc.FromChan — bridge helpers
+### D35: web.PathParam — bridge helper
 
-`web.PathParam(req, name)` wraps `PathValue` + `NonEmpty` into `Option[string]`. Eliminates the `if id == ""` guard in GET handlers.
-
-`toc.FromChan(ch)` wraps a plain `chan T` into `chan rslt.Result[T]` for use with Tee, Pipe, and other toc operators. Eliminates the passthrough Stage + feeder goroutine pattern.
-
-Both are thin wrappers. Their value is eliminating recurring boilerplate patterns identified in the orders example.
+`web.PathParam(req, name)` wraps `PathValue` + `NonEmpty` into `Option[string]`. Eliminates the `if id == ""` guard in GET handlers. A thin wrapper whose value is eliminating a recurring boilerplate pattern identified in the orders example.
 
 ## Allocation Model
 
@@ -1009,15 +816,8 @@ Where packages depend on each other, and why:
 | `Seq.Reduce` → `option.Option[T]` | Same pattern — empty sequence is normal, not exceptional. |
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 | `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
-| `Stage.Out` → `rslt.Result[R]` | Per-item results for constrained stage processing. Results carry success values, fn errors, panic errors, or cancel causes. |
-| `Stage.safeCall` → `rslt.PanicError` | Same pattern as `FanOut` — recovered panics wrapped as errors with stack trace. |
-| `Pipe` feeder → `rslt.Result[T]` | Reads upstream Result channel, unwraps Ok for workers, forwards Err directly to output (error passthrough). |
-| `Batcher.Out` → `rslt.Result[[]T]` | Emits batches as Ok results, forwards upstream errors as batch boundaries. |
-| `WeightedBatcher.Out` → `rslt.Result[[]T]` | Same as Batcher, weight-based flush condition. |
-| `Tee.Branch` → `rslt.Result[T]` | Synchronous lockstep broadcast — same Result sent to all N branches. Shared references, read-only contract. |
-| `Merge.Out` → `rslt.Result[T]` | Nondeterministic interleaving fan-in — items from N sources forwarded as-is to single output. |
 
-`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair`; `toc` depends on `rslt` — none of these import each other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair` — none of these import each other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.
 
@@ -1030,58 +830,4 @@ Where packages depend on each other, and why:
 **Why Done() + Wait():** `Done()` returns a channel composable with `select`. `Wait()` is the simple blocking form. Both safe for concurrent/multiple calls.
 
 **Why panic recovery by default:** An unrecovered panic in a background goroutine crashes the entire process. RunAsync's purpose is safe async execution — panic recovery is the core value, not optional.
-
-### D38: Stage.SetMaxWIP — dynamic rope (WIP limiting)
-
-Adds `Options.MaxWIP` (static WIP limit) and `Stage.SetMaxWIP(n)` (dynamic adjustment). Separates DBR rope from buffer.
-
-**Why separate from Capacity:** Buffer protects the constraint from upstream starvation (Capacity = channel size). Rope prevents upstream from overproducing (MaxWIP = admission limit). Conflating both in Capacity forces choosing between starvation protection and overproduction control.
-
-**Why SetMaxWIP(int) not RopeFunc func() int:** The caller knows when the limit changes; the stage shouldn't poll. SetMaxWIP broadcasts to blocked Submits immediately. A memory monitor or rate limiter calls SetMaxWIP periodically.
-
-**Why per-waiter channels not sync.Cond:** `sync.Cond.Wait()` is not context-aware — blocked Submit hangs on ctx cancel if no worker completes. Per-waiter channels integrate with `select` for cancellation, provide FIFO fairness, grant exactly N waiters for N slots (no thundering herd).
-
-**Why exact accounting:** Existing `bufferedDepth` is approximate. Correctness-sensitive gating requires exact counts. `admitted` incremented under lock before enqueue, decremented on completion or rollback. Worker panic defer also decrements — no slot leaks.
-
-**Why floor of 1:** MaxWIP=0 deadlocks. Minimum is 1.
-
-**Why default Capacity+Workers:** Maximum possible WIP. Existing code sees identical behavior — rope fast path always passes.
-
-### D39: Stage.SetMaxWIPWeight — weighted admission control
-
-Adds `Options.MaxWIPWeight` (weight-based WIP limit) alongside count-based `MaxWIP`. Both limits enforced simultaneously.
-
-**Why two independent limits:** Count prevents zero-weight item floods. Weight prevents memory blowout from heavy items. They serve different failure modes. Mutual exclusivity would be a footgun — disabling one silently exposes the other's weakness.
-
-**Why reject oversize items immediately:** An item with weight > MaxWIPWeight can never be admitted. In a FIFO queue, it would permanently poison the head — blocking all followers forever. `ErrWeightExceedsLimit` gives callers a clean signal to handle (skip, log, split).
-
-**Why FIFO head-of-line blocking:** A heavy item at the queue head blocks lighter followers, even if they fit by weight. This is consistent with the count-based rope and the physical rope analogy (you can't skip Herbie). Skip-ahead adds complexity and fairness problems without evidence of need.
-
-**Why overflow-safe arithmetic:** `weightAllows` uses `w <= maxWIPWeight - admittedWeight` instead of `admittedWeight + w <= maxWIPWeight` to avoid int64 overflow on large weights.
-
-**Why frozen weight:** Weight is computed once in Submit, stored in `queued[T].weight`, and carried unchanged through admission, processing, and release. Recomputing on release would invite accounting corruption if the item mutates.
-
-### D40: PauseAdmission / ResumeAdmission
-
-Explicit pause/resume for admission, separate from SetMaxWIP.
-
-**Why not SetMaxWIP(0):** `Options.MaxWIP=0` means default at construction, `SetMaxWIP(0)` would mean pause at runtime — same literal, two meanings. Pause is a distinct operational concept (memory pressure, downstream outage, operator intervention) that deserves its own API.
-
-**Why hold, not reject:** Paused waiters stay queued and wake when resumed. Rejection would lose demand and require callers to retry. Holding preserves backpressure semantics.
-
-**Why paused checked before both limits:** The `paused` flag forces the slow path regardless of count or weight capacity. Resume calls `grantWaitersLocked` to wake held waiters.
-
-### D41: Reporter — periodic pipeline stats with process memory
-
-`NewReporter(interval)` logs per-stage Stats + process memory (RSS, Go heap) every N seconds.
-
-**Why `func() Stats` not interface:** Instantiated generic types can satisfy `func() Stats` via method values (`stage.Stats`). Avoids anonymous interfaces in the public API and preserves typed Stats for future delta computation.
-
-**Why `Run(ctx)` blocks, not goroutine in constructor:** Explicit lifecycle. Constructors that spawn goroutines are harder to reason about and test. `go reporter.Run(ctx)` makes ownership clear.
-
-**Why injected `*log.Logger`:** Library code should not use global `log.Printf`. Default is `log.Default()` for convenience; `WithLogger` overrides for testing and customization.
-
-**Why panic recovery per provider:** Observability code must not crash the process. Each stage's `Stats()` call is wrapped in `recover`. Panic value + stack trace are logged; reporting continues for other stages.
-
-**Why Linux-only RSS:** `/proc/self/status` parsing is Linux-specific. Non-Linux platforms get Go heap only — RSS field omitted from output rather than showing misleading zero.
 
