@@ -17,17 +17,21 @@ func _() {
 	_ = Backoff(nil)
 	_ = ExpBackoff
 
-	// Entry point and composition
+	// Entry point and types
 	_ = Fn[int, int](nil)
 	_ = Func[int, int]
 	_ = Decorator[int, int](nil)
+	_ = Modes{}
+	_ = RetryConfig{}
 
-	// With* methods (verified via Fn method set)
+	// With (Modes-based)
+	_ = Fn[int, int].With
+
+	// With* methods (convenience)
 	_ = Fn[int, int].WithRetry
 	_ = Fn[int, int].WithBreaker
 	_ = Fn[int, int].WithThrottle
 	_ = Fn[int, int].WithThrottleWeighted
 	_ = Fn[int, int].WithMapError
 	_ = Fn[int, int].WithOnError
-	_ = Fn[int, int].With
 }
