@@ -108,7 +108,7 @@ func ExampleFn_With() {
 	// Configure all features in one struct. Library controls decorator order.
 	resilient := wrap.Func(fetchData).With(wrap.Features{
 		Retry:    wrap.Retry(3, wrap.ExpBackoff(time.Millisecond), nil),
-		Throttle: 10,
+		Throttle: wrap.Throttle(10),
 	})
 
 	got, _ := resilient(context.Background(), "abc")

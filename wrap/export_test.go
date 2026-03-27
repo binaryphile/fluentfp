@@ -24,6 +24,8 @@ func _() {
 	_ = Features{}
 	_ = RetryConfig{}
 	_ = Retry
+	_ = ThrottleConfig{}
+	_ = Throttle
 
 	// With (Features-based)
 	_ = Fn[int, int].With

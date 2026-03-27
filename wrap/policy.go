@@ -34,7 +34,17 @@ func Retry(max int, backoff Backoff, shouldRetry func(error) bool) *RetryConfig 
 	return &RetryConfig{Max: max, Backoff: backoff, ShouldRetry: shouldRetry}
 }
 
-// Features configures which decorators to apply. Nil/zero fields are skipped.
+// ThrottleConfig configures count-based concurrency control.
+type ThrottleConfig struct {
+	N int
+}
+
+// Throttle returns a ThrottleConfig for use in [Features].
+func Throttle(n int) *ThrottleConfig {
+	return &ThrottleConfig{N: n}
+}
+
+// Features configures which decorators to apply. Nil fields are skipped.
 //
 // Decorators are applied in a fixed order (innermost to outermost):
 // OnError → MapError → Retry → Breaker → Throttle.
@@ -43,7 +53,7 @@ type Features struct {
 	MapError func(error) error
 	OnError  func(error)
 	Retry    *RetryConfig
-	Throttle int
+	Throttle *ThrottleConfig
 }
 
 // With applies the features to f in a fixed order. Nil fields are skipped.
@@ -65,8 +75,8 @@ func (f Fn[T, R]) With(feat Features) Fn[T, R] {
 		f = Fn[T, R](withBreaker(feat.Breaker, f))
 	}
 
-	if feat.Throttle > 0 {
-		f = Fn[T, R](throttle(feat.Throttle, f))
+	if feat.Throttle != nil {
+		f = Fn[T, R](throttle(feat.Throttle.N, f))
 	}
 
 	return f
