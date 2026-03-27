@@ -1,95 +1,68 @@
-# call
+# wrap
 
-Resilience decorators for communicating with runtime dependencies. Named after effectful call decorators — communication over unreliable channels. "Breaker, breaker."
-
-All decorators wrap `func(context.Context, T) (R, error)` and return the same signature, so they compose by stacking. Use `Func.With` to build a stack in one expression:
+Resilience decorators for context-aware functions. Wrap a function with retry, circuit breaking, throttling, and error handling — all configured in one struct.
 
 ```go
-safeFetch := call.From(fetchUser).With(
-    call.CircuitBreaker(breaker),
-    call.Retrier(3, backoff, isTransient),
-    call.ErrMapper(classifyError),
-)
+safeFetch := wrap.Func(fetchUser).With(wrap.Features{
+    Breaker:  breaker,
+    Retry:    wrap.Retry(3, wrap.ExpBackoff(time.Second), isTransient),
+    Throttle: wrap.Throttle(10),
+})
 ```
 
-Or apply one at a time with the direct wrappers:
-
-```go
-classified := call.MapErr(fetchUser, classifyError)
-retried := call.Retry(3, backoff, isTransient, classified)
-safeFetch := call.WithBreaker(breaker, retried)
-```
+The library controls decorator order (OnError → MapError → Retry → Breaker → Throttle). Nil fields are skipped.
 
 ## What It Looks Like
 
 ```go
-// Retry with exponential backoff, only for transient errors
-backoff := call.ExponentialBackoff(100 * time.Millisecond)
-fetcher := call.Retry(3, backoff, isTransient, fetchData)
-```
-
-```go
 // Circuit breaker — trips after 5 consecutive failures, resets after 30s
-breaker := call.NewBreaker(call.BreakerConfig{
+breaker := wrap.NewBreaker(wrap.BreakerConfig{
     ResetTimeout: 30 * time.Second,
-    ReadyToTrip:  call.ConsecutiveFailures(5),
+    ReadyToTrip:  wrap.ConsecutiveFailures(5),
 })
-safeFetch := call.WithBreaker(breaker, fetchFromAPI)
-resp, err := safeFetch(ctx, url)  // returns call.ErrOpen when tripped
+safeFetch := wrap.Func(fetchFromAPI).WithBreaker(breaker)
+resp, err := safeFetch(ctx, url)  // returns wrap.ErrCircuitOpen when tripped
 ```
 
 ```go
-// Bound concurrency — at most 5 in-flight API calls
-callAPI := call.Throttle(5, fetchFromAPI)
+// Chain convenience methods for single decorators
+resilient := wrap.Func(fetchData).
+    WithRetry(3, wrap.ExpBackoff(100*time.Millisecond), isTransient).
+    WithBreaker(breaker).
+    WithThrottle(10)
 ```
 
-```go
-// Bound by total cost — large items consume more budget
-fetchData := call.ThrottleWeighted(100, estimateSize, fetchFromAPI)
-```
+## Features Struct
 
-```go
-// Cancel remaining work on first error
-failFast := call.OnErr(fetchURL, func(_ error) { cancel() })
-```
+| Field | Type | Factory | Skip value |
+|-------|------|---------|------------|
+| Breaker | `*Breaker` | `NewBreaker(cfg)` | nil |
+| MapError | `func(error) error` | — | nil |
+| OnError | `func(error)` | — | nil |
+| Retry | `*RetryConfig` | `Retry(max, backoff, pred)` | nil |
+| Throttle | `*ThrottleConfig` | `Throttle(n)` | nil |
 
-```go
-// Transform errors without changing the function signature
-annotated := call.MapErr(fetchUser, classifyError)
-```
-
-```go
-// Debounce rapid calls, execute once after quiet period
-d := call.NewDebouncer(500*time.Millisecond, saveConfig)
-defer d.Close()
-d.Call(cfg)
-```
+`WithThrottleWeighted(capacity, cost)` is available as a method only — the cost function requires type `T`.
 
 ## Operations
 
 **Circuit Breaking**
 - `NewBreaker(cfg BreakerConfig) *Breaker` — 3-state: closed → open → half-open → closed
-- `WithBreaker[T, R](b *Breaker, fn) fn` — wrap fn with breaker protection
-- `ConsecutiveFailures(n int) func(Snapshot) bool` — ReadyToTrip predicate
-- `ErrOpen` — sentinel error when breaker rejects
+- `ConsecutiveFailures(n) func(Snapshot) bool` — ReadyToTrip predicate
+- `ErrCircuitOpen` — sentinel error when breaker rejects
 
 **Retry**
-- `Retry[T, R](maxAttempts, backoff, shouldRetry, fn) fn` — retry on error with pluggable backoff
-- `ConstantBackoff(delay) Backoff` — fixed delay
-- `ExponentialBackoff(initial) Backoff` — full jitter: random in [0, initial * 2^n)
+- `Retry(max, backoff, shouldRetry) *RetryConfig` — factory for Features
+- `ExpBackoff(initial) Backoff` — randomized exponential: random in [0, initial * 2^n)
 
 **Concurrency Control**
-- `Throttle[T, R](n, fn) fn` — bound by call count
-- `ThrottleWeighted[T, R](capacity, cost, fn) fn` — bound by total cost
+- `Throttle(n) *ThrottleConfig` — factory for Features (count-based)
+- `WithThrottleWeighted(capacity, cost)` — method only (cost-based)
 
-**Side-Effect Wrappers**
-- `OnErr[T, R](fn, onErr) fn` — call handler on error
-- `MapErr[T, R](fn, mapper) fn` — transform errors
+**Error Handling**
+- `MapError` field — transform errors via mapping function
+- `OnError` field — side-effect handler on error
 
-**Debounce**
-- `NewDebouncer[T](wait, fn, opts...) *Debouncer[T]` — trailing-edge coalescer
-- `MaxWait(d) DebounceOption` — cap maximum deferral
+All context-aware decorators return `ctx.Err()` on cancellation. Circuit breaker does not count `context.Canceled` as a failure. All functions panic on nil inputs.
 
-All context-aware wrappers return `ctx.Err()` on cancellation. `WithBreaker` does not count `context.Canceled` as a failure. All functions panic on nil inputs.
-
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/call) for complete API documentation and the [orders example](../examples/orders/) for a full integration demo.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/wrap) for complete API documentation.
