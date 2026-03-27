@@ -1,10 +1,6 @@
 package wrap
 
-import (
-	"context"
-
-	"github.com/binaryphile/fluentfp/option"
-)
+import "context"
 
 // Fn is the function shape all decorators operate on:
 // a context-aware function that returns a value or an error.
@@ -48,25 +44,26 @@ type Modes struct {
 
 // With applies the modes to f in a fixed order. Nil fields are skipped.
 // Innermost to outermost: OnError → MapError → Retry → Breaker → Throttle.
+// Each nil Opt field is a pseudo-option meaning "not configured."
 func (f Fn[T, R]) With(m Modes) Fn[T, R] {
-	if handler, ok := option.New(m.OnErrorOpt, m.OnErrorOpt != nil).Get(); ok {
-		f = Fn[T, R](onErr(f, handler))
+	if m.OnErrorOpt != nil {
+		f = Fn[T, R](onErr(f, m.OnErrorOpt))
 	}
 
-	if mapper, ok := option.New(m.MapErrorOpt, m.MapErrorOpt != nil).Get(); ok {
-		f = Fn[T, R](mapErr(f, mapper))
+	if m.MapErrorOpt != nil {
+		f = Fn[T, R](mapErr(f, m.MapErrorOpt))
 	}
 
-	if cfg, ok := option.NonNil(m.RetryOpt).Get(); ok {
-		f = Fn[T, R](retry(cfg.Max, cfg.Backoff, cfg.ShouldRetry, f))
+	if m.RetryOpt != nil {
+		f = Fn[T, R](retry(m.RetryOpt.Max, m.RetryOpt.Backoff, m.RetryOpt.ShouldRetry, f))
 	}
 
 	if m.BreakerOpt != nil {
 		f = Fn[T, R](withBreaker(m.BreakerOpt, f))
 	}
 
-	if n, ok := option.NonNil(m.ThrottleOpt).Get(); ok {
-		f = Fn[T, R](throttle(n, f))
+	if m.ThrottleOpt != nil {
+		f = Fn[T, R](throttle(*m.ThrottleOpt, f))
 	}
 
 	return f
