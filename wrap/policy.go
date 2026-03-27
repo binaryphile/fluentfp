@@ -17,9 +17,7 @@ func Func[T, R any](fn func(context.Context, T) (R, error)) Fn[T, R] {
 }
 
 // Decorator wraps an Fn, returning an Fn with the same signature.
-// For custom decorators not covered by [Features], apply manually:
-//
-//	decorated := wrap.Fn[T, R](myDecorator(fn))
+// Use with [Fn.Apply] for custom decorators not covered by [Features].
 type Decorator[T, R any] func(Fn[T, R]) Fn[T, R]
 
 // RetryConfig configures the retry feature.
@@ -82,33 +80,23 @@ func (f Fn[T, R]) With(feat Features) Fn[T, R] {
 	return f
 }
 
-// WithRetry is shorthand for With(Features{Retry: Retry(...)}).
-func (f Fn[T, R]) WithRetry(maxAttempts int, backoff Backoff, shouldRetry func(error) bool) Fn[T, R] {
-	return Fn[T, R](retry(maxAttempts, backoff, shouldRetry, f))
+// Apply applies custom decorators to f in order (innermost-first).
+// Use for decorators not covered by [Features], such as [WithThrottleWeighted]
+// or application-specific wrappers.
+func (f Fn[T, R]) Apply(ds ...Decorator[T, R]) Fn[T, R] {
+	for _, d := range ds {
+		if d == nil {
+			panic("wrap.Apply: nil decorator")
+		}
+		f = Fn[T, R](d(f))
+	}
+	return f
 }
 
-// WithBreaker is shorthand for With(Features{Breaker: b}).
-func (f Fn[T, R]) WithBreaker(b *Breaker) Fn[T, R] {
-	return Fn[T, R](withBreaker(b, f))
-}
-
-// WithThrottle is shorthand for With(Features{Throttle: Throttle(n)}).
-func (f Fn[T, R]) WithThrottle(n int) Fn[T, R] {
-	return Fn[T, R](throttle(n, f))
-}
-
-// WithThrottleWeighted wraps f with cost-based concurrency control.
+// WithThrottleWeighted returns a Decorator for cost-based concurrency control.
 // Not available via Features because the cost function requires type T.
-func (f Fn[T, R]) WithThrottleWeighted(capacity int, cost func(T) int) Fn[T, R] {
-	return Fn[T, R](throttleWeighted(capacity, cost, f))
-}
-
-// WithMapError is shorthand for With(Features{MapError: mapper}).
-func (f Fn[T, R]) WithMapError(mapper func(error) error) Fn[T, R] {
-	return Fn[T, R](mapErr(f, mapper))
-}
-
-// WithOnError is shorthand for With(Features{OnError: handler}).
-func (f Fn[T, R]) WithOnError(handler func(error)) Fn[T, R] {
-	return Fn[T, R](onErr(f, handler))
+func WithThrottleWeighted[T, R any](capacity int, cost func(T) int) Decorator[T, R] {
+	return func(f Fn[T, R]) Fn[T, R] {
+		return Fn[T, R](throttleWeighted(capacity, cost, f))
+	}
 }

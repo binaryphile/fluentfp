@@ -17,7 +17,7 @@ func TestOnErrBasicSuccess(t *testing.T) {
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
-	wrapped := wrap.Func(doubleIt).WithOnError(onErr)
+	wrapped := wrap.Func(doubleIt).With(wrap.Features{OnError: onErr})
 	got, err := wrapped(context.Background(), 5)
 
 	if err != nil {
@@ -40,7 +40,7 @@ func TestOnErrCallsOnError(t *testing.T) {
 	// failingFn always returns an error.
 	failingFn := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
 
-	wrapped := wrap.Func(failingFn).WithOnError(onErr)
+	wrapped := wrap.Func(failingFn).With(wrap.Features{OnError: onErr})
 	_, err := wrapped(context.Background(), 5)
 
 	if !errors.Is(err, errBoom) {
@@ -61,7 +61,7 @@ func TestOnErrWithContextCancel(t *testing.T) {
 	// failingFn always returns an error.
 	failingFn := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
 
-	wrapped := wrap.Func(failingFn).WithOnError(onErr)
+	wrapped := wrap.Func(failingFn).With(wrap.Features{OnError: onErr})
 	_, err := wrapped(ctx, 5)
 
 	if !errors.Is(err, errBoom) {
@@ -87,7 +87,7 @@ func TestOnErrComposesWithThrottle(t *testing.T) {
 	}
 
 	// Compose: OnError first (inner), then Throttle (outer).
-	throttled := wrap.Func(doubleOrFail).WithOnError(onErr).WithThrottle(2)
+	throttled := wrap.Func(doubleOrFail).With(wrap.Features{OnError: onErr}).With(wrap.Features{Throttle: wrap.Throttle(2)})
 
 	// Success path.
 	got, err := throttled(context.Background(), 5)
@@ -112,8 +112,6 @@ func TestOnErrComposesWithThrottle(t *testing.T) {
 }
 
 func TestOnErrValidationPanics(t *testing.T) {
-	// dummyFn is a placeholder function.
-	dummyFn := func(_ context.Context, _ int) (int, error) { return 0, nil }
 	// dummyOnErr is a placeholder side-effect.
 	dummyOnErr := func(error) {}
 
@@ -123,11 +121,7 @@ func TestOnErrValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "nil_fn",
-			fn:   func() { wrap.Func[int, int](nil).WithOnError(dummyOnErr) },
-		},
-		{
-			name: "nil_onErr",
-			fn:   func() { wrap.Func(dummyFn).WithOnError(nil) },
+			fn:   func() { wrap.Func[int, int](nil).With(wrap.Features{OnError: dummyOnErr}) },
 		},
 	}
 

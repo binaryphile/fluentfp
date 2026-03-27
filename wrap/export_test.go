@@ -27,14 +27,8 @@ func _() {
 	_ = ThrottleConfig{}
 	_ = Throttle
 
-	// With (Features-based)
+	// With (Features-based) and Apply (custom decorators)
 	_ = Fn[int, int].With
-
-	// With* methods (convenience)
-	_ = Fn[int, int].WithRetry
-	_ = Fn[int, int].WithBreaker
-	_ = Fn[int, int].WithThrottle
-	_ = Fn[int, int].WithThrottleWeighted
-	_ = Fn[int, int].WithMapError
-	_ = Fn[int, int].WithOnError
+	_ = Fn[int, int].Apply
+	_ = WithThrottleWeighted[int, int]
 }

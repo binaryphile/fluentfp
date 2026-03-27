@@ -30,7 +30,7 @@ func TestFn_WithBreaker(t *testing.T) {
 		return 0, errors.New("fail")
 	})
 
-	wrapped := fn.WithBreaker(b)
+	wrapped := fn.With(wrap.Features{Breaker: b})
 
 	// First call fails normally.
 	_, err := wrapped(context.Background(), 1)
@@ -59,7 +59,7 @@ func TestWithRetry(t *testing.T) {
 		return n * 2, nil
 	})
 
-	wrapped := fn.WithRetry(3, constBackoff, nil)
+	wrapped := fn.With(wrap.Features{Retry: wrap.Retry(3, constBackoff, nil)})
 
 	got, err := wrapped(context.Background(), 5)
 	if err != nil || got != 10 {
@@ -78,7 +78,7 @@ func TestWithMapError(t *testing.T) {
 		return 0, errors.New("original")
 	})
 
-	wrapped := fn.WithMapError(mapper)
+	wrapped := fn.With(wrap.Features{MapError: mapper})
 
 	_, err := wrapped(context.Background(), 1)
 	if err != sentinel {
@@ -95,7 +95,7 @@ func TestWithOnError(t *testing.T) {
 		return 0, original
 	})
 
-	wrapped := fn.WithOnError(handler)
+	wrapped := fn.With(wrap.Features{OnError: handler})
 
 	wrapped(context.Background(), 1)
 	if captured != original {

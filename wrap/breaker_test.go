@@ -48,7 +48,7 @@ func TestWithBreaker(t *testing.T) {
 			return n * 2, nil
 		}
 
-		wrapped := wrap.Func(doubleIt).WithBreaker(b)
+		wrapped := wrap.Func(doubleIt).With(wrap.Features{Breaker: b})
 		got, err := wrapped(context.Background(), 5)
 
 		if err != nil {
@@ -72,7 +72,7 @@ func TestWithBreaker(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		wrapped := wrap.Func(alwaysFail).WithBreaker(b)
+		wrapped := wrap.Func(alwaysFail).With(wrap.Features{Breaker: b})
 
 		for i := 0; i < 3; i++ {
 			_, _ = wrapped(context.Background(), 1)
@@ -94,7 +94,7 @@ func TestWithBreaker(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		wrapped := wrap.Func(alwaysFail).WithBreaker(b)
+		wrapped := wrap.Func(alwaysFail).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1) // trips breaker
 
 		_, err := wrapped(context.Background(), 1)
@@ -120,7 +120,7 @@ func TestWithBreaker(t *testing.T) {
 			return n * 2, nil
 		}
 
-		wrapped := wrap.Func(succeedAfterTrip).WithBreaker(b)
+		wrapped := wrap.Func(succeedAfterTrip).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1) // trips breaker
 
 		// Still open before timeout.
@@ -158,7 +158,7 @@ func TestWithBreaker(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := wrap.Func(failOnceThenSucceed).WithBreaker(b)
+		wrapped := wrap.Func(failOnceThenSucceed).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1) // trip
 
 		clock.Advance(2 * time.Second)
@@ -188,7 +188,7 @@ func TestWithBreaker(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		wrapped := wrap.Func(alwaysFail).WithBreaker(b)
+		wrapped := wrap.Func(alwaysFail).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1) // trip
 
 		clock.Advance(2 * time.Second)
@@ -216,12 +216,12 @@ func TestWithBreaker(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := wrap.Func(slowFn).WithBreaker(b)
+		wrapped := wrap.Func(slowFn).With(wrap.Features{Breaker: b})
 
 		// Trip with a quick failure first.
 		quickFail := wrap.Func(func(_ context.Context, _ int) (int, error) {
 			return 0, fmt.Errorf("fail")
-		}).WithBreaker(b)
+		}).With(wrap.Features{Breaker: b})
 		_, _ = quickFail(context.Background(), 1)
 
 		clock.Advance(2 * time.Second)
@@ -251,7 +251,7 @@ func TestWithBreaker(t *testing.T) {
 			return 0, context.Canceled
 		}
 
-		wrapped := wrap.Func(cancellingFn).WithBreaker(b)
+		wrapped := wrap.Func(cancellingFn).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1)
 
 		snap := b.Snapshot()
@@ -283,10 +283,10 @@ func TestWithBreaker(t *testing.T) {
 		// Trip with a real failure.
 		tripped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 			return 0, fmt.Errorf("fail")
-		}).WithBreaker(b)
+		}).With(wrap.Features{Breaker: b})
 		_, _ = tripped(context.Background(), 1)
 
-		wrapped := wrap.Func(cancelThenSucceed).WithBreaker(b)
+		wrapped := wrap.Func(cancelThenSucceed).With(wrap.Features{Breaker: b})
 
 		// First probe returns context.Canceled — should release slot, not count as failure.
 		clock.Advance(2 * time.Second)
@@ -325,7 +325,7 @@ func TestWithBreaker(t *testing.T) {
 			return 0, context.DeadlineExceeded
 		}
 
-		wrapped := wrap.Func(timeoutFn).WithBreaker(b)
+		wrapped := wrap.Func(timeoutFn).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1)
 
 		snap := b.Snapshot()
@@ -348,7 +348,7 @@ func TestWithBreaker(t *testing.T) {
 			return n * 2, nil
 		}
 
-		wrapped := wrap.Func(doubleIt).WithBreaker(b)
+		wrapped := wrap.Func(doubleIt).With(wrap.Features{Breaker: b})
 		_, err := wrapped(ctx, 1)
 
 		if err != context.Canceled {
@@ -374,7 +374,7 @@ func TestWithBreaker(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := wrap.Func(failTwiceThenSucceed).WithBreaker(b)
+		wrapped := wrap.Func(failTwiceThenSucceed).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1) // fail 1
 		_, _ = wrapped(context.Background(), 1) // fail 2
 		_, _ = wrapped(context.Background(), 1) // success, resets consecutive
@@ -410,7 +410,7 @@ func TestWithBreaker(t *testing.T) {
 			}
 		}
 
-		wrapped := wrap.Func(failIgnoreFail).WithBreaker(b)
+		wrapped := wrap.Func(failIgnoreFail).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1) // counted fail, consecutive=1
 		_, _ = wrapped(context.Background(), 1) // ignored, consecutive stays 1
 		_, _ = wrapped(context.Background(), 1) // counted fail, consecutive=2
@@ -440,7 +440,7 @@ func TestWithBreakerShouldCount(t *testing.T) {
 			return 0, errPermanent
 		}
 
-		wrapped := wrap.Func(returnPermanent).WithBreaker(b)
+		wrapped := wrap.Func(returnPermanent).With(wrap.Features{Breaker: b})
 		_, err := wrapped(context.Background(), 1)
 
 		if err != errPermanent {
@@ -464,7 +464,7 @@ func TestWithBreakerShouldCount(t *testing.T) {
 			return 0, errTransient
 		}
 
-		wrapped := wrap.Func(returnTransient).WithBreaker(b)
+		wrapped := wrap.Func(returnTransient).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1)
 
 		snap := b.Snapshot()
@@ -491,11 +491,11 @@ func TestWithBreakerShouldCount(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := wrap.Func(permanentThenSuccess).WithBreaker(b)
+		wrapped := wrap.Func(permanentThenSuccess).With(wrap.Features{Breaker: b})
 		// Trip with a counted error first.
 		countedFail := wrap.Func(func(_ context.Context, _ int) (int, error) {
 			return 0, errTransient
-		}).WithBreaker(b)
+		}).With(wrap.Features{Breaker: b})
 		_, _ = countedFail(context.Background(), 1)
 
 		clock.Advance(2 * time.Second)
@@ -539,7 +539,7 @@ func TestWithBreakerOnStateChange(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := wrap.Func(failOnceThenSucceed).WithBreaker(b)
+		wrapped := wrap.Func(failOnceThenSucceed).With(wrap.Features{Breaker: b})
 
 		// Closed → Open.
 		_, _ = wrapped(context.Background(), 1)
@@ -585,7 +585,7 @@ func TestWithBreakerComposition(t *testing.T) {
 		shouldRetry := func(err error) bool {
 			return !errors.Is(err, wrap.ErrCircuitOpen)
 		}
-		composed := wrap.Func(failOnceThenDouble).WithBreaker(b).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), shouldRetry)
+		composed := wrap.Func(failOnceThenDouble).With(wrap.Features{Breaker: b}).With(wrap.Features{Retry: wrap.Retry(3, wrap.Backoff(func(int) time.Duration { return 0 }), shouldRetry)})
 		got, err := composed(context.Background(), 5)
 
 		if err != nil {
@@ -611,7 +611,7 @@ func TestWithBreakerComposition(t *testing.T) {
 			return n * 2, nil
 		}
 
-		composed := wrap.Func(failOnceThenDouble).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil).WithBreaker(b)
+		composed := wrap.Func(failOnceThenDouble).With(wrap.Features{Retry: wrap.Retry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil)}).With(wrap.Features{Breaker: b})
 		got, err := composed(context.Background(), 5)
 
 		if err != nil {
@@ -637,7 +637,7 @@ func TestWithBreakerComposition(t *testing.T) {
 			return n * 2, nil
 		}
 
-		composed := wrap.Func(doubleIt).WithThrottle(2).WithBreaker(b)
+		composed := wrap.Func(doubleIt).With(wrap.Features{Throttle: wrap.Throttle(2)}).With(wrap.Features{Breaker: b})
 		got, err := composed(context.Background(), 5)
 
 		if err != nil {
@@ -661,7 +661,7 @@ func TestWithBreakerRejectedCount(t *testing.T) {
 		return 0, fmt.Errorf("fail")
 	}
 
-	wrapped := wrap.Func(alwaysFail).WithBreaker(b)
+	wrapped := wrap.Func(alwaysFail).With(wrap.Features{Breaker: b})
 	_, _ = wrapped(context.Background(), 1) // trip
 
 	// These should all be rejected.
@@ -687,7 +687,7 @@ func TestWithBreakerConcurrency(t *testing.T) {
 		return int(count.Load()), nil
 	}
 
-	wrapped := wrap.Func(incrementer).WithBreaker(b)
+	wrapped := wrap.Func(incrementer).With(wrap.Features{Breaker: b})
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 100)
@@ -741,18 +741,6 @@ func TestNewBreakerPanics(t *testing.T) {
 
 func TestWithBreakerPanics(t *testing.T) {
 	b := wrap.NewBreaker(wrap.BreakerConfig{ResetTimeout: time.Second})
-	// doubleIt doubles the input.
-	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
-
-	t.Run("nil breaker", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Fatal("expected panic")
-			}
-		}()
-
-		wrap.Func(doubleIt).WithBreaker(nil)
-	})
 
 	t.Run("nil fn", func(t *testing.T) {
 		defer func() {
@@ -761,7 +749,7 @@ func TestWithBreakerPanics(t *testing.T) {
 			}
 		}()
 
-		wrap.Func[int, int](nil).WithBreaker(b)
+		wrap.Func[int, int](nil).With(wrap.Features{Breaker: b})
 	})
 }
 
@@ -804,8 +792,8 @@ func TestWithBreakerSharedBreaker(t *testing.T) {
 		return n * 2, nil
 	}
 
-	wrappedA := wrap.Func(failingFn).WithBreaker(b)
-	wrappedB := wrap.Func(successFn).WithBreaker(b)
+	wrappedA := wrap.Func(failingFn).With(wrap.Features{Breaker: b})
+	wrappedB := wrap.Func(successFn).With(wrap.Features{Breaker: b})
 
 	// Failures from wrappedA count toward the shared breaker.
 	for i := 0; i < 3; i++ {
@@ -867,7 +855,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 			}
 		}
 
-		wrapped := wrap.Func(slowThenFail).WithBreaker(b)
+		wrapped := wrap.Func(slowThenFail).With(wrap.Features{Breaker: b})
 
 		// Launch slow call A (gen 0, closed).
 		var wg sync.WaitGroup
@@ -939,7 +927,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		wrapped := wrap.Func(slowSuccess).WithBreaker(b)
+		wrapped := wrap.Func(slowSuccess).With(wrap.Features{Breaker: b})
 
 		// Launch slow success A (gen 0, closed).
 		var wg sync.WaitGroup
@@ -990,7 +978,7 @@ func TestWithBreakerPanicInFn(t *testing.T) {
 			panic("boom")
 		}
 
-		wrapped := wrap.Func(panicAfterTrip).WithBreaker(b)
+		wrapped := wrap.Func(panicAfterTrip).With(wrap.Features{Breaker: b})
 		_, _ = wrapped(context.Background(), 1) // trip
 
 		clock.Advance(2 * time.Second)
@@ -1016,7 +1004,7 @@ func TestWithBreakerPanicInFn(t *testing.T) {
 			panic("boom")
 		}
 
-		wrapped := wrap.Func(panicker).WithBreaker(b)
+		wrapped := wrap.Func(panicker).With(wrap.Features{Breaker: b})
 
 		func() {
 			defer func() { recover() }()
@@ -1049,7 +1037,7 @@ func TestWithBreakerReadyToTripReentrancy(t *testing.T) {
 		return 0, fmt.Errorf("fail")
 	}
 
-	wrapped := wrap.Func(alwaysFail).WithBreaker(b)
+	wrapped := wrap.Func(alwaysFail).With(wrap.Features{Breaker: b})
 
 	done := make(chan struct{})
 	go func() {
@@ -1088,7 +1076,7 @@ func TestWithBreakerReadyToTripPanicDoesNotDeadlock(t *testing.T) {
 		return 0, fmt.Errorf("fail")
 	}
 
-	wrapped := wrap.Func(alwaysFail).WithBreaker(b)
+	wrapped := wrap.Func(alwaysFail).With(wrap.Features{Breaker: b})
 
 	// First call panics in ReadyToTrip.
 	func() {
@@ -1130,7 +1118,7 @@ func TestWithBreakerShouldCountPanicReleasesProbe(t *testing.T) {
 
 	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		return 0, fmt.Errorf("fail")
-	}).WithBreaker(b)
+	}).With(wrap.Features{Breaker: b})
 
 	// Trip the breaker normally.
 	_, _ = wrapped(context.Background(), 1)
@@ -1182,7 +1170,7 @@ func TestWithBreakerOnStateChangePanicOnAdmission(t *testing.T) {
 
 	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		return 0, fmt.Errorf("fail")
-	}).WithBreaker(b)
+	}).With(wrap.Features{Breaker: b})
 
 	// Trip the breaker normally.
 	_, _ = wrapped(context.Background(), 1)
@@ -1235,7 +1223,7 @@ func TestWithBreakerOnStateChangePanicAfterCompletion(t *testing.T) {
 
 	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		return 0, fmt.Errorf("fail")
-	}).WithBreaker(b)
+	}).With(wrap.Features{Breaker: b})
 
 	// Trip — OnStateChange panics on the closed→open transition.
 	func() {
@@ -1264,7 +1252,7 @@ func TestWithBreakerExactTimeoutBoundary(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 		return 42, nil
-	}).WithBreaker(b)
+	}).With(wrap.Features{Breaker: b})
 
 	// Trip.
 	_, _ = wrapped(context.Background(), 1)
@@ -1308,7 +1296,7 @@ func TestWithBreakerOpenedAtSemantics(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 		return 42, nil
-	}).WithBreaker(b)
+	}).With(wrap.Features{Breaker: b})
 
 	// Trip — OpenedAt should be set.
 	tripTime := clock.Now()
@@ -1365,7 +1353,7 @@ func TestWithBreakerTOCTOUInvalidation(t *testing.T) {
 			return 0, fmt.Errorf("fail %d", n)
 		}
 		return 42, nil
-	}).WithBreaker(b)
+	}).With(wrap.Features{Breaker: b})
 
 	// Rack up 2 failures (sequential — no race on calls).
 	_, _ = wrapped(context.Background(), 1) // fail 1
