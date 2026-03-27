@@ -27,7 +27,5 @@ func _() {
 	_ = Fn[int, int].MapError
 	_ = Fn[int, int].OnError
 	_ = Fn[int, int].Retry
-	_ = Fn[int, int].Throttle
-	_ = Fn[int, int].Weighted
 	_ = Fn[int, int].Apply
 }

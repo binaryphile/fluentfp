@@ -301,30 +301,3 @@ func TestExpBackoff(t *testing.T) {
 	})
 }
 
-func TestRetryComposesWithThrottle(t *testing.T) {
-	calls := 0
-	// failOnceThenDouble fails once, then doubles.
-	failOnceThenDouble := func(_ context.Context, n int) (int, error) {
-		calls++
-		if calls < 2 {
-			return 0, fmt.Errorf("fail")
-		}
-		return n * 2, nil
-	}
-
-	// constBackoff always waits 0 for testing.
-	constBackoff := wrap.Backoff(func(int) time.Duration { return 0 })
-
-	composed := wrap.Func(failOnceThenDouble).Throttle(1).Retry(3, constBackoff, nil)
-	got, err := composed(context.Background(), 5)
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != 10 {
-		t.Fatalf("got %d, want 10", got)
-	}
-	if calls != 2 {
-		t.Fatalf("fn called %d times, want 2", calls)
-	}
-}

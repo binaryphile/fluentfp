@@ -627,26 +627,6 @@ func TestWithBreakerComposition(t *testing.T) {
 		}
 	})
 
-	t.Run("composes with Throttle", func(t *testing.T) {
-		b := wrap.NewBreaker(wrap.BreakerConfig{
-			ResetTimeout: time.Second,
-			ReadyToTrip:  wrap.ConsecutiveFailures(5),
-		})
-		// doubleIt doubles the input.
-		doubleIt := func(_ context.Context, n int) (int, error) {
-			return n * 2, nil
-		}
-
-		composed := wrap.Func(doubleIt).Throttle(2).Breaker(b)
-		got, err := composed(context.Background(), 5)
-
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got != 10 {
-			t.Fatalf("got %d, want 10", got)
-		}
-	})
 }
 
 func TestWithBreakerRejectedCount(t *testing.T) {

@@ -3,7 +3,6 @@ package wrap_test
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"testing"
 
 	"github.com/binaryphile/fluentfp/wrap"
@@ -72,44 +71,6 @@ func TestOnErrWithContextCancel(t *testing.T) {
 	}
 }
 
-func TestOnErrComposesWithThrottle(t *testing.T) {
-	var errCount atomic.Int32
-
-	// onErr increments the error counter (concurrency-safe).
-	onErr := func(_ error) { errCount.Add(1) }
-	// doubleOrFail doubles positive inputs, errors on negative.
-	doubleOrFail := func(_ context.Context, n int) (int, error) {
-		if n < 0 {
-			return 0, errors.New("negative")
-		}
-
-		return n * 2, nil
-	}
-
-	// Compose: OnError first (inner), then Throttle (outer).
-	throttled := wrap.Func(doubleOrFail).OnError(onErr).Throttle(2)
-
-	// Success path.
-	got, err := throttled(context.Background(), 5)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != 10 {
-		t.Fatalf("got %d, want 10", got)
-	}
-	if errCount.Load() != 0 {
-		t.Fatalf("errCount = %d, want 0", errCount.Load())
-	}
-
-	// Error path.
-	_, err = throttled(context.Background(), -1)
-	if err == nil {
-		t.Fatal("expected error for negative input")
-	}
-	if errCount.Load() != 1 {
-		t.Fatalf("errCount = %d, want 1", errCount.Load())
-	}
-}
 
 func TestOnErrValidationPanics(t *testing.T) {
 	// dummyOnErr is a placeholder side-effect.

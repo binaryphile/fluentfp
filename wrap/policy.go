@@ -43,18 +43,6 @@ func (f Fn[T, R]) Retry(max int, backoff Backoff, shouldRetry func(error) bool) 
 	return Fn[T, R](retry(max, backoff, shouldRetry, f))
 }
 
-// Throttle wraps f with count-based concurrency control.
-// At most n calls execute concurrently.
-func (f Fn[T, R]) Throttle(n int) Fn[T, R] {
-	return Fn[T, R](throttle(n, f))
-}
-
-// Weighted wraps f with cost-based concurrency control.
-// The total cost of concurrently-executing calls never exceeds capacity.
-func (f Fn[T, R]) Weighted(capacity int, cost func(T) int) Fn[T, R] {
-	return Fn[T, R](throttleWeighted(capacity, cost, f))
-}
-
 // Apply applies custom decorators to f in order (innermost-first).
 func (f Fn[T, R]) Apply(ds ...Decorator[T, R]) Fn[T, R] {
 	for _, d := range ds {

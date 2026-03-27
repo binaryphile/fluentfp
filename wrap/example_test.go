@@ -33,17 +33,6 @@ func ExampleFn_Breaker() {
 	// Output: 42
 }
 
-func ExampleFn_Throttle() {
-	// double doubles the input.
-	double := func(_ context.Context, n int) (int, error) { return n * 2, nil }
-
-	limited := wrap.Func(double).Throttle(5)
-
-	got, _ := limited(context.Background(), 3)
-	fmt.Println(got)
-	// Output: 6
-}
-
 func ExampleFn_MapError() {
 	// fetchUser simulates a user lookup that fails.
 	fetchUser := func(_ context.Context, id int) (string, error) {
@@ -90,10 +79,10 @@ func ExampleFn_chain() {
 		ResetTimeout: 10 * time.Second,
 	})
 
+	// Retry transient errors, then circuit-break the dependency.
 	resilient := wrap.Func(fetchData).
 		Retry(3, wrap.ExpBackoff(time.Millisecond), nil).
-		Breaker(breaker).
-		Throttle(10)
+		Breaker(breaker)
 
 	got, _ := resilient(context.Background(), "abc")
 	fmt.Println(got)
