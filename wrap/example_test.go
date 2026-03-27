@@ -98,3 +98,20 @@ func ExampleFn_chain() {
 	fmt.Println(got)
 	// Output: data(abc)
 }
+
+func ExampleFn_With() {
+	// fetchData simulates a remote call.
+	fetchData := func(_ context.Context, key string) (string, error) {
+		return fmt.Sprintf("data(%s)", key), nil
+	}
+
+	// Configure all modes in one struct. Library controls decorator order.
+	resilient := wrap.Func(fetchData).With(wrap.Modes{
+		RetryOpt:    &wrap.RetryConfig{Max: 3, Backoff: wrap.ExpBackoff(time.Millisecond)},
+		ThrottleOpt: &wrap.ThrottleConfig{N: 10},
+	})
+
+	got, _ := resilient(context.Background(), "abc")
+	fmt.Println(got)
+	// Output: data(abc)
+}

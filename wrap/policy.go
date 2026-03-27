@@ -29,6 +29,11 @@ type RetryConfig struct {
 	ShouldRetry func(error) bool
 }
 
+// ThrottleConfig configures count-based concurrency control.
+type ThrottleConfig struct {
+	N int
+}
+
 // Modes configures which decorators to apply. Nil fields are skipped.
 // The Opt suffix signals that nil is the expected way to omit a mode.
 //
@@ -39,7 +44,7 @@ type Modes struct {
 	MapErrorOpt func(error) error
 	OnErrorOpt  func(error)
 	RetryOpt    *RetryConfig
-	ThrottleOpt *int
+	ThrottleOpt *ThrottleConfig
 }
 
 // With applies the modes to f in a fixed order. Nil fields are skipped.
@@ -63,7 +68,7 @@ func (f Fn[T, R]) With(m Modes) Fn[T, R] {
 	}
 
 	if m.ThrottleOpt != nil {
-		f = Fn[T, R](throttle(*m.ThrottleOpt, f))
+		f = Fn[T, R](throttle(m.ThrottleOpt.N, f))
 	}
 
 	return f
