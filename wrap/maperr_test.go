@@ -22,7 +22,7 @@ func TestMapErrSuccess(t *testing.T) {
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
-	wrapped := wrap.Func(doubleIt).With(wrap.Features{MapError: trackMapper})
+	wrapped := wrap.Func(doubleIt).MapError(trackMapper)
 	got, err := wrapped(context.Background(), 5)
 
 	if err != nil {
@@ -44,7 +44,7 @@ func TestMapErrTransformsError(t *testing.T) {
 	// alwaysFail always returns errOriginal.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errOriginal }
 
-	wrapped := wrap.Func(alwaysFail).With(wrap.Features{MapError: addPrefix})
+	wrapped := wrap.Func(alwaysFail).MapError(addPrefix)
 	_, err := wrapped(context.Background(), 0)
 
 	if err == nil {
@@ -68,7 +68,7 @@ func TestMapErrPassesExactErrorToMapper(t *testing.T) {
 	// alwaysFail always returns errOriginal.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errOriginal }
 
-	wrapped := wrap.Func(alwaysFail).With(wrap.Features{MapError: captureMapper})
+	wrapped := wrap.Func(alwaysFail).MapError(captureMapper)
 	wrapped(context.Background(), 0)
 
 	if received != errOriginal {
@@ -84,7 +84,7 @@ func TestMapErrPreservesResultOnError(t *testing.T) {
 	// identity returns err unchanged.
 	identity := func(err error) error { return err }
 
-	wrapped := wrap.Func(failWithValue).With(wrap.Features{MapError: identity})
+	wrapped := wrap.Func(failWithValue).MapError(identity)
 	got, _ := wrapped(context.Background(), 0)
 
 	if got != 42 {
@@ -100,7 +100,7 @@ func TestMapErrPreservesErrorIdentity(t *testing.T) {
 	// alwaysFail always returns errSentinel.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errSentinel }
 
-	wrapped := wrap.Func(alwaysFail).With(wrap.Features{MapError: wrapWithContext})
+	wrapped := wrap.Func(alwaysFail).MapError(wrapWithContext)
 	_, err := wrapped(context.Background(), 0)
 
 	if !errors.Is(err, errSentinel) {
@@ -132,7 +132,7 @@ func TestMapErrOuterSeesRetryFinalError(t *testing.T) {
 	}
 
 	// Retry first (inner), then map error (outer).
-	composed := wrap.Func(alwaysFail).With(wrap.Features{Retry: wrap.Retry(3, constBackoff, nil)}).With(wrap.Features{MapError: countingWrapper})
+	composed := wrap.Func(alwaysFail).Retry(3, constBackoff, nil).MapError(countingWrapper)
 	_, err := composed(context.Background(), 0)
 
 	if err == nil {
@@ -163,7 +163,7 @@ func TestMapErrInnerMapsPerRetryAttempt(t *testing.T) {
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errBoom }
 
 	// Map error first (inner), then retry (outer).
-	composed := wrap.Func(alwaysFail).With(wrap.Features{MapError: countingWrapper}).With(wrap.Features{Retry: wrap.Retry(3, constBackoff, nil)})
+	composed := wrap.Func(alwaysFail).MapError(countingWrapper).Retry(3, constBackoff, nil)
 	_, err := composed(context.Background(), 0)
 
 	if err == nil {
@@ -186,7 +186,7 @@ func TestMapErrOuterOnErrSeesMapping(t *testing.T) {
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errOriginal }
 
 	// MapError first (inner), then OnError (outer) — observer sees mapped error.
-	composed := wrap.Func(alwaysFail).With(wrap.Features{MapError: addPrefix}).With(wrap.Features{OnError: observeErr})
+	composed := wrap.Func(alwaysFail).MapError(addPrefix).OnError(observeErr)
 	composed(context.Background(), 0)
 
 	if observed == nil {
@@ -209,7 +209,7 @@ func TestMapErrInnerOnErrSeesOriginal(t *testing.T) {
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errOriginal }
 
 	// OnError first (inner), then MapError (outer) — observer sees original error.
-	composed := wrap.Func(alwaysFail).With(wrap.Features{OnError: observeErr}).With(wrap.Features{MapError: addPrefix})
+	composed := wrap.Func(alwaysFail).OnError(observeErr).MapError(addPrefix)
 	composed(context.Background(), 0)
 
 	if observed != errOriginal {
@@ -227,7 +227,7 @@ func TestMapErrValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "nil_fn",
-			fn:   func() { wrap.Func[int, int](nil).With(wrap.Features{MapError: dummyMapper}) },
+			fn:   func() { wrap.Func[int, int](nil).MapError(dummyMapper) },
 		},
 	}
 
@@ -249,7 +249,7 @@ func TestMapErrMapperReturnsNilPanics(t *testing.T) {
 	// alwaysFail always returns an error.
 	alwaysFail := func(_ context.Context, _ int) (int, error) { return 0, errors.New("fail") }
 
-	wrapped := wrap.Func(alwaysFail).With(wrap.Features{MapError: nilMapper})
+	wrapped := wrap.Func(alwaysFail).MapError(nilMapper)
 
 	defer func() {
 		if recover() == nil {

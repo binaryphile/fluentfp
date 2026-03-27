@@ -16,7 +16,7 @@ func TestThrottleBasic(t *testing.T) {
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
-	throttled := wrap.Func(doubleIt).With(wrap.Features{Throttle: wrap.Throttle(3)})
+	throttled := wrap.Func(doubleIt).Throttle(3)
 	got, err := throttled(context.Background(), 5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -32,7 +32,7 @@ func TestThrottleError(t *testing.T) {
 		return 0, fmt.Errorf("fail")
 	}
 
-	throttled := wrap.Func(failAlways).With(wrap.Features{Throttle: wrap.Throttle(1)})
+	throttled := wrap.Func(failAlways).Throttle(1)
 	_, err := throttled(context.Background(), 1)
 	if err == nil || err.Error() != "fail" {
 		t.Fatalf("expected 'fail' error, got %v", err)
@@ -58,7 +58,7 @@ func TestThrottleConcurrencyBound(t *testing.T) {
 		return 0, nil
 	}
 
-	throttled := wrap.Func(trackConcurrency).With(wrap.Features{Throttle: wrap.Throttle(maxConcurrent)})
+	throttled := wrap.Func(trackConcurrency).Throttle(maxConcurrent)
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {
@@ -85,7 +85,7 @@ func TestThrottleContextCancelled(t *testing.T) {
 	}
 
 	// Fill all slots.
-	throttled := wrap.Func(blockForever).With(wrap.Features{Throttle: wrap.Throttle(1)})
+	throttled := wrap.Func(blockForever).Throttle(1)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go throttled(ctx, 0) //nolint:errcheck
@@ -110,7 +110,7 @@ func TestThrottlePreCancelledContext(t *testing.T) {
 		return 0, nil
 	}
 
-	throttled := wrap.Func(neverCalled).With(wrap.Features{Throttle: wrap.Throttle(1)})
+	throttled := wrap.Func(neverCalled).Throttle(1)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -133,7 +133,7 @@ func TestThrottlePanicReleasesSlot(t *testing.T) {
 		return 42, nil
 	}
 
-	throttled := wrap.Func(maybePanic).With(wrap.Features{Throttle: wrap.Throttle(1)})
+	throttled := wrap.Func(maybePanic).Throttle(1)
 
 	// First call: panics. Recover it.
 	func() {
@@ -169,15 +169,15 @@ func TestThrottleValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "n_zero",
-			fn:   func() { wrap.Func(dummyFn).With(wrap.Features{Throttle: wrap.Throttle(0)}) },
+			fn:   func() { wrap.Func(dummyFn).Throttle(0) },
 		},
 		{
 			name: "n_negative",
-			fn:   func() { wrap.Func(dummyFn).With(wrap.Features{Throttle: wrap.Throttle(-1)}) },
+			fn:   func() { wrap.Func(dummyFn).Throttle(-1) },
 		},
 		{
 			name: "nil_fn",
-			fn:   func() { wrap.Func[int, int](nil).With(wrap.Features{Throttle: wrap.Throttle(1)}) },
+			fn:   func() { wrap.Func[int, int](nil).Throttle(1) },
 		},
 	}
 
@@ -201,7 +201,7 @@ func TestThrottleWeightedBasic(t *testing.T) {
 	// unitCost returns 1 for any input.
 	unitCost := func(_ int) int { return 1 }
 
-	throttled := wrap.Func(doubleIt).Apply(wrap.WithThrottleWeighted[int, int](10, unitCost))
+	throttled := wrap.Func(doubleIt).Weighted(10, unitCost)
 	got, err := throttled(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -235,7 +235,7 @@ func TestThrottleWeightedConcurrencyBound(t *testing.T) {
 	// fixedCost returns costPerItem for any input.
 	fixedCost := func(_ int) int { return costPerItem }
 
-	throttled := wrap.Func(trackCost).Apply(wrap.WithThrottleWeighted[int, int](capacity, fixedCost))
+	throttled := wrap.Func(trackCost).Weighted(capacity, fixedCost)
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {
@@ -276,7 +276,7 @@ func TestThrottleWeightedVariableCosts(t *testing.T) {
 	// itemCost returns the item itself as cost.
 	itemCost := func(n int) int { return n }
 
-	throttled := wrap.Func(trackCost).Apply(wrap.WithThrottleWeighted[int, int](capacity, itemCost))
+	throttled := wrap.Func(trackCost).Weighted(capacity, itemCost)
 
 	costs := []int{1, 2, 3, 1, 2, 3, 1, 2}
 	done := make(chan struct{})
@@ -326,7 +326,7 @@ func TestThrottleWeightedPartialAcquireRollback(t *testing.T) {
 		return n
 	}
 
-	throttled := wrap.Func(holderOrNoop).Apply(wrap.WithThrottleWeighted[int, int](capacity, variableCost))
+	throttled := wrap.Func(holderOrNoop).Weighted(capacity, variableCost)
 	holderCtx, holderCancel := context.WithCancel(context.Background())
 
 	// Occupy 4 tokens (cost-1 holders).
@@ -374,7 +374,7 @@ func TestThrottleWeightedContextCancelled(t *testing.T) {
 	// unitCost returns 1 for any input.
 	unitCost := func(_ int) int { return 1 }
 
-	throttled := wrap.Func(blockForever).Apply(wrap.WithThrottleWeighted[int, int](1, unitCost))
+	throttled := wrap.Func(blockForever).Weighted(1, unitCost)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go throttled(ctx, 0) //nolint:errcheck
@@ -400,7 +400,7 @@ func TestThrottleWeightedPreCancelledContext(t *testing.T) {
 	// unitCost returns 1 for any input.
 	unitCost := func(_ int) int { return 1 }
 
-	throttled := wrap.Func(neverCalled).Apply(wrap.WithThrottleWeighted[int, int](1, unitCost))
+	throttled := wrap.Func(neverCalled).Weighted(1, unitCost)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -427,7 +427,7 @@ func TestThrottleWeightedPanicReleasesSlot(t *testing.T) {
 	// fixedCost returns 3 (full capacity) for any input.
 	fixedCost := func(_ int) int { return capacity }
 
-	throttled := wrap.Func(maybePanic).Apply(wrap.WithThrottleWeighted[int, int](capacity, fixedCost))
+	throttled := wrap.Func(maybePanic).Weighted(capacity, fixedCost)
 
 	// First call: panics with all 3 tokens acquired. Recover it.
 	func() {
@@ -465,26 +465,26 @@ func TestThrottleWeightedValidationPanics(t *testing.T) {
 	}{
 		{
 			name: "capacity_zero",
-			fn:   func() { wrap.Func(dummyFn).Apply(wrap.WithThrottleWeighted[int, int](0, unitCost)) },
+			fn:   func() { wrap.Func(dummyFn).Weighted(0, unitCost) },
 		},
 		{
 			name: "capacity_negative",
-			fn:   func() { wrap.Func(dummyFn).Apply(wrap.WithThrottleWeighted[int, int](-1, unitCost)) },
+			fn:   func() { wrap.Func(dummyFn).Weighted(-1, unitCost) },
 		},
 		{
 			name: "nil_cost",
-			fn:   func() { wrap.Func(dummyFn).Apply(wrap.WithThrottleWeighted[int, int](1, nil)) },
+			fn:   func() { wrap.Func(dummyFn).Weighted(1, nil) },
 		},
 		{
 			name: "nil_fn",
-			fn:   func() { wrap.Func((func(context.Context, int) (int, error))(nil)).Apply(wrap.WithThrottleWeighted[int, int](1, unitCost)) },
+			fn:   func() { wrap.Func((func(context.Context, int) (int, error))(nil)).Weighted(1, unitCost) },
 		},
 		{
 			name: "cost_zero",
 			fn: func() {
 				// zeroCost returns 0 for any input.
 				zeroCost := func(_ int) int { return 0 }
-				throttled := wrap.Func(dummyFn).Apply(wrap.WithThrottleWeighted[int, int](10, zeroCost))
+				throttled := wrap.Func(dummyFn).Weighted(10, zeroCost)
 				throttled(context.Background(), 0) //nolint:errcheck
 			},
 		},
@@ -493,7 +493,7 @@ func TestThrottleWeightedValidationPanics(t *testing.T) {
 			fn: func() {
 				// negativeCost returns -1 for any input.
 				negativeCost := func(_ int) int { return -1 }
-				throttled := wrap.Func(dummyFn).Apply(wrap.WithThrottleWeighted[int, int](10, negativeCost))
+				throttled := wrap.Func(dummyFn).Weighted(10, negativeCost)
 				throttled(context.Background(), 0) //nolint:errcheck
 			},
 		},
@@ -502,7 +502,7 @@ func TestThrottleWeightedValidationPanics(t *testing.T) {
 			fn: func() {
 				// bigCost returns 11 for any input.
 				bigCost := func(_ int) int { return 11 }
-				throttled := wrap.Func(dummyFn).Apply(wrap.WithThrottleWeighted[int, int](10, bigCost))
+				throttled := wrap.Func(dummyFn).Weighted(10, bigCost)
 				throttled(context.Background(), 0) //nolint:errcheck
 			},
 		},

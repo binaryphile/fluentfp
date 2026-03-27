@@ -9,80 +9,53 @@ type Fn[T, R any] func(context.Context, T) (R, error)
 // Func wraps a plain function as an Fn for fluent decoration.
 // Go infers the type parameters from fn:
 //
-//	wrap.Func(fetchUser).With(wrap.Features{
-//	    Retry: wrap.Retry(3, wrap.ExpBackoff(time.Second), nil),
-//	})
+//	wrap.Func(fetchUser).
+//	    Retry(3, wrap.ExpBackoff(time.Second), nil).
+//	    Breaker(breaker)
 func Func[T, R any](fn func(context.Context, T) (R, error)) Fn[T, R] {
 	return fn
 }
 
 // Decorator wraps an Fn, returning an Fn with the same signature.
-// Use with [Fn.Apply] for custom decorators not covered by [Features].
+// Use with [Fn.Apply] for custom decorators.
 type Decorator[T, R any] func(Fn[T, R]) Fn[T, R]
 
-// RetryConfig configures the retry feature.
-type RetryConfig struct {
-	Backoff     Backoff
-	Max         int
-	ShouldRetry func(error) bool
+// Breaker wraps f with circuit breaker protection.
+// The breaker is shared state — pass the same *Breaker to multiple
+// wrapped functions to have them trip together.
+func (f Fn[T, R]) Breaker(b *Breaker) Fn[T, R] {
+	return Fn[T, R](withBreaker(b, f))
 }
 
-// Retry returns a RetryConfig for use in [Features].
-func Retry(max int, backoff Backoff, shouldRetry func(error) bool) *RetryConfig {
-	return &RetryConfig{Max: max, Backoff: backoff, ShouldRetry: shouldRetry}
+// MapError wraps f so that any non-nil error is transformed by mapper.
+func (f Fn[T, R]) MapError(mapper func(error) error) Fn[T, R] {
+	return Fn[T, R](mapErr(f, mapper))
 }
 
-// ThrottleConfig configures count-based concurrency control.
-type ThrottleConfig struct {
-	N int
+// OnError wraps f so that handler is called on non-nil errors.
+// The error is not modified.
+func (f Fn[T, R]) OnError(handler func(error)) Fn[T, R] {
+	return Fn[T, R](onErr(f, handler))
 }
 
-// Throttle returns a ThrottleConfig for use in [Features].
-func Throttle(n int) *ThrottleConfig {
-	return &ThrottleConfig{N: n}
+// Retry wraps f to retry on error up to max total attempts.
+func (f Fn[T, R]) Retry(max int, backoff Backoff, shouldRetry func(error) bool) Fn[T, R] {
+	return Fn[T, R](retry(max, backoff, shouldRetry, f))
 }
 
-// Features configures which decorators to apply. Nil fields are skipped.
-//
-// Decorators are applied in a fixed order (innermost to outermost):
-// OnError → MapError → Retry → Breaker → Throttle.
-type Features struct {
-	Breaker  *Breaker
-	MapError func(error) error
-	OnError  func(error)
-	Retry    *RetryConfig
-	Throttle *ThrottleConfig
+// Throttle wraps f with count-based concurrency control.
+// At most n calls execute concurrently.
+func (f Fn[T, R]) Throttle(n int) Fn[T, R] {
+	return Fn[T, R](throttle(n, f))
 }
 
-// With applies the features to f in a fixed order. Nil fields are skipped.
-// Innermost to outermost: OnError → MapError → Retry → Breaker → Throttle.
-func (f Fn[T, R]) With(feat Features) Fn[T, R] {
-	if feat.OnError != nil {
-		f = Fn[T, R](onErr(f, feat.OnError))
-	}
-
-	if feat.MapError != nil {
-		f = Fn[T, R](mapErr(f, feat.MapError))
-	}
-
-	if feat.Retry != nil {
-		f = Fn[T, R](retry(feat.Retry.Max, feat.Retry.Backoff, feat.Retry.ShouldRetry, f))
-	}
-
-	if feat.Breaker != nil {
-		f = Fn[T, R](withBreaker(feat.Breaker, f))
-	}
-
-	if feat.Throttle != nil {
-		f = Fn[T, R](throttle(feat.Throttle.N, f))
-	}
-
-	return f
+// Weighted wraps f with cost-based concurrency control.
+// The total cost of concurrently-executing calls never exceeds capacity.
+func (f Fn[T, R]) Weighted(capacity int, cost func(T) int) Fn[T, R] {
+	return Fn[T, R](throttleWeighted(capacity, cost, f))
 }
 
 // Apply applies custom decorators to f in order (innermost-first).
-// Use for decorators not covered by [Features], such as [WithThrottleWeighted]
-// or application-specific wrappers.
 func (f Fn[T, R]) Apply(ds ...Decorator[T, R]) Fn[T, R] {
 	for _, d := range ds {
 		if d == nil {
@@ -91,12 +64,4 @@ func (f Fn[T, R]) Apply(ds ...Decorator[T, R]) Fn[T, R] {
 		f = Fn[T, R](d(f))
 	}
 	return f
-}
-
-// WithThrottleWeighted returns a Decorator for cost-based concurrency control.
-// Not available via Features because the cost function requires type T.
-func WithThrottleWeighted[T, R any](capacity int, cost func(T) int) Decorator[T, R] {
-	return func(f Fn[T, R]) Fn[T, R] {
-		return Fn[T, R](throttleWeighted(capacity, cost, f))
-	}
 }

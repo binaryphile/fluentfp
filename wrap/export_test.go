@@ -21,14 +21,13 @@ func _() {
 	_ = Fn[int, int](nil)
 	_ = Func[int, int]
 	_ = Decorator[int, int](nil)
-	_ = Features{}
-	_ = RetryConfig{}
-	_ = Retry
-	_ = ThrottleConfig{}
-	_ = Throttle
 
-	// With (Features-based) and Apply (custom decorators)
-	_ = Fn[int, int].With
+	// Methods on Fn
+	_ = Fn[int, int].Breaker
+	_ = Fn[int, int].MapError
+	_ = Fn[int, int].OnError
+	_ = Fn[int, int].Retry
+	_ = Fn[int, int].Throttle
+	_ = Fn[int, int].Weighted
 	_ = Fn[int, int].Apply
-	_ = WithThrottleWeighted[int, int]
 }
