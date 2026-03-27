@@ -1,6 +1,6 @@
 //go:build ignore
 
-// Integration example: web + ctxval + call.CircuitBreaker middleware stack.
+// Integration example: web + ctxval + wrap.WithBreaker middleware stack.
 //
 // Run:
 //
@@ -9,7 +9,7 @@
 // Shows how fluentfp packages compose at the HTTP boundary:
 //   - ctxval: inject request ID via middleware
 //   - web: typed handlers returning Result[Response]
-//   - hof: circuit breaker wrapping an external service call
+//   - wrap: circuit breaker wrapping an external service call
 //   - option: safe query parameter parsing
 //   - rslt: FlatMap/Map for error-free composition
 //
@@ -27,10 +27,10 @@ import (
 	"time"
 
 	"github.com/binaryphile/fluentfp/ctxval"
-	"github.com/binaryphile/fluentfp/call"
 	"github.com/binaryphile/fluentfp/option"
 	"github.com/binaryphile/fluentfp/rslt"
 	"github.com/binaryphile/fluentfp/web"
+	"github.com/binaryphile/fluentfp/wrap"
 )
 
 // RequestID is a request-scoped correlation ID.
@@ -52,7 +52,7 @@ func lookupWeather(_ context.Context, city string) (string, error) {
 
 // mapDomainError maps domain errors to HTTP errors at the adapter boundary.
 func mapDomainError(err error) (*web.Error, bool) {
-	if errors.Is(err, call.ErrCircuitOpen) {
+	if errors.Is(err, wrap.ErrCircuitOpen) {
 		return &web.Error{
 			Status:  http.StatusServiceUnavailable,
 			Message: "weather service temporarily unavailable",
@@ -65,14 +65,14 @@ func mapDomainError(err error) (*web.Error, bool) {
 func main() {
 	// --- Circuit breaker ---
 
-	breaker := call.NewBreaker(call.BreakerConfig{
+	breaker := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: 10 * time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(2),
-		OnStateChange: func(t call.Transition) {
+		ReadyToTrip:  wrap.ConsecutiveFailures(2),
+		OnStateChange: func(t wrap.Transition) {
 			log.Printf("breaker: %s → %s", t.From, t.To)
 		},
 	})
-	safeWeather := call.WithBreaker(breaker, lookupWeather)
+	safeWeather := wrap.Func(lookupWeather).WithBreaker(breaker)
 
 	// --- Middleware: request ID ---
 

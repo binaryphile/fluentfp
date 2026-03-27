@@ -70,13 +70,15 @@ mux.HandleFunc("GET /users/{id}", web.Adapt(handleGetUser))
 ```
 
 ```go
-// Circuit breaker wraps a function — same signature, breaker invisible
-breaker := call.NewBreaker(call.BreakerConfig{
+// Chainable resilience — retry, breaker, throttle
+breaker := wrap.NewBreaker(wrap.BreakerConfig{
     ResetTimeout: 10 * time.Second,
-    ReadyToTrip:  call.ConsecutiveFailures(3),
+    ReadyToTrip:  wrap.ConsecutiveFailures(3),
 })
-safeFetch := call.WithBreaker(breaker, fetchFromAPI)
-resp, err := safeFetch(ctx, url)  // returns call.ErrCircuitOpen when tripped
+safeFetch := wrap.Func(fetchFromAPI).
+    WithRetry(3, wrap.ExpBackoff(time.Second), nil).
+    WithBreaker(breaker)
+resp, err := safeFetch(ctx, url)  // returns wrap.ErrCircuitOpen when tripped
 ```
 
 ```go
@@ -261,7 +263,7 @@ Packages are independent — import one or all.
 | [rslt](rslt/)       | Typed error handling             | `Ok`, `Err`, `CollectAll`, `CollectOkAndErr`   |
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
-| [call](call/)           | Resilience decorators              | `Retry`, `WithBreaker`, `Throttle`, `MapErr`   |
+| [wrap](wrap/)           | Resilience decorators              | `Func`, `WithRetry`, `WithBreaker`, `WithThrottle` |
 | [memctl](memctl/)   | Memory-aware controller          | `Watch`, `MemInfo`, `Headroom`                 |
 | [ctxval](ctxval/)   | Typed context values             | `With`, `From`, `NewKey`                       |
 | [web](web/)         | Typed HTTP handlers              | `Adapt`, `DecodeJSON`, `Steps`                 |
@@ -273,20 +275,16 @@ Packages are independent — import one or all.
 
 ## Package Highlights
 
-**[call](call/) — composable resilience decorators:
+**[wrap](wrap/)** — chainable resilience decorators:
 
 ```go
-// Retry with exponential backoff, only for transient errors
-backoff := call.ExponentialBackoff(100 * time.Millisecond)
-fetcher := call.Retry(3, backoff, isTransient, fetchData)
+// Chain retry, breaker, and throttle — reads top to bottom
+breaker := wrap.NewBreaker(wrap.BreakerConfig{ResetTimeout: 30 * time.Second})
 
-// Circuit breaker — trips after 5 consecutive failures, resets after 30s
-cfg := call.BreakerConfig{ResetTimeout: 30 * time.Second}
-breaker := call.NewBreaker(cfg)
-protected := call.WithBreaker(breaker, fetcher)
-
-// All decorators share func(ctx, T) (R, error) — stack freely
-throttled := call.Throttle(10, protected)
+safeFetch := wrap.Func(fetchData).
+    WithRetry(3, wrap.ExpBackoff(100*time.Millisecond), isTransient).
+    WithBreaker(breaker).
+    WithThrottle(10)
 ```
 
 **[web](web/)** — typed HTTP handlers on net/http:
@@ -339,11 +337,11 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Fold with early exit on error | `slice.TryFold(events, state, fn)` | slice |
 | Conditionally filter in a chain | `slice.From(s).KeepIfWhen(cond, f)` | slice |
 | Run work concurrently with a limit | `slice.FanOutAll(ctx, 10, items, fn)` | slice |
-| Retry on failure with backoff | `call.Retry(3, backoff, shouldRetry, fn)` | call |
-| Circuit-break an unhealthy dependency | `call.WithBreaker(breaker, fn)` | call |
-| Throttle concurrent access | `call.Throttle(n, fn)` | call |
-| Transform errors in a decorator chain | `call.MapErr(fn, mapper)` | call |
-| Debounce rapid calls | `call.NewDebouncer(wait, fn)` | call |
+| Retry on failure with backoff | `wrap.Func(fn).WithRetry(3, backoff, pred)` | wrap |
+| Circuit-break an unhealthy dependency | `wrap.Func(fn).WithBreaker(breaker)` | wrap |
+| Throttle concurrent access | `wrap.Func(fn).WithThrottle(n)` | wrap |
+| Transform errors in a decorator chain | `wrap.Func(fn).WithMapError(mapper)` | wrap |
+| Debounce rapid calls | `hof.NewDebouncer(wait, fn)` | hof |
 | Represent optional values | `option.Of(v)`, `option.NonZero(v)`, `option.Env("KEY")` | option |
 | Inline conditional (no ternary in Go) | `option.When(cond, val).Or(fallback)` | option |
 | Handle (value, error) as a single value | `rslt.Of(strconv.Atoi(s))` | rslt |

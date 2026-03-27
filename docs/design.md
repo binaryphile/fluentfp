@@ -67,7 +67,7 @@ ctxval --> option
 | `pair` | Tuple construction and pairwise slice operations |
 | `lof` | Adapters that make Go builtins usable as higher-order function arguments |
 | `hof` | Higher-order functions over plain signatures — composition, partial application, debouncing |
-| `call` | Decorators over `func(context.Context, T) (R, error)` — retry/backoff, circuit breaker, throttle, error mapping, side-effect wrappers |
+| `wrap` | Decorators over `func(context.Context, T) (R, error)` — retry/backoff, circuit breaker, throttle, error mapping, side-effect wrappers |
 | `memo` | Memoization — zero-arg lazy evaluation (`Of`), keyed function caching (`Fn`/`FnErr`), pluggable `Cache` interface with unbounded (`NewMap`) and LRU (`NewLRU`) strategies |
 | `heap` | Persistent (immutable) pairing heap parameterized by comparator. Based on Stone Ch 4. O(1) insert/merge, O(log n) amortized delete-min. |
 | `combo` | Combinatorial generators — `CartesianProduct`, `Permutations`, `Combinations`, `PowerSet` |
@@ -211,11 +211,11 @@ Also provides `lof.IsNonEmpty` as a predicate for `KeepIf` (filtering non-empty 
 
 The `hof` package provides higher-order functions over plain signatures: composition (`Pipe`), partial application (`Bind`/`BindR`), independent application (`Cross`), predicate factory (`Eq`), and call coalescing (`NewDebouncer`).
 
-The `call` package provides decorators over the context-aware call shape `func(context.Context, T) (R, error)`: retry with backoff (`Retry`), circuit breaking (`WithBreaker`/`NewBreaker`), concurrency control (`Throttle`/`ThrottleWeighted`), error transformation (`MapErr`), and side-effect wrappers (`OnErr`).
+The `wrap` package provides decorators over the context-aware call shape `func(context.Context, T) (R, error)`: retry with backoff (`Retry`), circuit breaking (`WithBreaker`/`NewBreaker`), concurrency control (`Throttle`/`ThrottleWeighted`), error transformation (`MapErr`), and side-effect wrappers (`OnErr`).
 
 **The seam is the function signature.** hof operates on plain signatures (`func(A) B`, `func(T)`). call operates on the context-aware error-returning call shape. This is a type-shaped split, not a domain-shaped split — callers can predict package placement from the function signature they're wrapping.
 
-**Why split:** The original `hof` mixed pure combinators with stateful resilience decorators. Users wanting `Pipe` had to import circuit breaker code. The split separates audiences: `hof` is for FP composition, `call` is for operational resilience.
+**Why split:** The original `hof` mixed pure combinators with stateful resilience decorators. Users wanting `Pipe` had to import circuit breaker code. The split separates audiences: `hof` is for FP composition, `wrap` is for operational resilience.
 
 **Boundary with lof (D8):** `hof` returns functions (higher-order — operates on functions). `lof` returns values (lower-order — wraps builtins as first-class functions for use in chains). `hof.Pipe` *builds* a transform; `lof.Len` *is* a transform.
 
@@ -676,7 +676,7 @@ Go methods cannot introduce extra type parameters, so same-type mapping (`func(T
 
 ### D34: rslt.LiftCtx — partial context application for call-shaped functions
 
-`rslt.LiftCtx(ctx, fn)` partially applies a context to `func(context.Context, T) (R, error)`, producing `func(T) Result[R]`. This bridges the call package's decorator signature into rslt's FlatMap chain.
+`rslt.LiftCtx(ctx, fn)` partially applies a context to `func(context.Context, T) (R, error)`, producing `func(T) Result[R]`. This bridges the wrap package's decorator signature into rslt's FlatMap chain.
 
 **Why needed:** The POST handler's enrich step wraps a context-aware function for use in a Result chain. Without LiftCtx, this requires a closure: `func(o Order) rslt.Result[Order] { return rslt.Of(fn(ctx, o)) }`. LiftCtx eliminates the closure.
 

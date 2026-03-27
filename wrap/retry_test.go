@@ -1,4 +1,4 @@
-package call_test
+package wrap_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/binaryphile/fluentfp/call"
+	"github.com/binaryphile/fluentfp/wrap"
 )
 
 func TestRetry(t *testing.T) {
@@ -18,7 +18,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := call.Retry(3, call.ConstantBackoff(0), nil, doubleIt)
+		retried := wrap.Func(doubleIt).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 		got, err := retried(context.Background(), 5)
 
 		if err != nil {
@@ -43,7 +43,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := call.Retry(3, call.ConstantBackoff(0), nil, failTwiceThenDouble)
+		retried := wrap.Func(failTwiceThenDouble).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 		got, err := retried(context.Background(), 5)
 
 		if err != nil {
@@ -65,7 +65,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail %d", calls)
 		}
 
-		retried := call.Retry(3, call.ConstantBackoff(0), nil, alwaysFail)
+		retried := wrap.Func(alwaysFail).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 		_, err := retried(context.Background(), 1)
 
 		if err == nil {
@@ -87,7 +87,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		retried := call.Retry(1, call.ConstantBackoff(0), nil, alwaysFail)
+		retried := wrap.Func(alwaysFail).WithRetry(1, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 		_, err := retried(context.Background(), 1)
 
 		if err == nil {
@@ -109,7 +109,7 @@ func TestRetry(t *testing.T) {
 			return n * 2, nil
 		}
 
-		retried := call.Retry(3, call.ConstantBackoff(0), nil, doubleIt)
+		retried := wrap.Func(doubleIt).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 		_, err := retried(ctx, 5)
 
 		if err != context.Canceled {
@@ -124,7 +124,7 @@ func TestRetry(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		calls := 0
-		// failAndCancel fails and cancels context on first call.
+		// failAndCancel fails and cancels context on first wrap.
 		failAndCancel := func(_ context.Context, _ int) (int, error) {
 			calls++
 			if calls == 1 {
@@ -133,7 +133,7 @@ func TestRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		retried := call.Retry(3, call.ConstantBackoff(10*time.Second), nil, failAndCancel)
+		retried := wrap.Func(failAndCancel).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 10*time.Second }), nil)
 		_, err := retried(ctx, 1)
 
 		if err != context.Canceled {
@@ -159,7 +159,7 @@ func TestRetryShouldRetry(t *testing.T) {
 		// isRetryable returns true only for retryable errors.
 		isRetryable := func(err error) bool { return err == errRetryable }
 
-		retried := call.Retry(3, call.ConstantBackoff(0), isRetryable, alwaysFatal)
+		retried := wrap.Func(alwaysFatal).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), isRetryable)
 		_, err := retried(context.Background(), 1)
 
 		if err != errFatal {
@@ -183,7 +183,7 @@ func TestRetryShouldRetry(t *testing.T) {
 		// isRetryable returns true only for retryable errors.
 		isRetryable := func(err error) bool { return err == errRetryable }
 
-		retried := call.Retry(5, call.ConstantBackoff(0), isRetryable, retryableThenFatal)
+		retried := wrap.Func(retryableThenFatal).WithRetry(5, wrap.Backoff(func(int) time.Duration { return 0 }), isRetryable)
 		_, err := retried(context.Background(), 1)
 
 		if err != errFatal {
@@ -202,7 +202,7 @@ func TestRetryShouldRetry(t *testing.T) {
 			return 0, fmt.Errorf("fail %d", calls)
 		}
 
-		retried := call.Retry(3, call.ConstantBackoff(0), nil, alwaysFail)
+		retried := wrap.Func(alwaysFail).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 		_, err := retried(context.Background(), 1)
 
 		if err == nil {
@@ -224,7 +224,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		call.Retry[int, int](3, call.ConstantBackoff(0), nil, nil)
+		wrap.Func[int, int](nil).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 	})
 
 	t.Run("nil backoff", func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		call.Retry(3, nil, nil, doubleIt)
+		wrap.Func(doubleIt).WithRetry(3, nil, nil)
 	})
 
 	t.Run("maxAttempts zero", func(t *testing.T) {
@@ -242,7 +242,7 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		call.Retry(0, call.ConstantBackoff(0), nil, doubleIt)
+		wrap.Func(doubleIt).WithRetry(0, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 	})
 
 	t.Run("maxAttempts negative", func(t *testing.T) {
@@ -251,24 +251,13 @@ func TestRetryPanics(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		call.Retry(-1, call.ConstantBackoff(0), nil, doubleIt)
+		wrap.Func(doubleIt).WithRetry(-1, wrap.Backoff(func(int) time.Duration { return 0 }), nil)
 	})
 }
 
-func TestConstantBackoff(t *testing.T) {
-	backoff := call.ConstantBackoff(500 * time.Millisecond)
-
-	for _, n := range []int{0, 1, 5, 10} {
-		got := backoff(n)
-		if got != 500*time.Millisecond {
-			t.Fatalf("backoff(%d) = %v, want 500ms", n, got)
-		}
-	}
-}
-
-func TestExponentialBackoff(t *testing.T) {
+func TestExpBackoff(t *testing.T) {
 	t.Run("returns values in expected range", func(t *testing.T) {
-		backoff := call.ExponentialBackoff(100 * time.Millisecond)
+		backoff := wrap.ExpBackoff(100 * time.Millisecond)
 
 		for n := 0; n < 10; n++ {
 			max := 100 * time.Millisecond << n
@@ -283,7 +272,7 @@ func TestExponentialBackoff(t *testing.T) {
 	})
 
 	t.Run("overflow guard returns non-negative", func(t *testing.T) {
-		backoff := call.ExponentialBackoff(time.Second)
+		backoff := wrap.ExpBackoff(time.Second)
 
 		for range 100 {
 			got := backoff(62)
@@ -299,7 +288,7 @@ func TestExponentialBackoff(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		call.ExponentialBackoff(0)
+		wrap.ExpBackoff(0)
 	})
 
 	t.Run("panics on negative initial", func(t *testing.T) {
@@ -308,7 +297,7 @@ func TestExponentialBackoff(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		call.ExponentialBackoff(-time.Second)
+		wrap.ExpBackoff(-time.Second)
 	})
 }
 
@@ -323,7 +312,10 @@ func TestRetryComposesWithThrottle(t *testing.T) {
 		return n * 2, nil
 	}
 
-	composed := call.Retry(3, call.ConstantBackoff(0), nil, call.Throttle(1, failOnceThenDouble))
+	// constBackoff always waits 0 for testing.
+	constBackoff := wrap.Backoff(func(int) time.Duration { return 0 })
+
+	composed := wrap.Func(failOnceThenDouble).WithThrottle(1).WithRetry(3, constBackoff, nil)
 	got, err := composed(context.Background(), 5)
 
 	if err != nil {

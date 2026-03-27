@@ -1,4 +1,4 @@
-package call_test
+package wrap_test
 
 import (
 	"context"
@@ -8,19 +8,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/binaryphile/fluentfp/call"
+	"github.com/binaryphile/fluentfp/wrap"
 )
 
 func TestWithSingle(t *testing.T) {
 	// double wraps fn to double the result.
-	double := func(fn call.Func[int, int]) call.Func[int, int] {
+	double := func(fn wrap.Fn[int, int]) wrap.Fn[int, int] {
 		return func(ctx context.Context, n int) (int, error) {
 			r, err := fn(ctx, n)
 			return r * 2, err
 		}
 	}
 
-	fn := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		return n, nil
 	})
 
@@ -34,8 +34,8 @@ func TestWithOrder(t *testing.T) {
 	// Record the order decorators run on the way in.
 	var order []string
 
-	makeRecorder := func(name string) call.Decorator[int, int] {
-		return func(fn call.Func[int, int]) call.Func[int, int] {
+	makeRecorder := func(name string) wrap.Decorator[int, int] {
+		return func(fn wrap.Fn[int, int]) wrap.Fn[int, int] {
 			return func(ctx context.Context, n int) (int, error) {
 				order = append(order, name)
 				return fn(ctx, n)
@@ -43,7 +43,7 @@ func TestWithOrder(t *testing.T) {
 		}
 	}
 
-	fn := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		order = append(order, "base")
 		return n, nil
 	})
@@ -67,20 +67,20 @@ func TestWithOrder(t *testing.T) {
 func TestWithBranching(t *testing.T) {
 	var countA, countB atomic.Int64
 
-	counterA := func(fn call.Func[int, int]) call.Func[int, int] {
+	counterA := func(fn wrap.Fn[int, int]) wrap.Fn[int, int] {
 		return func(ctx context.Context, n int) (int, error) {
 			countA.Add(1)
 			return fn(ctx, n)
 		}
 	}
-	counterB := func(fn call.Func[int, int]) call.Func[int, int] {
+	counterB := func(fn wrap.Fn[int, int]) wrap.Fn[int, int] {
 		return func(ctx context.Context, n int) (int, error) {
 			countB.Add(1)
 			return fn(ctx, n)
 		}
 	}
 
-	base := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	base := wrap.Func(func(_ context.Context, n int) (int, error) {
 		return n, nil
 	})
 
@@ -100,7 +100,7 @@ func TestWithBranching(t *testing.T) {
 }
 
 func TestWithEmpty(t *testing.T) {
-	fn := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		return n * 3, nil
 	})
 
@@ -117,23 +117,23 @@ func TestWithNilPanics(t *testing.T) {
 		}
 	}()
 
-	fn := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		return n, nil
 	})
 	fn.With(nil)
 }
 
-func TestCircuitBreakerDecorator(t *testing.T) {
-	b := call.NewBreaker(call.BreakerConfig{
+func TestFn_WithBreaker(t *testing.T) {
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(1),
+		ReadyToTrip:  wrap.ConsecutiveFailures(1),
 	})
 
-	fn := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		return 0, errors.New("fail")
 	})
 
-	wrapped := fn.With(call.CircuitBreaker[int, int](b))
+	wrapped := fn.WithBreaker(b)
 
 	// First call fails normally.
 	_, err := wrapped(context.Background(), 1)
@@ -143,15 +143,18 @@ func TestCircuitBreakerDecorator(t *testing.T) {
 
 	// Second call should be rejected by breaker.
 	_, err = wrapped(context.Background(), 1)
-	if !errors.Is(err, call.ErrCircuitOpen) {
+	if !errors.Is(err, wrap.ErrCircuitOpen) {
 		t.Errorf("expected ErrCircuitOpen, got %v", err)
 	}
 }
 
-func TestRetrierDecorator(t *testing.T) {
+func TestWithRetry(t *testing.T) {
 	var attempts int
 
-	fn := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	// constBackoff always waits 0 for testing.
+	constBackoff := wrap.Backoff(func(int) time.Duration { return 0 })
+
+	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		attempts++
 		if attempts < 3 {
 			return 0, errors.New("not yet")
@@ -159,46 +162,46 @@ func TestRetrierDecorator(t *testing.T) {
 		return n * 2, nil
 	})
 
-	wrapped := fn.With(call.Retrier[int, int](3, call.ConstantBackoff(0), nil))
+	wrapped := fn.WithRetry(3, constBackoff, nil)
 
 	got, err := wrapped(context.Background(), 5)
 	if err != nil || got != 10 {
-		t.Errorf("Retrier: got (%d, %v), want (10, nil)", got, err)
+		t.Errorf("WithRetry: got (%d, %v), want (10, nil)", got, err)
 	}
 	if attempts != 3 {
 		t.Errorf("attempts = %d, want 3", attempts)
 	}
 }
 
-func TestErrMapperDecorator(t *testing.T) {
+func TestWithMapError(t *testing.T) {
 	sentinel := errors.New("mapped")
 	mapper := func(err error) error { return sentinel }
 
-	fn := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		return 0, errors.New("original")
 	})
 
-	wrapped := fn.With(call.ErrMapper[int, int](mapper))
+	wrapped := fn.WithMapError(mapper)
 
 	_, err := wrapped(context.Background(), 1)
 	if err != sentinel {
-		t.Errorf("ErrMapper: got %v, want %v", err, sentinel)
+		t.Errorf("WithMapError: got %v, want %v", err, sentinel)
 	}
 }
 
-func TestOnErrorDecorator(t *testing.T) {
+func TestWithOnError(t *testing.T) {
 	var captured error
 	handler := func(err error) { captured = err }
 
 	original := errors.New("fail")
-	fn := call.Func[int, int](func(_ context.Context, n int) (int, error) {
+	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		return 0, original
 	})
 
-	wrapped := fn.With(call.OnError[int, int](handler))
+	wrapped := fn.WithOnError(handler)
 
 	wrapped(context.Background(), 1)
 	if captured != original {
-		t.Errorf("OnError: captured %v, want %v", captured, original)
+		t.Errorf("WithOnError: captured %v, want %v", captured, original)
 	}
 }

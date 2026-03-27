@@ -1,4 +1,4 @@
-package call
+package wrap
 
 import "context"
 
@@ -10,12 +10,12 @@ import "context"
 // from multiple goroutines.
 //
 // Panics if fn is nil or onErr is nil.
-func OnErr[T, R any](fn func(context.Context, T) (R, error), onErr func(error)) func(context.Context, T) (R, error) {
+func onErr[T, R any](fn func(context.Context, T) (R, error), onErr func(error)) func(context.Context, T) (R, error) {
 	if fn == nil {
-		panic("call.OnErr: fn must not be nil")
+		panic("wrap.OnErr: fn must not be nil")
 	}
 	if onErr == nil {
-		panic("call.OnErr: onErr must not be nil")
+		panic("wrap.OnErr: onErr must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {

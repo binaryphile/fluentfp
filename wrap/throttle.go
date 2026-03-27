@@ -1,4 +1,4 @@
-package call
+package wrap
 
 import (
 	"context"
@@ -10,12 +10,12 @@ import (
 // blocks until a slot is available, then calls fn.
 // The returned function is safe for concurrent use from multiple goroutines.
 // Panics if n <= 0 or fn is nil.
-func Throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
+func throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if n <= 0 {
-		panic("call.Throttle: n must be > 0")
+		panic("wrap.Throttle: n must be > 0")
 	}
 	if fn == nil {
-		panic("call.Throttle: fn must not be nil")
+		panic("wrap.Throttle: fn must not be nil")
 	}
 
 	sem := make(chan struct{}, n)
@@ -49,15 +49,15 @@ func Throttle[T, R any](n int, fn func(context.Context, T) (R, error)) func(cont
 //
 // Panics if capacity <= 0, cost is nil, or fn is nil.
 // Per-call: panics if cost(t) <= 0 or cost(t) > capacity.
-func ThrottleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
+func throttleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if capacity <= 0 {
-		panic("call.ThrottleWeighted: capacity must be > 0")
+		panic("wrap.ThrottleWeighted: capacity must be > 0")
 	}
 	if cost == nil {
-		panic("call.ThrottleWeighted: cost must not be nil")
+		panic("wrap.ThrottleWeighted: cost must not be nil")
 	}
 	if fn == nil {
-		panic("call.ThrottleWeighted: fn must not be nil")
+		panic("wrap.ThrottleWeighted: fn must not be nil")
 	}
 
 	sem := make(chan struct{}, capacity)
@@ -77,10 +77,10 @@ func ThrottleWeighted[T, R any](capacity int, cost func(T) int, fn func(context.
 
 		itemCost := cost(t)
 		if itemCost <= 0 {
-			panic("call.ThrottleWeighted: cost must be > 0")
+			panic("wrap.ThrottleWeighted: cost must be > 0")
 		}
 		if itemCost > capacity {
-			panic("call.ThrottleWeighted: cost must be <= capacity")
+			panic("wrap.ThrottleWeighted: cost must be <= capacity")
 		}
 
 		// Serialize multi-token acquire to prevent deadlock.

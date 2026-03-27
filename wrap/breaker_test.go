@@ -1,4 +1,4 @@
-package call_test
+package wrap_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/binaryphile/fluentfp/call"
+	"github.com/binaryphile/fluentfp/wrap"
 )
 
 // fakeClock provides deterministic time control for tests.
@@ -38,7 +38,7 @@ func (c *fakeClock) Advance(d time.Duration) {
 
 func TestWithBreaker(t *testing.T) {
 	t.Run("passes through when closed", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
 		})
 		calls := 0
@@ -48,7 +48,7 @@ func TestWithBreaker(t *testing.T) {
 			return n * 2, nil
 		}
 
-		wrapped := call.WithBreaker(b, doubleIt)
+		wrapped := wrap.Func(doubleIt).WithBreaker(b)
 		got, err := wrapped(context.Background(), 5)
 
 		if err != nil {
@@ -63,51 +63,51 @@ func TestWithBreaker(t *testing.T) {
 	})
 
 	t.Run("opens after consecutive failures", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(3),
+			ReadyToTrip:  wrap.ConsecutiveFailures(3),
 		})
 		// alwaysFail always returns an error.
 		alwaysFail := func(_ context.Context, _ int) (int, error) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		wrapped := call.WithBreaker(b, alwaysFail)
+		wrapped := wrap.Func(alwaysFail).WithBreaker(b)
 
 		for i := 0; i < 3; i++ {
 			_, _ = wrapped(context.Background(), 1)
 		}
 
 		snap := b.Snapshot()
-		if snap.State != call.StateOpen {
+		if snap.State != wrap.StateOpen {
 			t.Fatalf("state = %v, want open", snap.State)
 		}
 	})
 
 	t.Run("returns ErrCircuitOpen when open", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		})
 		// alwaysFail always returns an error.
 		alwaysFail := func(_ context.Context, _ int) (int, error) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		wrapped := call.WithBreaker(b, alwaysFail)
+		wrapped := wrap.Func(alwaysFail).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1) // trips breaker
 
 		_, err := wrapped(context.Background(), 1)
-		if !errors.Is(err, call.ErrCircuitOpen) {
+		if !errors.Is(err, wrap.ErrCircuitOpen) {
 			t.Fatalf("got error %v, want ErrCircuitOpen", err)
 		}
 	})
 
 	t.Run("transitions to half-open after reset timeout", func(t *testing.T) {
 		clock := newFakeClock()
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: 30 * time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			Clock:        clock.Now,
 		})
 		calls := 0
@@ -120,13 +120,13 @@ func TestWithBreaker(t *testing.T) {
 			return n * 2, nil
 		}
 
-		wrapped := call.WithBreaker(b, succeedAfterTrip)
+		wrapped := wrap.Func(succeedAfterTrip).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1) // trips breaker
 
 		// Still open before timeout.
 		clock.Advance(29 * time.Second)
 		_, err := wrapped(context.Background(), 1)
-		if !errors.Is(err, call.ErrCircuitOpen) {
+		if !errors.Is(err, wrap.ErrCircuitOpen) {
 			t.Fatalf("expected ErrCircuitOpen before timeout, got %v", err)
 		}
 
@@ -143,9 +143,9 @@ func TestWithBreaker(t *testing.T) {
 
 	t.Run("closes on half-open success", func(t *testing.T) {
 		clock := newFakeClock()
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			Clock:        clock.Now,
 		})
 		calls := 0
@@ -158,14 +158,14 @@ func TestWithBreaker(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := call.WithBreaker(b, failOnceThenSucceed)
+		wrapped := wrap.Func(failOnceThenSucceed).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1) // trip
 
 		clock.Advance(2 * time.Second)
 		_, _ = wrapped(context.Background(), 1) // half-open probe succeeds
 
 		snap := b.Snapshot()
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed", snap.State)
 		}
 		if snap.Failures != 0 {
@@ -178,9 +178,9 @@ func TestWithBreaker(t *testing.T) {
 
 	t.Run("reopens on half-open failure", func(t *testing.T) {
 		clock := newFakeClock()
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			Clock:        clock.Now,
 		})
 		// alwaysFail always returns an error.
@@ -188,14 +188,14 @@ func TestWithBreaker(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		wrapped := call.WithBreaker(b, alwaysFail)
+		wrapped := wrap.Func(alwaysFail).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1) // trip
 
 		clock.Advance(2 * time.Second)
 		_, _ = wrapped(context.Background(), 1) // half-open probe fails
 
 		snap := b.Snapshot()
-		if snap.State != call.StateOpen {
+		if snap.State != wrap.StateOpen {
 			t.Fatalf("state = %v, want open", snap.State)
 		}
 	})
@@ -204,9 +204,9 @@ func TestWithBreaker(t *testing.T) {
 		clock := newFakeClock()
 		probeStarted := make(chan struct{})
 		probeFinish := make(chan struct{})
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			Clock:        clock.Now,
 		})
 		// slowFn blocks until signaled.
@@ -216,12 +216,12 @@ func TestWithBreaker(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := call.WithBreaker(b, slowFn)
+		wrapped := wrap.Func(slowFn).WithBreaker(b)
 
 		// Trip with a quick failure first.
-		quickFail := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+		quickFail := wrap.Func(func(_ context.Context, _ int) (int, error) {
 			return 0, fmt.Errorf("fail")
-		})
+		}).WithBreaker(b)
 		_, _ = quickFail(context.Background(), 1)
 
 		clock.Advance(2 * time.Second)
@@ -234,7 +234,7 @@ func TestWithBreaker(t *testing.T) {
 
 		// Second request should be rejected.
 		_, err := wrapped(context.Background(), 1)
-		if !errors.Is(err, call.ErrCircuitOpen) {
+		if !errors.Is(err, wrap.ErrCircuitOpen) {
 			t.Fatalf("got %v, want ErrCircuitOpen", err)
 		}
 
@@ -242,20 +242,20 @@ func TestWithBreaker(t *testing.T) {
 	})
 
 	t.Run("context cancellation does not count as failure", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		})
 		// cancellingFn returns context.Canceled.
 		cancellingFn := func(_ context.Context, _ int) (int, error) {
 			return 0, context.Canceled
 		}
 
-		wrapped := call.WithBreaker(b, cancellingFn)
+		wrapped := wrap.Func(cancellingFn).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1)
 
 		snap := b.Snapshot()
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed (context.Canceled should not trip)", snap.State)
 		}
 		if snap.Failures != 0 {
@@ -265,9 +265,9 @@ func TestWithBreaker(t *testing.T) {
 
 	t.Run("context.Canceled during half-open probe releases probe slot", func(t *testing.T) {
 		clock := newFakeClock()
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			Clock:        clock.Now,
 		})
 		calls := 0
@@ -281,19 +281,19 @@ func TestWithBreaker(t *testing.T) {
 		}
 
 		// Trip with a real failure.
-		tripped := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+		tripped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 			return 0, fmt.Errorf("fail")
-		})
+		}).WithBreaker(b)
 		_, _ = tripped(context.Background(), 1)
 
-		wrapped := call.WithBreaker(b, cancelThenSucceed)
+		wrapped := wrap.Func(cancelThenSucceed).WithBreaker(b)
 
 		// First probe returns context.Canceled — should release slot, not count as failure.
 		clock.Advance(2 * time.Second)
 		_, _ = wrapped(context.Background(), 1)
 
 		snap := b.Snapshot()
-		if snap.State != call.StateHalfOpen {
+		if snap.State != wrap.StateHalfOpen {
 			t.Fatalf("state = %v, want half-open (context.Canceled should not reopen)", snap.State)
 		}
 
@@ -310,32 +310,32 @@ func TestWithBreaker(t *testing.T) {
 		}
 
 		snap = b.Snapshot()
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed", snap.State)
 		}
 	})
 
 	t.Run("context.DeadlineExceeded counts as failure by default", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		})
 		// timeoutFn returns context.DeadlineExceeded.
 		timeoutFn := func(_ context.Context, _ int) (int, error) {
 			return 0, context.DeadlineExceeded
 		}
 
-		wrapped := call.WithBreaker(b, timeoutFn)
+		wrapped := wrap.Func(timeoutFn).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1)
 
 		snap := b.Snapshot()
-		if snap.State != call.StateOpen {
+		if snap.State != wrap.StateOpen {
 			t.Fatalf("state = %v, want open (DeadlineExceeded should trip)", snap.State)
 		}
 	})
 
 	t.Run("context cancelled before call", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
 		})
 		ctx, cancel := context.WithCancel(context.Background())
@@ -348,7 +348,7 @@ func TestWithBreaker(t *testing.T) {
 			return n * 2, nil
 		}
 
-		wrapped := call.WithBreaker(b, doubleIt)
+		wrapped := wrap.Func(doubleIt).WithBreaker(b)
 		_, err := wrapped(ctx, 1)
 
 		if err != context.Canceled {
@@ -360,9 +360,9 @@ func TestWithBreaker(t *testing.T) {
 	})
 
 	t.Run("success resets consecutive failure count", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(3),
+			ReadyToTrip:  wrap.ConsecutiveFailures(3),
 		})
 		calls := 0
 		// failTwiceThenSucceed fails twice, then succeeds.
@@ -374,7 +374,7 @@ func TestWithBreaker(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := call.WithBreaker(b, failTwiceThenSucceed)
+		wrapped := wrap.Func(failTwiceThenSucceed).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1) // fail 1
 		_, _ = wrapped(context.Background(), 1) // fail 2
 		_, _ = wrapped(context.Background(), 1) // success, resets consecutive
@@ -383,15 +383,15 @@ func TestWithBreaker(t *testing.T) {
 		if snap.ConsecutiveFailures != 0 {
 			t.Fatalf("consecutive failures = %d, want 0 after success", snap.ConsecutiveFailures)
 		}
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed", snap.State)
 		}
 	})
 
 	t.Run("ignored errors do not break consecutive streak", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(3),
+			ReadyToTrip:  wrap.ConsecutiveFailures(3),
 			ShouldCount:  func(err error) bool { return err.Error() != "ignored" },
 		})
 		calls := 0
@@ -410,7 +410,7 @@ func TestWithBreaker(t *testing.T) {
 			}
 		}
 
-		wrapped := call.WithBreaker(b, failIgnoreFail)
+		wrapped := wrap.Func(failIgnoreFail).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1) // counted fail, consecutive=1
 		_, _ = wrapped(context.Background(), 1) // ignored, consecutive stays 1
 		_, _ = wrapped(context.Background(), 1) // counted fail, consecutive=2
@@ -419,7 +419,7 @@ func TestWithBreaker(t *testing.T) {
 		if snap.ConsecutiveFailures != 2 {
 			t.Fatalf("consecutive = %d, want 2 (ignored errors are transparent)", snap.ConsecutiveFailures)
 		}
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed (only 2 consecutive, need 3)", snap.State)
 		}
 	})
@@ -430,9 +430,9 @@ func TestWithBreakerShouldCount(t *testing.T) {
 	errPermanent := fmt.Errorf("permanent")
 
 	t.Run("uncounted errors do not trip breaker", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			ShouldCount:  func(err error) bool { return err != errPermanent },
 		})
 		// returnPermanent always returns a permanent error.
@@ -440,7 +440,7 @@ func TestWithBreakerShouldCount(t *testing.T) {
 			return 0, errPermanent
 		}
 
-		wrapped := call.WithBreaker(b, returnPermanent)
+		wrapped := wrap.Func(returnPermanent).WithBreaker(b)
 		_, err := wrapped(context.Background(), 1)
 
 		if err != errPermanent {
@@ -448,15 +448,15 @@ func TestWithBreakerShouldCount(t *testing.T) {
 		}
 
 		snap := b.Snapshot()
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed (permanent errors not counted)", snap.State)
 		}
 	})
 
 	t.Run("counted errors trip breaker", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			ShouldCount:  func(err error) bool { return err == errTransient },
 		})
 		// returnTransient always returns a transient error.
@@ -464,20 +464,20 @@ func TestWithBreakerShouldCount(t *testing.T) {
 			return 0, errTransient
 		}
 
-		wrapped := call.WithBreaker(b, returnTransient)
+		wrapped := wrap.Func(returnTransient).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1)
 
 		snap := b.Snapshot()
-		if snap.State != call.StateOpen {
+		if snap.State != wrap.StateOpen {
 			t.Fatalf("state = %v, want open", snap.State)
 		}
 	})
 
 	t.Run("uncounted error releases half-open probe", func(t *testing.T) {
 		clock := newFakeClock()
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			ShouldCount:  func(err error) bool { return err != errPermanent },
 			Clock:        clock.Now,
 		})
@@ -491,11 +491,11 @@ func TestWithBreakerShouldCount(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := call.WithBreaker(b, permanentThenSuccess)
+		wrapped := wrap.Func(permanentThenSuccess).WithBreaker(b)
 		// Trip with a counted error first.
-		countedFail := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+		countedFail := wrap.Func(func(_ context.Context, _ int) (int, error) {
 			return 0, errTransient
-		})
+		}).WithBreaker(b)
 		_, _ = countedFail(context.Background(), 1)
 
 		clock.Advance(2 * time.Second)
@@ -517,13 +517,13 @@ func TestWithBreakerShouldCount(t *testing.T) {
 func TestWithBreakerOnStateChange(t *testing.T) {
 	t.Run("fires on all transitions", func(t *testing.T) {
 		clock := newFakeClock()
-		var transitions []call.Transition
+		var transitions []wrap.Transition
 		var mu sync.Mutex
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			Clock:        clock.Now,
-			OnStateChange: func(t call.Transition) {
+			OnStateChange: func(t wrap.Transition) {
 				mu.Lock()
 				transitions = append(transitions, t)
 				mu.Unlock()
@@ -539,7 +539,7 @@ func TestWithBreakerOnStateChange(t *testing.T) {
 			return 42, nil
 		}
 
-		wrapped := call.WithBreaker(b, failOnceThenSucceed)
+		wrapped := wrap.Func(failOnceThenSucceed).WithBreaker(b)
 
 		// Closed → Open.
 		_, _ = wrapped(context.Background(), 1)
@@ -554,13 +554,13 @@ func TestWithBreakerOnStateChange(t *testing.T) {
 		if len(transitions) != 3 {
 			t.Fatalf("got %d transitions, want 3", len(transitions))
 		}
-		if transitions[0].From != call.StateClosed || transitions[0].To != call.StateOpen {
+		if transitions[0].From != wrap.StateClosed || transitions[0].To != wrap.StateOpen {
 			t.Fatalf("transition 0: %v→%v, want closed→open", transitions[0].From, transitions[0].To)
 		}
-		if transitions[1].From != call.StateOpen || transitions[1].To != call.StateHalfOpen {
+		if transitions[1].From != wrap.StateOpen || transitions[1].To != wrap.StateHalfOpen {
 			t.Fatalf("transition 1: %v→%v, want open→half-open", transitions[1].From, transitions[1].To)
 		}
-		if transitions[2].From != call.StateHalfOpen || transitions[2].To != call.StateClosed {
+		if transitions[2].From != wrap.StateHalfOpen || transitions[2].To != wrap.StateClosed {
 			t.Fatalf("transition 2: %v→%v, want half-open→closed", transitions[2].From, transitions[2].To)
 		}
 	})
@@ -568,9 +568,9 @@ func TestWithBreakerOnStateChange(t *testing.T) {
 
 func TestWithBreakerComposition(t *testing.T) {
 	t.Run("composes with Retry wrapping breaker", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(5),
+			ReadyToTrip:  wrap.ConsecutiveFailures(5),
 		})
 		calls := 0
 		// failOnceThenDouble fails once, then doubles.
@@ -583,10 +583,9 @@ func TestWithBreakerComposition(t *testing.T) {
 		}
 
 		shouldRetry := func(err error) bool {
-			return !errors.Is(err, call.ErrCircuitOpen)
+			return !errors.Is(err, wrap.ErrCircuitOpen)
 		}
-		composed := call.Retry(3, call.ConstantBackoff(0), shouldRetry,
-			call.WithBreaker(b, failOnceThenDouble))
+		composed := wrap.Func(failOnceThenDouble).WithBreaker(b).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), shouldRetry)
 		got, err := composed(context.Background(), 5)
 
 		if err != nil {
@@ -598,9 +597,9 @@ func TestWithBreakerComposition(t *testing.T) {
 	})
 
 	t.Run("composes with breaker wrapping Retry", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(2),
+			ReadyToTrip:  wrap.ConsecutiveFailures(2),
 		})
 		calls := 0
 		// failOnceThenDouble fails once, then doubles.
@@ -612,8 +611,7 @@ func TestWithBreakerComposition(t *testing.T) {
 			return n * 2, nil
 		}
 
-		composed := call.WithBreaker(b,
-			call.Retry(3, call.ConstantBackoff(0), nil, failOnceThenDouble))
+		composed := wrap.Func(failOnceThenDouble).WithRetry(3, wrap.Backoff(func(int) time.Duration { return 0 }), nil).WithBreaker(b)
 		got, err := composed(context.Background(), 5)
 
 		if err != nil {
@@ -624,22 +622,22 @@ func TestWithBreakerComposition(t *testing.T) {
 		}
 
 		snap := b.Snapshot()
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed", snap.State)
 		}
 	})
 
 	t.Run("composes with Throttle", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(5),
+			ReadyToTrip:  wrap.ConsecutiveFailures(5),
 		})
 		// doubleIt doubles the input.
 		doubleIt := func(_ context.Context, n int) (int, error) {
 			return n * 2, nil
 		}
 
-		composed := call.WithBreaker(b, call.Throttle(2, doubleIt))
+		composed := wrap.Func(doubleIt).WithThrottle(2).WithBreaker(b)
 		got, err := composed(context.Background(), 5)
 
 		if err != nil {
@@ -653,9 +651,9 @@ func TestWithBreakerComposition(t *testing.T) {
 
 func TestWithBreakerRejectedCount(t *testing.T) {
 	clock := newFakeClock()
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(1),
+		ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		Clock:        clock.Now,
 	})
 	// alwaysFail always returns an error.
@@ -663,7 +661,7 @@ func TestWithBreakerRejectedCount(t *testing.T) {
 		return 0, fmt.Errorf("fail")
 	}
 
-	wrapped := call.WithBreaker(b, alwaysFail)
+	wrapped := wrap.Func(alwaysFail).WithBreaker(b)
 	_, _ = wrapped(context.Background(), 1) // trip
 
 	// These should all be rejected.
@@ -678,9 +676,9 @@ func TestWithBreakerRejectedCount(t *testing.T) {
 }
 
 func TestWithBreakerConcurrency(t *testing.T) {
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(100), // high threshold to avoid tripping
+		ReadyToTrip:  wrap.ConsecutiveFailures(100), // high threshold to avoid tripping
 	})
 	var count atomic.Int32
 	// incrementer increments and returns the count.
@@ -689,7 +687,7 @@ func TestWithBreakerConcurrency(t *testing.T) {
 		return int(count.Load()), nil
 	}
 
-	wrapped := call.WithBreaker(b, incrementer)
+	wrapped := wrap.Func(incrementer).WithBreaker(b)
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 100)
@@ -727,7 +725,7 @@ func TestNewBreakerPanics(t *testing.T) {
 			}
 		}()
 
-		call.NewBreaker(call.BreakerConfig{ResetTimeout: 0})
+		wrap.NewBreaker(wrap.BreakerConfig{ResetTimeout: 0})
 	})
 
 	t.Run("negative ResetTimeout", func(t *testing.T) {
@@ -737,12 +735,12 @@ func TestNewBreakerPanics(t *testing.T) {
 			}
 		}()
 
-		call.NewBreaker(call.BreakerConfig{ResetTimeout: -time.Second})
+		wrap.NewBreaker(wrap.BreakerConfig{ResetTimeout: -time.Second})
 	})
 }
 
 func TestWithBreakerPanics(t *testing.T) {
-	b := call.NewBreaker(call.BreakerConfig{ResetTimeout: time.Second})
+	b := wrap.NewBreaker(wrap.BreakerConfig{ResetTimeout: time.Second})
 	// doubleIt doubles the input.
 	doubleIt := func(_ context.Context, n int) (int, error) { return n * 2, nil }
 
@@ -753,7 +751,7 @@ func TestWithBreakerPanics(t *testing.T) {
 			}
 		}()
 
-		call.WithBreaker[int, int](nil, doubleIt)
+		wrap.Func(doubleIt).WithBreaker(nil)
 	})
 
 	t.Run("nil fn", func(t *testing.T) {
@@ -763,7 +761,7 @@ func TestWithBreakerPanics(t *testing.T) {
 			}
 		}()
 
-		call.WithBreaker[int, int](b, nil)
+		wrap.Func[int, int](nil).WithBreaker(b)
 	})
 }
 
@@ -775,7 +773,7 @@ func TestConsecutiveFailuresPanics(t *testing.T) {
 			}
 		}()
 
-		call.ConsecutiveFailures(0)
+		wrap.ConsecutiveFailures(0)
 	})
 
 	t.Run("negative", func(t *testing.T) {
@@ -785,14 +783,14 @@ func TestConsecutiveFailuresPanics(t *testing.T) {
 			}
 		}()
 
-		call.ConsecutiveFailures(-1)
+		wrap.ConsecutiveFailures(-1)
 	})
 }
 
 func TestWithBreakerSharedBreaker(t *testing.T) {
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(3),
+		ReadyToTrip:  wrap.ConsecutiveFailures(3),
 	})
 
 	failCount := 0
@@ -806,8 +804,8 @@ func TestWithBreakerSharedBreaker(t *testing.T) {
 		return n * 2, nil
 	}
 
-	wrappedA := call.WithBreaker(b, failingFn)
-	wrappedB := call.WithBreaker(b, successFn)
+	wrappedA := wrap.Func(failingFn).WithBreaker(b)
+	wrappedB := wrap.Func(successFn).WithBreaker(b)
 
 	// Failures from wrappedA count toward the shared breaker.
 	for i := 0; i < 3; i++ {
@@ -816,20 +814,20 @@ func TestWithBreakerSharedBreaker(t *testing.T) {
 
 	// wrappedB should also be blocked — same breaker is open.
 	_, err := wrappedB(context.Background(), 5)
-	if !errors.Is(err, call.ErrCircuitOpen) {
+	if !errors.Is(err, wrap.ErrCircuitOpen) {
 		t.Fatalf("got %v, want ErrCircuitOpen (shared breaker should block both)", err)
 	}
 }
 
 func TestBreakerStateString(t *testing.T) {
 	tests := []struct {
-		state call.BreakerState
+		state wrap.BreakerState
 		want  string
 	}{
-		{call.StateClosed, "closed"},
-		{call.StateOpen, "open"},
-		{call.StateHalfOpen, "half-open"},
-		{call.BreakerState(99), "unknown"},
+		{wrap.StateClosed, "closed"},
+		{wrap.StateOpen, "open"},
+		{wrap.StateHalfOpen, "half-open"},
+		{wrap.BreakerState(99), "unknown"},
 	}
 
 	for _, tt := range tests {
@@ -847,9 +845,9 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 		staleStarted := make(chan struct{})
 		staleFinish := make(chan struct{})
 
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(2),
+			ReadyToTrip:  wrap.ConsecutiveFailures(2),
 			Clock:        clock.Now,
 		})
 
@@ -869,7 +867,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 			}
 		}
 
-		wrapped := call.WithBreaker(b, slowThenFail)
+		wrapped := wrap.Func(slowThenFail).WithBreaker(b)
 
 		// Launch slow call A (gen 0, closed).
 		var wg sync.WaitGroup
@@ -885,7 +883,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 		_, _ = wrapped(context.Background(), 1) // calls=3, fail → trips
 
 		snap := b.Snapshot()
-		if snap.State != call.StateOpen {
+		if snap.State != wrap.StateOpen {
 			t.Fatalf("state = %v, want open", snap.State)
 		}
 
@@ -897,7 +895,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 		}
 
 		snap = b.Snapshot()
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed after probe", snap.State)
 		}
 
@@ -907,7 +905,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 
 		// Breaker should still be closed — stale result ignored.
 		snap = b.Snapshot()
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed (stale failure should be ignored)", snap.State)
 		}
 		if snap.Failures != 0 {
@@ -923,9 +921,9 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 		staleStarted := make(chan struct{})
 		staleFinish := make(chan struct{})
 
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(2),
+			ReadyToTrip:  wrap.ConsecutiveFailures(2),
 			Clock:        clock.Now,
 		})
 
@@ -941,7 +939,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 			return 0, fmt.Errorf("fail")
 		}
 
-		wrapped := call.WithBreaker(b, slowSuccess)
+		wrapped := wrap.Func(slowSuccess).WithBreaker(b)
 
 		// Launch slow success A (gen 0, closed).
 		var wg sync.WaitGroup
@@ -957,7 +955,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 		_, _ = wrapped(context.Background(), 1) // calls=3, fail → trips
 
 		snap := b.Snapshot()
-		if snap.State != call.StateOpen {
+		if snap.State != wrap.StateOpen {
 			t.Fatalf("state = %v, want open", snap.State)
 		}
 
@@ -966,7 +964,7 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 		wg.Wait()
 
 		snap = b.Snapshot()
-		if snap.State != call.StateOpen {
+		if snap.State != wrap.StateOpen {
 			t.Fatalf("state = %v, want open (stale success should not close breaker)", snap.State)
 		}
 	})
@@ -977,9 +975,9 @@ func TestWithBreakerStaleResultsIgnored(t *testing.T) {
 func TestWithBreakerPanicInFn(t *testing.T) {
 	t.Run("half-open probe panic reopens breaker", func(t *testing.T) {
 		clock := newFakeClock()
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 			Clock:        clock.Now,
 		})
 		calls := 0
@@ -992,7 +990,7 @@ func TestWithBreakerPanicInFn(t *testing.T) {
 			panic("boom")
 		}
 
-		wrapped := call.WithBreaker(b, panicAfterTrip)
+		wrapped := wrap.Func(panicAfterTrip).WithBreaker(b)
 		_, _ = wrapped(context.Background(), 1) // trip
 
 		clock.Advance(2 * time.Second)
@@ -1003,22 +1001,22 @@ func TestWithBreakerPanicInFn(t *testing.T) {
 		}()
 
 		snap := b.Snapshot()
-		if snap.State != call.StateOpen {
+		if snap.State != wrap.StateOpen {
 			t.Fatalf("state = %v, want open after panic in half-open probe", snap.State)
 		}
 	})
 
 	t.Run("closed-state panic does not affect breaker", func(t *testing.T) {
-		b := call.NewBreaker(call.BreakerConfig{
+		b := wrap.NewBreaker(wrap.BreakerConfig{
 			ResetTimeout: time.Second,
-			ReadyToTrip:  call.ConsecutiveFailures(1),
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		})
 		// panicker always panics.
 		panicker := func(_ context.Context, _ int) (int, error) {
 			panic("boom")
 		}
 
-		wrapped := call.WithBreaker(b, panicker)
+		wrapped := wrap.Func(panicker).WithBreaker(b)
 
 		func() {
 			defer func() { recover() }()
@@ -1026,7 +1024,7 @@ func TestWithBreakerPanicInFn(t *testing.T) {
 		}()
 
 		snap := b.Snapshot()
-		if snap.State != call.StateClosed {
+		if snap.State != wrap.StateClosed {
 			t.Fatalf("state = %v, want closed after panic in closed state", snap.State)
 		}
 		if snap.Failures != 0 {
@@ -1036,10 +1034,10 @@ func TestWithBreakerPanicInFn(t *testing.T) {
 }
 
 func TestWithBreakerReadyToTripReentrancy(t *testing.T) {
-	var b *call.Breaker
-	b = call.NewBreaker(call.BreakerConfig{
+	var b *wrap.Breaker
+	b = wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip: func(s call.Snapshot) bool {
+		ReadyToTrip: func(s wrap.Snapshot) bool {
 			// Call b.Snapshot() from inside ReadyToTrip.
 			// This would deadlock if ReadyToTrip were called under the lock.
 			snap := b.Snapshot()
@@ -1051,7 +1049,7 @@ func TestWithBreakerReadyToTripReentrancy(t *testing.T) {
 		return 0, fmt.Errorf("fail")
 	}
 
-	wrapped := call.WithBreaker(b, alwaysFail)
+	wrapped := wrap.Func(alwaysFail).WithBreaker(b)
 
 	done := make(chan struct{})
 	go func() {
@@ -1068,16 +1066,16 @@ func TestWithBreakerReadyToTripReentrancy(t *testing.T) {
 	}
 
 	snap := b.Snapshot()
-	if snap.State != call.StateOpen {
+	if snap.State != wrap.StateOpen {
 		t.Fatalf("state = %v, want open", snap.State)
 	}
 }
 
 func TestWithBreakerReadyToTripPanicDoesNotDeadlock(t *testing.T) {
 	panicked := false
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip: func(call.Snapshot) bool {
+		ReadyToTrip: func(wrap.Snapshot) bool {
 			if !panicked {
 				panicked = true
 				panic("bad predicate")
@@ -1090,7 +1088,7 @@ func TestWithBreakerReadyToTripPanicDoesNotDeadlock(t *testing.T) {
 		return 0, fmt.Errorf("fail")
 	}
 
-	wrapped := call.WithBreaker(b, alwaysFail)
+	wrapped := wrap.Func(alwaysFail).WithBreaker(b)
 
 	// First call panics in ReadyToTrip.
 	func() {
@@ -1118,9 +1116,9 @@ func TestWithBreakerShouldCountPanicReleasesProbe(t *testing.T) {
 
 	// Use a flag to control ShouldCount behavior.
 	shouldCountPanics := false
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(1),
+		ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		Clock:        clock.Now,
 		ShouldCount: func(err error) bool {
 			if shouldCountPanics {
@@ -1130,15 +1128,15 @@ func TestWithBreakerShouldCountPanicReleasesProbe(t *testing.T) {
 		},
 	})
 
-	wrapped := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		return 0, fmt.Errorf("fail")
-	})
+	}).WithBreaker(b)
 
 	// Trip the breaker normally.
 	_, _ = wrapped(context.Background(), 1)
 
 	snap := b.Snapshot()
-	if snap.State != call.StateOpen {
+	if snap.State != wrap.StateOpen {
 		t.Fatalf("state = %v, want open", snap.State)
 	}
 
@@ -1158,12 +1156,12 @@ func TestWithBreakerShouldCountPanicReleasesProbe(t *testing.T) {
 
 	// If probe slot was leaked, this returns ErrCircuitOpen (breaker wedged).
 	// Being admitted proves the slot was released.
-	if errors.Is(err, call.ErrCircuitOpen) {
+	if errors.Is(err, wrap.ErrCircuitOpen) {
 		t.Fatal("probe slot leaked: got ErrCircuitOpen, want admission")
 	}
 
 	snap = b.Snapshot()
-	if snap.State != call.StateOpen {
+	if snap.State != wrap.StateOpen {
 		t.Fatalf("state = %v, want open (probe failure should reopen)", snap.State)
 	}
 }
@@ -1171,20 +1169,20 @@ func TestWithBreakerShouldCountPanicReleasesProbe(t *testing.T) {
 func TestWithBreakerOnStateChangePanicOnAdmission(t *testing.T) {
 	clock := newFakeClock()
 	callbackPanics := false
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(1),
+		ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		Clock:        clock.Now,
-		OnStateChange: func(call.Transition) {
+		OnStateChange: func(wrap.Transition) {
 			if callbackPanics {
 				panic("bad callback")
 			}
 		},
 	})
 
-	wrapped := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		return 0, fmt.Errorf("fail")
-	})
+	}).WithBreaker(b)
 
 	// Trip the breaker normally.
 	_, _ = wrapped(context.Background(), 1)
@@ -1222,11 +1220,11 @@ func TestWithBreakerOnStateChangePanicOnAdmission(t *testing.T) {
 func TestWithBreakerOnStateChangePanicAfterCompletion(t *testing.T) {
 	clock := newFakeClock()
 	callCount := 0
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(1),
+		ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		Clock:        clock.Now,
-		OnStateChange: func(t call.Transition) {
+		OnStateChange: func(t wrap.Transition) {
 			callCount++
 			// Panic on the closed→open transition (completion path).
 			if callCount == 1 {
@@ -1235,9 +1233,9 @@ func TestWithBreakerOnStateChangePanicAfterCompletion(t *testing.T) {
 		},
 	})
 
-	wrapped := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		return 0, fmt.Errorf("fail")
-	})
+	}).WithBreaker(b)
 
 	// Trip — OnStateChange panics on the closed→open transition.
 	func() {
@@ -1247,26 +1245,26 @@ func TestWithBreakerOnStateChangePanicAfterCompletion(t *testing.T) {
 
 	// State should be open — transition was committed before the callback.
 	snap := b.Snapshot()
-	if snap.State != call.StateOpen {
+	if snap.State != wrap.StateOpen {
 		t.Fatalf("state = %v, want open (transition committed before callback panic)", snap.State)
 	}
 }
 
 func TestWithBreakerExactTimeoutBoundary(t *testing.T) {
 	clock := newFakeClock()
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(1),
+		ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		Clock:        clock.Now,
 	})
 	calls := 0
-	wrapped := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		calls++
 		if calls == 1 {
 			return 0, fmt.Errorf("fail")
 		}
 		return 42, nil
-	})
+	}).WithBreaker(b)
 
 	// Trip.
 	_, _ = wrapped(context.Background(), 1)
@@ -1284,16 +1282,16 @@ func TestWithBreakerExactTimeoutBoundary(t *testing.T) {
 	}
 
 	snap := b.Snapshot()
-	if snap.State != call.StateClosed {
+	if snap.State != wrap.StateClosed {
 		t.Fatalf("state = %v, want closed", snap.State)
 	}
 }
 
 func TestWithBreakerOpenedAtSemantics(t *testing.T) {
 	clock := newFakeClock()
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(1),
+		ReadyToTrip:  wrap.ConsecutiveFailures(1),
 		Clock:        clock.Now,
 	})
 
@@ -1304,13 +1302,13 @@ func TestWithBreakerOpenedAtSemantics(t *testing.T) {
 	}
 
 	calls := 0
-	wrapped := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		calls++
 		if calls == 1 {
 			return 0, fmt.Errorf("fail")
 		}
 		return 42, nil
-	})
+	}).WithBreaker(b)
 
 	// Trip — OpenedAt should be set.
 	tripTime := clock.Now()
@@ -1326,7 +1324,7 @@ func TestWithBreakerOpenedAtSemantics(t *testing.T) {
 	_, _ = wrapped(context.Background(), 1)
 
 	snap = b.Snapshot()
-	if snap.State != call.StateClosed {
+	if snap.State != wrap.StateClosed {
 		t.Fatalf("state = %v, want closed", snap.State)
 	}
 	if !snap.OpenedAt.IsZero() {
@@ -1345,9 +1343,9 @@ func TestWithBreakerTOCTOUInvalidation(t *testing.T) {
 	tripCheck := make(chan struct{})
 	tripResume := make(chan struct{})
 
-	b := call.NewBreaker(call.BreakerConfig{
+	b := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: time.Second,
-		ReadyToTrip: func(s call.Snapshot) bool {
+		ReadyToTrip: func(s wrap.Snapshot) bool {
 			if s.ConsecutiveFailures >= 3 {
 				// Signal that we're in the trip check, then block.
 				// This creates the window for a concurrent success.
@@ -1361,13 +1359,13 @@ func TestWithBreakerTOCTOUInvalidation(t *testing.T) {
 	})
 
 	var calls atomic.Int32
-	wrapped := call.WithBreaker(b, func(_ context.Context, _ int) (int, error) {
+	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
 		n := calls.Add(1)
 		if n <= 3 {
 			return 0, fmt.Errorf("fail %d", n)
 		}
 		return 42, nil
-	})
+	}).WithBreaker(b)
 
 	// Rack up 2 failures (sequential — no race on calls).
 	_, _ = wrapped(context.Background(), 1) // fail 1
@@ -1396,7 +1394,7 @@ func TestWithBreakerTOCTOUInvalidation(t *testing.T) {
 	wg.Wait()
 
 	snap := b.Snapshot()
-	if snap.State != call.StateClosed {
+	if snap.State != wrap.StateClosed {
 		t.Fatalf("state = %v, want closed (trip should have been invalidated by concurrent success)", snap.State)
 	}
 	if snap.ConsecutiveFailures != 0 {

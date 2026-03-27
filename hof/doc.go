@@ -4,8 +4,8 @@
 //
 // The organizing principle is the function shape. hof operates on plain
 // signatures like func(A) B, func(A, B) C, and func(T). For decorators
-// over the context-aware call shape func(context.Context, T) (R, error),
-// see the [call] package.
+// over context-aware effectful functions func(context.Context, T) (R, error),
+// see the [wrap] package.
 //
 // Based on Stone's "Algorithms: A Functional Programming Approach"
 // (pipe, sect, cross).

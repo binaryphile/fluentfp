@@ -335,12 +335,12 @@
 - 1f. Developer needs to pass a Go builtin as a higher-order argument: `lof` provides first-class function wrappers for builtins (`Len`, `Println`, `HasPrefix`, `Inc`, etc.).
 - 1g. Developer needs to coalesce rapid calls, executing once after activity stops: `hof.NewDebouncer` creates a stateful debouncer. `Call` stores the latest value and resets a quiet-period timer. After the quiet period elapses, the callback executes with the stored value. `MaxWait` caps total deferral. The debouncer must be closed via `Close` (or deferred) to release its goroutine.
 
-**Extensions (call — context-aware call shape `func(ctx, T) (R, error)`):**
-- 1h. Developer needs to bound concurrent access to a function: `call.Throttle` returns a function with the same signature that blocks callers until a semaphore slot is available. `call.ThrottleWeighted` bounds by per-call cost rather than count.
-- 1i. Developer needs a side-effect triggered when a function call returns an error: `call.OnErr` returns a function with the same signature that calls the original, then invokes the handler if the error is non-nil.
-- 1j. Developer needs to retry a function on failure with configurable delays: `call.Retry` returns a function with the same signature that retries on error according to a backoff strategy (`ConstantBackoff` or `ExponentialBackoff` with full jitter), respecting context cancellation during waits.
-- 1k. Developer needs to short-circuit calls to an unhealthy dependency: `call.WithBreaker` returns a function with the same signature that tracks failures and rejects calls when a threshold is reached, returning `call.ErrCircuitOpen`.
-- 1l. Developer needs to transform errors from a function without changing its signature: `call.MapErr` returns a function with the same signature that passes results through but transforms errors via a mapping function.
+**Extensions (wrap — context-aware effectful functions `func(ctx, T) (R, error)`):**
+- 1h. Developer needs to bound concurrent access to a function: `wrap.Func(fn).WithThrottle(n)` returns a function that blocks callers until a semaphore slot is available. `.WithThrottleWeighted(capacity, cost)` bounds by per-call cost rather than count.
+- 1i. Developer needs a side-effect triggered when a function call returns an error: `wrap.Func(fn).WithOnError(handler)` returns a function that calls the original, then invokes the handler if the error is non-nil.
+- 1j. Developer needs to retry a function on failure with configurable delays: `wrap.Func(fn).WithRetry(n, backoff, pred)` retries on error according to a backoff strategy (`ExpBackoff` for randomized exponential), respecting context cancellation during waits.
+- 1k. Developer needs to short-circuit calls to an unhealthy dependency: `wrap.Func(fn).WithBreaker(b)` tracks failures and rejects calls when a threshold is reached, returning `wrap.ErrCircuitOpen`.
+- 1l. Developer needs to transform errors from a function without changing its signature: `wrap.Func(fn).WithMapError(mapper)` passes results through but transforms errors via a mapping function.
 
 **Sub-Variations:**
 - hof — Composition: `Pipe`; Partial application: `Bind`, `BindR`; Building blocks: `Eq`; Debouncing: `NewDebouncer`

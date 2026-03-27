@@ -1,16 +1,15 @@
 //go:build ignore
 
-// Resilient API client in 20 lines using call.CircuitBreaker + call.Retry + call.MapErr.
+// Resilient API client using wrap.Func().WithBreaker().WithRetry().WithMapError().
 //
 // Run:
 //
 //	go run examples/resilient_client.go
 //
-// Three decorators compose by stacking — each wraps the previous function,
-// preserving the same func(context.Context, T) (R, error) signature:
+// Three decorators chain fluently — each returns the same wrap.Fn signature:
 //
-//   1. MapErr: classify errors (transient vs permanent)
-//   2. Retry: retry transient errors with exponential backoff
+//   1. WithMapError: classify errors (transient vs permanent)
+//   2. WithRetry: retry transient errors with exponential backoff
 //   3. WithBreaker: short-circuit when the dependency is unhealthy
 //
 // The order matters: breaker wraps retry so it sees one logical operation.
@@ -24,7 +23,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/binaryphile/fluentfp/call"
+	"github.com/binaryphile/fluentfp/wrap"
 )
 
 // Simulated errors.
@@ -62,19 +61,20 @@ func classifyError(err error) error {
 }
 
 func main() {
-	// Stack three decorators — each preserves func(ctx, T) (R, error):
-	//   fetchUser → MapErr(classify) → Retry(3, backoff) → WithBreaker
-	classified := call.MapErr(fetchUser, classifyError)
-	retried := call.Retry(3, call.ExponentialBackoff(50*time.Millisecond), isTransient, classified)
-
-	breaker := call.NewBreaker(call.BreakerConfig{
+	breaker := wrap.NewBreaker(wrap.BreakerConfig{
 		ResetTimeout: 5 * time.Second,
-		ReadyToTrip:  call.ConsecutiveFailures(2),
-		OnStateChange: func(t call.Transition) {
+		ReadyToTrip:  wrap.ConsecutiveFailures(2),
+		OnStateChange: func(t wrap.Transition) {
 			fmt.Printf("  breaker: %s → %s\n", t.From, t.To)
 		},
 	})
-	safeFetch := call.WithBreaker(breaker, retried)
+
+	// Chain three decorators — reads bottom to top at call time:
+	//   fetchUser → MapError(classify) → Retry(3, backoff) → Breaker
+	safeFetch := wrap.Func(fetchUser).
+		WithMapError(classifyError).
+		WithRetry(3, wrap.ExpBackoff(50*time.Millisecond), isTransient).
+		WithBreaker(breaker)
 
 	// Try 10 requests.
 	ctx := context.Background()

@@ -1,4 +1,4 @@
-package call
+package wrap
 
 import (
 	"context"
@@ -11,16 +11,12 @@ import (
 // Called between attempts: backoff(0) is the delay before the first retry.
 type Backoff func(n int) time.Duration
 
-// ConstantBackoff returns a Backoff that always waits delay.
-func ConstantBackoff(delay time.Duration) Backoff {
-	return func(int) time.Duration { return delay }
-}
-
-// ExponentialBackoff returns a Backoff with full jitter: random in [0, initial * 2^n).
+// ExpBackoff returns a randomized exponential Backoff: uniform random in [0, initial * 2^n).
+// Spreads retries across the interval to minimize collisions under contention.
 // Panics if initial <= 0.
-func ExponentialBackoff(initial time.Duration) Backoff {
+func ExpBackoff(initial time.Duration) Backoff {
 	if initial <= 0 {
-		panic("call.ExponentialBackoff: initial must be > 0")
+		panic("wrap.ExpBackoff: initial must be > 0")
 	}
 
 	return func(n int) time.Duration {
@@ -43,15 +39,15 @@ func ExponentialBackoff(initial time.Duration) Backoff {
 //
 // Context cancellation is checked before each attempt and during backoff waits.
 // Panics if maxAttempts < 1, backoff is nil, or fn is nil.
-func Retry[T, R any](maxAttempts int, backoff Backoff, shouldRetry func(error) bool, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
+func retry[T, R any](maxAttempts int, backoff Backoff, shouldRetry func(error) bool, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if maxAttempts < 1 {
-		panic("call.Retry: maxAttempts must be > 0")
+		panic("wrap.Retry: maxAttempts must be > 0")
 	}
 	if backoff == nil {
-		panic("call.Retry: backoff must not be nil")
+		panic("wrap.Retry: backoff must not be nil")
 	}
 	if fn == nil {
-		panic("call.Retry: fn must not be nil")
+		panic("wrap.Retry: fn must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {

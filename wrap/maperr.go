@@ -1,4 +1,4 @@
-package call
+package wrap
 
 import "context"
 
@@ -23,12 +23,12 @@ import "context"
 // returned error. Use fmt.Errorf with %w to preserve error identity.
 //
 // Panics at construction time if fn is nil or mapper is nil.
-func MapErr[T, R any](fn func(context.Context, T) (R, error), mapper func(error) error) func(context.Context, T) (R, error) {
+func mapErr[T, R any](fn func(context.Context, T) (R, error), mapper func(error) error) func(context.Context, T) (R, error) {
 	if fn == nil {
-		panic("call.MapErr: fn must not be nil")
+		panic("wrap.MapErr: fn must not be nil")
 	}
 	if mapper == nil {
-		panic("call.MapErr: mapper must not be nil")
+		panic("wrap.MapErr: mapper must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {
@@ -36,7 +36,7 @@ func MapErr[T, R any](fn func(context.Context, T) (R, error), mapper func(error)
 		if err != nil {
 			mapped := mapper(err)
 			if mapped == nil {
-				panic("call.MapErr: mapper must not return nil")
+				panic("wrap.MapErr: mapper must not return nil")
 			}
 
 			return r, mapped

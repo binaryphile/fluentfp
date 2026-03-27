@@ -7,7 +7,7 @@ normalize := hof.Pipe(strings.TrimSpace, strings.ToLower)
 slice.From(inputs).Transform(normalize)
 ```
 
-For decorators over context-aware calls (retry, circuit breaker, throttle), see the [call](../call/) package.
+For decorators over context-aware effectful functions (retry, circuit breaker, throttle), see the [wrap](../wrap/) package.
 
 ## What It Looks Like
 

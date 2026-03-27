@@ -1,4 +1,4 @@
-package call
+package wrap
 
 import (
 	"context"
@@ -101,7 +101,7 @@ type BreakerConfig struct {
 // Panics if n < 1.
 func ConsecutiveFailures(n int) func(Snapshot) bool {
 	if n < 1 {
-		panic("call.ConsecutiveFailures: n must be > 0")
+		panic("wrap.ConsecutiveFailures: n must be > 0")
 	}
 
 	return func(s Snapshot) bool {
@@ -154,7 +154,7 @@ type Breaker struct {
 // Panics if ResetTimeout <= 0.
 func NewBreaker(cfg BreakerConfig) *Breaker {
 	if cfg.ResetTimeout <= 0 {
-		panic("call.NewBreaker: ResetTimeout must be > 0")
+		panic("wrap.NewBreaker: ResetTimeout must be > 0")
 	}
 
 	readyToTrip := cfg.ReadyToTrip
@@ -214,12 +214,12 @@ func (b *Breaker) snapshotLocked() Snapshot {
 // affect breaker state.
 //
 // Panics if b or fn is nil.
-func WithBreaker[T, R any](b *Breaker, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
+func withBreaker[T, R any](b *Breaker, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
 	if b == nil {
-		panic("call.WithBreaker: breaker must not be nil")
+		panic("wrap.WithBreaker: breaker must not be nil")
 	}
 	if fn == nil {
-		panic("call.WithBreaker: fn must not be nil")
+		panic("wrap.WithBreaker: fn must not be nil")
 	}
 
 	return func(ctx context.Context, t T) (R, error) {
