@@ -9,98 +9,96 @@ type Fn[T, R any] func(context.Context, T) (R, error)
 // Func wraps a plain function as an Fn for fluent decoration.
 // Go infers the type parameters from fn:
 //
-//	wrap.Func(fetchUser).With(wrap.Modes{
-//	    RetryOpt: &wrap.RetryConfig{Max: 3, Backoff: wrap.ExpBackoff(time.Second)},
+//	wrap.Func(fetchUser).With(wrap.Features{
+//	    Retry: wrap.Retry(3, wrap.ExpBackoff(time.Second), nil),
 //	})
 func Func[T, R any](fn func(context.Context, T) (R, error)) Fn[T, R] {
 	return fn
 }
 
 // Decorator wraps an Fn, returning an Fn with the same signature.
-// For custom decorators not covered by [Modes], apply manually:
+// For custom decorators not covered by [Features], apply manually:
 //
 //	decorated := wrap.Fn[T, R](myDecorator(fn))
 type Decorator[T, R any] func(Fn[T, R]) Fn[T, R]
 
-// RetryConfig configures the retry mode.
+// RetryConfig configures the retry feature.
 type RetryConfig struct {
 	Backoff     Backoff
 	Max         int
 	ShouldRetry func(error) bool
 }
 
-// ThrottleConfig configures count-based concurrency control.
-type ThrottleConfig struct {
-	N int
+// Retry returns a RetryConfig for use in [Features].
+func Retry(max int, backoff Backoff, shouldRetry func(error) bool) *RetryConfig {
+	return &RetryConfig{Max: max, Backoff: backoff, ShouldRetry: shouldRetry}
 }
 
-// Modes configures which decorators to apply. Nil fields are skipped.
-// The Opt suffix signals that nil is the expected way to omit a mode.
+// Features configures which decorators to apply. Nil/zero fields are skipped.
 //
 // Decorators are applied in a fixed order (innermost to outermost):
 // OnError → MapError → Retry → Breaker → Throttle.
-type Modes struct {
-	BreakerOpt  *Breaker
-	MapErrorOpt func(error) error
-	OnErrorOpt  func(error)
-	RetryOpt    *RetryConfig
-	ThrottleOpt *ThrottleConfig
+type Features struct {
+	Breaker  *Breaker
+	MapError func(error) error
+	OnError  func(error)
+	Retry    *RetryConfig
+	Throttle int
 }
 
-// With applies the modes to f in a fixed order. Nil fields are skipped.
+// With applies the features to f in a fixed order. Nil fields are skipped.
 // Innermost to outermost: OnError → MapError → Retry → Breaker → Throttle.
-// Each nil Opt field is a pseudo-option meaning "not configured."
-func (f Fn[T, R]) With(m Modes) Fn[T, R] {
-	if m.OnErrorOpt != nil {
-		f = Fn[T, R](onErr(f, m.OnErrorOpt))
+func (f Fn[T, R]) With(feat Features) Fn[T, R] {
+	if feat.OnError != nil {
+		f = Fn[T, R](onErr(f, feat.OnError))
 	}
 
-	if m.MapErrorOpt != nil {
-		f = Fn[T, R](mapErr(f, m.MapErrorOpt))
+	if feat.MapError != nil {
+		f = Fn[T, R](mapErr(f, feat.MapError))
 	}
 
-	if m.RetryOpt != nil {
-		f = Fn[T, R](retry(m.RetryOpt.Max, m.RetryOpt.Backoff, m.RetryOpt.ShouldRetry, f))
+	if feat.Retry != nil {
+		f = Fn[T, R](retry(feat.Retry.Max, feat.Retry.Backoff, feat.Retry.ShouldRetry, f))
 	}
 
-	if m.BreakerOpt != nil {
-		f = Fn[T, R](withBreaker(m.BreakerOpt, f))
+	if feat.Breaker != nil {
+		f = Fn[T, R](withBreaker(feat.Breaker, f))
 	}
 
-	if m.ThrottleOpt != nil {
-		f = Fn[T, R](throttle(m.ThrottleOpt.N, f))
+	if feat.Throttle > 0 {
+		f = Fn[T, R](throttle(feat.Throttle, f))
 	}
 
 	return f
 }
 
-// WithRetry is shorthand for With(Modes{RetryOpt: &RetryConfig{...}}).
+// WithRetry is shorthand for With(Features{Retry: Retry(...)}).
 func (f Fn[T, R]) WithRetry(maxAttempts int, backoff Backoff, shouldRetry func(error) bool) Fn[T, R] {
 	return Fn[T, R](retry(maxAttempts, backoff, shouldRetry, f))
 }
 
-// WithBreaker is shorthand for With(Modes{BreakerOpt: b}).
+// WithBreaker is shorthand for With(Features{Breaker: b}).
 func (f Fn[T, R]) WithBreaker(b *Breaker) Fn[T, R] {
 	return Fn[T, R](withBreaker(b, f))
 }
 
-// WithThrottle is shorthand for With(Modes{ThrottleOpt: &n}).
+// WithThrottle is shorthand for With(Features{Throttle: Throttle(n)}).
 func (f Fn[T, R]) WithThrottle(n int) Fn[T, R] {
 	return Fn[T, R](throttle(n, f))
 }
 
 // WithThrottleWeighted wraps f with cost-based concurrency control.
-// Not available via Modes because the cost function requires type T.
+// Not available via Features because the cost function requires type T.
 func (f Fn[T, R]) WithThrottleWeighted(capacity int, cost func(T) int) Fn[T, R] {
 	return Fn[T, R](throttleWeighted(capacity, cost, f))
 }
 
-// WithMapError is shorthand for With(Modes{MapErrorOpt: mapper}).
+// WithMapError is shorthand for With(Features{MapError: mapper}).
 func (f Fn[T, R]) WithMapError(mapper func(error) error) Fn[T, R] {
 	return Fn[T, R](mapErr(f, mapper))
 }
 
-// WithOnError is shorthand for With(Modes{OnErrorOpt: handler}).
+// WithOnError is shorthand for With(Features{OnError: handler}).
 func (f Fn[T, R]) WithOnError(handler func(error)) Fn[T, R] {
 	return Fn[T, R](onErr(f, handler))
 }

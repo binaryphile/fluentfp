@@ -21,10 +21,11 @@ func _() {
 	_ = Fn[int, int](nil)
 	_ = Func[int, int]
 	_ = Decorator[int, int](nil)
-	_ = Modes{}
+	_ = Features{}
 	_ = RetryConfig{}
+	_ = Retry
 
-	// With (Modes-based)
+	// With (Features-based)
 	_ = Fn[int, int].With
 
 	// With* methods (convenience)

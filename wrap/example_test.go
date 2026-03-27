@@ -105,10 +105,10 @@ func ExampleFn_With() {
 		return fmt.Sprintf("data(%s)", key), nil
 	}
 
-	// Configure all modes in one struct. Library controls decorator order.
-	resilient := wrap.Func(fetchData).With(wrap.Modes{
-		RetryOpt:    &wrap.RetryConfig{Max: 3, Backoff: wrap.ExpBackoff(time.Millisecond)},
-		ThrottleOpt: &wrap.ThrottleConfig{N: 10},
+	// Configure all features in one struct. Library controls decorator order.
+	resilient := wrap.Func(fetchData).With(wrap.Features{
+		Retry:    wrap.Retry(3, wrap.ExpBackoff(time.Millisecond), nil),
+		Throttle: 10,
 	})
 
 	got, _ := resilient(context.Background(), "abc")

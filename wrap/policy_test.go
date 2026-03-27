@@ -9,14 +9,14 @@ import (
 	"github.com/binaryphile/fluentfp/wrap"
 )
 
-func TestWithEmptyModes(t *testing.T) {
+func TestWithEmptyFeatures(t *testing.T) {
 	fn := wrap.Func(func(_ context.Context, n int) (int, error) {
 		return n * 3, nil
 	})
 
-	got, err := fn.With(wrap.Modes{})(context.Background(), 5)
+	got, err := fn.With(wrap.Features{})(context.Background(), 5)
 	if err != nil || got != 15 {
-		t.Errorf("With(Modes{})(5) = (%d, %v), want (15, nil)", got, err)
+		t.Errorf("With(Features{})(5) = (%d, %v), want (15, nil)", got, err)
 	}
 }
 
