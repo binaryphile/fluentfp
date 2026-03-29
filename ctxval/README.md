@@ -59,22 +59,22 @@ var csrfTokenKey = ctxval.NewKey[string]()
 
 ctx = authTokenKey.With(ctx, "bearer-xyz")
 ctx = csrfTokenKey.With(ctx, "csrf-abc")
-auth, _ := authTokenKey.From(ctx).Get()  // "bearer-xyz"
-csrf, _ := csrfTokenKey.From(ctx).Get()  // "csrf-abc"
+auth, _ := authTokenKey.Lookup(ctx).Get()  // "bearer-xyz"
+csrf, _ := csrfTokenKey.Lookup(ctx).Get()  // "csrf-abc"
 ```
 
 ## When to Use What
 
 **Type-keyed** (`With`/`Lookup`): When each Go type naturally maps to one value per context. Middleware injecting a `User`, `RequestID`, or `TraceID` — one value per type, no collision possible.
 
-**Named keys** (`NewKey`/`Key.With`/`Key.From`): When multiple values share the same underlying type at a shared API boundary. Two different `string` tokens, two different `int` IDs. Each `NewKey` call creates a unique key by pointer identity.
+**Named keys** (`NewKey`/`Key.With`/`Key.Lookup`): When multiple values share the same underlying type at a shared API boundary. Two different `string` tokens, two different `int` IDs. Each `NewKey` call creates a unique key by pointer identity.
 
 Type aliases (`type Alias = string`) share the key with the aliased type. Named types (`type RequestID string`) get their own key.
 
 ## Operations
 
 - **Store**: `With[T](ctx, val)` — store by type; `Key.With(ctx, val)` — store by named key
-- **Retrieve**: `Lookup[T](ctx)` — returns `Option[T]`; `Key.From(ctx)` — returns `Option[T]`
+- **Retrieve**: `Lookup[T](ctx)` — returns `Option[T]`; `Key.Lookup(ctx)` — returns `Option[T]`
 - **Keys**: `NewKey[T]()` — create unique named key (pointer identity)
 
 `Lookup` returns an `Option`, so all option operations apply: `.Or("default")`, `.Get()`, `.IsOk()`, `.IfOk(fn)`.

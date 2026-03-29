@@ -14,7 +14,7 @@ type TraceID string
 
 type User struct{ Name string }
 
-func TestWithAndFrom(t *testing.T) {
+func TestWithAndLookup(t *testing.T) {
 	ctx := ctxval.With(context.Background(), RequestID("abc"))
 	got, ok := ctxval.Lookup[RequestID](ctx).Get()
 
@@ -149,11 +149,11 @@ func TestTypeAliasCollides(t *testing.T) {
 	}
 }
 
-func TestKeyWithAndFrom(t *testing.T) {
+func TestKeyWithAndLookup(t *testing.T) {
 	key := ctxval.NewKey[string]()
 
 	ctx := key.With(context.Background(), "value")
-	got, ok := key.From(ctx).Get()
+	got, ok := key.Lookup(ctx).Get()
 
 	if !ok {
 		t.Fatal("expected ok")
@@ -170,8 +170,8 @@ func TestDistinctKeysForSameType(t *testing.T) {
 	ctx := key1.With(context.Background(), "first")
 	ctx = key2.With(ctx, "second")
 
-	got1, _ := key1.From(ctx).Get()
-	got2, _ := key2.From(ctx).Get()
+	got1, _ := key1.Lookup(ctx).Get()
+	got2, _ := key2.Lookup(ctx).Get()
 
 	if got1 != "first" {
 		t.Fatalf("key1: got %q, want %q", got1, "first")
@@ -188,7 +188,7 @@ func TestKeyNilInterfacePresent(t *testing.T) {
 	var r io.Reader
 
 	ctx := key.With(context.Background(), r)
-	got, ok := key.From(ctx).Get()
+	got, ok := key.Lookup(ctx).Get()
 
 	if !ok {
 		t.Fatal("expected ok — nil interface via Key should be present")
@@ -205,7 +205,7 @@ func TestKeyDoesNotCollideWithTypeKeyed(t *testing.T) {
 	ctx = key.With(ctx, "named-key")
 
 	typeKeyed, _ := ctxval.Lookup[string](ctx).Get()
-	namedKey, _ := key.From(ctx).Get()
+	namedKey, _ := key.Lookup(ctx).Get()
 
 	if typeKeyed != "type-keyed" {
 		t.Fatalf("type-keyed: got %q, want %q", typeKeyed, "type-keyed")
@@ -221,7 +221,7 @@ func TestKeyShadowsParent(t *testing.T) {
 	parent := key.With(context.Background(), "first")
 	child := key.With(parent, "second")
 
-	got, ok := key.From(child).Get()
+	got, ok := key.Lookup(child).Get()
 
 	if !ok {
 		t.Fatal("expected ok")
@@ -237,7 +237,7 @@ func TestKeyWrongTypeCharacterization(t *testing.T) {
 	// Context has no string value under this key.
 	ctx := context.Background()
 
-	_, ok := key.From(ctx).Get()
+	_, ok := key.Lookup(ctx).Get()
 	if ok {
 		t.Fatal("expected not-ok for absent key")
 	}
@@ -256,7 +256,7 @@ func TestNilKeyPanics(t *testing.T) {
 		k.With(context.Background(), "x")
 	})
 
-	t.Run("From", func(t *testing.T) {
+	t.Run("Lookup", func(t *testing.T) {
 		defer func() {
 			if recover() == nil {
 				t.Fatal("expected panic")
@@ -265,7 +265,7 @@ func TestNilKeyPanics(t *testing.T) {
 
 		var k *ctxval.Key[string]
 
-		k.From(context.Background())
+		k.Lookup(context.Background())
 	})
 }
 
@@ -301,7 +301,7 @@ func TestKeyWithNilContextPanics(t *testing.T) {
 	key.With(nil, "x")
 }
 
-func TestKeyFromNilContextPanics(t *testing.T) {
+func TestKeyLookupNilContextPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
 			t.Fatal("expected panic for nil context")
@@ -310,5 +310,5 @@ func TestKeyFromNilContextPanics(t *testing.T) {
 
 	key := ctxval.NewKey[string]()
 
-	key.From(nil)
+	key.Lookup(nil)
 }

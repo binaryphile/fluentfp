@@ -40,8 +40,8 @@ func ExampleNewKey() {
 	ctx = adminKey.With(ctx, "root")
 	ctx = userKey.With(ctx, "alice")
 
-	fmt.Println(adminKey.From(ctx).Or(""))
-	fmt.Println(userKey.From(ctx).Or(""))
+	fmt.Println(adminKey.Lookup(ctx).Or(""))
+	fmt.Println(userKey.Lookup(ctx).Or(""))
 	// Output:
 	// root
 	// alice

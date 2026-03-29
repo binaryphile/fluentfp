@@ -53,12 +53,12 @@ func (k *Key[T]) With(ctx context.Context, val T) context.Context {
 	return context.WithValue(ctx, k, box[T]{v: val})
 }
 
-// From retrieves the value under this key from ctx, returning a not-ok
+// Lookup retrieves the value under this key from ctx, returning a not-ok
 // option if not present.
 //
 // Panics if k is nil (use [NewKey] to create keys).
 // Panics if ctx is nil (same as context.Context.Value).
-func (k *Key[T]) From(ctx context.Context) option.Option[T] {
+func (k *Key[T]) Lookup(ctx context.Context) option.Option[T] {
 	if k == nil {
 		panic("ctxval: Key must not be nil; use NewKey to create")
 	}

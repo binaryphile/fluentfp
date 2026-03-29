@@ -22,7 +22,7 @@
 //	var userKey = ctxval.NewKey[User]()
 //
 //	ctx = userKey.With(ctx, currentUser)
-//	userOpt := userKey.From(ctx)  // Option[User]
+//	userOpt := userKey.Lookup(ctx)  // Option[User]
 //
 // This package is for request-scoped data that crosses API boundaries
 // (user IDs, trace IDs, auth tokens). It is not for optional parameters,
