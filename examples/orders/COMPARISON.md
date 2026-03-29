@@ -473,11 +473,11 @@ Sentinel key type + type assertion + nil check.
 // With stores a value keyed by its Go type.
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
-// Get retrieves by type -> Option. Or provides fallback.
-reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
+// Lookup retrieves by type -> Option. Or provides fallback.
+reqID := ctxval.Lookup[RequestID](req.Context()).Or("unknown")
 ```
 
-The Go type itself is the key -- no sentinel type to define. `Get` returns an `Option`, so `.Or("unknown")` handles the absent case.
+The Go type itself is the key -- no sentinel type to define. `Lookup` returns an `Option`, so `.Or("unknown")` handles the absent case.
 
 </td>
 </tr>

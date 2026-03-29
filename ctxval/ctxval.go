@@ -19,18 +19,18 @@ func With[T any](ctx context.Context, val T) context.Context {
 	return context.WithValue(ctx, typeKey[T]{}, box[T]{v: val})
 }
 
-// Get retrieves the value of type T from ctx, returning a not-ok option
+// Lookup retrieves the value of type T from ctx, returning a not-ok option
 // if no value of that type is present. T must match the exact static type
 // used in [With]; interface and concrete types are distinct keys.
 //
 // Panics if ctx is nil (same as context.Context.Value).
-func Get[T any](ctx context.Context) option.Option[T] {
+func Lookup[T any](ctx context.Context) option.Option[T] {
 	b, ok := ctx.Value(typeKey[T]{}).(box[T])
 
 	return option.New(b.v, ok)
 }
 
-// Key is a named context key for values of type T. Unlike [With]/[Get],
+// Key is a named context key for values of type T. Unlike [With]/[Lookup],
 // which key by type alone, each Key is a unique identity — multiple keys
 // can carry the same type T without collision.
 //
@@ -53,7 +53,7 @@ func (k *Key[T]) With(ctx context.Context, val T) context.Context {
 	return context.WithValue(ctx, k, box[T]{v: val})
 }
 
-// Get retrieves the value under this key from ctx, returning a not-ok
+// From retrieves the value under this key from ctx, returning a not-ok
 // option if not present.
 //
 // Panics if k is nil (use [NewKey] to create keys).

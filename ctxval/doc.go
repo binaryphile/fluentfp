@@ -10,11 +10,11 @@
 //
 //	ctx = ctxval.With(ctx, RequestID("abc"))
 //	ctx = ctxval.With(ctx, TraceID("xyz"))
-//	reqID := ctxval.Get[RequestID](ctx)  // Option[RequestID]("abc")
-//	trID  := ctxval.Get[TraceID](ctx)    // Option[TraceID]("xyz")
+//	reqID := ctxval.Lookup[RequestID](ctx)  // Option[RequestID]("abc")
+//	trID  := ctxval.Lookup[TraceID](ctx)    // Option[TraceID]("xyz")
 //
 // For code that only needs one value per type (e.g., middleware injecting
-// a User into context), the package-level [With] and [Get] functions are
+// a User into context), the package-level [With] and [Lookup] functions are
 // convenient. For shared or public boundaries where multiple values of the
 // same type coexist, prefer [Key] — it gives each value a unique identity
 // without requiring a new named type:

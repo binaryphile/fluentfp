@@ -59,7 +59,7 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: five of
 
 ```go
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
-    reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
+    reqID := ctxval.Lookup[RequestID](req.Context()).Or("unknown")
 
     lookupPrices := func(o Order) rslt.Result[Order] {               // bind ctx to pricing call
         return rslt.Of(priceOrder(req.Context(), o))
@@ -221,10 +221,10 @@ Go's `context.WithValue` requires a private key type, a type assertion on retrie
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 
 // Handler -- retrieve with fallback:
-reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
+reqID := ctxval.Lookup[RequestID](req.Context()).Or("unknown")
 ```
 
-`ctxval.Get` returns an `Option`, so `.Or("unknown")` is the fallback. No sentinel types, no type assertions.
+`ctxval.Lookup` returns an `Option`, so `.Or("unknown")` is the fallback. No sentinel types, no type assertions.
 
 ## Architecture
 

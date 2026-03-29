@@ -180,7 +180,7 @@ func newCreateOrder(
 	}
 
 	return func(req *http.Request) rslt.Result[web.Response] {
-		reqID := ctxval.Get[RequestID](req.Context()).Or("unknown")
+		reqID := ctxval.Lookup[RequestID](req.Context()).Or("unknown")
 
 		// lookupPrices binds the request context to the pricing call.
 		lookupPrices := func(o Order) rslt.Result[Order] {

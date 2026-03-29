@@ -16,7 +16,7 @@ type User struct{ Name string }
 
 func TestWithAndFrom(t *testing.T) {
 	ctx := ctxval.With(context.Background(), RequestID("abc"))
-	got, ok := ctxval.Get[RequestID](ctx).Get()
+	got, ok := ctxval.Lookup[RequestID](ctx).Get()
 
 	if !ok {
 		t.Fatal("expected ok")
@@ -27,7 +27,7 @@ func TestWithAndFrom(t *testing.T) {
 }
 
 func TestFromAbsent(t *testing.T) {
-	_, ok := ctxval.Get[RequestID](context.Background()).Get()
+	_, ok := ctxval.Lookup[RequestID](context.Background()).Get()
 
 	if ok {
 		t.Fatal("expected not-ok for absent key")
@@ -38,7 +38,7 @@ func TestWithShadowsParent(t *testing.T) {
 	parent := ctxval.With(context.Background(), RequestID("first"))
 	child := ctxval.With(parent, RequestID("second"))
 
-	got, ok := ctxval.Get[RequestID](child).Get()
+	got, ok := ctxval.Lookup[RequestID](child).Get()
 
 	if !ok {
 		t.Fatal("expected ok")
@@ -52,8 +52,8 @@ func TestDistinctNamedTypes(t *testing.T) {
 	ctx := ctxval.With(context.Background(), RequestID("req"))
 	ctx = ctxval.With(ctx, TraceID("trace"))
 
-	reqID, reqOK := ctxval.Get[RequestID](ctx).Get()
-	trID, trOK := ctxval.Get[TraceID](ctx).Get()
+	reqID, reqOK := ctxval.Lookup[RequestID](ctx).Get()
+	trID, trOK := ctxval.Lookup[TraceID](ctx).Get()
 
 	if !reqOK || reqID != "req" {
 		t.Fatalf("RequestID: got %q ok=%v, want %q ok=true", reqID, reqOK, "req")
@@ -68,7 +68,7 @@ func TestNilInterfaceValuePresent(t *testing.T) {
 	var r io.Reader
 
 	ctx := ctxval.With(context.Background(), r)
-	got, ok := ctxval.Get[io.Reader](ctx).Get()
+	got, ok := ctxval.Lookup[io.Reader](ctx).Get()
 
 	if !ok {
 		t.Fatal("expected ok — nil interface should be present, not absent")
@@ -84,12 +84,12 @@ func TestInterfaceVsConcreteType(t *testing.T) {
 
 	ctx := ctxval.With(context.Background(), reader)
 
-	_, readerOK := ctxval.Get[io.Reader](ctx).Get()
+	_, readerOK := ctxval.Lookup[io.Reader](ctx).Get()
 	if !readerOK {
 		t.Fatal("From[io.Reader] should find the value")
 	}
 
-	_, bufOK := ctxval.Get[*bytes.Buffer](ctx).Get()
+	_, bufOK := ctxval.Lookup[*bytes.Buffer](ctx).Get()
 	if bufOK {
 		t.Fatal("From[*bytes.Buffer] should NOT find value stored as io.Reader")
 	}
@@ -98,12 +98,12 @@ func TestInterfaceVsConcreteType(t *testing.T) {
 func TestValueVsPointerType(t *testing.T) {
 	ctx := ctxval.With(context.Background(), User{Name: "alice"})
 
-	_, valOK := ctxval.Get[User](ctx).Get()
+	_, valOK := ctxval.Lookup[User](ctx).Get()
 	if !valOK {
 		t.Fatal("From[User] should find the value")
 	}
 
-	_, ptrOK := ctxval.Get[*User](ctx).Get()
+	_, ptrOK := ctxval.Lookup[*User](ctx).Get()
 	if ptrOK {
 		t.Fatal("From[*User] should NOT find value stored as User")
 	}
@@ -113,7 +113,7 @@ func TestNonComparableTypeParameter(t *testing.T) {
 	data := []byte("hello")
 
 	ctx := ctxval.With[[]byte](context.Background(), data)
-	got, ok := ctxval.Get[[]byte](ctx).Get()
+	got, ok := ctxval.Lookup[[]byte](ctx).Get()
 
 	if !ok {
 		t.Fatal("expected ok — []byte T should work (key struct is comparable)")
@@ -125,7 +125,7 @@ func TestNonComparableTypeParameter(t *testing.T) {
 
 func TestAnyTypeParameter(t *testing.T) {
 	ctx := ctxval.With[any](context.Background(), "hello")
-	got, ok := ctxval.Get[any](ctx).Get()
+	got, ok := ctxval.Lookup[any](ctx).Get()
 
 	if !ok {
 		t.Fatal("expected ok")
@@ -139,7 +139,7 @@ func TestTypeAliasCollides(t *testing.T) {
 	type Alias = string
 
 	ctx := ctxval.With(context.Background(), Alias("via-alias"))
-	got, ok := ctxval.Get[string](ctx).Get()
+	got, ok := ctxval.Lookup[string](ctx).Get()
 
 	if !ok {
 		t.Fatal("expected ok — type alias shares key with underlying type")
@@ -204,7 +204,7 @@ func TestKeyDoesNotCollideWithTypeKeyed(t *testing.T) {
 	ctx := ctxval.With(context.Background(), "type-keyed")
 	ctx = key.With(ctx, "named-key")
 
-	typeKeyed, _ := ctxval.Get[string](ctx).Get()
+	typeKeyed, _ := ctxval.Lookup[string](ctx).Get()
 	namedKey, _ := key.From(ctx).Get()
 
 	if typeKeyed != "type-keyed" {
@@ -279,14 +279,14 @@ func TestWithNilContextPanics(t *testing.T) {
 	ctxval.With[string](nil, "x")
 }
 
-func TestFromNilContextPanics(t *testing.T) {
+func TestLookupNilContextPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
 			t.Fatal("expected panic for nil context")
 		}
 	}()
 
-	ctxval.Get[string](nil)
+	ctxval.Lookup[string](nil)
 }
 
 func TestKeyWithNilContextPanics(t *testing.T) {

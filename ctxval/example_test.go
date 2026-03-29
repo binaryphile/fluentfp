@@ -14,16 +14,16 @@ func ExampleWith() {
 	// Store a request ID in context, keyed by type.
 	ctx := ctxval.With(context.Background(), ExRequestID("req-abc-123"))
 
-	id := ctxval.Get[ExRequestID](ctx).Or("unknown")
+	id := ctxval.Lookup[ExRequestID](ctx).Or("unknown")
 	fmt.Println(id)
 	// Output: req-abc-123
 }
 
-func ExampleGet() {
-	// Get returns not-ok when the type isn't in the context.
+func ExampleLookup() {
+	// Lookup returns not-ok when the type isn't in the context.
 	ctx := context.Background()
 
-	id := ctxval.Get[ExRequestID](ctx)
+	id := ctxval.Lookup[ExRequestID](ctx)
 	fmt.Println(id.IsOk())
 	fmt.Println(id.Or("fallback"))
 	// Output:
