@@ -270,7 +270,7 @@ Packages are independent — import one or all.
 | [memo](memo/)       | Memoization                      | `Of`, `Fn`, `FnErr`, `NewLRU`                  |
 | [heap](heap/)       | Persistent priority queue        | `New`, `Insert`, `Pop`, `Collect`              |
 | [pair](tuple/pair/) | Zip slices                       | `Zip`, `ZipWith`                               |
-| [combo](combo/)     | Combinatorial constructions      | `CartesianProduct`, `Combinations`, `PowerSet` |
+| [combo](combo/)     | Combinatorial constructions (eager + lazy Seq) | `CartesianProduct`, `Combinations`, `SeqPermutations` |
 | [lof](lof/)         | Lower-order function wrappers    | `Len`, `Println`, `Identity`, `Inc`            |
 
 ## Package Highlights
@@ -357,6 +357,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Memoize a function | `memo.From(fn)` or `memo.Fn(cache, fn)` | memo |
 | Work with maps functionally | `kv.Keys(m)`, `kv.MapValues(m, fn)` | kv |
 | Generate combinations/permutations | `combo.Combinations(items, k)` | combo |
+| Lazy combinatorial generation | `combo.SeqPermutations(items).Take(10)` | combo |
 | Use a persistent priority queue | `heap.New(cmp).Insert(v)` | heap |
 | Zip two slices into pairs | `pair.Zip(as, bs)` or `pair.ZipWith(as, bs, fn)` | pair |
 

@@ -2,7 +2,7 @@
 
 Combinatorial constructions: Cartesian products, permutations, combinations, and power sets.
 
-All functions eagerly allocate the full result in memory. `CartesianProduct` returns `pair.Pair` values; use `CartesianProductWith` to produce your own result type directly and avoid intermediate pairs. Results are `slice.Mapper` — chain directly with `.KeepIf`, `.Convert`, etc.
+Eager functions allocate the full result in memory as `slice.Mapper` — chain directly with `.KeepIf`, `.Convert`, etc. Seq variants (`SeqPermutations`, `SeqPowerSet`, etc.) return `seq.Seq` for lazy evaluation with early termination — use these when the full result is too large to materialize.
 
 ```go
 // Before: nested loop to generate all size/color combinations
@@ -61,7 +61,16 @@ All results are fully materialized in memory. Compute the result size before cal
 | Combinations(n, k) | C(n, k) | C(5,2)=10 | C(10,5)=252 | C(15,7)=6,435 |
 | CartesianProduct | a * b | depends on inputs | | |
 
-Use only for small inputs unless you've computed the result size and memory cost. `Permutations` becomes impractical above ~10-12 elements. `PowerSet` grows quickly. `Combinations` can also be large near midpoint `k`.
+Eager functions are impractical for large inputs — `Permutations` above ~10-12 elements, `PowerSet` above ~20. Use the `Seq` variants for lazy evaluation with early termination:
+
+```go
+// Lazy: only generates elements as needed
+for perm := range combo.SeqPermutations(largeSlice) {
+    if isInteresting(perm) {
+        break // stops generation
+    }
+}
+```
 
 ## Empty and Invalid Input
 
@@ -75,10 +84,20 @@ Use only for small inputs unless you've computed the result size and memory cost
 
 ## Operations
 
+### Eager (return `slice.Mapper`)
+
 - `CartesianProduct[A, B any]([]A, []B) slice.Mapper[pair.Pair[A, B]]` — all pairs
 - `CartesianProductWith[A, B, R any]([]A, []B, func(A, B) R) slice.Mapper[R]` — all pairs, transformed (avoids intermediate `pair.Pair` allocation)
 - `Permutations[T any]([]T) slice.Mapper[[]T]` — all orderings
 - `Combinations[T any]([]T, int) slice.Mapper[[]T]` — k-element subsets, preserving order
 - `PowerSet[T any]([]T) slice.Mapper[[]T]` — all subsets
+
+### Lazy (return `seq.Seq`)
+
+- `SeqCartesianProduct[A, B any]([]A, []B) seq.Seq[pair.Pair[A, B]]` — lazy pairs
+- `SeqCartesianProductWith[A, B, R any]([]A, []B, func(A, B) R) seq.Seq[R]` — lazy pairs, transformed
+- `SeqPermutations[T any]([]T) seq.Seq[[]T]` — lazy orderings
+- `SeqCombinations[T any]([]T, int) seq.Seq[[]T]` — lazy k-element subsets
+- `SeqPowerSet[T any]([]T) seq.Seq[[]T]` — lazy subsets
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/combo) for complete API documentation and the [main README](../README.md) for installation.

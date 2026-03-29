@@ -41,6 +41,7 @@ subgraph Context
 
     combo --> slice
     combo --> pair
+    combo --> seq
     slice --> option
     slice --> either
     slice --> rslt
@@ -70,7 +71,7 @@ ctxval --> option
 | `wrap` | Decorators over `func(context.Context, T) (R, error)` — retry/backoff, circuit breaker, throttle, error mapping, side-effect wrappers |
 | `memo` | Memoization — zero-arg lazy evaluation (`Of`), keyed function caching (`Fn`/`FnErr`), pluggable `Cache` interface with unbounded (`NewMap`) and LRU (`NewLRU`) strategies |
 | `heap` | Persistent (immutable) pairing heap parameterized by comparator. Based on Stone Ch 4. O(1) insert/merge, O(log n) amortized delete-min. |
-| `combo` | Combinatorial generators — `CartesianProduct`, `Permutations`, `Combinations`, `PowerSet` |
+| `combo` | Combinatorial generators — eager (`CartesianProduct`, `Permutations`, `Combinations`, `PowerSet`) and lazy Seq variants (`SeqPermutations`, `SeqPowerSet`, etc.) for large inputs |
 | `seq` | Iterator-native lazy chains wrapping `iter.Seq[T]`. Method chaining via defined type. Re-evaluates (vs stream's memoization). |
 | `ctxval` | Typed context value storage — `With[T]`/`Get[T]` keyed by type, `Key[T]` for named keys. Returns `Option[T]`. |
 | `web` | Typed HTTP handler composition on net/http — `Handler` returns `Result[Response]`, `Adapt` bridges to `http.HandlerFunc`, `WithErrorMapper` for domain→HTTP errors, `DecodeJSON` with configurable policy, `Steps` for same-type pipeline chains. Error constructors: `BadRequest`, `Forbidden`, `NotFound`, `Conflict`, `TooManyRequests`, `StatusError`. |
@@ -465,17 +466,24 @@ A persistent (immutable) priority queue based on Stone's Algorithms for Function
 ### D21: combo — Combinatorial generators
 
 ```go
+// Eager — return slice.Mapper
 func CartesianProduct[A, B any](a []A, b []B) slice.Mapper[pair.Pair[A, B]]
 func Permutations[T any](items []T) slice.Mapper[[]T]
 func Combinations[T any](items []T, k int) slice.Mapper[[]T]
 func PowerSet[T any](items []T) slice.Mapper[[]T]
+
+// Lazy — return seq.Seq
+func SeqCartesianProduct[A, B any](a []A, b []B) seq.Seq[pair.Pair[A, B]]
+func SeqPermutations[T any](items []T) seq.Seq[[]T]
+func SeqCombinations[T any](items []T, k int) seq.Seq[[]T]
+func SeqPowerSet[T any](items []T) seq.Seq[[]T]
 ```
 
-Standalone functions that generate combinatorial constructions as `slice.Mapper`, enabling direct chaining (e.g., `Permutations(items).KeepIf(pred)`).
+Standalone functions that generate combinatorial constructions. Eager functions return `slice.Mapper` for direct chaining (e.g., `Permutations(items).KeepIf(pred)`). Seq variants use the same recursive FP algorithms but yield lazily, enabling early termination for large inputs.
 
-**CartesianProductWith avoids intermediate allocation:** `CartesianProductWith(a, b, fn)` applies `fn` directly to each (a, b) pair without constructing `pair.Pair` values. More efficient when the caller transforms immediately.
+**CartesianProductWith avoids intermediate allocation:** `CartesianProductWith(a, b, fn)` applies `fn` directly to each (a, b) pair without constructing `pair.Pair` values. More efficient when the caller transforms immediately. Also available as `SeqCartesianProductWith`.
 
-**Dependencies:** `pair` for `CartesianProduct`'s element type, `slice` for the `Mapper` return type.
+**Dependencies:** `pair` for `CartesianProduct`'s element type, `slice` for the `Mapper` return type, `seq` for the lazy variants.
 
 ### D22: seq — Iterator-native fluent chains
 
@@ -817,7 +825,7 @@ Where packages depend on each other, and why:
 | `CartesianProduct` → `pair.Pair[A,B]` | Natural representation of element pairs from two collections. |
 | `kv.ToPairs` → `pair.Pair[K,V]` | Pairs are the natural representation of map entries as a flat sequence. Using pair avoids duplicating a struct in kv. |
 
-`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair` and `slice`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair` — none of these import each other.
+`hof`, `lof`, `must`, `pair`, and `memo` have no fluentfp dependency. `combo` depends on `pair`, `slice`, and `seq`. `stream`, `seq`, and `heap` depend only on `option`. `slice` depends on `option`, `either`, `rslt`, and `pair`; `kv` depends on `pair` — none of these import each other.
 
 **Option vs Either boundary:** option models presence/absence (one type, might not exist). Either models two typed outcomes where both branches carry information (Left = failure with context, Right = success). Use option when absence needs no explanation; either when the failure case has data the caller needs.
 

@@ -9,4 +9,9 @@ func _() {
 	_ = Combinations[int]
 	_ = Permutations[int]
 	_ = PowerSet[int]
+	_ = SeqCartesianProduct[int, string]
+	_ = SeqCartesianProductWith[int, string, pair.Pair[int, string]]
+	_ = SeqCombinations[int]
+	_ = SeqPermutations[int]
+	_ = SeqPowerSet[int]
 }
