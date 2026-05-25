@@ -344,10 +344,10 @@ func combinedStatus(statuses []string) string {
 type G = slice.Group[string, string]
 
 // byKey: ascending comparator on Key.
-var byKey func(G, G) int = slice.Asc(G.GetKey)
+var byKey = slice.Asc(G.GetKey)
 
 // countByStatus: formats one group as "status(count)".
-var countByStatus func(G) string = func(g G) string {
+countByStatus := func(g G) string {
 	return fmt.Sprintf("%s(%d)", g.Key, g.Len())
 }
 
