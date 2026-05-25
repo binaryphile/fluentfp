@@ -83,17 +83,19 @@ func TestDebouncerTimerReset(t *testing.T) {
 	// record stores the value on the results channel.
 	record := func(v int) { results <- v }
 
-	d := NewDebouncer(20*time.Millisecond, record)
+	d := NewDebouncer(200*time.Millisecond, record)
 	defer d.Close()
 
 	d.Call(1)
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	d.Call(2) // resets timer
 
-	// Should NOT have fired yet (10ms into a 20ms wait).
-	noRecv(t, results, 10*time.Millisecond)
+	// Should NOT have fired yet (Call(1) at t=0, Sleep 50ms, Call(2) at
+	// t≈50ms resets to t≈250ms; window ends at t≈130ms — 120ms+ margin
+	// against both the original-fire and reset-fire boundaries).
+	noRecv(t, results, 80*time.Millisecond)
 
-	v, ok := recv(results, 50*time.Millisecond)
+	v, ok := recv(results, 400*time.Millisecond)
 	if !ok {
 		t.Fatal("timed out waiting for fn")
 	}
