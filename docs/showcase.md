@@ -341,7 +341,6 @@ func combinedStatus(statuses []string) string {
 **fluentfp:**
 ```go
 // slice.Group[K, V] is { Key K; Items []V } with .Len() returning len(Items).
-// GroupSame returns one Group per distinct value, where Key == Items[0].
 type G = slice.Group[string, string]
 
 // byKey extracts each group's status string for ascending sort.
@@ -352,6 +351,7 @@ countByStatus := func(g G) string {
 	return fmt.Sprintf("%s(%d)", g.Key, g.Len())
 }
 
+// GroupSame returns one Group per distinct value, where Key == Items[0].
 statusGroups := slice.GroupSame(statuses).Sort(byKey)
 combined := statusGroups.ToString(countByStatus).Join(", ")
 ```
