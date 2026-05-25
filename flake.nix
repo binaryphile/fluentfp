@@ -1,5 +1,5 @@
 {
-  description = "sofdevsim-2026 software development simulation project";
+  description = "fluentfp functional programming library for Go";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -20,8 +20,6 @@
             gh
             nodejs
             sqlite
-            buf
-            protoc-gen-go
           ];
         };
       });
