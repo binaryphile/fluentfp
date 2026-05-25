@@ -294,14 +294,14 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
     // normalize trims whitespace, adding lowercasing when requested.
     normalize := option.When(lowercase, trimAndLower).Or(strings.TrimSpace)
 
-    normA := a.ToString(normalize).NonEmpty()
-    normB := b.ToString(normalize).NonEmpty()
+    normA := a.Transform(normalize).KeepIf(lof.IsNonEmpty)
+    normB := b.Transform(normalize).KeepIf(lof.IsNonEmpty)
 
     return slice.Difference(normA, normB).Sort(lof.StringAsc)
 }
 ```
 
-Three manual loops — build the map, delete matches, collect survivors — collapse into `slice.Difference`, which handles empty inputs internally and deduplicates as a built-in step (replacing the 15-line `RemoveDuplicates` helper). Normalization chains via `.ToString(normalize).NonEmpty()`, making lowercasing visible as a *transform* rather than a parameter to the set operation. The build-then-delete idiom requires reasoning about map mutation while iterating a different slice — correct but non-obvious; `slice.Difference` names the intent directly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
+Three manual loops — build the map, delete matches, collect survivors — collapse into `slice.Difference`, which handles empty inputs internally and deduplicates as a built-in step (replacing the 15-line `RemoveDuplicates` helper). Normalization chains via `.Transform(normalize).KeepIf(lof.IsNonEmpty)`, making lowercasing visible as a *transform* rather than a parameter to the set operation. The build-then-delete idiom requires reasoning about map mutation while iterating a different slice — correct but non-obvious; `slice.Difference` names the intent directly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
 
 ---
 
