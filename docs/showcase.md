@@ -58,7 +58,7 @@ results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 
 **What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `.Sort` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
 
-*Implementation note: `.Sort` returns a new sorted slice (one copy — see the introduction for allocation guidance). The `sortFuncs` map stores method expressions — Go turns `ProcessesResult.TotalBytes` into a `func(ProcessesResult) int`, which is exactly what `slice.Desc` expects.*
+*The `sortFuncs` map stores method expressions — Go turns `ProcessesResult.TotalBytes` into a `func(ProcessesResult) int`, which is exactly what `slice.Desc` expects.*
 
 ---
 
@@ -131,9 +131,7 @@ tokens := splitTokens(s).Transform(strings.ToLower).KeepIf(lof.IsNonBlank)
 
 **What's eliminated:** Three wrapper functions that exist only to satisfy lo's `func(T, int)` signature. This isn't a bug risk — it's friction that accumulates across a codebase. Every stdlib function becomes a wrapper when the index isn't needed.
 
-*Editorial note: `.KeepIf(lof.IsNonBlank).Transform(strings.ToLower)` would be better — no reason to lowercase empty strings we're about to discard — but we preserve the original's map-then-filter order to keep the comparison honest.*
-
-*Interoperability note: `splitTokens` returns `slice.Mapper[string]` so both examples can share one extracted function. Go allows this because `Mapper[string]` is assignable to `[]string` without conversion — the underlying types match and the target is not a defined type. lo accepts it directly; no cast needed on either side.*
+*`splitTokens` returns `slice.Mapper[string]`, which is assignable to `[]string` without conversion — lo accepts it directly, no cast on either side.*
 
 **Design note: standalone vs method form.** For a single cross-type map, fluentfp's standalone `slice.Map` infers both types — same inference as lo, without the `_ int` wrapper:
 ```go
@@ -225,7 +223,7 @@ func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
 
 This utility is a dependency of HashiCorp Vault (80k+ stars), Consul, Nomad, and Boundary. The original function tangles four concerns — normalization, deduplication, set difference, and sorting — into one 30-line body because the set operation has no standalone primitive. With `slice.Difference` as a building block, each concern separates into its own expression. The original also calls `RemoveDuplicates` which trims whitespace and skips blank entries; we include that preprocessing in the fluentfp version for a fair comparison.
 
-Note: the original's early returns (lines 3–11) skip the `RemoveDuplicates` preprocessing — when `b` is empty, the function returns `a` without trimming, deduplication, or sorting. This may be a deliberate performance optimization (avoid allocating when the result is just `a`), but it relies on the caller knowing that early-return outputs are unnormalized while main-path outputs are normalized — a potentially dangerous subtlety. The fluentfp version handles all inputs consistently.
+Note: the original's early returns (when `a` or `b` is empty) skip `RemoveDuplicates` preprocessing, so empty-`b` callers receive unnormalized output while main-path callers get normalized output — a subtle inconsistency the fluentfp version eliminates by processing all inputs uniformly.
 
 **Original** (30 lines, plus `RemoveDuplicates` helper not shown):
 ```go
@@ -414,9 +412,7 @@ The two versions use different algorithms to achieve the same result. The sieve 
 
 The stream version uses zero goroutines and zero channels. Lazy evaluation comes from deferred thunks, not concurrency primitives. Once the stream reference is dropped, all cells are eligible for garbage collection — no cleanup protocol needed.
 
-*Caveats: This is a pedagogical example from Go's test suite, not a production rewrite. It demonstrates that `stream` can express lazy generate-filter-take pipelines without concurrency primitives. Stream cells are individually heap-allocated and memoized via state machine transitions. For sequences that fit comfortably in memory and will be fully consumed, `slice.From` with eager methods is more efficient. Streams excel where laziness matters: infinite sequences, early termination, or expensive-to-compute elements.*
-
-*Historical note: Channel-based lazy evaluation was a common approach in Go's early years. The [Tour of Go](https://go.dev/tour) teaches channel-based Fibonacci; the stdlib test suite includes this sieve. Alternatives existed (closures, stateful iterators, callback-based enumeration), but channels were idiomatic. Go 1.23 added `iter.Seq` for push-based iteration; `stream.Seq()` bridges to `range` for interoperability with the standard protocol.*
+*Pedagogical example, not a production rewrite. For sequences that fit in memory and will be fully consumed, eager `slice.From` is more efficient. Streams pay off where laziness matters: infinite sequences, early termination, or expensive-to-compute elements.*
 
 ---
 
