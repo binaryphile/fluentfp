@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/binaryphile/fluentfp/rslt"
@@ -77,80 +78,88 @@ func TestRunAsyncMultipleWait(t *testing.T) {
 }
 
 func TestRunAsyncConcurrentWait(t *testing.T) {
-	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
-		time.Sleep(10 * time.Millisecond)
-		return 99, nil
-	})
+	synctest.Test(t, func(t *testing.T) {
+		a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+			time.Sleep(10 * time.Millisecond)
+			return 99, nil
+		})
 
-	var wg sync.WaitGroup
-	for range 10 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			val, err := a.Wait()
-			if err != nil || val != 99 {
-				t.Errorf("concurrent Wait() = (%d, %v), want (99, nil)", val, err)
-			}
-		}()
-	}
-	wg.Wait()
+		var wg sync.WaitGroup
+		for range 10 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				val, err := a.Wait()
+				if err != nil || val != 99 {
+					t.Errorf("concurrent Wait() = (%d, %v), want (99, nil)", val, err)
+				}
+			}()
+		}
+		wg.Wait()
+	})
 }
 
 func TestRunAsyncDone(t *testing.T) {
-	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
-		return 1, nil
+	synctest.Test(t, func(t *testing.T) {
+		a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+			return 1, nil
+		})
+
+		select {
+		case <-a.Done():
+		case <-time.After(time.Second):
+			t.Fatal("Done() did not close within timeout")
+		}
+
+		val, err := a.Wait()
+		if err != nil || val != 1 {
+			t.Errorf("after Done: Wait() = (%d, %v), want (1, nil)", val, err)
+		}
 	})
-
-	select {
-	case <-a.Done():
-	case <-time.After(time.Second):
-		t.Fatal("Done() did not close within timeout")
-	}
-
-	val, err := a.Wait()
-	if err != nil || val != 1 {
-		t.Errorf("after Done: Wait() = (%d, %v), want (1, nil)", val, err)
-	}
 }
 
 func TestRunAsyncDoneWithSelect(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
 
-	slow := rslt.RunAsync(ctx, func(ctx context.Context) (int, error) {
-		time.Sleep(50 * time.Millisecond)
-		return 1, nil
-	})
+		slow := rslt.RunAsync(ctx, func(ctx context.Context) (int, error) {
+			time.Sleep(50 * time.Millisecond)
+			return 1, nil
+		})
 
-	select {
-	case <-slow.Done():
-		val, err := slow.Wait()
-		if err != nil || val != 1 {
-			t.Errorf("Wait() = (%d, %v), want (1, nil)", val, err)
+		select {
+		case <-slow.Done():
+			val, err := slow.Wait()
+			if err != nil || val != 1 {
+				t.Errorf("Wait() = (%d, %v), want (1, nil)", val, err)
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out")
 		}
-	case <-ctx.Done():
-		t.Fatal("timed out")
-	}
+	})
 }
 
 func TestRunAsyncCopySafety(t *testing.T) {
-	a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
-		time.Sleep(10 * time.Millisecond)
-		return 42, nil
+	synctest.Test(t, func(t *testing.T) {
+		a := rslt.RunAsync(context.Background(), func(_ context.Context) (int, error) {
+			time.Sleep(10 * time.Millisecond)
+			return 42, nil
+		})
+
+		// Copy the handle before completion.
+		b := a
+
+		// Both should see the same result.
+		v1, e1 := a.Wait()
+		v2, e2 := b.Wait()
+		if v1 != v2 || e1 != e2 {
+			t.Errorf("copy diverged: (%d,%v) vs (%d,%v)", v1, e1, v2, e2)
+		}
+		if v1 != 42 {
+			t.Errorf("value = %d, want 42", v1)
+		}
 	})
-
-	// Copy the handle before completion.
-	b := a
-
-	// Both should see the same result.
-	v1, e1 := a.Wait()
-	v2, e2 := b.Wait()
-	if v1 != v2 || e1 != e2 {
-		t.Errorf("copy diverged: (%d,%v) vs (%d,%v)", v1, e1, v2, e2)
-	}
-	if v1 != 42 {
-		t.Errorf("value = %d, want 42", v1)
-	}
 }
 
 func TestRunAsyncNilFnPanics(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -65,21 +66,23 @@ func TestWatchImmediate(t *testing.T) {
 }
 
 func TestWatchStopsOnCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
 
-	go func() {
-		watchWithTicker(ctx, Options{Interval: time.Second}, func(_ context.Context, m MemInfo) {}, nil)
-		close(done)
-	}()
+		go func() {
+			watchWithTicker(ctx, Options{Interval: time.Second}, func(_ context.Context, m MemInfo) {}, nil)
+			close(done)
+		}()
 
-	cancel()
+		cancel()
 
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Watch did not return after cancel")
-	}
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("Watch did not return after cancel")
+		}
+	})
 }
 
 func TestWatchInvalidOptions(t *testing.T) {
@@ -113,40 +116,42 @@ func TestWatchPanicDefault(t *testing.T) {
 }
 
 func TestWatchPanicHandler(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	ticks := make(chan time.Time)
-	done := make(chan struct{})
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		ticks := make(chan time.Time)
+		done := make(chan struct{})
 
-	var panicVal atomic.Value
-	var callCount atomic.Int32
+		var panicVal atomic.Value
+		var callCount atomic.Int32
 
-	go func() {
-		watchWithTicker(ctx, Options{
-			Interval: time.Second,
-			OnPanic:  func(v any) { panicVal.Store(v) },
-		}, func(_ context.Context, m MemInfo) {
-			n := callCount.Add(1)
-			if n == 1 {
-				panic("first panic")
-			}
-			// Second call succeeds — proves recovery.
-			cancel()
-		}, ticks)
-		close(done)
-	}()
+		go func() {
+			watchWithTicker(ctx, Options{
+				Interval: time.Second,
+				OnPanic:  func(v any) { panicVal.Store(v) },
+			}, func(_ context.Context, m MemInfo) {
+				n := callCount.Add(1)
+				if n == 1 {
+					panic("first panic")
+				}
+				// Second call succeeds — proves recovery.
+				cancel()
+			}, ticks)
+			close(done)
+		}()
 
-	ticks <- time.Now() // triggers panic
-	time.Sleep(5 * time.Millisecond)
-	ticks <- time.Now() // triggers normal call → cancel
+		ticks <- time.Now() // triggers panic
+		time.Sleep(5 * time.Millisecond)
+		ticks <- time.Now() // triggers normal call → cancel
 
-	<-done
+		<-done
 
-	if v := panicVal.Load(); v != "first panic" {
-		t.Errorf("OnPanic got %v, want 'first panic'", v)
-	}
-	if callCount.Load() < 2 {
-		t.Errorf("expected at least 2 calls, got %d", callCount.Load())
-	}
+		if v := panicVal.Load(); v != "first panic" {
+			t.Errorf("OnPanic got %v, want 'first panic'", v)
+		}
+		if callCount.Load() < 2 {
+			t.Errorf("expected at least 2 calls, got %d", callCount.Load())
+		}
+	})
 }
 
 func TestHeadroom(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -221,35 +222,37 @@ func TestToChannelEmpty(t *testing.T) {
 }
 
 func TestToChannelContextCancel(t *testing.T) {
-	// Infinite sequence.
-	s := Repeat(42)
-	ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		// Infinite sequence.
+		s := Repeat(42)
+		ctx, cancel := context.WithCancel(context.Background())
 
-	ch := s.ToChannel(ctx, 1)
+		ch := s.ToChannel(ctx, 1)
 
-	// Read one value.
-	v, ok := <-ch
+		// Read one value.
+		v, ok := <-ch
 
-	if !ok || v != 42 {
-		t.Fatalf("got (%d, %v), want (42, true)", v, ok)
-	}
-
-	cancel()
-
-	// Channel should close after cancellation.
-	deadline := time.After(time.Second)
-
-	for {
-		select {
-		case _, ok := <-ch:
-			if !ok {
-				return // Success: channel closed.
-			}
-			// Drain remaining buffered values.
-		case <-deadline:
-			t.Fatal("channel not closed after context cancel")
+		if !ok || v != 42 {
+			t.Fatalf("got (%d, %v), want (42, true)", v, ok)
 		}
-	}
+
+		cancel()
+
+		// Channel should close after cancellation.
+		deadline := time.After(time.Second)
+
+		for {
+			select {
+			case _, ok := <-ch:
+				if !ok {
+					return // Success: channel closed.
+				}
+				// Drain remaining buffered values.
+			case <-deadline:
+				t.Fatal("channel not closed after context cancel")
+			}
+		}
+	})
 }
 
 func TestToChannelPreCanceledContext(t *testing.T) {
@@ -295,28 +298,30 @@ func TestToChannelPreCanceledNoSideEffects(t *testing.T) {
 }
 
 func TestToChannelConsumerStopsEarly(t *testing.T) {
-	s := Repeat(42)
-	ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		s := Repeat(42)
+		ctx, cancel := context.WithCancel(context.Background())
 
-	ch := s.ToChannel(ctx, 0)
+		ch := s.ToChannel(ctx, 0)
 
-	// Read one value then cancel.
-	<-ch
-	cancel()
+		// Read one value then cancel.
+		<-ch
+		cancel()
 
-	// Channel should close.
-	deadline := time.After(time.Second)
+		// Channel should close.
+		deadline := time.After(time.Second)
 
-	for {
-		select {
-		case _, ok := <-ch:
-			if !ok {
-				return
+		for {
+			select {
+			case _, ok := <-ch:
+				if !ok {
+					return
+				}
+			case <-deadline:
+				t.Fatal("channel not closed after cancel")
 			}
-		case <-deadline:
-			t.Fatal("channel not closed after cancel")
 		}
-	}
+	})
 }
 
 func TestToChannelNilCtxPanics(t *testing.T) {
@@ -384,114 +389,120 @@ func TestToChannelUnbuffered(t *testing.T) {
 }
 
 func TestToChannelInfiniteSeqWithCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
 
-	s := Generate(0, func(n int) int { return n + 1 })
-	ch := s.ToChannel(ctx, 0)
+		s := Generate(0, func(n int) int { return n + 1 })
+		ch := s.ToChannel(ctx, 0)
 
-	// Read 5 values.
-	for i := 0; i < 5; i++ {
-		v := <-ch
+		// Read 5 values.
+		for i := 0; i < 5; i++ {
+			v := <-ch
 
-		if v != i {
-			t.Fatalf("got %d, want %d", v, i)
-		}
-	}
-
-	cancel()
-
-	// Channel should close.
-	deadline := time.After(time.Second)
-
-	for {
-		select {
-		case _, ok := <-ch:
-			if !ok {
-				return
+			if v != i {
+				t.Fatalf("got %d, want %d", v, i)
 			}
-		case <-deadline:
-			t.Fatal("channel not closed after cancel")
 		}
-	}
+
+		cancel()
+
+		// Channel should close.
+		deadline := time.After(time.Second)
+
+		for {
+			select {
+			case _, ok := <-ch:
+				if !ok {
+					return
+				}
+			case <-deadline:
+				t.Fatal("channel not closed after cancel")
+			}
+		}
+	})
 }
 
 func TestToChannelBlockedSourceRecoverable(t *testing.T) {
-	// When the blocked source uses the same ctx, cancellation propagates
-	// through FromChannel's select and the goroutine exits cleanly.
-	blockCh := make(chan int) // never receives — blocks the Seq
-	ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		// When the blocked source uses the same ctx, cancellation propagates
+		// through FromChannel's select and the goroutine exits cleanly.
+		blockCh := make(chan int) // never receives — blocks the Seq
+		ctx, cancel := context.WithCancel(context.Background())
 
-	blockedSeq := FromChannel(ctx, blockCh)
-	ch := blockedSeq.ToChannel(ctx, 0)
+		blockedSeq := FromChannel(ctx, blockCh)
+		ch := blockedSeq.ToChannel(ctx, 0)
 
-	cancel()
+		cancel()
 
-	deadline := time.After(time.Second)
+		deadline := time.After(time.Second)
 
-	select {
-	case _, ok := <-ch:
-		if ok {
-			t.Fatal("expected channel to be closed")
+		select {
+		case _, ok := <-ch:
+			if ok {
+				t.Fatal("expected channel to be closed")
+			}
+			// Success: channel closed.
+		case <-deadline:
+			t.Fatal("channel not closed after cancel")
 		}
-		// Success: channel closed.
-	case <-deadline:
-		t.Fatal("channel not closed after cancel")
-	}
+	})
 }
 
 func TestToChannelBlockedSourceCaveat(t *testing.T) {
-	// Demonstrates the cooperative cancellation limitation: a Seq that
-	// blocks on something other than ctx cannot be interrupted by
-	// cancellation. The goroutine remains alive until the block resolves.
-	entered := make(chan struct{})
-	blocked := make(chan struct{})
-	unblock := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
+	synctest.Test(t, func(t *testing.T) {
+		// Demonstrates the cooperative cancellation limitation: a Seq that
+		// blocks on something other than ctx cannot be interrupted by
+		// cancellation. The goroutine remains alive until the block resolves.
+		entered := make(chan struct{})
+		blocked := make(chan struct{})
+		unblock := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
 
-	// blockingSeq signals entry, signals it is about to block, then blocks.
-	blockingSeq := Seq[int](func(yield func(int) bool) {
-		close(entered)
-		close(blocked)
-		<-unblock
-		yield(1)
+		// blockingSeq signals entry, signals it is about to block, then blocks.
+		blockingSeq := Seq[int](func(yield func(int) bool) {
+			close(entered)
+			close(blocked)
+			<-unblock
+			yield(1)
+		})
+
+		ch := blockingSeq.ToChannel(ctx, 0)
+
+		// Wait for the goroutine to enter the Seq and reach the block point.
+		<-entered
+		<-blocked
+
+		// Cancel — but the goroutine is stuck inside blockingSeq.
+		cancel()
+
+		// Deterministic assertion: channel is not closed/readable at this
+		// instant because the goroutine is blocked inside the Seq.
+		select {
+		case <-ch:
+			t.Fatal("channel should not be readable while source is blocked")
+		default:
+			// Expected: goroutine still blocked despite cancellation.
+		}
+
+		// Unblock the source — now the goroutine can check ctx and exit.
+		close(unblock)
+
+		deadline := time.After(time.Second)
+
+		select {
+		case _, ok := <-ch:
+			if ok {
+				// Value 1 may or may not be sent — depends on whether
+				// ctx.Done() or out<-v wins in the select after yield.
+			}
+
+			// Drain to closed.
+			for range ch {
+			}
+		case <-deadline:
+			t.Fatal("channel not closed after unblock (goroutine leak)")
+		}
 	})
-
-	ch := blockingSeq.ToChannel(ctx, 0)
-
-	// Wait for the goroutine to enter the Seq and reach the block point.
-	<-entered
-	<-blocked
-
-	// Cancel — but the goroutine is stuck inside blockingSeq.
-	cancel()
-
-	// Deterministic assertion: channel is not closed/readable at this
-	// instant because the goroutine is blocked inside the Seq.
-	select {
-	case <-ch:
-		t.Fatal("channel should not be readable while source is blocked")
-	default:
-		// Expected: goroutine still blocked despite cancellation.
-	}
-
-	// Unblock the source — now the goroutine can check ctx and exit.
-	close(unblock)
-
-	deadline := time.After(time.Second)
-
-	select {
-	case _, ok := <-ch:
-		if ok {
-			// Value 1 may or may not be sent — depends on whether
-			// ctx.Done() or out<-v wins in the select after yield.
-		}
-
-		// Drain to closed.
-		for range ch {
-		}
-	case <-deadline:
-		t.Fatal("channel not closed after unblock (goroutine leak)")
-	}
 }
 
 // --- Integration ---

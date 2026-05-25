@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/binaryphile/fluentfp/wrap"
@@ -1002,81 +1003,85 @@ func TestWithBreakerPanicInFn(t *testing.T) {
 }
 
 func TestWithBreakerReadyToTripReentrancy(t *testing.T) {
-	var b *wrap.Breaker
-	b = wrap.NewBreaker(wrap.BreakerConfig{
-		ResetTimeout: time.Second,
-		ReadyToTrip: func(s wrap.Snapshot) bool {
-			// Call b.Snapshot() from inside ReadyToTrip.
-			// This would deadlock if ReadyToTrip were called under the lock.
-			snap := b.Snapshot()
-			return snap.ConsecutiveFailures >= 3
-		},
-	})
-	// alwaysFail always returns an error.
-	alwaysFail := func(_ context.Context, _ int) (int, error) {
-		return 0, fmt.Errorf("fail")
-	}
-
-	wrapped := wrap.Func(alwaysFail).Breaker(b)
-
-	done := make(chan struct{})
-	go func() {
-		for i := 0; i < 3; i++ {
-			_, _ = wrapped(context.Background(), 1)
+	synctest.Test(t, func(t *testing.T) {
+		var b *wrap.Breaker
+		b = wrap.NewBreaker(wrap.BreakerConfig{
+			ResetTimeout: time.Second,
+			ReadyToTrip: func(s wrap.Snapshot) bool {
+				// Call b.Snapshot() from inside ReadyToTrip.
+				// This would deadlock if ReadyToTrip were called under the lock.
+				snap := b.Snapshot()
+				return snap.ConsecutiveFailures >= 3
+			},
+		})
+		// alwaysFail always returns an error.
+		alwaysFail := func(_ context.Context, _ int) (int, error) {
+			return 0, fmt.Errorf("fail")
 		}
-		close(done)
-	}()
 
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("deadlock: ReadyToTrip calling b.Snapshot() should not deadlock")
-	}
+		wrapped := wrap.Func(alwaysFail).Breaker(b)
 
-	snap := b.Snapshot()
-	if snap.State != wrap.StateOpen {
-		t.Fatalf("state = %v, want open", snap.State)
-	}
+		done := make(chan struct{})
+		go func() {
+			for i := 0; i < 3; i++ {
+				_, _ = wrapped(context.Background(), 1)
+			}
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("deadlock: ReadyToTrip calling b.Snapshot() should not deadlock")
+		}
+
+		snap := b.Snapshot()
+		if snap.State != wrap.StateOpen {
+			t.Fatalf("state = %v, want open", snap.State)
+		}
+	})
 }
 
 func TestWithBreakerReadyToTripPanicDoesNotDeadlock(t *testing.T) {
-	panicked := false
-	b := wrap.NewBreaker(wrap.BreakerConfig{
-		ResetTimeout: time.Second,
-		ReadyToTrip: func(wrap.Snapshot) bool {
-			if !panicked {
-				panicked = true
-				panic("bad predicate")
-			}
-			return false
-		},
+	synctest.Test(t, func(t *testing.T) {
+		panicked := false
+		b := wrap.NewBreaker(wrap.BreakerConfig{
+			ResetTimeout: time.Second,
+			ReadyToTrip: func(wrap.Snapshot) bool {
+				if !panicked {
+					panicked = true
+					panic("bad predicate")
+				}
+				return false
+			},
+		})
+		// alwaysFail always returns an error.
+		alwaysFail := func(_ context.Context, _ int) (int, error) {
+			return 0, fmt.Errorf("fail")
+		}
+
+		wrapped := wrap.Func(alwaysFail).Breaker(b)
+
+		// First call panics in ReadyToTrip.
+		func() {
+			defer func() { recover() }()
+			_, _ = wrapped(context.Background(), 1)
+		}()
+
+		// Second call must not deadlock.
+		done := make(chan struct{})
+		go func() {
+			defer func() { recover() }()
+			_, _ = wrapped(context.Background(), 1)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("deadlock: mutex not released after ReadyToTrip panic")
+		}
 	})
-	// alwaysFail always returns an error.
-	alwaysFail := func(_ context.Context, _ int) (int, error) {
-		return 0, fmt.Errorf("fail")
-	}
-
-	wrapped := wrap.Func(alwaysFail).Breaker(b)
-
-	// First call panics in ReadyToTrip.
-	func() {
-		defer func() { recover() }()
-		_, _ = wrapped(context.Background(), 1)
-	}()
-
-	// Second call must not deadlock.
-	done := make(chan struct{})
-	go func() {
-		defer func() { recover() }()
-		_, _ = wrapped(context.Background(), 1)
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("deadlock: mutex not released after ReadyToTrip panic")
-	}
 }
 
 func TestWithBreakerShouldCountPanicReleasesProbe(t *testing.T) {
@@ -1135,54 +1140,56 @@ func TestWithBreakerShouldCountPanicReleasesProbe(t *testing.T) {
 }
 
 func TestWithBreakerOnStateChangePanicOnAdmission(t *testing.T) {
-	clock := newFakeClock()
-	callbackPanics := false
-	b := wrap.NewBreaker(wrap.BreakerConfig{
-		ResetTimeout: time.Second,
-		ReadyToTrip:  wrap.ConsecutiveFailures(1),
-		Clock:        clock.Now,
-		OnStateChange: func(wrap.Transition) {
-			if callbackPanics {
-				panic("bad callback")
-			}
-		},
+	synctest.Test(t, func(t *testing.T) {
+		clock := newFakeClock()
+		callbackPanics := false
+		b := wrap.NewBreaker(wrap.BreakerConfig{
+			ResetTimeout: time.Second,
+			ReadyToTrip:  wrap.ConsecutiveFailures(1),
+			Clock:        clock.Now,
+			OnStateChange: func(wrap.Transition) {
+				if callbackPanics {
+					panic("bad callback")
+				}
+			},
+		})
+
+		wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
+			return 0, fmt.Errorf("fail")
+		}).Breaker(b)
+
+		// Trip the breaker normally.
+		_, _ = wrapped(context.Background(), 1)
+
+		// Enable callback panics for the open→half-open transition.
+		callbackPanics = true
+		clock.Advance(2 * time.Second)
+
+		// Admission triggers open→half-open, OnStateChange panics.
+		func() {
+			defer func() { recover() }()
+			_, _ = wrapped(context.Background(), 1)
+		}()
+
+		// The probe finalization guard should have recorded a failure,
+		// reopening the breaker. Probe slot should not be leaked.
+		callbackPanics = false
+		clock.Advance(2 * time.Second)
+
+		// Next call should be admitted (not wedged).
+		done := make(chan struct{})
+		go func() {
+			defer func() { recover() }()
+			_, _ = wrapped(context.Background(), 1)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("breaker wedged after OnStateChange panic on admission")
+		}
 	})
-
-	wrapped := wrap.Func(func(_ context.Context, _ int) (int, error) {
-		return 0, fmt.Errorf("fail")
-	}).Breaker(b)
-
-	// Trip the breaker normally.
-	_, _ = wrapped(context.Background(), 1)
-
-	// Enable callback panics for the open→half-open transition.
-	callbackPanics = true
-	clock.Advance(2 * time.Second)
-
-	// Admission triggers open→half-open, OnStateChange panics.
-	func() {
-		defer func() { recover() }()
-		_, _ = wrapped(context.Background(), 1)
-	}()
-
-	// The probe finalization guard should have recorded a failure,
-	// reopening the breaker. Probe slot should not be leaked.
-	callbackPanics = false
-	clock.Advance(2 * time.Second)
-
-	// Next call should be admitted (not wedged).
-	done := make(chan struct{})
-	go func() {
-		defer func() { recover() }()
-		_, _ = wrapped(context.Background(), 1)
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("breaker wedged after OnStateChange panic on admission")
-	}
 }
 
 func TestWithBreakerOnStateChangePanicAfterCompletion(t *testing.T) {
