@@ -83,7 +83,7 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
 }
 
 byViewModeDesc := slice.Desc(sortFuncs[mode])  // slice.Desc creates a comparator for .Sort
-results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
+results := kv.Map(s.Processes, NewResult).Sort(byViewModeDesc).Take(n)
 ```
 
 `kv.Map` replaces the map-to-slice loop; the two duplicated `sort.Slice` closures collapse into a `mode → method-expression` table consumed by `.Sort(slice.Desc(...))`; `.Take(n)` replaces the bounds check and reslices like `[:n]`. The deeper win is escaping the index-driven API: `sort.Slice`'s comparator takes positions, which invites *misreference* (`items[i]` where you meant `items[j]` — compiles silently) and *variable shadowing* (Go itself shipped [#48838](https://github.com/golang/go/issues/48838) — an inner `i` masking an outer `i`). Go's own replacement, `slices.SortFunc`, takes element comparators for the same reason. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
