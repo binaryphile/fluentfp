@@ -17,7 +17,7 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 
 The 24 examples below apply this same compression to real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others — where the mechanics aren't just `for`/`append` but `sort.Slice` closures, `sync.WaitGroup` semaphores, retry loops, middleware wrapping, channel pipelines, and option waterfalls.
 
-Across a hand-counted sample of 8 entries (sniffer, consul ingress, docker/compose GroupSame, terraform topological sort, kubernetes apiserver middleware, temporalio mutable_state_rebuilder, ExAws S3 FanOut, consul session_ttl retry):
+Across a hand-counted sample of 8 entries:
 
 | Proxy for maintenance burden | What it tracks | Median reduction |
 |---|---|---|
@@ -26,9 +26,9 @@ Across a hand-counted sample of 8 entries (sniffer, consul ingress, docker/compo
 | Mutable variables | Working-memory pressure during execution traces | −2 per function |
 | scc cyclomatic complexity | Branches and loops in control flow | −5 per function |
 
-Numbers are absolute per-function deltas, not normalized for function size — larger originals naturally contribute larger absolute reductions, so the medians describe typical-case improvement at production scale rather than scale-normalized averages.
+*Sample: sniffer, consul ingress, docker/compose GroupSame, terraform topological sort, kubernetes apiserver middleware, temporalio mutable_state_rebuilder, ExAws S3 FanOut, consul session_ttl retry.*
 
-These are **proxies for maintenance burden, not direct measures of "readability" or "conceptual congruence"** — both are subjective. The four metrics correlate with the experience of tracing what a function does and holding intermediate state in your head. Counting protocol in [methodology.md](../methodology.md#f-code-metrics-tool-scc). Several entries also remove a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
+These are **proxies for maintenance burden, not direct measures of "readability" or "conceptual congruence"** — both are subjective. The numbers are absolute per-function deltas (larger originals contribute larger reductions, so the medians describe typical-case improvement rather than scale-normalized averages). The four metrics correlate with the experience of tracing what a function does and holding intermediate state in your head. Counting protocol in [methodology.md](../methodology.md#f-code-metrics-tool-scc). Several entries also remove a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
 
 **Scope.** Showcase, not balanced analysis — for what fluentfp *lacks*, see [feature-gaps.md](feature-gaps.md); for the synthetic library matrix, [comparison.md](../comparison.md). Some entries compare against other FP libraries (lo, samber), most against plain Go. In hot loops a 4–6 line `for` is often the right answer — fluentfp optimizes for clarity, and method chains may allocate intermediate slices.
 
@@ -1197,7 +1197,7 @@ Every Go event-sourcing library hides a *fold* inside imperative replay code: a 
 
 **Source:** [config.go#L1036-L1130](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apiserver/pkg/server/config.go#L1036-L1130)
 **Pain point:** 90-line function of repeated `handler = wrapper(handler)` assignments
-**Savings:** 90 lines → ~20, but cyclomatic complexity stays near-zero in both. The metric understates the win: the middleware stack becomes a slice value instead of a function body, which is what the entry's body explains.
+**Savings:** 90 lines → ~20, but cyclomatic complexity stays near-zero in both. The metric understates the win: the middleware stack becomes a slice value instead of a function body.
 
 Kubernetes' API server (121k stars) builds its HTTP handler chain by wrapping a base handler in 15+ middleware layers — authentication, authorization, CORS, audit, panic recovery, etc. Each line is `handler = wrapper(handler, config...)`.
 
