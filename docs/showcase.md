@@ -10,7 +10,7 @@ Most production Go code spends more lines on `for`/`range`/`append`, comma-ok un
 
 ## Slice Transforms
 
-### Sort-and-trim boilerplate — chenjiandongx/sniffer
+### Two sort.Slice closures collapse to a method-expression map — chenjiandongx/sniffer
 
 **Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
 **Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
@@ -62,7 +62,7 @@ results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 
 ---
 
-### Config merge write amplification — hashicorp/nomad
+### 48 × 3-line if-blocks collapse to 48 one-liners — hashicorp/nomad
 
 **Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
@@ -95,7 +95,7 @@ result.RaftProtocol = cmp.Or(b.RaftProtocol, s.RaftProtocol)
 
 ---
 
-### Callback wrapper noise — ananthakumaran/paisa
+### Stdlib functions plug in without `_ int` wrappers — ananthakumaran/paisa
 
 **Source:** [internal/prediction/tf_idf.go](https://github.com/ananthakumaran/paisa/blob/55da8fdacff6c7202133dff01e2d1e2b3a1619ba/internal/prediction/tf_idf.go)
 **Library:** samber/lo | **Pain point:** stdlib functions wrapped in callbacks just to satisfy `_ int`
@@ -148,7 +148,7 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 
 ---
 
-### Five interleaved concerns in gateway service listing — hashicorp/consul
+### Five interleaved concerns separate into a three-line pipeline — hashicorp/consul
 
 **Source:** [config_entry_gateways.go#L401-L423](https://github.com/hashicorp/consul/blob/main/agent/structs/config_entry_gateways.go#L401-L423)
 **Pain point:** Nested loops, filtering, transformation, deduplication via map, and sorting tangled in one function body
@@ -218,7 +218,7 @@ func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
 
 ## Set Operations
 
-### Manual set difference — hashicorp/go-secure-stdlib
+### Three loops become one `slice.Difference` — hashicorp/go-secure-stdlib
 
 **Source:** [strutil.go#L354-L384](https://github.com/hashicorp/go-secure-stdlib/blob/main/strutil/strutil.go#L354-L384)
 **Pain point:** Set difference implemented with three loops: build map, delete matches, collect survivors — interleaved with unrelated concerns (lowercase, dedup, sort)
@@ -289,7 +289,7 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
 
 ## Tally
 
-### Status frequency formatting — docker/compose
+### Frequency map + first-seen-order bookkeeping become `GroupSame` — docker/compose
 
 **Source:** [ls.go#L95-L116](https://github.com/docker/compose/blob/bfb5511d0d6f8250b088d0251bc21c041516ddb8/pkg/compose/ls.go#L95-L116)
 **Pain point:** Two interleaved concerns — counting occurrences and tracking insertion order — with coordinated map + slice + conditional append
@@ -345,7 +345,7 @@ combined := statusGroups.ToString(countByStatus).Join(", ")
 
 ## Lazy Streams
 
-### Lazy sequences without goroutines — golang/go (stdlib test suite)
+### 27 leaked goroutines vanish from a lazy prime sieve — golang/go (stdlib test suite)
 
 **Source:** [test/chan/sieve1.go](https://github.com/golang/go/blob/6885bad7dd86880be6929c02085e5c7a67ff2887/test/chan/sieve1.go)
 **Pain point:** Channels and goroutines used as a lazy evaluation mechanism for pure computation — each discovered prime spawns a permanent goroutine that never cleans up
@@ -420,7 +420,7 @@ The stream version uses zero goroutines and zero channels. Lazy evaluation comes
 
 ---
 
-### Paginated AWS API traversal — Amazonka (Haskell)
+### Cursor pagination as a stream: pages fetched only when asked — Amazonka (Haskell)
 
 **Source project:** [Amazonka](https://github.com/brendanhay/amazonka) — the comprehensive Haskell SDK for Amazon Web Services.
 
@@ -477,7 +477,7 @@ pages.Find(pageContainsKey)                    // stop at first match
 
 ## Concurrency
 
-### Parallel prompt module rendering — Starship (Rust/Rayon)
+### Sequential to parallel via one call-site change (`Map` → `PMap`) — Starship (Rust/Rayon)
 
 **Source project:** [Starship](https://github.com/starship/starship) (44k+ stars) — cross-shell prompt written in Rust.
 
@@ -547,7 +547,7 @@ active := slice.From(allModules).PKeepIf(8, isEnabled)
 
 ---
 
-### Multipart upload with bounded concurrency — ExAws S3 (Elixir)
+### Semaphore + WaitGroup + mutex + recover collapse to one call — ExAws S3 (Elixir)
 
 **Source projects:** [ExAws S3](https://github.com/ex-aws/ex_aws_s3) — Elixir's standard S3 library; [Hex](https://github.com/hexpm/hex) — the official Elixir package manager.
 
@@ -611,7 +611,7 @@ downloaded := rslt.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
 
 The entry below compares a production algorithm implementation with its functional decomposition from Stone's *Algorithms for Functional Programming* (Springer, 2018), showing how the functional version makes the algorithm's structure visible by separating the reusable engine from the behavioral arguments.
 
-### Topological sort — hashicorp/terraform
+### Topological order *is* DFS departure order — make the algorithm visible — hashicorp/terraform
 
 **Source:** [dag.go#L278-L320](https://github.com/hashicorp/terraform/blob/main/internal/dag/dag.go#L278-L320)
 **Algorithm:** Stone §12 — DFS departure ordering
@@ -723,7 +723,7 @@ reachable := reachFrom([]Vertex{source})
 
 ## CartesianProduct
 
-### Credential pair testing — trufflesecurity/trufflehog
+### Nested loops with skip-same become `CartesianProduct.KeepIf` — trufflesecurity/trufflehog
 
 **Source:** [pkg/detectors/easyinsight/easyinsight.go](https://github.com/trufflesecurity/trufflehog/blob/main/pkg/detectors/easyinsight/easyinsight.go)
 **Pain point:** Nested loops for key×id cross-join, manual same-pair skip, append boilerplate
@@ -777,7 +777,7 @@ results := slice.Map(candidates, toCandidate)
 
 ## Function Decoration
 
-### Retry + backoff tangled in business logic — hashicorp/consul
+### Retry policy defined once at construction, used at every call site — hashicorp/consul
 
 **Source:** [session_ttl.go#L102-L134](https://github.com/hashicorp/consul/blob/main/agent/consul/session_ttl.go#L102-L134)
 **Pain point:** Retry loop, exponential backoff calculation, and error logging woven into a function body where the actual operation is one line
@@ -852,7 +852,7 @@ func (s *Server) invalidateSession(ctx context.Context, id string, entMeta *acl.
 
 **What this pattern looks like at scale:** The same retry-loop-with-backoff pattern appears throughout the examples below and in CockroachDB's [TCP accept loop](https://github.com/cockroachdb/cockroach/blob/master/pkg/util/netutil/net.go#L159-L195) (hand-rolled exponential backoff with cap). In each case, the actual operation is 1-3 lines; the ceremony around it runs 10-30x longer. Function decoration separates these concerns, makes them independently testable, and eliminates the copy-paste visible across codebases.
 
-### Semaphore + retry + event recording — kubernetes/kubernetes
+### Five cross-cutting concerns around one line collapse to one decorated call — kubernetes/kubernetes
 
 **Source:** [route_controller.go#L424-L450](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/cloud-provider/controllers/route/route_controller.go#L424-L450)
 **Pain point:** Five cross-cutting concerns around a one-line operation
@@ -916,7 +916,7 @@ go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
 
 **What's eliminated:** Manual semaphore acquire/release (a common source of deadlocks if the release is missed on an error path), the `RetryOnConflict` callback wrapper, timing instrumentation interleaved with business logic. The pattern repeats in the same file for `deleteRoute` with nearly identical ceremony.
 
-### Composed decoration across provider implementations — traefik/traefik
+### 80-line retry ceremony × 5 provider files → defined once — traefik/traefik
 
 **Source:** [kubernetes.go#L78-L157](https://github.com/traefik/traefik/blob/master/pkg/provider/kubernetes/crd/kubernetes.go#L78-L157)
 **Pain point:** Retry + throttle + panic recovery + error logging duplicated across 5 provider files
@@ -969,7 +969,7 @@ func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.
 
 **What this shows:** The structural win isn't line count in a single file — it's that 5 provider files each copy-paste the same ~80 lines of retry/recover ceremony. With `.Retry(...)`, the ceremony is defined once and each provider supplies only its watch function. Traefik is already halfway there: it uses a third-party `backoff.RetryNotify` + `safe.OperationWithRecover`. The remaining ceremony (event throttling via channel wrapper, `time.Sleep` for rate limiting, error logging at multiple points) is the part that decoration would further extract. This is a case where the pattern motivates the tool rather than demonstrating a clean 1:1 rewrite — the long-running watch-loop pattern doesn't map directly to wrap's request-response model.
 
-### Retry + token refresh + error classification — etcd-io/etcd
+### Six tangled concerns in a retry interceptor → three chained decorators — etcd-io/etcd
 
 **Source:** [retry_interceptor.go#L47-L90](https://github.com/etcd-io/etcd/blob/main/client/v3/retry_interceptor.go#L47-L90)
 **Pain point:** Retry loop with backoff, debug logging, error classification, and token refresh all in one for-loop body
@@ -1038,7 +1038,7 @@ resilientInvoke := wrap.Func(invoker).
 
 ## Option Chaining
 
-### Config resolution waterfall — kubernetes/client-go
+### Three if-blocks become `Env.OrElse.Or` — kubernetes/client-go
 
 **Source:** [client_config.go#L646-L661](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L646-L661)
 **Pain point:** Three-level if-empty cascade for a single value
@@ -1088,7 +1088,7 @@ func (config *inClusterClientConfig) Namespace() (string, bool, error) {
 
 **Where this pattern appears:** Viper's [`find()`](https://github.com/spf13/viper/blob/master/viper.go#L1194-L1320) (27k stars) is a 130-line, 6-level waterfall — override → pflag → env → config file → key-value store → default — where each level is the same `val = search(...); if val != nil { return val }` block.  The Kubernetes out-of-cluster counterpart [`DirectClientConfig.Namespace()`](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L399-L421) has the same 3-level pattern: CLI flag → kubeconfig context → `"default"`.
 
-### Env var fallback chain — hashicorp/terraform
+### Fallback sequence becomes a `cmp.Or` argument list — hashicorp/terraform
 
 **Source:** [cliconfig.go#L438-L443](https://github.com/hashicorp/terraform/blob/main/internal/command/cliconfig/cliconfig.go#L438-L443)
 **Pain point:** Two env vars tried in sequence, then a computed default — same if-empty pattern repeated
@@ -1133,7 +1133,7 @@ configFilePath := option.NonEmpty(cliConfigFileOverride()).OrCall(configFileMust
 
 **What changed:** The if-empty chain becomes `cmp.Or` (stdlib) — the priority order is a literal argument list. The call site uses `option.NonEmpty` + `.OrCall` to defer the expensive `ConfigFile()` computation until needed.
 
-### Config directory resolution — docker/cli
+### Env-override-or-default in one line via `option.Env.OrCall` — docker/cli
 
 **Source:** [config.go#L77-L85](https://github.com/docker/cli/blob/master/cli/config/config.go#L77-L85)
 **Pain point:** Env var override with computed default, nested inside `sync.Once`
@@ -1180,7 +1180,7 @@ func Dir() string {
 
 **What changed:** `option.Env` combines `os.Getenv` + non-empty check into one call. `.OrCall(defaultDir)` defers the `filepath.Join` + `getHomeDir()` computation. The if-empty block becomes a one-line chain.
 
-### Annotation lookup + parse + default — kubernetes/kubernetes
+### Three guard clauses collapse to a two-step option chain — kubernetes/kubernetes
 
 **Source:** [ttl_controller.go#L246-L262](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/ttl/ttl_controller.go#L246-L262)
 **Pain point:** Three levels of early-return-if-not-ok for a single parsed value
@@ -1233,7 +1233,7 @@ func getIntFromAnnotation(node *v1.Node, annotationKey string) (int, bool) {
 
 ## Enterprise Patterns
 
-### Event sourcing as Fold — temporalio/temporal
+### A 664-line `for`-over-events is structurally a `slice.Fold` — temporalio/temporal
 
 **Source:** [mutable_state_rebuilder.go#L103-L767](https://github.com/temporalio/temporal/blob/main/service/history/workflow/mutable_state_rebuilder.go#L103-L767)
 **Pain point:** 664-line function that is structurally a left-fold, but the fold is invisible
@@ -1285,7 +1285,7 @@ currentState := slice.Fold(history, initialState, applyEvent)
 
 **Where this pattern appears:** [hallgren/eventsourcing](https://github.com/hallgren/eventsourcing), [looplab/eventhorizon](https://github.com/looplab/eventhorizon), [thefabric-io/eventsourcing](https://github.com/thefabric-io/eventsourcing) — all implement the same for-loop-over-events-with-switch pattern. The fold is the unifying abstraction.
 
-### Middleware composition as Fold — kubernetes/apiserver
+### Middleware chain becomes inspectable data, not 90 lines of `handler = mw(handler)` — kubernetes/apiserver
 
 **Source:** [config.go#L1036-L1130](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apiserver/pkg/server/config.go#L1036-L1130)
 **Pain point:** 90-line function of repeated `handler = wrapper(handler)` assignments
@@ -1345,7 +1345,7 @@ handler := slice.Fold(middlewares, apiHandler, applyMiddleware)
 
 **What this shows:** The repeated `handler = wrapper(handler)` pattern is a left-fold over a middleware list. Making it `slice.Fold(middlewares, base, apply)` turns the handler chain into a first-class data structure — you can inspect it, filter it (e.g., skip CORS in tests), reorder it, or log it, without editing a 90-line function. go-kit's [`endpoint.Chain`](https://github.com/go-kit/kit/blob/master/endpoint/endpoint.go) and chi's [`chain.go`](https://github.com/go-chi/chi/blob/master/chain.go) already recognize this — they implement the fold explicitly.
 
-### Error-propagating fold as TryFold — event-sourced state machines
+### `for` + `if err != nil { return }` per iteration → `slice.TryFold` — event-sourced state machines
 
 **Pain point:** `for` loop with `if err != nil { return }` on every iteration
 
@@ -1375,7 +1375,7 @@ func (e *Engine) applyEvents(events []Event) (Engine, error) {
 
 **Where this pattern appears:** Any event-sourced system, state machine, migration runner, or sequential validation pipeline. SofDevSim's engine has 7 instances. Temporal's mutable_state_rebuilder is a 664-line version of the same fold (see above) — with error handling, it would need `TryFold`.
 
-### Saga / compensation — cockroachdb/cockroach
+### Acquire-then-release as `Map` + `Each` (`Reverse.Each` for true sagas) — cockroachdb/cockroach
 
 **Source:** [replica_command.go#L3280](https://github.com/cockroachdb/cockroach/blob/master/pkg/kv/kvserver/replica_command.go#L3280)
 **Pain point:** Resource acquisition loop paired with a reverse-order cleanup closure
@@ -1425,7 +1425,7 @@ func (r *Replica) lockLearnerSnapshot(
 
 **What this shows:** The pattern is a map (acquire resources → get cleanups) paired with an each (release all). The imperative version manually manages a `[]func()` slice with append in one loop and iteration in another. The FP version makes the structure explicit: `Map` to acquire, `.Each` to release. For true saga compensation — where undos must run in reverse order on failure — the return line becomes `cleanups.Reverse().Each(call)`. The same acquire-then-release pattern appears in [itimofeev/go-saga](https://github.com/itimofeev/go-saga) and [tiagomelo/go-saga](https://github.com/tiagomelo/go-saga), where saga coordinators manually iterate completed steps backward.
 
-### Validation accumulation — hashicorp/terraform
+### Validation loop with diagnostic accumulation → `FlatMap` — hashicorp/terraform
 
 **Source:** [resource.go#L714-L800](https://github.com/hashicorp/terraform/blob/main/internal/configs/resource.go#L714-L800)
 **Pain point:** Validation loop with manual error accumulation and interleaved classification
@@ -1492,7 +1492,7 @@ func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagno
 
 ## Startup Initialization
 
-### Panic-on-parse in init — prometheus/prometheus
+### `var err; if err != nil { panic }` collapses to `must.Get` — prometheus/prometheus
 
 **Source:** [cmd/prometheus/main.go](https://github.com/prometheus/prometheus/blob/main/cmd/prometheus/main.go)
 **Pain point:** Manual `if err != nil { panic(err) }` boilerplate next to built-in Must patterns
