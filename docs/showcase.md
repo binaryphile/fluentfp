@@ -340,8 +340,11 @@ func combinedStatus(statuses []string) string {
 
 **fluentfp:**
 ```go
-type G = slice.Group[string, string] // a map-like key-value struct
+// slice.Group[K, V] is { Key K; Items []V } with .Len() returning len(Items).
+// GroupSame returns one Group per distinct value, where Key == Items[0].
+type G = slice.Group[string, string]
 
+// byKey extracts each group's status string for ascending sort.
 var byKey = slice.Asc(G.GetKey)
 
 // countByStatus formats a status group as "status(count)".
