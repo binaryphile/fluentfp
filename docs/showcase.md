@@ -1,6 +1,6 @@
-# Real-World Rewrite Showcase
+# From Mechanics to Intent: 24 Real-World Rewrites
 
-Most production Go code spends more lines on `for`/`range`/`append`, comma-ok unpacking, and index arithmetic than on the work itself. The 26 examples below take real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others, and rewrite each with fluentfp. The mechanics-to-intent ratio drops; in several cases the rewrite also removes a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
+Most production Go code spends more lines on `for`/`range`/`append`, comma-ok unpacking, and index arithmetic than on the work itself. The 24 examples below take real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others, and rewrite each with fluentfp. The mechanics-to-intent ratio drops; in several cases the rewrite also removes a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
 
 **Scope.** Showcase, not balanced analysis — for what fluentfp *lacks*, see [feature-gaps.md](feature-gaps.md); for the synthetic library matrix, [comparison.md](../comparison.md). Some entries compare against other FP libraries (lo, samber), most against plain Go. In hot loops a 4–6 line `for` is often the right answer — fluentfp optimizes for clarity, and method chains may allocate intermediate slices.
 
@@ -327,58 +327,6 @@ The two interleaved loops become a pipeline: `GroupSame` → `Sort` → `ToStrin
 
 ---
 
-### Nested loops with skip-same become `CartesianProduct.KeepIf` — trufflesecurity/trufflehog
-
-**Source:** [pkg/detectors/easyinsight/easyinsight.go](https://github.com/trufflesecurity/trufflehog/blob/main/pkg/detectors/easyinsight/easyinsight.go)
-**Pain point:** Nested loops for key×id cross-join, manual same-pair skip, append boilerplate
-
-TruffleHog (25k stars) scans repositories for leaked credentials. Each detector extracts API keys and account IDs via regex, deduplicates them, then tests every key–id combination. Hundreds of detectors repeat the nested-loop pattern.
-
-**Original** (verification omitted for clarity):
-```go
-for keyMatch := range keyMatches {
-    for idMatch := range idMatches {
-        if keyMatch == idMatch {
-            continue
-        }
-
-        s1 := detectors.Result{
-            DetectorType: detectorspb.DetectorType_EasyInsight,
-            Raw:          []byte(keyMatch),
-            RawV2:        []byte(keyMatch + idMatch),
-        }
-
-        results = append(results, s1)
-    }
-}
-```
-
-**fluentfp:**
-```go
-// isDifferentPair returns true if the key and id are different strings.
-isDifferentPair := func(p pair.Pair[string, string]) bool {
-    return p.First != p.Second
-}
-
-// toCandidate builds a detector result from a key-id pair.
-toCandidate := func(p pair.Pair[string, string]) detectors.Result {
-    return detectors.Result{
-        DetectorType: detectorspb.DetectorType_EasyInsight,
-        Raw:          []byte(p.First),
-        RawV2:        []byte(p.First + p.Second),
-    }
-}
-
-keys := kv.Keys(keyMatches)
-ids := kv.Keys(idMatches)
-candidates := combo.CartesianProduct(keys, ids).KeepIf(isDifferentPair)
-results := slice.Map(candidates, toCandidate)
-```
-
-`kv.Keys` extracts map keys; `combo.CartesianProduct` replaces the nested loop and returns `slice.Mapper` for direct chaining through `.KeepIf` → `slice.Map`. Each stage expresses one concern; the original interleaves iteration, filtering, construction, and accumulation in one nested block.
-
----
-
 ## Lazy Streams
 
 ### Lazy evaluation without goroutines or channels — golang/go (stdlib test suite)
@@ -505,7 +453,7 @@ The for loop tangles *how to get pages* with *what to do with them*. `stream.Pag
 
 ## Concurrency
 
-### Sequential to parallel via one call-site change (`Map` → `PMap`) — Starship (Rust/Rayon)
+### Parallelism is a traversal property, not a transform property — Starship (Rust/Rayon)
 
 **Source project:** [Starship](https://github.com/starship/starship) (44k+ stars) — cross-shell prompt written in Rust.
 
@@ -1052,51 +1000,6 @@ Three if-blocks with early returns become a one-line chain: `Env → OrElse → 
 
 Viper's [`find()`](https://github.com/spf13/viper/blob/master/viper.go#L1194-L1320) (27k stars) is the same shape at scale: a 130-line, 6-level waterfall (override → pflag → env → config file → key-value store → default), each level the same `val = search(...); if val != nil { return val }` block. The Kubernetes out-of-cluster counterpart [`DirectClientConfig.Namespace()`](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L399-L421) is the same 3-level pattern: CLI flag → kubeconfig context → `"default"`.
 
-### Fallback sequence becomes a `cmp.Or` argument list — hashicorp/terraform
-
-**Source:** [cliconfig.go#L438-L443](https://github.com/hashicorp/terraform/blob/main/internal/command/cliconfig/cliconfig.go#L438-L443)
-**Pain point:** Two env vars tried in sequence, then a computed default — same if-empty pattern repeated
-
-Terraform (48k stars) resolves its CLI config file path through a priority chain: `TF_CLI_CONFIG_FILE` env var, then the deprecated `TERRAFORM_CONFIG` env var, then a default path from `ConfigFile()`. The first two are in one function, then the result feeds into another if-empty check.
-
-**Original:**
-```go
-func cliConfigFileOverride() string {
-    configFilePath := os.Getenv("TF_CLI_CONFIG_FILE")
-    if configFilePath == "" {
-        configFilePath = os.Getenv("TERRAFORM_CONFIG")
-    }
-    return configFilePath
-}
-
-// At call site (lines 406-416):
-configFilePath := cliConfigFileOverride()
-if configFilePath == "" {
-    var err error
-    configFilePath, err = ConfigFile()
-    if err != nil {
-        // ...
-    }
-}
-```
-
-**fluentfp:**
-```go
-func cliConfigFileOverride() string {
-    return cmp.Or(
-        os.Getenv("TF_CLI_CONFIG_FILE"),
-        os.Getenv("TERRAFORM_CONFIG"),
-    )
-}
-
-// At call site:
-configFilePath := option.NonEmpty(cliConfigFileOverride()).OrCall(configFileMust)
-```
-
-*`configFileMust` wraps `ConfigFile()` to handle the error and return a string.*
-
-The if-empty chain becomes `cmp.Or` (stdlib) — the priority order is a literal argument list. The call site uses `option.NonEmpty` + `.OrCall` to defer the expensive `ConfigFile()` computation until needed.
-
 ### Env-override-or-default in one line via `option.Env.OrCall` — docker/cli
 
 **Source:** [config.go#L77-L85](https://github.com/docker/cli/blob/master/cli/config/config.go#L77-L85)
@@ -1450,7 +1353,9 @@ The validation loop is structurally a `FlatMap` — each input expression produc
 
 ---
 
-## Startup Initialization
+## Coda
+
+A small one-off that doesn't fit the showcase sections above but earns its place — a single-shape pattern for init-time error boilerplate.
 
 ### `var err; if err != nil { panic }` collapses to `must.Get` — prometheus/prometheus
 
