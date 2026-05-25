@@ -112,14 +112,14 @@ if b.RaftProtocol != 0 {
 }
 ```
 
-**fluentfp:**
+**Rewritten** (stdlib `cmp.Or` + fluentfp `option.When`):
 ```go
 result.AuthoritativeRegion = cmp.Or(b.AuthoritativeRegion, s.AuthoritativeRegion)
 result.BootstrapExpect = option.When(b.BootstrapExpect > 0, b.BootstrapExpect).Or(s.BootstrapExpect)
 result.RaftProtocol = cmp.Or(b.RaftProtocol, s.RaftProtocol)
 ```
 
-Each field reduces to a single expression: stdlib `cmp.Or(override, default)` where zero means "absent", `option.When(cond, v).Or(fallback)` where zero is a valid override. Because every field is now a single expression, the entire merge can frequently be a struct literal in the `return` statement — no pre-construction variables, no post-construction overrides. The risk this eliminates isn't shadowing; it's copy-paste error and review fatigue across 144 lines of structurally identical conditional assignment.
+Each field reduces to a single expression: stdlib `cmp.Or(override, default)` (Go 1.22+) where zero means "absent"; fluentfp's `option.When(cond, v).Or(fallback)` where zero is a valid override. Because every field is now a single expression, the entire merge can frequently be a struct literal in the `return` statement — no pre-construction variables, no post-construction overrides. The risk this eliminates isn't shadowing; it's copy-paste error and review fatigue across 144 lines of structurally identical conditional assignment.
 
 ---
 
