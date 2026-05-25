@@ -228,8 +228,19 @@ When multiple methods share **identical logic**, test ONE representative:
 - Use descriptive test names that explain the behavior being tested
 - Group related assertions in subtests with `t.Run()`
 
-Run tests: `go test ./...`
-Run with coverage: `go test -cover ./...`
+### Build and test via ./mk
+
+Use `./mk` for build/test/clean — it wraps the underlying `go` commands and
+prints what it ran (via `mk.Cue`), so the operator sees the actual command.
+
+| Command | What it runs |
+|---|---|
+| `./mk build` | `mkdir -p bin && go build -o bin/orders ./examples/orders/` |
+| `./mk test`  | `go test ./...` |
+| `./mk clean` | `rm -f bin/orders && rmdir bin 2>/dev/null \|\| true` |
+
+`./mk -h` shows the full usage. Coverage still goes through `go` directly:
+`go test -cover ./...`.
 
 ## Documentation Updates
 
