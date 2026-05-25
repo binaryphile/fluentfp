@@ -15,7 +15,7 @@ Most production Go code spends more lines on `for`/`range`/`append`, comma-ok un
 **Source:** [stat.go#L72-L93](https://github.com/chenjiandongx/sniffer/blob/master/stat.go#L72-L93)
 **Pain point:** `sort.Slice` comparators bury intent in index gymnastics; manual bounds check duplicates `Take` logic
 
-The original is 22 lines: it inlines the arithmetic directly inside `sort.Slice` closures — `items[i].Total[Bytes|Packets]()` repeated for each mode — with a manual `if len(items) < n` bounds check at the end. We assume `TotalBytes` and `TotalPackets` methods on `ProcessesResult` and a `NewResult` constructor for `kv.Map`. Both examples benefit from the methods; the difference is what remains — 18 lines to a two-line function body (plus a sort-key map defined once).
+The original is 22 lines that duplicate `sort.Slice` closures across two modes — `items[i].TotalBytes()` then `items[i].TotalPackets()` — and end with a hand-rolled `if len(items) < n { n = len(items) }`. Both versions assume `TotalBytes`/`TotalPackets` methods on `ProcessesResult` and a `NewResult` constructor; with those, the original goes 22 → 18 lines and the fluentfp version is a two-line function body plus a sort-key map defined once.
 
 **Original** (with methods — 22 → 18 lines):
 ```go
@@ -54,9 +54,7 @@ byViewModeDesc := slice.Desc(sortFuncs[mode])  // slice.Desc creates a comparato
 results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 ```
 
-**What changed:** `kv.Map` replaces the manual map-to-slice loop. Two `sort.Slice` calls with duplicated `func(i, j int) bool` skeletons become `.Sort(byViewModeDesc)` — a map of method expressions replaces the switch, and `slice.Desc` builds the comparator. `.Take(n)` replaces the four-line bounds check: negative n clamps to 0, n beyond length returns everything, and like the original's `[:n]` it reslices rather than copying.
-
-**What's eliminated:** Index-driven APIs have two failure modes: *misreference* (`items[i]` where you meant `items[j]` — compiles silently, wrong sort order) and *variable shadowing* (an inner `i` masks an outer `i`). Go's own compiler had the second: [#48838](https://github.com/golang/go/issues/48838) — index variable `i` in an inner loop shadowed outer `i`, accessing the wrong element. Both stem from index-driven APIs. The Go team's generic replacement, `slices.SortFunc`, takes element comparators instead of indices. `.Sort` does the same — key functions operate on values, not positions. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
+`kv.Map` replaces the map-to-slice loop; the two duplicated `sort.Slice` closures collapse into a `mode → method-expression` table consumed by `.Sort(slice.Desc(...))`; `.Take(n)` replaces the bounds check and reslices like `[:n]`. The deeper win is escaping the index-driven API: `sort.Slice`'s comparator takes positions, which invites *misreference* (`items[i]` where you meant `items[j]` — compiles silently) and *variable shadowing* (Go itself shipped [#48838](https://github.com/golang/go/issues/48838) — an inner `i` masking an outer `i`). Go's own replacement, `slices.SortFunc`, takes element comparators for the same reason. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
 
 *The `sortFuncs` map stores method expressions — Go turns `ProcessesResult.TotalBytes` into a `func(ProcessesResult) int`, which is exactly what `slice.Desc` expects.*
 
@@ -67,7 +65,7 @@ results := kv.Map(s.Processes, NewProcessesResult).Sort(byViewModeDesc).Take(n)
 **Source:** [command/agent/config.go#L2590-L2806](https://github.com/hashicorp/nomad/blob/0162eee/command/agent/config.go#L2590-L2806)
 **Pain point:** 48 fields × 3 lines each = 144 lines of imperative ceremony for config merging
 
-The original method is 217 lines (L2590–L2806). Each of the 48 fields follows the same 3-line pattern: `if b.Field != zero { result.Field = b.Field }` — 144 lines of conditional assignment alone, 48 with fluentfp. The examples below show one representative field per pattern.
+Nomad's `Merge` walks 48 fields with the same three-line pattern: `if b.Field != zero { result.Field = b.Field }`. Below shows one representative field per pattern; the full method is 217 lines.
 
 **Original** (one field per pattern — `s` is the receiver, `b` is the override):
 ```go
@@ -89,9 +87,7 @@ result.BootstrapExpect = option.When(b.BootstrapExpect > 0, b.BootstrapExpect).O
 result.RaftProtocol = cmp.Or(b.RaftProtocol, s.RaftProtocol)
 ```
 
-**What changed:** Every field reads as intent: `cmp.Or(override, default)` for strings and numbers where zero means "absent" — stdlib handles the common case. When zero is a valid override (like `BootstrapExpect`), `option.When(cond, v).Or(fallback)` gates on an explicit condition instead. Because each field resolves to a single expression, you can frequently construct the return struct literal directly in the `return` statement — no pre-construction variables, no post-construction overrides, just one declaration that fully describes the result.
-
-**What's eliminated:** Mechanical duplication — the three-line if-block pattern repeated 48 times. Each field's conditional is now a single expression with a consistent shape: `cmp.Or(override, default)` for zero-value coalescing or `option.When(cond, v).Or(fallback)` for explicit conditions. The risk here isn't shadowing — it's copy-paste error and review fatigue across 144 lines of structurally identical code.
+Each field reduces to a single expression: stdlib `cmp.Or(override, default)` where zero means "absent", `option.When(cond, v).Or(fallback)` where zero is a valid override. Because every field is now a single expression, the entire merge can frequently be a struct literal in the `return` statement — no pre-construction variables, no post-construction overrides. The risk this eliminates isn't shadowing; it's copy-paste error and review fatigue across 144 lines of structurally identical conditional assignment.
 
 ---
 
@@ -100,7 +96,7 @@ result.RaftProtocol = cmp.Or(b.RaftProtocol, s.RaftProtocol)
 **Source:** [internal/prediction/tf_idf.go](https://github.com/ananthakumaran/paisa/blob/55da8fdacff6c7202133dff01e2d1e2b3a1619ba/internal/prediction/tf_idf.go)
 **Library:** samber/lo | **Pain point:** stdlib functions wrapped in callbacks just to satisfy `_ int`
 
-The original is 9 lines: split on punctuation, lowercase each token via `lo.Map` with a `func(string, _ int) string` wrapper around `strings.ToLower`, and filter blanks via `lo.Filter` with another wrapper. Both wrappers exist solely to satisfy lo's index parameter.
+The original is 9 lines: split on punctuation, lowercase each token via `lo.Map` with a `func(string, _ int) string` wrapper around `strings.ToLower`, then filter blanks via `lo.Filter` with another wrapper. Both wrappers exist solely to discard lo's index parameter.
 
 **Extracted (both sides share):**
 ```go
@@ -127,9 +123,7 @@ func tokenize(s string) []string {
 tokens := splitTokens(s).Transform(strings.ToLower).KeepIf(lof.IsNonBlank)
 ```
 
-**What changed:** The fluentfp version needs no wrappers — `strings.ToLower` and `lof.IsNonBlank` plug in directly. lo requires `func(T, int)` callbacks so the index is available when you need it — a deliberate design choice that pays off for position-dependent transforms — but when you don't need the index, every stdlib function becomes a wrapper: `toLower` and `isNonBlank` exist only to discard that `_ int`. Without wrappers to write, the fluentfp version collapses to a single expression — compact enough to inline at the call site without a `tokenize` function at all.
-
-**What's eliminated:** Three wrapper functions that exist only to satisfy lo's `func(T, int)` signature. This isn't a bug risk — it's friction that accumulates across a codebase. Every stdlib function becomes a wrapper when the index isn't needed.
+`strings.ToLower` and `lof.IsNonBlank` plug in directly. lo's `func(T, int)` callbacks pay off when the index matters, but turn every stdlib function into a wrapper when it doesn't — `toLower` and `isNonBlank` exist only to swallow `_ int`. With no wrappers to write, the fluentfp version is compact enough to inline at the call site without a `tokenize` function at all. This isn't a bug risk, just steady friction across a codebase.
 
 *`splitTokens` returns `slice.Mapper[string]`, which is assignable to `[]string` without conversion — lo accepts it directly, no cast on either side.*
 
@@ -151,7 +145,7 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 **Source:** [config_entry_gateways.go#L401-L423](https://github.com/hashicorp/consul/blob/main/agent/structs/config_entry_gateways.go#L401-L423)
 **Pain point:** Nested loops, filtering, transformation, deduplication via map, and sorting tangled in one function body
 
-Consul (28k stars) lists services behind an ingress gateway. An `IngressGatewayConfigEntry` has a `Listeners []IngressListener` field, and each `IngressListener` has a `Services []IngressService` field. `ListRelatedServices` must flatten listeners to their services, skip wildcards, build canonical `ServiceID`s, deduplicate, and sort. The original needs two loops — one to build a dedup map, another to collect and sort — because the map-based dedup idiom forces a second pass to extract values. The reader must trace five concerns through 27 lines to confirm correctness.
+Consul (28k stars) lists services behind an ingress gateway. `ListRelatedServices` must flatten listeners to their services, skip wildcards, build canonical `ServiceID`s, deduplicate, and sort. Map-based dedup forces two loops — one to populate `map[ServiceID]struct{}`, one to extract the keys for sorting — so the original needs 27 lines to thread five concerns past an emptiness check.
 
 **Original:**
 ```go
@@ -208,9 +202,7 @@ func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
 
 *We presume an imaginary `Services` method on `IngressListener` returning `[]IngressService` — a trivial accessor instead of a `Services` field.*
 
-**What changed:** Five interleaved concerns separate into a three-line pipeline. The nested `for listener / for service` loop becomes `FlatMap(... GetServices)`. The `if wildcard { continue }` becomes `.KeepIf(isExplicit)`. The map-based dedup (first loop) and collect-from-map (second loop) merge into `UniqueBy`. The `sort.Slice` with index comparator becomes `.Sort(byEnterpriseThenID)`. Each line does one thing; the data flow reads left to right and top to bottom.
-
-**What's eliminated:** The two-loop pattern forced by map-based deduplication. The original needs loop 1 to populate `map[ServiceID]struct{}`, then loop 2 to extract keys into a slice for sorting — a Go idiom so common it's invisible, but it splits logically atomic work (dedup + collect) across two code blocks separated by an emptiness check. `UniqueBy` deduplicates and collects in a single pass, and the pipeline makes each transformation step — flatten, filter, transform, deduplicate, sort — independently readable.
+The nested `for listener / for service` becomes `FlatMap(... Services)`; `if wildcard { continue }` becomes `.KeepIf(isExplicit)`; map-based dedup-plus-collect merges into `UniqueBy`; the `sort.Slice` index comparator becomes `.Sort(byEnterpriseThenID)`. Each line does one thing, and the data flows left to right. What's gone is the two-loop pattern that map-based dedup forces — an idiom so common in Go it's invisible, even though it splits logically atomic work across two blocks separated by an emptiness check.
 
 ---
 
@@ -221,7 +213,7 @@ func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
 **Source:** [strutil.go#L354-L384](https://github.com/hashicorp/go-secure-stdlib/blob/main/strutil/strutil.go#L354-L384)
 **Pain point:** Set difference implemented with three loops: build map, delete matches, collect survivors — interleaved with unrelated concerns (lowercase, dedup, sort)
 
-This utility is a dependency of HashiCorp Vault (80k+ stars), Consul, Nomad, and Boundary. The original function tangles four concerns — normalization, deduplication, set difference, and sorting — into one 30-line body because the set operation has no standalone primitive. With `slice.Difference` as a building block, each concern separates into its own expression. The original also calls `RemoveDuplicates` which trims whitespace and skips blank entries; we include that preprocessing in the fluentfp version for a fair comparison.
+A dependency of HashiCorp Vault (80k+ stars), Consul, Nomad, and Boundary. The original tangles four concerns — normalization, deduplication, set difference, and sorting — into one 30-line body because the set operation has no standalone primitive. The original also calls `RemoveDuplicates`, which trims whitespace and drops blanks; we keep that preprocessing in the fluentfp version for a fair comparison.
 
 Note: the original's early returns (when `a` or `b` is empty) skip `RemoveDuplicates` preprocessing, so empty-`b` callers receive unnormalized output while main-path callers get normalized output — a subtle inconsistency the fluentfp version eliminates by processing all inputs uniformly.
 
@@ -279,9 +271,7 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
 }
 ```
 
-**What changed:** Three manual loops — build `map[string]struct{}`, delete matches, collect survivors — collapse into `slice.Difference`. The original's early returns for empty inputs are unnecessary; `Difference` handles those internally. The separate `RemoveDuplicates` helper (15 lines, not shown) is replaced by `Difference`'s built-in deduplication plus `.NonEmpty()` for blank removal. Normalization chains fluently via `.ToString(toNormalized).NonEmpty()`, making it visible that lowercasing is a *transform*, not part of the set operation.
-
-**What's eliminated:** The build-then-delete pattern (`for range a → map[a] = {}; for range b → delete(map, b)`) is the manual idiom for set difference in Go. It requires reasoning about map mutation — deletions during a scan of a different slice — which is correct but non-obvious at a glance. `slice.Difference` names the intent directly. The early-return inconsistency (main path normalizes; empty-`b` path doesn't) disappears because the pipeline processes all inputs uniformly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
+Three manual loops — build the map, delete matches, collect survivors — collapse into `slice.Difference`, which handles empty inputs internally and deduplicates as a built-in step (replacing the 15-line `RemoveDuplicates` helper). Normalization chains via `.ToString(normalize).NonEmpty()`, making lowercasing visible as a *transform* rather than a parameter to the set operation. The build-then-delete idiom requires reasoning about map mutation while iterating a different slice — correct but non-obvious; `slice.Difference` names the intent directly. See [Error Prevention](../analysis.md#error-prevention) (Manual collection management).
 
 ---
 
@@ -292,7 +282,7 @@ func Difference(a, b slice.Mapper[string], lowercase bool) []string {
 **Source:** [ls.go#L95-L116](https://github.com/docker/compose/blob/bfb5511d0d6f8250b088d0251bc21c041516ddb8/pkg/compose/ls.go#L95-L116)
 **Pain point:** Two interleaved concerns — counting occurrences and tracking insertion order — with coordinated map + slice + conditional append
 
-Docker Compose (37.1k stars) lists project stacks with `docker compose ls`. For each stack, `combinedStatus` formats container statuses as `"running(3), exited(1)"`. The implementation interleaves two concerns: a frequency map (`nbByStatus`) tracks counts while a separate `keys` slice preserves first-seen order (appending only when the key is new). A second loop builds the output string with manual comma separation. The reader must mentally separate the counting logic from the ordering logic to understand either one.
+Docker Compose (37.1k stars) formats container statuses as `"running(3), exited(1)"` for `docker compose ls`. The original interleaves two concerns in the same loop: a frequency map (`nbByStatus`) and a separate `keys` slice that records first-seen order via a conditional append. A second loop builds the output string with manual comma separation.
 
 **Original:**
 ```go
@@ -335,9 +325,7 @@ statusGroups := slice.GroupSame(statuses).Sort(byKey)
 combined := statusGroups.ToString(countByStatus).Join(", ")
 ```
 
-**What changed:** The interleaved frequency-counting and order-tracking loops become a pipeline: `GroupSame` (group by value) → `Sort` (alphabetical) → `ToString` (format each group) → `Join`. Each stage has a single responsibility. `GroupSame` names the operation directly — "group occurrences of each distinct value" — instead of requiring the reader to recognize `GroupBy` with an identity function.
-
-**What's eliminated:** Manual frequency counting with coordinated map-and-key-list bookkeeping. The original interleaves "have I seen this status before?" (map lookup) with "what order did statuses first appear?" (conditional append to `keys` slice) — two concerns that must be read together to understand either one. `GroupSame` separates grouping from ordering, and the pipeline makes each transformation step visible as a named operation.
+The two interleaved loops become a pipeline: `GroupSame` → `Sort` → `ToString` → `Join`. Each stage has one responsibility. `GroupSame` names the operation directly ("group occurrences of each distinct value") rather than requiring the reader to recognize `GroupBy` with an identity function. The original's "have I seen this before?" map lookup and "what order did it first appear?" conditional append are two concerns that had to be read together to understand either one; the pipeline separates them.
 
 ---
 
@@ -348,9 +336,9 @@ combined := statusGroups.ToString(countByStatus).Join(", ")
 **Source:** [test/chan/sieve1.go](https://github.com/golang/go/blob/6885bad7dd86880be6929c02085e5c7a67ff2887/test/chan/sieve1.go)
 **Pain point:** Channels and goroutines used as a lazy evaluation mechanism for pure computation — each discovered prime spawns a permanent goroutine that never cleans up
 
-Before iterator-like libraries, Go code often used channels and goroutines to model lazy sequences. The stdlib's own `test/chan/sieve1.go` is a canonical example: three functions (`Generate`, `Filter`, `Sieve`) form a channel pipeline that produces primes via distributed trial division. The file's header calls it "classical inefficient concurrent prime sieve." It exists to exercise Go's concurrency primitives, not as production code — but the pattern it demonstrates (channel-based lazy evaluation) appeared in real codebases for lack of alternatives.
+Before iterator-like libraries, Go code often used channels and goroutines to model lazy sequences. The stdlib's own `test/chan/sieve1.go` is the canonical example: `Generate` → `Filter` → `Sieve` form a channel pipeline producing primes via distributed trial division. Its header calls it a "classical inefficient concurrent prime sieve" — written to exercise concurrency primitives, but the channel-based-laziness pattern appeared in real codebases for lack of alternatives.
 
-This comparison is not algorithmically equivalent. The original distributes trial division across N goroutines (each checking divisibility by one specific prime); the replacement uses a single `isPrime` predicate that checks all factors up to √n. Both produce identical output for any N, but the implementation strategy is different. The value demonstrated is that `stream` can express lazy evaluation — generate, filter, take — without goroutines or channels.
+This comparison is not algorithmically equivalent. The original distributes trial division across N goroutines (each checking divisibility by one specific prime); the replacement uses a single `isPrime` predicate that checks all factors up to √n. Both produce identical output. The value demonstrated is that `stream` can express lazy evaluation — generate, filter, take — without goroutines or channels.
 
 **Original** (25 lines — `Generate`, `Filter`, `Sieve`):
 ```go
@@ -404,13 +392,7 @@ isPrime := func(n int) bool {
 primes := stream.Generate(2, lof.Inc).KeepIf(isPrime).Take(25).Collect()
 ```
 
-**What changed:** The channel pipeline becomes a lazy stream pipeline that produces the same first N primes without goroutines or channels. `stream.Generate` produces 2, 3, 4, ... lazily via deferred thunks. `.KeepIf(isPrime)` filters candidates eagerly to the first match, then defers the rest. `.Take(25)` bounds the sequence. `.Collect()` materializes to a slice.
-
-The two versions use different algorithms to achieve the same result. The sieve distributes trial division across N goroutines — each `Filter` goroutine checks divisibility by one specific prime. The stream version concentrates trial division in `isPrime`, checking all factors up to √n per candidate. For 25 primes the performance difference is negligible; the sieve's goroutine scheduling overhead exceeds any saved arithmetic.
-
-**What's eliminated:** Goroutine and channel resource accumulation. The original creates goroutines that run for the lifetime of the process: `Generate` loops infinitely, each `Filter` loops until its input channel closes (which never happens). Go's [garbage collector cannot collect goroutines](https://go.dev/blog/pipelines) — they must exit on their own. In a short-lived program like the test, the process exits before this matters; in a long-lived server using the same pattern, the goroutines would accumulate indefinitely.
-
-The stream version uses zero goroutines and zero channels. Lazy evaluation comes from deferred thunks, not concurrency primitives. Once the stream reference is dropped, all cells are eligible for garbage collection — no cleanup protocol needed.
+`stream.Generate` produces 2, 3, 4, ... lazily via deferred thunks; `.KeepIf(isPrime)` filters; `.Take(25)` bounds; `.Collect()` materializes. The channel version creates goroutines that run for the process lifetime — `Generate` loops infinitely, each `Filter` waits forever on a channel that never closes. Go's [garbage collector cannot collect goroutines](https://go.dev/blog/pipelines); they must exit on their own. A short-lived test escapes consequences; a long-lived server using the same pattern leaks indefinitely. The stream version uses zero goroutines and zero channels — laziness comes from deferred thunks, not concurrency primitives, and dropping the stream reference makes every cell GC-eligible.
 
 *Pedagogical example, not a production rewrite. For sequences that fit in memory and will be fully consumed, eager `slice.From` is more efficient. Streams pay off where laziness matters: infinite sequences, early termination, or expensive-to-compute elements.*
 
@@ -420,7 +402,7 @@ The stream version uses zero goroutines and zero channels. Lazy evaluation comes
 
 **Source project:** [Amazonka](https://github.com/brendanhay/amazonka) — the comprehensive Haskell SDK for Amazon Web Services.
 
-**The pattern:** AWS APIs return paginated results with continuation tokens. Each response includes a token for the next page, or nothing when done. Amazonka abstracts this into a lazy stream — the next API call happens only when the consumer asks for the next page. `stream.Paginate` brings the same pattern to Go.
+**The pattern:** AWS APIs return paginated results with continuation tokens. Each response includes a token for the next page, or nothing when done. Amazonka exposes this as a lazy stream — the next API call happens only when the consumer asks for the next page. `stream.Paginate` brings the same pattern to Go.
 
 **Go equivalent:** S3 object listing with cursor pagination.
 
@@ -442,7 +424,7 @@ func listAllObjects(bucket string) []Object {
 }
 ```
 
-Every consumer (collect all, find one, sample first N) rewrites this loop with different bodies.
+Every consumer (collect all, find one, sample first N) rewrites this loop with a different body.
 
 **fluentfp** — separate *fetching* from *consuming*:
 ```go
@@ -457,7 +439,7 @@ pages := stream.Paginate("", pageStep)
 
 `Paginate` calls `pageStep` with the seed (`""`), emits the page, then lazily calls again with the next token. When `NextToken` is not-ok, it emits the last page and stops.
 
-Define fetching once, then pick any consumer — no loop rewriting:
+Define fetching once, pick any consumer — no loop rewriting:
 
 ```go
 pages.Collect()                                // fetch everything
@@ -465,9 +447,9 @@ pages.Take(3).Collect()                        // first 3 pages only
 pages.Find(pageContainsKey)                    // stop at first match
 ```
 
-**What this brings to Go:** The for loop tangles *how to get pages* with *what to do with them*. `stream.Paginate` separates the two — define page-fetching once, consume however you need. Pages you don't ask for are never fetched, crucial when listing buckets with millions of objects.
+The for loop tangles *how to get pages* with *what to do with them*. `stream.Paginate` separates the two: define page-fetching once, consume however you like. Pages you don't ask for are never fetched — critical when listing buckets with millions of objects.
 
-*Caveat: `stream.Paginate`'s step function is synchronous. For prefetching the next page while processing the current one, a channel-based approach would be more appropriate.*
+*Caveat: `stream.Paginate`'s step function is synchronous. For prefetching the next page while processing the current one, a channel-based approach fits better.*
 
 ---
 
@@ -477,11 +459,9 @@ pages.Find(pageContainsKey)                    // stop at first match
 
 **Source project:** [Starship](https://github.com/starship/starship) (44k+ stars) — cross-shell prompt written in Rust.
 
-**What Starship does:** When the prompt format includes `$all`, Starship evaluates dozens of independent prompt modules — git status, language versions, cloud context, battery level — in parallel using Rayon. Each module independently checks environment state, runs external commands, or reads files, then returns a list of display segments. Starship uses `par_iter().flat_map()` to evaluate all modules concurrently and flatten the results into an ordered segment list. The key: switching from sequential to parallel required changing one method call — the module-rendering function didn't change signature, didn't gain a worker ID, didn't need synchronization.
+**What Starship does:** When the prompt format includes `$all`, Starship evaluates dozens of independent prompt modules — git status, language versions, cloud context, battery level — in parallel using Rayon. Each module independently checks environment state, runs external commands, or reads files, and returns display segments. Starship uses `par_iter().flat_map()` for the main render and `par_iter().filter_map()` for custom modules. The key point: switching from sequential to parallel was one method call — the per-module function didn't change signature, didn't gain a worker ID, didn't need synchronization.
 
-Starship also uses `par_iter().filter_map()` for custom module configurations — filtering and rendering user-defined modules in parallel, where each module may need to run a shell command or check a file to decide whether to display.
-
-**Go equivalent:** A CLI dashboard that evaluates independent status modules in parallel — the same "render N independent widgets concurrently" problem Starship solves.
+**Go equivalent:** A CLI dashboard that evaluates independent status modules in parallel — the same "render N independent widgets concurrently" problem.
 
 **Extracted:**
 ```go
@@ -537,9 +517,9 @@ isEnabled := func(name string) bool {
 active := slice.From(allModules).PKeepIf(8, isEnabled)
 ```
 
-**What this brings to Go:** Starship demonstrates that parallelism is a property of the *traversal*, not the *transform*. The function you wrote for sequential use works unchanged. Without fluentfp, parallelizing this in Go requires a `sync.WaitGroup`, a result slice with index bookkeeping, goroutines with closure capture, and — if you want the filter variant — a mutex-protected accumulator. `PMap` absorbs all of that: same function signature, one call-site change.
+Parallelism is a property of the *traversal*, not the *transform*. The function you wrote for sequential use works unchanged. Plain Go would require a `sync.WaitGroup`, a result slice with index bookkeeping, goroutines with closure capture, and — for the filter variant — a mutex-protected accumulator. `PMap` absorbs all of that.
 
-*See also: [Polars](https://github.com/pola-rs/polars) (Rust DataFrame library) uses the same Rayon pattern for parallel group-by aggregation and parallel CSV row counting. [Tokei](https://github.com/XAMPPRocky/tokei) (code statistics tool) uses `par_iter_mut().for_each()` to aggregate line counts per language — matching `PEach`.*
+*[Polars](https://github.com/pola-rs/polars) (Rust DataFrames) uses the same Rayon pattern for parallel group-by; [Tokei](https://github.com/XAMPPRocky/tokei) uses `par_iter_mut().for_each()` to aggregate line counts — matching `PEach`.*
 
 ---
 
@@ -547,7 +527,7 @@ active := slice.From(allModules).PKeepIf(8, isEnabled)
 
 **Source projects:** [ExAws S3](https://github.com/ex-aws/ex_aws_s3) — Elixir's standard S3 library; [Hex](https://github.com/hexpm/hex) — the official Elixir package manager.
 
-**The pattern:** Both projects need bounded concurrent I/O with per-item results. ExAws S3 uploads file chunks concurrently (`Task.async_stream` with `max_concurrency: 4`) — all must succeed or the upload aborts. Hex downloads dependency tarballs concurrently — partial success is fine, failures are reported. Same operation, different success modes.
+**The pattern:** Both need bounded concurrent I/O with per-item results. ExAws S3 uploads file chunks concurrently (`Task.async_stream` with `max_concurrency: 4`) — all must succeed or abort. Hex downloads dependency tarballs concurrently — partial success is fine, failures are reported. Same operation, different success modes.
 
 **Typical Go** — semaphore, WaitGroup, recover, mutex-protected results:
 ```go
@@ -585,7 +565,7 @@ No panic recovery. No context cancellation. No per-item error tracking. Adding t
 uploads, err := slice.FanOutAll(ctx, 4, chunks, uploadChunk)
 ```
 
-`FanOutAll` runs up to 4 uploads concurrently with per-item error handling, panic recovery, and early cancellation — when the first chunk fails, remaining unscheduled uploads are cancelled promptly. All-or-nothing semantics in a single call.
+`FanOutAll` runs up to 4 uploads concurrently with per-item error handling, panic recovery, and early cancellation — when the first chunk fails, remaining unscheduled uploads cancel promptly. All-or-nothing semantics in one call.
 
 For Hex's pattern — partial success is acceptable:
 
@@ -599,13 +579,11 @@ Or when only successes matter:
 downloaded := rslt.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
 ```
 
-**What this brings to Go:** `FanOutAll` for all-or-nothing with early cancellation, `FanOut` + `CollectOkAndErr` for both halves, `FanOut` + `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
+Three idioms cover the spectrum: `FanOutAll` for all-or-nothing with early cancellation; `FanOut` + `CollectOkAndErr` for both halves; `FanOut` + `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
 
 ---
 
 ## Algorithm
-
-The entry below compares a production algorithm implementation with its functional decomposition from Stone's *Algorithms for Functional Programming* (Springer, 2018), showing how the functional version makes the algorithm's structure visible by separating the reusable engine from the behavioral arguments.
 
 ### Topological order *is* DFS departure order — make the algorithm visible — hashicorp/terraform
 
@@ -655,7 +633,7 @@ func (g *AcyclicGraph) topoOrder(order walkType) []Vertex {
 }
 ```
 
-**Stone's decomposition:** Three arguments to a reusable DFS engine: start with empty list, ignore vertices on arrival, collect on departure. The algorithm's *entire meaning* is in those three arguments — the DFS machinery is factored into a higher-order `depth-first-traversal` function that maintains the visited set, folds over all vertices (handling disconnected components), and calls user-supplied `arrive`/`depart` at each vertex.
+**Stone's decomposition:** Three arguments to a reusable DFS engine — start with an empty list, ignore vertices on arrival, collect on departure. The algorithm's *entire meaning* is in those three arguments. The DFS machinery factors into a higher-order `depth-first-traversal` function that maintains the visited set, folds over all vertices (handling disconnected components), and calls user-supplied `arrive`/`depart` at each.
 
 **The same engine, four algorithms:**
 
@@ -666,7 +644,7 @@ func (g *AcyclicGraph) topoOrder(order walkType) []Vertex {
 | Reachability         | add vertex to reachable set | do nothing                 |
 | Path finder          | extend current path         | check if target reached    |
 
-One function, four algorithms — only the behavioral arguments change. Terraform's 43 lines couple traversal to behavior, so each new algorithm means copy-paste-modify with the same DFS boilerplate.
+One function, four algorithms — only the behavioral arguments change. Terraform's 43 lines couple traversal to behavior, so each new algorithm means copy-paste-modify the same DFS boilerplate.
 
 **Go equivalent — separating engine from behavior:**
 ```go
@@ -713,7 +691,7 @@ reachFrom := dfs(graph.Neighbors, collect, noop)
 reachable := reachFrom([]Vertex{source})
 ```
 
-**What the decomposition reveals:** The one line that makes this a topological sort — `sorted = append(sorted, v)` — is surrounded by 42 lines of DFS mechanics. The functional decomposition makes the insight visible: topological order *is* DFS departure order. Everything else is engine. Stone further separates cycle detection into a standalone `acyclic?` predicate — a precondition, not part of the sort.
+The one line that makes this a topological sort — `sorted = append(sorted, v)` — is surrounded by 42 lines of DFS mechanics. The functional decomposition makes the insight visible: topological order *is* DFS departure order; everything else is engine. Stone further separates cycle detection into a standalone `acyclic?` predicate — a precondition, not part of the sort.
 
 ---
 
@@ -724,7 +702,7 @@ reachable := reachFrom([]Vertex{source})
 **Source:** [pkg/detectors/easyinsight/easyinsight.go](https://github.com/trufflesecurity/trufflehog/blob/main/pkg/detectors/easyinsight/easyinsight.go)
 **Pain point:** Nested loops for key×id cross-join, manual same-pair skip, append boilerplate
 
-TruffleHog (25k stars) scans repositories for leaked credentials. Each detector extracts API keys and account IDs from text via regex, deduplicates them into maps, then tests every key–id combination. Hundreds of detectors repeat this nested-loop pattern.
+TruffleHog (25k stars) scans repositories for leaked credentials. Each detector extracts API keys and account IDs via regex, deduplicates them, then tests every key–id combination. Hundreds of detectors repeat the nested-loop pattern.
 
 **Original** (verification omitted for clarity):
 ```go
@@ -767,7 +745,7 @@ candidates := combo.CartesianProduct(keys, ids).KeepIf(isDifferentPair)
 results := slice.Map(candidates, toCandidate)
 ```
 
-**What this shows:** `kv.Keys` extracts map keys into slices, `combo.CartesianProduct` replaces the nested loop and returns `slice.Mapper` for direct chaining through `.KeepIf` → `slice.Map` — a pipeline where each stage expresses one concern. The original interleaves iteration, filtering, construction, and accumulation in a single nested block.
+`kv.Keys` extracts map keys; `combo.CartesianProduct` replaces the nested loop and returns `slice.Mapper` for direct chaining through `.KeepIf` → `slice.Map`. Each stage expresses one concern; the original interleaves iteration, filtering, construction, and accumulation in one nested block.
 
 ---
 
@@ -778,7 +756,7 @@ results := slice.Map(candidates, toCandidate)
 **Source:** [session_ttl.go#L102-L134](https://github.com/hashicorp/consul/blob/main/agent/consul/session_ttl.go#L102-L134)
 **Pain point:** Retry loop, exponential backoff calculation, and error logging woven into a function body where the actual operation is one line
 
-Consul (28k stars) invalidates expired session TTLs via Raft consensus. The core operation — `leaderRaftApply` — is a single call. Around it: a manual retry loop, bit-shift backoff calculation (`1 << attempt * base`), per-attempt error logging, and final max-retries logging. The retry mechanics are hand-rolled in every function that needs resilience.
+Consul (28k stars) invalidates expired session TTLs via Raft consensus. The core operation — `leaderRaftApply` — is a single call. Around it: a hand-rolled retry loop, bit-shift backoff (`1 << attempt * base`), per-attempt error logging, and final max-retries logging. Every function that needs resilience rebuilds this scaffolding.
 
 **Original:**
 ```go
@@ -842,18 +820,16 @@ func (s *Server) invalidateSession(ctx context.Context, id string, entMeta *acl.
 
 *We presume `leaderRaftApply` has the signature `func(context.Context, T) (R, error)` — the original wraps a Raft apply call that could naturally take this shape.*
 
-**What changed:** The 7-line retry loop — `for` header, `leaderRaftApply`, success check, `time.Sleep` with bit-shift backoff, `continue` — collapses into a decorated `s.resilientRaftApply` defined once at construction time. The function body becomes setup + one call + result check. The backoff strategy is reusable across every Raft operation that needs resilience.
+The 7-line retry loop collapses to a decorated `s.resilientRaftApply` defined once. The function body becomes setup + one call + result check, and the backoff strategy is reusable across every Raft operation that needs resilience. One concession: the original's per-attempt `s.logger.Error("Invalidation failed")` is dropped — `.Retry()` has no per-attempt hook by itself. For per-attempt logging, chain `.OnError(handler).Retry(...)` so the handler sees each attempt's error before the next backoff.
 
-**What's eliminated:** Manual retry loop, `time.Sleep`, backoff calculation (`1 << attempt * base`), per-iteration control flow. The retry policy is defined once and shared across `invalidateSession`, `invalidateKey`, and similar methods. The original's per-attempt error logging (`s.logger.Error("Invalidation failed")`) is not preserved — `.Retry()` doesn't expose a per-attempt hook. For code that needs per-attempt logging, chain `.OnError(handler)` before `.Retry(...)` so the handler sees each attempt's error.
-
-**What this pattern looks like at scale:** The same retry-loop-with-backoff pattern appears throughout the examples below and in CockroachDB's [TCP accept loop](https://github.com/cockroachdb/cockroach/blob/master/pkg/util/netutil/net.go#L159-L195) (hand-rolled exponential backoff with cap). In each case, the actual operation is 1-3 lines; the ceremony around it runs 10-30x longer. Function decoration separates these concerns, makes them independently testable, and eliminates the copy-paste visible across codebases.
+The retry-loop-with-backoff pattern recurs in CockroachDB's [TCP accept loop](https://github.com/cockroachdb/cockroach/blob/master/pkg/util/netutil/net.go#L159-L195) (hand-rolled exponential backoff with cap) and the etcd/Kubernetes/Traefik entries below. In each case, the actual operation is 1–3 lines and the ceremony around it runs 10–30× longer.
 
 ### Five cross-cutting concerns around one line collapse to one decorated call — kubernetes/kubernetes
 
 **Source:** [route_controller.go#L424-L450](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/cloud-provider/controllers/route/route_controller.go#L424-L450)
 **Pain point:** Five cross-cutting concerns around a one-line operation
 
-Kubernetes' route controller (121k stars) creates cloud-provider routes for nodes. The core operation — `CreateRoute` — is one line. Around it: a channel-based semaphore for concurrency control, `RetryOnConflict` for retry, timing measurement, structured logging at multiple levels, and Kubernetes event recording on failure.
+Kubernetes' route controller (121k stars) creates cloud-provider routes for nodes. The core operation — `CreateRoute` — is one line. Around it: a channel-based semaphore, `RetryOnConflict` for retry, timing measurement, structured logging at multiple levels, and Kubernetes event recording on failure.
 
 **Original:**
 ```go
@@ -908,16 +884,14 @@ go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
 
 *We presume `CreateRoute` adapted to the `func(context.Context, T) (R, error)` signature.*
 
-**What changed:** The `RetryOnConflict` wrapper with its callback becomes `.Retry()`. The goroutine body shrinks from 20 lines of cross-cutting concerns to a single decorated call + error handling. The channel-based semaphore (`rateLimiter`) is a concurrency concern best addressed at a higher level than per-function decoration.
-
-**What's eliminated:** Manual semaphore acquire/release (a common source of deadlocks if the release is missed on an error path), the `RetryOnConflict` callback wrapper, timing instrumentation interleaved with business logic. The pattern repeats in the same file for `deleteRoute` with nearly identical ceremony.
+The `RetryOnConflict` wrapper-with-callback becomes `.Retry()`; the goroutine body shrinks from 20 lines of cross-cutting concerns to one decorated call plus error handling. The semaphore (`rateLimiter`) is a higher-level concurrency concern best handled outside the per-function decoration. What's gone: the manual semaphore acquire/release (a common source of deadlocks if the release is missed on an error path), the callback wrapper, and timing instrumentation interleaved with business logic. The same ceremony repeats nearly verbatim in `deleteRoute` in the same file.
 
 ### 80-line retry ceremony × 5 provider files → defined once — traefik/traefik
 
 **Source:** [kubernetes.go#L78-L157](https://github.com/traefik/traefik/blob/master/pkg/provider/kubernetes/crd/kubernetes.go#L78-L157)
 **Pain point:** Retry + throttle + panic recovery + error logging duplicated across 5 provider files
 
-Traefik (62k stars) implements provider loops for Kubernetes CRD, Kubernetes Ingress, Kubernetes Gateway, and others. Each provider has a `Provide` method that watches for events, throttles updates, retries with exponential backoff on failure, logs errors, and recovers from panics. The same ~80 lines of ceremony repeat across 5 files — the only difference is the inner operation.
+Traefik (62k stars) implements provider loops for Kubernetes CRD, Ingress, Gateway, and others. Each provider's `Provide` method watches for events, throttles updates, retries with exponential backoff, logs errors, and recovers from panics. The same ~80 lines of ceremony repeat across 5 files — only the inner operation differs.
 
 **Original** (abbreviated):
 ```go
@@ -963,14 +937,14 @@ func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.
 }
 ```
 
-**What this shows:** The structural win isn't line count in a single file — it's that 5 provider files each copy-paste the same ~80 lines of retry/recover ceremony. With `.Retry(...)`, the ceremony is defined once and each provider supplies only its watch function. Traefik is already halfway there: it uses a third-party `backoff.RetryNotify` + `safe.OperationWithRecover`. The remaining ceremony (event throttling via channel wrapper, `time.Sleep` for rate limiting, error logging at multiple points) is the part that decoration would further extract. This is a case where the pattern motivates the tool rather than demonstrating a clean 1:1 rewrite — the long-running watch-loop pattern doesn't map directly to wrap's request-response model.
+The structural win isn't line count in a single file — it's that 5 provider files copy-paste the same ~80 lines. With `.Retry(...)`, the ceremony is defined once and each provider supplies only its watch function. Traefik is already halfway there with `backoff.RetryNotify` + `safe.OperationWithRecover`; the remaining ceremony (event throttling, `time.Sleep` for rate limiting, multi-point error logging) is the part decoration would further extract. The pattern motivates the tool here rather than demonstrating a clean 1:1 rewrite — the long-running watch loop doesn't map cleanly to wrap's request-response model.
 
 ### Six tangled concerns in a retry interceptor → three chained decorators — etcd-io/etcd
 
 **Source:** [retry_interceptor.go#L47-L90](https://github.com/etcd-io/etcd/blob/main/client/v3/retry_interceptor.go#L47-L90)
 **Pain point:** Retry loop with backoff, debug logging, error classification, and token refresh all in one for-loop body
 
-etcd (48k stars) intercepts gRPC unary calls with retry logic. The for-loop body handles 6 concerns in 45 lines: backoff waiting, the actual gRPC invoke, debug logging per attempt, warn logging on failure, error classification (is it safe to retry? is it a context error?), and conditional token refresh.
+etcd (48k stars) intercepts gRPC unary calls with retry logic. The for-loop body handles 6 concerns in 45 lines: backoff waiting, the gRPC invoke, debug logging per attempt, warn logging on failure, error classification (is it safe to retry? is it a context error?), and conditional token refresh.
 
 **Original** (abbreviated):
 ```go
@@ -1028,7 +1002,7 @@ resilientInvoke := wrap.Func(invoker).
     Retry(callOpts.max, wrap.ExpBackoff(retryBase), isSafeRetry)
 ```
 
-**What this shows:** The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that are independently testable when separated. `.OnError()` triggers the token refresh, `.Retry()` handles the loop and backoff with `isSafeRetry` classification. Each decorator is a separate chainable method.
+The for-loop mixes retry mechanics, error classification, and token refresh — three concerns that become independently testable when separated. `.OnError()` triggers the token refresh, `.Retry()` handles the loop and backoff with `isSafeRetry` as a predicate. Each decorator is a separate chainable method.
 
 ---
 
@@ -1078,18 +1052,16 @@ func (config *inClusterClientConfig) Namespace() (string, bool, error) {
 }
 ```
 
-**What changed:** Three if-blocks with early returns become a one-line chain: `Env → OrElse → Or`. The reader sees the resolution order — env, file, default — left to right. `OrElse` defers `readSANamespace` so it's only called when the env var is absent. Inside the helper, `NonErr` converts the `([]byte, error)` pair into an option, `ToString` maps to string, and `FlatMap(NonEmpty)` filters empty results — three named transformations instead of nested `if err == nil { if ns := ...; len(ns) > 0`.
+Three if-blocks with early returns become a one-line chain: `Env → OrElse → Or`. The resolution order reads left to right; `OrElse` defers `readSANamespace` so it's only called when the env var is absent. Inside the helper, `NonErr` converts the `([]byte, error)` pair into an option, `ToString` maps to string, and `FlatMap(NonEmpty)` filters empty results — three named transformations instead of the nested `if err == nil { if ns := ...; len(ns) > 0 }`.
 
-**What's eliminated:** The cascading if-return pattern. The original is 11 lines of control flow for what is logically "first non-empty of these three sources." The helper's chain replaces the two-level condition (error check + empty check) with composable steps.
-
-**Where this pattern appears:** Viper's [`find()`](https://github.com/spf13/viper/blob/master/viper.go#L1194-L1320) (27k stars) is a 130-line, 6-level waterfall — override → pflag → env → config file → key-value store → default — where each level is the same `val = search(...); if val != nil { return val }` block.  The Kubernetes out-of-cluster counterpart [`DirectClientConfig.Namespace()`](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L399-L421) has the same 3-level pattern: CLI flag → kubeconfig context → `"default"`.
+Viper's [`find()`](https://github.com/spf13/viper/blob/master/viper.go#L1194-L1320) (27k stars) is the same shape at scale: a 130-line, 6-level waterfall (override → pflag → env → config file → key-value store → default), each level the same `val = search(...); if val != nil { return val }` block. The Kubernetes out-of-cluster counterpart [`DirectClientConfig.Namespace()`](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L399-L421) is the same 3-level pattern: CLI flag → kubeconfig context → `"default"`.
 
 ### Fallback sequence becomes a `cmp.Or` argument list — hashicorp/terraform
 
 **Source:** [cliconfig.go#L438-L443](https://github.com/hashicorp/terraform/blob/main/internal/command/cliconfig/cliconfig.go#L438-L443)
 **Pain point:** Two env vars tried in sequence, then a computed default — same if-empty pattern repeated
 
-Terraform (48k stars) resolves its CLI config file path through a priority chain: the `TF_CLI_CONFIG_FILE` env var, then the deprecated `TERRAFORM_CONFIG` env var, then a default path from `ConfigFile()`. The first two are in one function, then the result feeds into another if-empty check.
+Terraform (48k stars) resolves its CLI config file path through a priority chain: `TF_CLI_CONFIG_FILE` env var, then the deprecated `TERRAFORM_CONFIG` env var, then a default path from `ConfigFile()`. The first two are in one function, then the result feeds into another if-empty check.
 
 **Original:**
 ```go
@@ -1127,14 +1099,14 @@ configFilePath := option.NonEmpty(cliConfigFileOverride()).OrCall(configFileMust
 
 *`configFileMust` wraps `ConfigFile()` to handle the error and return a string.*
 
-**What changed:** The if-empty chain becomes `cmp.Or` (stdlib) — the priority order is a literal argument list. The call site uses `option.NonEmpty` + `.OrCall` to defer the expensive `ConfigFile()` computation until needed.
+The if-empty chain becomes `cmp.Or` (stdlib) — the priority order is a literal argument list. The call site uses `option.NonEmpty` + `.OrCall` to defer the expensive `ConfigFile()` computation until needed.
 
 ### Env-override-or-default in one line via `option.Env.OrCall` — docker/cli
 
 **Source:** [config.go#L77-L85](https://github.com/docker/cli/blob/master/cli/config/config.go#L77-L85)
 **Pain point:** Env var override with computed default, nested inside `sync.Once`
 
-Docker CLI (5.7k stars) resolves the config directory: env var override or a computed default from the home directory.
+Docker CLI (5.7k stars) resolves the config directory: env var override, or a computed default from the home directory.
 
 **Original:**
 ```go
@@ -1174,7 +1146,7 @@ func Dir() string {
 }
 ```
 
-**What changed:** `option.Env` combines `os.Getenv` + non-empty check into one call. `.OrCall(defaultDir)` defers the `filepath.Join` + `getHomeDir()` computation. The if-empty block becomes a one-line chain.
+`option.Env` combines `os.Getenv` + non-empty check into one call; `.OrCall(defaultDir)` defers the `filepath.Join` + `getHomeDir()` computation. The if-empty block becomes a one-line chain.
 
 ### Three guard clauses collapse to a two-step option chain — kubernetes/kubernetes
 
@@ -1217,13 +1189,11 @@ func getIntFromAnnotation(node *v1.Node, annotationKey string) (int, bool) {
 }
 ```
 
-*`option.Lookup` handles both nil maps and missing keys — Go returns `("", false)` for nil maps, which `Lookup` converts to not-ok. `tryAtoi` returns not-ok on parse failure, so `FlatMap` propagates the absence. The original logged parse errors, which this version loses.*
+*`option.Lookup` handles both nil maps and missing keys — Go returns `("", false)` for nil maps, which `Lookup` converts to not-ok.*
 
-**What changed:** Three levels of nil/ok/err guards collapse into a two-step chain: look up the key, then transform the value. `option.Lookup` replaces both the nil-map check and the comma-ok idiom in one call. The chain reads as intent: "look up this annotation and convert to int."
+Three levels of nil/ok/err guards collapse into a two-step chain: look up the key, transform the value. `option.Lookup` replaces both the nil-map check and the comma-ok idiom in one call. The same `map[string]string` → `int` pattern appears 4 times in Kubernetes' ingress-nginx [annotation parser](https://github.com/kubernetes/ingress-nginx/blob/main/internal/ingress/annotations/parser/main.go#L101-L140) (`parseBool`, `parseString`, `parseInt`, `parseFloat32`) — each function repeating the same map-lookup + parse + error structure.
 
-**What's eliminated:** Three separate early-return blocks that all return `(0, false)`. The original is 12 lines of guard clauses for what is logically "look up and parse, or absent." The same `map[string]string` → `int` pattern appears 4 times in Kubernetes' ingress-nginx [annotation parser](https://github.com/kubernetes/ingress-nginx/blob/main/internal/ingress/annotations/parser/main.go#L101-L140) (`parseBool`, `parseString`, `parseInt`, `parseFloat32`) — each function repeating the same map-lookup + parse + error structure.
-
-**Trade-off:** The error logging on parse failure is lost in the option chain. The original logs the bad annotation value and key — useful for debugging misconfigured nodes. The option version trades diagnostic detail for brevity. A middle ground: use `option.FlatMap` with a function that returns `option.NotOk` on parse error, keeping the log call inside the function.
+**Trade-off:** The error logging on parse failure is lost. The original logs the bad key and value — useful for debugging misconfigured nodes. The option version trades that diagnostic detail for brevity. A middle ground: use `option.FlatMap` with a function that logs and returns `option.NotOk` on parse error, keeping the log call inside the transformation.
 
 ---
 
@@ -1234,7 +1204,7 @@ func getIntFromAnnotation(node *v1.Node, annotationKey string) (int, bool) {
 **Source:** [mutable_state_rebuilder.go#L103-L767](https://github.com/temporalio/temporal/blob/main/service/history/workflow/mutable_state_rebuilder.go#L103-L767)
 **Pain point:** 664-line function that is structurally a left-fold, but the fold is invisible
 
-Temporal (12k stars) rebuilds workflow state by replaying history events. The `applyEvents` method iterates over a `[]*HistoryEvent` slice, applying each event to a mutable state aggregate via a switch statement with 40+ cases. The function is 664 lines because it interleaves iteration mechanics with event application.
+Temporal (12k stars) rebuilds workflow state by replaying history events. `applyEvents` iterates over `[]*HistoryEvent`, applying each event to a mutable state aggregate via a switch with 40+ cases. The function is 664 lines because iteration mechanics interleave with event application.
 
 **Original** (abbreviated):
 ```go
@@ -1277,9 +1247,9 @@ applyEvent := func(state WorkflowState, event *historypb.HistoryEvent) WorkflowS
 currentState := slice.Fold(history, initialState, applyEvent)
 ```
 
-**What this shows:** Every Go event-sourcing library hides a fold inside imperative replay code — a `for` loop that mutates aggregate fields via a switch statement. Making it `slice.Fold(events, initial, applyEvent)` surfaces the mathematical structure: state is a deterministic function of an initial value and an ordered sequence of transformations. The transition function (`applyEvent`) becomes independently unit-testable — you can test each event type without constructing a full event stream. The fold also makes the invariant explicit: events are applied left-to-right, and the accumulator type is the aggregate type.
+Every Go event-sourcing library hides a fold inside imperative replay code — a `for` loop that mutates aggregate fields via switch. Surfacing it as `slice.Fold(events, initial, applyEvent)` exposes the mathematical structure: state is a deterministic function of an initial value and an ordered sequence of transformations. The transition function (`applyEvent`) becomes independently unit-testable — each event type tested without constructing a full event stream. The fold makes the invariant explicit: events apply left-to-right, and the accumulator type is the aggregate type.
 
-**Where this pattern appears:** [hallgren/eventsourcing](https://github.com/hallgren/eventsourcing), [looplab/eventhorizon](https://github.com/looplab/eventhorizon), [thefabric-io/eventsourcing](https://github.com/thefabric-io/eventsourcing) — all implement the same for-loop-over-events-with-switch pattern. The fold is the unifying abstraction.
+[hallgren/eventsourcing](https://github.com/hallgren/eventsourcing), [looplab/eventhorizon](https://github.com/looplab/eventhorizon), and [thefabric-io/eventsourcing](https://github.com/thefabric-io/eventsourcing) all implement the same for-loop-over-events-with-switch shape. The fold is the unifying abstraction.
 
 ### Middleware chain becomes inspectable data, not 90 lines of `handler = mw(handler)` — kubernetes/apiserver
 
@@ -1339,7 +1309,7 @@ handler := slice.Fold(middlewares, apiHandler, applyMiddleware)
 
 *Helper functions like `withAuth(c)` partially apply config to produce a `Middleware` from a multi-arg wrapper.*
 
-**What this shows:** The repeated `handler = wrapper(handler)` pattern is a left-fold over a middleware list. Making it `slice.Fold(middlewares, base, apply)` turns the handler chain into a first-class data structure — you can inspect it, filter it (e.g., skip CORS in tests), reorder it, or log it, without editing a 90-line function. go-kit's [`endpoint.Chain`](https://github.com/go-kit/kit/blob/master/endpoint/endpoint.go) and chi's [`chain.go`](https://github.com/go-chi/chi/blob/master/chain.go) already recognize this — they implement the fold explicitly.
+The repeated `handler = wrapper(handler)` pattern is a left-fold over a middleware list. Making it `slice.Fold(middlewares, base, apply)` turns the handler chain into a first-class data structure — inspect it, filter it (skip CORS in tests), reorder it, log it — without editing a 90-line function. go-kit's [`endpoint.Chain`](https://github.com/go-kit/kit/blob/master/endpoint/endpoint.go) and chi's [`chain.go`](https://github.com/go-chi/chi/blob/master/chain.go) already recognize this and implement the fold explicitly.
 
 ### `for` + `if err != nil { return }` per iteration → `slice.TryFold` — event-sourced state machines
 
@@ -1367,16 +1337,14 @@ func (e *Engine) applyEvents(events []Event) (Engine, error) {
 }
 ```
 
-**What this shows:** The for/if-err/return pattern is a fold with short-circuit error propagation. `TryFold` names the pattern — iteration, accumulation, and early exit are all handled. The transition function (`Engine.apply`) is independently testable. The method expression `Engine.apply` reads as "apply each event to the engine" — no wrapper closure needed.
-
-**Where this pattern appears:** Any event-sourced system, state machine, migration runner, or sequential validation pipeline. SofDevSim's engine has 7 instances. Temporal's mutable_state_rebuilder is a 664-line version of the same fold (see above) — with error handling, it would need `TryFold`.
+The for/if-err/return shape is a fold with short-circuit error propagation. `TryFold` names it — iteration, accumulation, and early exit are all handled. `Engine.apply` (a method expression) reads as "apply each event to the engine"; no wrapper closure needed. Any event-sourced system, state machine, migration runner, or sequential validation pipeline has this shape. Temporal's 664-line `mutable_state_rebuilder` (above) is the same fold with error handling — it would use `TryFold`.
 
 ### Acquire-then-release as `Map` + `Each` (`Reverse.Each` for true sagas) — cockroachdb/cockroach
 
 **Source:** [replica_command.go#L3280](https://github.com/cockroachdb/cockroach/blob/master/pkg/kv/kvserver/replica_command.go#L3280)
 **Pain point:** Resource acquisition loop paired with a reverse-order cleanup closure
 
-CockroachDB (32k stars) acquires snapshot locks for learner replicas. Each addition gets a lock and a cleanup function. On completion or failure, cleanups run in reverse order. The imperative code manually manages the cleanup slice and builds a closure that iterates it.
+CockroachDB (32k stars) acquires snapshot locks for learner replicas. Each addition gets a lock and a cleanup function; on completion or failure, cleanups run in reverse order. The imperative version manages a cleanup slice manually and builds a closure that iterates it.
 
 **Original:**
 ```go
@@ -1419,7 +1387,7 @@ func (r *Replica) lockLearnerSnapshot(
 }
 ```
 
-**What this shows:** The pattern is a map (acquire resources → get cleanups) paired with an each (release all). The imperative version manually manages a `[]func()` slice with append in one loop and iteration in another. The FP version makes the structure explicit: `Map` to acquire, `.Each` to release. For true saga compensation — where undos must run in reverse order on failure — the return line becomes `cleanups.Reverse().Each(call)`. The same acquire-then-release pattern appears in [itimofeev/go-saga](https://github.com/itimofeev/go-saga) and [tiagomelo/go-saga](https://github.com/tiagomelo/go-saga), where saga coordinators manually iterate completed steps backward.
+The pattern is a map (acquire resources → get cleanups) paired with an each (release all). The imperative version manages a `[]func()` slice with append in one loop and iteration in another; the FP version says `Map` to acquire, `.Each` to release. For true saga compensation — where undos must run in reverse on failure — the return line becomes `cleanups.Reverse().Each(call)`. The same acquire-then-release shape appears in [itimofeev/go-saga](https://github.com/itimofeev/go-saga) and [tiagomelo/go-saga](https://github.com/tiagomelo/go-saga), where saga coordinators manually iterate completed steps backward.
 
 ### Validation loop with diagnostic accumulation → `FlatMap` — hashicorp/terraform
 
@@ -1482,7 +1450,7 @@ func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagno
 }
 ```
 
-**What this shows:** The validation loop is structurally a `FlatMap` — each input expression produces zero or more diagnostics, and the results are concatenated. The imperative version interleaves validation logic with `diags = append(diags, ...)` accumulation and `diags = diags.Extend(...)` calls. `slice.FlatMap(exprs, validate)` separates the traversal (iterate + flatten) from the validation logic (per-expression checks). The same pattern recurs in Terraform's `VerifyDependencySelections`, `validateProviderConfigs`, and dozens of similar validation functions. [go-ozzo/ozzo-validation](https://github.com/go-ozzo/ozzo-validation) and [go-playground/validator](https://github.com/go-playground/validator) implement the same accumulate-all-errors design internally.
+The validation loop is structurally a `FlatMap` — each input expression produces zero or more diagnostics, and the results are concatenated. `slice.FlatMap(exprs, validate)` separates the traversal (iterate + flatten) from the validation logic (per-expression checks). The same pattern recurs in Terraform's `VerifyDependencySelections`, `validateProviderConfigs`, and dozens of similar functions; [go-ozzo/ozzo-validation](https://github.com/go-ozzo/ozzo-validation) and [go-playground/validator](https://github.com/go-playground/validator) implement the same accumulate-all-errors design internally.
 
 ---
 
@@ -1517,13 +1485,13 @@ func init() {
 }
 ```
 
-**What's eliminated:** The `var err error` declaration, the `if err != nil` check, and the `panic(err)` call — 4 lines of boilerplate for a pattern that means "this cannot fail at runtime; if it does, it's a programmer bug." The stdlib has Must wrappers for `regexp` and `template`. Every other `(T, error)` call at init time requires manual boilerplate. `must.Get` is the generic version.
+The `var err` declaration, the `if err != nil` check, and the `panic(err)` call — 4 lines of boilerplate for "this can't fail at runtime; if it does, it's a programmer bug." The stdlib has Must wrappers for `regexp` and `template`; `must.Get` is the generic version for every other `(T, error)` call at init time.
 
 ---
 
 ## Additional Applicability
 
-The following examples were investigated but not showcased above — in each case, the original code is a manual implementation of the exact operation fluentfp provides, making the comparison circular ("we replaced your implementation of X with our X"). They're listed here as evidence of how often these patterns appear in production Go code.  The point is that these are useful constructs that these projects had to write themselves, but you don't have to.
+The entries below didn't earn full showcase treatment because the comparison is circular — in each case the original is a manual implementation of the exact operation fluentfp provides. They're listed as evidence of how often these patterns appear in production Go, and as proof that real projects keep writing the same helpers fluentfp already ships.
 
 | fluentfp operation | Project (stars) | Original code | What it replaces |
 |--------------------|----------------|---------------|------------------|
