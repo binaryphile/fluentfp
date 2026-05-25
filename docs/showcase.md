@@ -1,6 +1,21 @@
 # From Mechanics to Intent: 24 Real-World Rewrites
 
-Most production Go code spends more lines on `for`/`range`/`append`, comma-ok unpacking, and index arithmetic than on the work itself. The 24 examples below take real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others, and rewrite each with fluentfp. The mechanics-to-intent ratio drops; in several cases the rewrite also removes a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
+Most production Go code spends more lines on iteration mechanics than on the work itself.
+
+```go
+// Before — mechanics interleaved with intent
+var names []string
+for _, u := range users {
+    if u.IsActive() {
+        names = append(names, u.Name())
+    }
+}
+
+// After — intent only
+names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
+```
+
+The 24 examples below take this same compression and apply it to real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others — where the mechanics aren't just `for`/`append` but `sort.Slice` closures, `sync.WaitGroup` semaphores, retry loops, middleware wrapping, channel pipelines, and option waterfalls. In several cases the rewrite also removes a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
 
 **Scope.** Showcase, not balanced analysis — for what fluentfp *lacks*, see [feature-gaps.md](feature-gaps.md); for the synthetic library matrix, [comparison.md](../comparison.md). Some entries compare against other FP libraries (lo, samber), most against plain Go. In hot loops a 4–6 line `for` is often the right answer — fluentfp optimizes for clarity, and method chains may allocate intermediate slices.
 
@@ -11,6 +26,8 @@ Most production Go code spends more lines on `for`/`range`/`append`, comma-ok un
 ---
 
 ## Slice Operations
+
+Six ways production code shapes slice work — sorted, merged, mapped, piped, set-differenced, grouped.
 
 ### Two sort.Slice closures collapse to a method-expression map — chenjiandongx/sniffer
 
@@ -329,6 +346,8 @@ The two interleaved loops become a pipeline: `GroupSame` → `Sort` → `ToStrin
 
 ## Lazy Streams
 
+Pull-based sequences for what doesn't fit in memory or doesn't exist yet — infinite generation, cursor pagination, on-demand fetches.
+
 ### Lazy evaluation without goroutines or channels — golang/go (stdlib test suite)
 
 **Source:** [test/chan/sieve1.go](https://github.com/golang/go/blob/6885bad7dd86880be6929c02085e5c7a67ff2887/test/chan/sieve1.go)
@@ -452,6 +471,8 @@ The for loop tangles *how to get pages* with *what to do with them*. `stream.Pag
 ---
 
 ## Concurrency
+
+Bounded parallelism without `sync.WaitGroup` bookkeeping, panic recovery, or per-call mutex coordination.
 
 ### Parallelism is a traversal property, not a transform property — Starship (Rust/Rayon)
 
@@ -694,6 +715,8 @@ The one line that makes this a topological sort — `sorted = append(sorted, v)`
 ---
 
 ## Function Decoration
+
+Retry, throttle, panic-recovery, and error-routing as composable wrappers — defined once at construction, applied per call site. The four entries below show the same pattern at increasing scale: a single Raft apply, a goroutine-wrapped cloud-provider call, an 80-line ceremony duplicated across 5 provider files, and a six-concern gRPC interceptor.
 
 ### Retry policy defined once at construction, used at every call site — hashicorp/consul
 
@@ -952,6 +975,8 @@ The for-loop mixes retry mechanics, error classification, and token refresh — 
 
 ## Option Chaining
 
+Cascades for absent / missing / error values, as a single expression instead of nested guards and early returns.
+
 ### Three if-blocks become `Env.OrElse.Or` — kubernetes/client-go
 
 **Source:** [client_config.go#L646-L661](https://github.com/kubernetes/client-go/blob/master/tools/clientcmd/client_config.go#L646-L661)
@@ -1098,6 +1123,8 @@ Three levels of nil/ok/err guards collapse into a two-step chain: look up the ke
 
 ## Enterprise Patterns
 
+Larger structural shapes — folds, middleware chains, sagas, validation accumulators — recognized inside production code that doesn't think of itself as functional. Naming the shape (`Fold`, `TryFold`, `FlatMap`) makes the algorithm visible and the transition function independently testable.
+
 ### A 664-line `for`-over-events is structurally a `slice.Fold` — temporalio/temporal
 
 **Source:** [mutable_state_rebuilder.go#L103-L767](https://github.com/temporalio/temporal/blob/main/service/history/workflow/mutable_state_rebuilder.go#L103-L767)
@@ -1146,7 +1173,7 @@ applyEvent := func(state WorkflowState, event *historypb.HistoryEvent) WorkflowS
 currentState := slice.Fold(history, initialState, applyEvent)
 ```
 
-Every Go event-sourcing library hides a fold inside imperative replay code — a `for` loop that mutates aggregate fields via switch. Surfacing it as `slice.Fold(events, initial, applyEvent)` exposes the mathematical structure: state is a deterministic function of an initial value and an ordered sequence of transformations. The transition function (`applyEvent`) becomes independently unit-testable — each event type tested without constructing a full event stream. The fold makes the invariant explicit: events apply left-to-right, and the accumulator type is the aggregate type.
+Every Go event-sourcing library hides a *fold* inside imperative replay code: a `for` loop that walks an input slice and accumulates a single result — here, the workflow's mutable state — via a switch statement. Surfacing it as `slice.Fold(events, initial, applyEvent)` exposes the shape directly: state is a deterministic function of an initial value and an ordered sequence of transformations. The transition function (`applyEvent`) becomes independently unit-testable — each event type tested without constructing a full event stream. The fold makes the invariant explicit: events apply left-to-right, and the accumulator type is the aggregate type.
 
 [hallgren/eventsourcing](https://github.com/hallgren/eventsourcing), [looplab/eventhorizon](https://github.com/looplab/eventhorizon), and [thefabric-io/eventsourcing](https://github.com/thefabric-io/eventsourcing) all implement the same for-loop-over-events-with-switch shape. The fold is the unifying abstraction.
 
