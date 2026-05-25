@@ -17,7 +17,7 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 
 The 24 examples below apply this same compression to real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others — where the mechanics aren't just `for`/`append` but `sort.Slice` closures, `sync.WaitGroup` semaphores, retry loops, middleware wrapping, channel pipelines, and option waterfalls.
 
-Across a hand-counted sample of 8 entries:
+Across a sample of 8 entries:
 
 | Proxy for maintenance burden | What it tracks | Median reduction |
 |---|---|---|
