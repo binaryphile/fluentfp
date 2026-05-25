@@ -102,7 +102,7 @@ The original is 9 lines: split on punctuation, lowercase each token via `lo.Map`
 ```go
 // splitTokens splits on punctuation and whitespace.
 splitTokens := func(s string) slice.Mapper[string] {
-    return slice.From(regexp.MustCompile("[ .()/:]+").Split(s, -1))
+    return regexp.MustCompile("[ .()/:]+").Split(s, -1)
 }
 ```
 
