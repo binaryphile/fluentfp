@@ -15,7 +15,18 @@ for _, u := range users {
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 ```
 
-The 24 examples below take this same compression and apply it to real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others — where the mechanics aren't just `for`/`append` but `sort.Slice` closures, `sync.WaitGroup` semaphores, retry loops, middleware wrapping, channel pipelines, and option waterfalls. In several cases the rewrite also removes a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
+The 24 examples below apply this same compression to real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others — where the mechanics aren't just `for`/`append` but `sort.Slice` closures, `sync.WaitGroup` semaphores, retry loops, middleware wrapping, channel pipelines, and option waterfalls.
+
+Across a hand-counted sample of 8 entries spanning every section:
+
+| Proxy for maintenance burden | What it tracks | Median reduction |
+|---|---|---|
+| Line count | Vertical space the function occupies | −85% |
+| Nesting depth | Mental stack you maintain while reading | −2 levels |
+| Mutable variables | Working-memory pressure during execution traces | −2 per function |
+| scc cyclomatic complexity | Branches and loops in control flow | −5 per function |
+
+These are **proxies for maintenance burden, not direct measures of "readability" or "conceptual congruence"** — both are inherently subjective. The four metrics correlate with the experience of tracing what a function does and holding intermediate state in your head. Counting protocol and full sample in [methodology.md](../methodology.md#f-code-metrics-tool-scc). Several entries also remove a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
 
 **Scope.** Showcase, not balanced analysis — for what fluentfp *lacks*, see [feature-gaps.md](feature-gaps.md); for the synthetic library matrix, [comparison.md](../comparison.md). Some entries compare against other FP libraries (lo, samber), most against plain Go. In hot loops a 4–6 line `for` is often the right answer — fluentfp optimizes for clarity, and method chains may allocate intermediate slices.
 
@@ -608,6 +619,7 @@ Three idioms cover the spectrum: `FanOutAll` for all-or-nothing with early cance
 
 **Source:** [dag.go#L278-L320](https://github.com/hashicorp/terraform/blob/main/internal/dag/dag.go#L278-L320)
 **Algorithm:** Stone §12 — DFS departure ordering
+**Savings:** 43 lines → 3 (once the DFS engine is defined). The reusable engine then drops connected-components, reachability, and path-finding from ~40 lines each to ~3 — line count is per-algorithm; the structural win is that all four share one traversal.
 
 Terraform builds a DAG of infrastructure resources — VPCs before subnets, subnets before EC2 instances — and topologically sorts it to determine execution order. Every `terraform apply` runs this algorithm.
 
@@ -857,6 +869,7 @@ The `RetryOnConflict` wrapper-with-callback becomes `.Retry()`; the goroutine bo
 
 **Source:** [kubernetes.go#L78-L157](https://github.com/traefik/traefik/blob/master/pkg/provider/kubernetes/crd/kubernetes.go#L78-L157)
 **Pain point:** Retry + throttle + panic recovery + error logging duplicated across 5 provider files
+**Savings:** ~80 lines × 5 files → defined once. The cross-file deduplication (~320 lines of ceremony) isn't visible from any single snippet — that's the entire point.
 
 Traefik (62k stars) implements provider loops for Kubernetes CRD, Ingress, Gateway, and others. Each provider's `Provide` method watches for events, throttles updates, retries with exponential backoff, logs errors, and recovers from panics. The same ~80 lines of ceremony repeat across 5 files — only the inner operation differs.
 
@@ -1129,6 +1142,7 @@ Larger structural shapes — folds, middleware chains, sagas, validation accumul
 
 **Source:** [mutable_state_rebuilder.go#L103-L767](https://github.com/temporalio/temporal/blob/main/service/history/workflow/mutable_state_rebuilder.go#L103-L767)
 **Pain point:** 664-line function that is structurally a left-fold, but the fold is invisible
+**Savings:** 664 lines → ~50 (one transition function + one `slice.Fold` call). Cyclomatic complexity is roughly preserved — the 40+ switch cases stay — but the cases relocate from inside iteration mechanics into a pure transition function that's independently unit-testable per event type.
 
 Temporal (12k stars) rebuilds workflow state by replaying history events. `applyEvents` iterates over `[]*HistoryEvent`, applying each event to a mutable state aggregate via a switch with 40+ cases. The function is 664 lines because iteration mechanics interleave with event application.
 
@@ -1181,6 +1195,7 @@ Every Go event-sourcing library hides a *fold* inside imperative replay code: a 
 
 **Source:** [config.go#L1036-L1130](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apiserver/pkg/server/config.go#L1036-L1130)
 **Pain point:** 90-line function of repeated `handler = wrapper(handler)` assignments
+**Savings:** 90 lines → ~20 (middleware list + `slice.Fold` call). Cyclomatic complexity barely moves — the original is sequential assignments, not branchy — but the middleware stack becomes inspectable data instead of an editable function body. Tests can filter it (skip CORS), reorder it, or log it without touching `DefaultBuildHandlerChain`.
 
 Kubernetes' API server (121k stars) builds its HTTP handler chain by wrapping a base handler in 15+ middleware layers — authentication, authorization, CORS, audit, panic recovery, etc. Each line is `handler = wrapper(handler, config...)`.
 
