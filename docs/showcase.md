@@ -17,7 +17,7 @@ names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 
 The 24 examples below apply this same compression to real functions from Kubernetes, Consul, Temporal, Docker, Terraform, etcd, and others — where the mechanics aren't just `for`/`append` but `sort.Slice` closures, `sync.WaitGroup` semaphores, retry loops, middleware wrapping, channel pipelines, and option waterfalls.
 
-Across a hand-counted sample of 8 entries spanning every section:
+Across a hand-counted sample of 8 entries (sniffer, consul ingress, docker/compose GroupSame, terraform topological sort, kubernetes apiserver middleware, temporalio mutable_state_rebuilder, ExAws S3 FanOut, consul session_ttl retry):
 
 | Proxy for maintenance burden | What it tracks | Median reduction |
 |---|---|---|
@@ -26,7 +26,9 @@ Across a hand-counted sample of 8 entries spanning every section:
 | Mutable variables | Working-memory pressure during execution traces | −2 per function |
 | scc cyclomatic complexity | Branches and loops in control flow | −5 per function |
 
-These are **proxies for maintenance burden, not direct measures of "readability" or "conceptual congruence"** — both are inherently subjective. The four metrics correlate with the experience of tracing what a function does and holding intermediate state in your head. Counting protocol and full sample in [methodology.md](../methodology.md#f-code-metrics-tool-scc). Several entries also remove a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
+Numbers are absolute per-function deltas, not normalized for function size — larger originals naturally contribute larger absolute reductions, so the medians describe typical-case improvement at production scale rather than scale-normalized averages.
+
+These are **proxies for maintenance burden, not direct measures of "readability" or "conceptual congruence"** — both are subjective. The four metrics correlate with the experience of tracing what a function does and holding intermediate state in your head. Counting protocol in [methodology.md](../methodology.md#f-code-metrics-tool-scc). Several entries also remove a class of bug that index-driven code keeps inviting (see [Error Prevention](../analysis.md#error-prevention)).
 
 **Scope.** Showcase, not balanced analysis — for what fluentfp *lacks*, see [feature-gaps.md](feature-gaps.md); for the synthetic library matrix, [comparison.md](../comparison.md). Some entries compare against other FP libraries (lo, samber), most against plain Go. In hot loops a 4–6 line `for` is often the right answer — fluentfp optimizes for clarity, and method chains may allocate intermediate slices.
 
@@ -619,7 +621,7 @@ Three idioms cover the spectrum: `FanOutAll` for all-or-nothing with early cance
 
 **Source:** [dag.go#L278-L320](https://github.com/hashicorp/terraform/blob/main/internal/dag/dag.go#L278-L320)
 **Algorithm:** Stone §12 — DFS departure ordering
-**Savings:** 43 lines → 3 (once the DFS engine is defined). The reusable engine then drops connected-components, reachability, and path-finding from ~40 lines each to ~3 — line count is per-algorithm; the structural win is that all four share one traversal.
+**Savings:** 43 lines → 3 once the DFS engine is defined; the engine then drops connected-components, reachability, and path-finding from ~40 lines each to ~3 without re-implementing traversal.
 
 Terraform builds a DAG of infrastructure resources — VPCs before subnets, subnets before EC2 instances — and topologically sorts it to determine execution order. Every `terraform apply` runs this algorithm.
 
@@ -869,7 +871,7 @@ The `RetryOnConflict` wrapper-with-callback becomes `.Retry()`; the goroutine bo
 
 **Source:** [kubernetes.go#L78-L157](https://github.com/traefik/traefik/blob/master/pkg/provider/kubernetes/crd/kubernetes.go#L78-L157)
 **Pain point:** Retry + throttle + panic recovery + error logging duplicated across 5 provider files
-**Savings:** ~80 lines × 5 files → defined once. The cross-file deduplication (~320 lines of ceremony) isn't visible from any single snippet — that's the entire point.
+**Savings:** ~80 lines × 5 files → defined once. The cross-file deduplication (~320 lines of ceremony) isn't visible from any single snippet.
 
 Traefik (62k stars) implements provider loops for Kubernetes CRD, Ingress, Gateway, and others. Each provider's `Provide` method watches for events, throttles updates, retries with exponential backoff, logs errors, and recovers from panics. The same ~80 lines of ceremony repeat across 5 files — only the inner operation differs.
 
@@ -1195,7 +1197,7 @@ Every Go event-sourcing library hides a *fold* inside imperative replay code: a 
 
 **Source:** [config.go#L1036-L1130](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apiserver/pkg/server/config.go#L1036-L1130)
 **Pain point:** 90-line function of repeated `handler = wrapper(handler)` assignments
-**Savings:** 90 lines → ~20 (middleware list + `slice.Fold` call). Cyclomatic complexity barely moves — the original is sequential assignments, not branchy — but the middleware stack becomes inspectable data instead of an editable function body. Tests can filter it (skip CORS), reorder it, or log it without touching `DefaultBuildHandlerChain`.
+**Savings:** 90 lines → ~20, but cyclomatic complexity stays near-zero in both. The metric understates the win: the middleware stack becomes a slice value instead of a function body, which is what the entry's body explains.
 
 Kubernetes' API server (121k stars) builds its HTTP handler chain by wrapping a base handler in 15+ middleware layers — authentication, authorization, CORS, audit, panic recovery, etc. Each line is `handler = wrapper(handler, config...)`.
 
