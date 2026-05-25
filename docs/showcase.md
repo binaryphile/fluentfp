@@ -232,7 +232,7 @@ func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
 }
 ```
 
-*We presume an imaginary `Services` method on `IngressListener` returning `[]IngressService` — a trivial accessor instead of a `Services` field.*
+*We presume an imaginary `Services` method on `IngressListener` returning `[]IngressService` — a one-line accessor instead of a public field.*
 
 The nested `for listener / for service` becomes `FlatMap(... Services)`; `if wildcard { continue }` becomes `.KeepIf(isExplicit)`; map-based dedup-plus-collect merges into `UniqueBy`; the `sort.Slice` index comparator becomes `.Sort(byEnterpriseThenID)`. Each line does one thing, and the data flows left to right. What's gone is the two-loop pattern that map-based dedup forces — an idiom so common in Go it's invisible, even though it splits logically atomic work across two blocks separated by an emptiness check.
 
@@ -353,7 +353,7 @@ statusGroups := slice.GroupSame(statuses).Sort(byKey)
 combined := statusGroups.ToString(countByStatus).Join(", ")
 ```
 
-The two interleaved loops become a pipeline: `GroupSame` → `Sort` → `ToString` → `Join`. Each stage has one responsibility. `GroupSame` names the operation directly ("group occurrences of each distinct value") rather than requiring the reader to recognize `GroupBy` with an identity function. The original's "have I seen this before?" map lookup and "what order did it first appear?" conditional append are two concerns that had to be read together to understand either one; the pipeline separates them.
+The two interleaved loops become a pipeline: `GroupSame` → `Sort` → `ToString` → `Join`. Each stage has one responsibility. `GroupSame` names the operation directly ("group occurrences of each distinct value"); the alternative — `GroupBy` with an identity function — does the same thing under a less obvious name. The original's "have I seen this before?" map lookup and "what order did it first appear?" conditional append are two concerns that had to be read together to understand either one; the pipeline separates them.
 
 ---
 
@@ -799,7 +799,7 @@ func (s *Server) invalidateSession(ctx context.Context, id string, entMeta *acl.
 }
 ```
 
-*We presume `leaderRaftApply` has the signature `func(context.Context, T) (R, error)` — the original wraps a Raft apply call that could naturally take this shape.*
+*We presume `leaderRaftApply` has the signature `func(context.Context, T) (R, error)` — the original wraps a Raft apply call that could take this shape.*
 
 The 7-line retry loop collapses to a decorated `s.resilientRaftApply` defined once. The function body becomes setup + one call + result check, and the backoff strategy is reusable across every Raft operation that needs resilience. One concession: the original's per-attempt `s.logger.Error("Invalidation failed")` is dropped — `.Retry()` has no per-attempt hook by itself. For per-attempt logging, chain `.OnError(handler).Retry(...)` so the handler sees each attempt's error before the next backoff.
 
