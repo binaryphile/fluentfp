@@ -226,8 +226,8 @@ byEnterpriseThenID := func(a, b ServiceID) bool {
 }
 
 func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
-    services := slice.FlatMap(e.Listeners, IngressListener.Services).KeepIf(isExplicit)
-    serviceIDs := slice.Map(services, toServiceID)
+    var services slice.Mapper[IngressService] = slice.FlatMap(e.Listeners, IngressListener.Services).KeepIf(isExplicit)
+    var serviceIDs slice.Mapper[ServiceID] = slice.Map(services, toServiceID)
     return slice.UniqueBy(serviceIDs, ServiceID.Key).Sort(byEnterpriseThenID)
 }
 ```
@@ -467,7 +467,7 @@ pageStep := func(token string) (ObjectPage, option.String) {
     return page, page.NextTokenOption
 }
 
-pages := stream.Paginate("", pageStep)
+var pages stream.Stream[ObjectPage] = stream.Paginate("", pageStep)
 ```
 
 `Paginate` calls `pageStep` with the seed (`""`), emits the page, then lazily calls again with the next token. When `NextToken` is not-ok, it emits the last page and stops.
@@ -1328,7 +1328,7 @@ func (r *Replica) lockLearnerSnapshot(
         return cleanup
     }
 
-    cleanups := slice.Map(additions, acquireLock)
+    var cleanups slice.Mapper[func()] = slice.Map(additions, acquireLock)
     return func() { cleanups.Each(call) }
 }
 ```
