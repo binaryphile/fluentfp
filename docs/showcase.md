@@ -6,9 +6,11 @@ Most production Go code spends more lines on `for`/`range`/`append`, comma-ok un
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. The fluentfp rewrites are composed against current APIs but not extracted to a runnable test suite — they're design-level demonstrations of the shape, not compiled artifacts. Verify against the package docs before adopting.
+
 ---
 
-## Slice Transforms
+## Slice Operations
 
 ### Two sort.Slice closures collapse to a method-expression map — chenjiandongx/sniffer
 
@@ -125,7 +127,7 @@ tokens := splitTokens(s).Transform(strings.ToLower).KeepIf(lof.IsNonBlank)
 
 `strings.ToLower` and `lof.IsNonBlank` plug in directly. lo's `func(T, int)` callbacks pay off when the index matters, but turn every stdlib function into a wrapper when it doesn't — `toLower` and `isNonBlank` exist only to swallow `_ int`. With no wrappers to write, the fluentfp version is compact enough to inline at the call site without a `tokenize` function at all. This isn't a bug risk, just steady friction across a codebase.
 
-*`splitTokens` returns `slice.Mapper[string]`, which is assignable to `[]string` without conversion — lo accepts it directly, no cast on either side.*
+*`splitTokens` returns `slice.Mapper[string]`; Go's assignability rules make it interchangeable with `[]string` in either direction — lo accepts it without a conversion, and `regexp.Split`'s `[]string` flows into the `Mapper[string]` return without one either.*
 
 **Design note: standalone vs method form.** For a single cross-type map, fluentfp's standalone `slice.Map` infers both types — same inference as lo, without the `_ int` wrapper:
 ```go
@@ -206,8 +208,6 @@ The nested `for listener / for service` becomes `FlatMap(... Services)`; `if wil
 
 ---
 
-## Set Operations
-
 ### Three loops become one `slice.Difference` — hashicorp/go-secure-stdlib
 
 **Source:** [strutil.go#L354-L384](https://github.com/hashicorp/go-secure-stdlib/blob/main/strutil/strutil.go#L354-L384)
@@ -275,8 +275,6 @@ Three manual loops — build the map, delete matches, collect survivors — coll
 
 ---
 
-## Tally
-
 ### Frequency map + first-seen-order bookkeeping become `GroupSame` — docker/compose
 
 **Source:** [ls.go#L95-L116](https://github.com/docker/compose/blob/bfb5511d0d6f8250b088d0251bc21c041516ddb8/pkg/compose/ls.go#L95-L116)
@@ -329,9 +327,61 @@ The two interleaved loops become a pipeline: `GroupSame` → `Sort` → `ToStrin
 
 ---
 
+### Nested loops with skip-same become `CartesianProduct.KeepIf` — trufflesecurity/trufflehog
+
+**Source:** [pkg/detectors/easyinsight/easyinsight.go](https://github.com/trufflesecurity/trufflehog/blob/main/pkg/detectors/easyinsight/easyinsight.go)
+**Pain point:** Nested loops for key×id cross-join, manual same-pair skip, append boilerplate
+
+TruffleHog (25k stars) scans repositories for leaked credentials. Each detector extracts API keys and account IDs via regex, deduplicates them, then tests every key–id combination. Hundreds of detectors repeat the nested-loop pattern.
+
+**Original** (verification omitted for clarity):
+```go
+for keyMatch := range keyMatches {
+    for idMatch := range idMatches {
+        if keyMatch == idMatch {
+            continue
+        }
+
+        s1 := detectors.Result{
+            DetectorType: detectorspb.DetectorType_EasyInsight,
+            Raw:          []byte(keyMatch),
+            RawV2:        []byte(keyMatch + idMatch),
+        }
+
+        results = append(results, s1)
+    }
+}
+```
+
+**fluentfp:**
+```go
+// isDifferentPair returns true if the key and id are different strings.
+isDifferentPair := func(p pair.Pair[string, string]) bool {
+    return p.First != p.Second
+}
+
+// toCandidate builds a detector result from a key-id pair.
+toCandidate := func(p pair.Pair[string, string]) detectors.Result {
+    return detectors.Result{
+        DetectorType: detectorspb.DetectorType_EasyInsight,
+        Raw:          []byte(p.First),
+        RawV2:        []byte(p.First + p.Second),
+    }
+}
+
+keys := kv.Keys(keyMatches)
+ids := kv.Keys(idMatches)
+candidates := combo.CartesianProduct(keys, ids).KeepIf(isDifferentPair)
+results := slice.Map(candidates, toCandidate)
+```
+
+`kv.Keys` extracts map keys; `combo.CartesianProduct` replaces the nested loop and returns `slice.Mapper` for direct chaining through `.KeepIf` → `slice.Map`. Each stage expresses one concern; the original interleaves iteration, filtering, construction, and accumulation in one nested block.
+
+---
+
 ## Lazy Streams
 
-### 27 leaked goroutines vanish from a lazy prime sieve — golang/go (stdlib test suite)
+### Lazy evaluation without goroutines or channels — golang/go (stdlib test suite)
 
 **Source:** [test/chan/sieve1.go](https://github.com/golang/go/blob/6885bad7dd86880be6929c02085e5c7a67ff2887/test/chan/sieve1.go)
 **Pain point:** Channels and goroutines used as a lazy evaluation mechanism for pure computation — each discovered prime spawns a permanent goroutine that never cleans up
@@ -585,7 +635,7 @@ Three idioms cover the spectrum: `FanOutAll` for all-or-nothing with early cance
 
 ## Algorithm
 
-### Topological order *is* DFS departure order — make the algorithm visible — hashicorp/terraform
+### Make the algorithm visible: topological order *is* DFS departure order — hashicorp/terraform
 
 **Source:** [dag.go#L278-L320](https://github.com/hashicorp/terraform/blob/main/internal/dag/dag.go#L278-L320)
 **Algorithm:** Stone §12 — DFS departure ordering
@@ -692,60 +742,6 @@ reachable := reachFrom([]Vertex{source})
 ```
 
 The one line that makes this a topological sort — `sorted = append(sorted, v)` — is surrounded by 42 lines of DFS mechanics. The functional decomposition makes the insight visible: topological order *is* DFS departure order; everything else is engine. Stone further separates cycle detection into a standalone `acyclic?` predicate — a precondition, not part of the sort.
-
----
-
-## CartesianProduct
-
-### Nested loops with skip-same become `CartesianProduct.KeepIf` — trufflesecurity/trufflehog
-
-**Source:** [pkg/detectors/easyinsight/easyinsight.go](https://github.com/trufflesecurity/trufflehog/blob/main/pkg/detectors/easyinsight/easyinsight.go)
-**Pain point:** Nested loops for key×id cross-join, manual same-pair skip, append boilerplate
-
-TruffleHog (25k stars) scans repositories for leaked credentials. Each detector extracts API keys and account IDs via regex, deduplicates them, then tests every key–id combination. Hundreds of detectors repeat the nested-loop pattern.
-
-**Original** (verification omitted for clarity):
-```go
-for keyMatch := range keyMatches {
-    for idMatch := range idMatches {
-        if keyMatch == idMatch {
-            continue
-        }
-
-        s1 := detectors.Result{
-            DetectorType: detectorspb.DetectorType_EasyInsight,
-            Raw:          []byte(keyMatch),
-            RawV2:        []byte(keyMatch + idMatch),
-        }
-
-        results = append(results, s1)
-    }
-}
-```
-
-**fluentfp:**
-```go
-// isDifferentPair returns true if the key and id are different strings.
-isDifferentPair := func(p pair.Pair[string, string]) bool {
-    return p.First != p.Second
-}
-
-// toCandidate builds a detector result from a key-id pair.
-toCandidate := func(p pair.Pair[string, string]) detectors.Result {
-    return detectors.Result{
-        DetectorType: detectorspb.DetectorType_EasyInsight,
-        Raw:          []byte(p.First),
-        RawV2:        []byte(p.First + p.Second),
-    }
-}
-
-keys := kv.Keys(keyMatches)
-ids := kv.Keys(idMatches)
-candidates := combo.CartesianProduct(keys, ids).KeepIf(isDifferentPair)
-results := slice.Map(candidates, toCandidate)
-```
-
-`kv.Keys` extracts map keys; `combo.CartesianProduct` replaces the nested loop and returns `slice.Mapper` for direct chaining through `.KeepIf` → `slice.Map`. Each stage expresses one concern; the original interleaves iteration, filtering, construction, and accumulation in one nested block.
 
 ---
 
@@ -1251,7 +1247,7 @@ Every Go event-sourcing library hides a fold inside imperative replay code — a
 
 [hallgren/eventsourcing](https://github.com/hallgren/eventsourcing), [looplab/eventhorizon](https://github.com/looplab/eventhorizon), and [thefabric-io/eventsourcing](https://github.com/thefabric-io/eventsourcing) all implement the same for-loop-over-events-with-switch shape. The fold is the unifying abstraction.
 
-### Middleware chain becomes inspectable data, not 90 lines of `handler = mw(handler)` — kubernetes/apiserver
+### Middleware stack as data, not 90 wrap-and-assign lines — kubernetes/apiserver
 
 **Source:** [config.go#L1036-L1130](https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/apiserver/pkg/server/config.go#L1036-L1130)
 **Pain point:** 90-line function of repeated `handler = wrapper(handler)` assignments
@@ -1339,7 +1335,7 @@ func (e *Engine) applyEvents(events []Event) (Engine, error) {
 
 The for/if-err/return shape is a fold with short-circuit error propagation. `TryFold` names it — iteration, accumulation, and early exit are all handled. `Engine.apply` (a method expression) reads as "apply each event to the engine"; no wrapper closure needed. Any event-sourced system, state machine, migration runner, or sequential validation pipeline has this shape. Temporal's 664-line `mutable_state_rebuilder` (above) is the same fold with error handling — it would use `TryFold`.
 
-### Acquire-then-release as `Map` + `Each` (`Reverse.Each` for true sagas) — cockroachdb/cockroach
+### Acquire-then-release as `Map` + `Each` — cockroachdb/cockroach
 
 **Source:** [replica_command.go#L3280](https://github.com/cockroachdb/cockroach/blob/master/pkg/kv/kvserver/replica_command.go#L3280)
 **Pain point:** Resource acquisition loop paired with a reverse-order cleanup closure
@@ -1485,7 +1481,7 @@ func init() {
 }
 ```
 
-The `var err` declaration, the `if err != nil` check, and the `panic(err)` call — 4 lines of boilerplate for "this can't fail at runtime; if it does, it's a programmer bug." The stdlib has Must wrappers for `regexp` and `template`; `must.Get` is the generic version for every other `(T, error)` call at init time.
+The `var err` declaration, the `if err != nil` check, and the `panic(err)` call — 4 lines of boilerplate for "this can't fail at runtime; if it does, it's a programmer bug." The stdlib has Must wrappers for `regexp` and `template` where a parse error against a literal pattern means programmer bug; `must.Get` generalizes that contract — use it when the error genuinely cannot fire at runtime, not as a blanket panic adapter.
 
 ---
 
