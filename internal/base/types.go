@@ -151,11 +151,13 @@ func (ss String) Matches(filter []string) bool {
 	return ss.ContainsAny(filter)
 }
 
-// Each calls fn for every element.
-func (ss String) Each(fn func(string)) {
+// Each calls fn for every element and returns ss for chaining.
+// Caller may discard the return for terminal use.
+func (ss String) Each(fn func(string)) String {
 	for _, s := range ss {
 		fn(s)
 	}
+	return ss
 }
 
 // Len returns the length of the slice.

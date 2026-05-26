@@ -2,10 +2,11 @@
 
 ## v0.60.0
 
-- **slice/internal/base**: `Mapper[T].Each` and `Mapper[T].EachIndexed` now return `Mapper[T]` for chaining. Source-compatible — callers discarding the return value (the universal pre-change usage) keep working. Lazy types (`Stream[T]`, `Seq[T]`) keep `Each` as terminal because returning a consumed lazy iterator would mislead about the stream state.
-  - Was: `Each(fn func(T))` / `EachIndexed(fn func(int, T))`
-  - Now: `Each(fn func(T)) Mapper[T]` / `EachIndexed(fn func(int, T)) Mapper[T]`
+- **slice/internal/base**: `Mapper[T].Each`, `Mapper[T].EachIndexed`, and `String.Each` now return their receiver type for chaining. Source-compatible — callers discarding the return value (the universal pre-change usage) keep working. Lazy types (`Stream[T]`, `Seq[T]`) keep `Each` as terminal because returning a consumed lazy iterator would mislead about the stream state.
+  - Was: `Each(fn func(T))` / `EachIndexed(fn func(int, T))` / `(String).Each(fn func(string))`
+  - Now: `Each(fn func(T)) Mapper[T]` / `EachIndexed(fn func(int, T)) Mapper[T]` / `(String).Each(fn func(string)) String`
   - Enables mid-pipeline side effects: `m.Each(audit).KeepIf(active).Each(persist)`
+  - Maintains consistency: `Mapper[T]` and its specialized variant `String` both behave the same way under `.Each`.
 
 ## v0.59.0
 
