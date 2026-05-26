@@ -20,7 +20,7 @@ Compare fluentfp to popular Go FP libraries. Task: filter active users, extract 
 
 **Method Expressions:** Can pass `User.IsActive` directly without wrapper.
 
-**Fluent:** Supports method chaining: `slice.KeepIf(...).ToString(...)`
+**Fluent:** Supports method chaining: `slice.From(xs).KeepIf(...).ToString(...)`
 
 ## Code Comparison
 
@@ -220,4 +220,4 @@ Use fluentfp when you need all four criteria. Use lo if you need the most popula
 
 See [examples/comparison/main.go](examples/comparison/main.go) for full executable comparison with additional libraries. See [docs/showcase.md](docs/showcase.md) for before/after rewrites of real-world code from GitHub projects.
 
-*Star counts approximate as of 2025.*
+*Star counts approximate as of 2026.*
