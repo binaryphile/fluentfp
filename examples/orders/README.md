@@ -59,25 +59,26 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: five of
 
 **With fluentfp:**
 
+The chain builds a value of type `rslt.Result[Order]` — either `Ok(order)` or `Err(error)`. Each step receives the `Ok` value if present, or short-circuits past if the prior step produced an `Err`. The comments below say what each method does to the Result (the business purpose is in the method names themselves).
+
 ```go
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
-    reqID := ctxval.Lookup[RequestID](req.Context()).Or("unknown")
+    reqID := ctxval.Lookup[RequestID](req.Context()).Or("unknown")   // Lookup → Option; .Or unwraps with fallback
 
-    lookupPrices := func(o Order) rslt.Result[Order] {               // bind ctx to pricing call
-        return rslt.Of(priceFn(req.Context(), o))                    // priceFn closes over catalog (see main.go)
+    lookupPrices := func(o Order) rslt.Result[Order] {               // bind ctx to the pricing call
+        return rslt.Of(priceFn(req.Context(), o))                    // rslt.Of: wrap (T, error) → Result[T]
     }
     logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
     storeAndNotify := func(o Order) { s.put(o) }
 
-    // Pipeline: each step operates on the Result. Errors skip the rest.
-    order, err := web.DecodeJSON[Order](req)
-    storedResult := rslt.Of(order, err).
-        FlatMap(validateOrder).            // validate (-> 400)
-        Transform(withNewID).              // assign ID + status
-        FlatMap(lookupPrices).             // call pricing service
-        TapErr(logFailure).                // on error: log it
-        Tap(storeAndNotify)                // on success: persist + notify
-    return rslt.Map(storedResult, web.Created[Order])
+    order, err := web.DecodeJSON[Order](req)                         // returns (Order, error)
+    storedResult := rslt.Of(order, err).                             // wrap → Result[Order]; Err short-circuits the rest
+        FlatMap(validateOrder).                                      // FlatMap: chain a step that can fail (returns Result)
+        Transform(withNewID).                                        // Transform: chain a step that can't fail (returns T)
+        FlatMap(lookupPrices).                                       // chain another fallible step (network, etc.)
+        TapErr(logFailure).                                          // TapErr: side effect on Err only; passes through
+        Tap(storeAndNotify)                                          // Tap: side effect on Ok only; passes through
+    return rslt.Map(storedResult, web.Created[Order])                // rslt.Map: change Result's value type; standalone because Go methods can't introduce new type params
 }
 ```
 
