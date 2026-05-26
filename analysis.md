@@ -44,7 +44,7 @@ Fewer execution paths means:
 - Fewer states to test
 - Fewer opportunities for error
 
-This isn't metaphor. The correlation table in [Measuring the Correlation](#measuring-the-correlation) shows indent reduction tracking cyclomatic complexity reduction almost perfectly: 27%/26% in the mixed case, 80%/95% in the pure pipeline case.
+This isn't metaphor. The correlation table in [Measuring the Correlation](#measuring-the-correlation) shows indent reduction tracking cyclomatic complexity reduction almost perfectly: 26%/26% in the mixed case, 80%/95% in the pure pipeline case.
 
 **Practical rule of thumb:** You can estimate complexity at a glance by counting indentation levels—no need to run a tool. More indentation means more control structures means higher complexity.
 
@@ -101,7 +101,7 @@ We measured total indentation (sum of leading tabs) against complexity (scc's br
 | Version | Total Indent | Complexity | Indent Change | Complexity Change |
 |---------|--------------|------------|----------|--------------|
 | Conventional | 97 | 23 | — | — |
-| fluentfp | 71 | 17 | −27% | −26% |
+| fluentfp | 72 | 17 | −26% | −26% |
 | Best-case Conv. | 306 | 57 | — | — |
 | Best-case FP | 60 | 3 | −80% | −95% |
 
