@@ -443,7 +443,7 @@ A named function like `completedAfterCutoff` lets you skip the first two and rea
 **Bounded API surface.** Each package solves specific patterns cleanly:
 - `slice`: `KeepIf`, `RemoveIf`, `Transform`, `ToX` (`ToString`/`ToInt`/...), `Each`, `Fold`, `FlatMap` — slice operations
 - `kv`: `Map`, `Keys`, `Values`, `Merge` — map operations that chain via `Entries[K, V]`
-- `option`: `Of`, `Get`, `Or`, `OrElse`, `When` — absence handling; `FlatMap` chains fallible lookups
+- `option`: `Of`, `Get`, `Or`, `OrElse`, `When` — absence handling; `FlatMap` composes fallible lookups without nested conditionals
 - `must`: `Get`, `BeNil`, `From` — panic-on-violation for invariants that can't fail at runtime
 - `either`: `Left`, `Right`, `Fold` — exhaustive two-branch dispatch the compiler enforces
 
