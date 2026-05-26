@@ -221,8 +221,15 @@ toServiceID := func(s IngressService) ServiceID {
 }
 
 // byEnterpriseThenID sorts by enterprise metadata, then by ID.
-byEnterpriseThenID := func(a, b ServiceID) bool {
-    return a.LessThan(&b.EnterpriseMeta) || a.ID < b.ID
+byEnterpriseThenID := func(a, b ServiceID) int {
+    switch {
+    case a.LessThan(&b.EnterpriseMeta):
+        return -1
+    case b.LessThan(&a.EnterpriseMeta):
+        return 1
+    default:
+        return cmp.Compare(a.ID, b.ID)
+    }
 }
 
 func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
@@ -1381,8 +1388,10 @@ func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagno
 **fluentfp (structural pattern):**
 ```go
 // validateTriggerExpr validates a single replace_triggered_by expression
-// and returns all diagnostics found.
-validateTriggerExpr := func(expr hcl.Expression) hcl.Diagnostics {
+// and returns all diagnostics found. Returns []*hcl.Diagnostic (not the
+// hcl.Diagnostics defined type) so slice.FlatMap's generic inference
+// resolves R = *hcl.Diagnostic.
+validateTriggerExpr := func(expr hcl.Expression) []*hcl.Diagnostic {
     expr, jsDiags := unwrapJSONRefExpr(expr)
     refs, refDiags := langrefs.ReferencesInExpr(addrs.ParseRef, expr)
     // ... classify refs, build diagnostics ...
