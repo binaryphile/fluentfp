@@ -1,10 +1,12 @@
 # Order Processing Service
 
+A curl-testable HTTP service showing how six fluentfp packages (`web`, `rslt`, `option`, `ctxval`, `slice`, `kv`) compose in one place. Read the handler comparison below, run the service, hit it with `curl` — or read [main.go](main.go) end-to-end.
+
 ```
 go run ./examples/orders/
 ```
 
-## Start Here: One Handler, Before and After
+## One Handler, Before and After
 
 Every Go developer has written this handler. Decode JSON, validate, call a service, write the response. Here's what that looks like for creating an order:
 
@@ -62,7 +64,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     reqID := ctxval.Lookup[RequestID](req.Context()).Or("unknown")
 
     lookupPrices := func(o Order) rslt.Result[Order] {               // bind ctx to pricing call
-        return rslt.Of(priceOrder(req.Context(), o))
+        return rslt.Of(priceFn(req.Context(), o))                    // priceFn closes over catalog (see main.go)
     }
     logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
     storeAndNotify := func(o Order) { s.put(o) }
