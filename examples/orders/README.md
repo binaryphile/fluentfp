@@ -69,6 +69,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
         return rslt.Of(priceFn(req.Context(), o))                    // rslt.Of: wrap (T, error) → Result[T]
     }
     logFailure := func(err error) { log.Printf("[%s] failed: %v", reqID, err) }
+    saveOrder := s.put                                               // method value rebound for clarity (s is the *store from main.go)
 
     order, err := web.DecodeJSON[Order](req)                         // returns (Order, error)
     storedResult := rslt.Of(order, err).                             // wrap → Result[Order]; Err short-circuits the rest
@@ -76,7 +77,7 @@ handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
         Transform(withNewID).                                        // Transform: chain a step that can't fail (returns T)
         FlatMap(lookupPrices).                                       // chain another fallible step (network, etc.)
         TapErr(logFailure).                                          // TapErr: side effect on Err only; passes through
-        Tap(s.put)                                                   // Tap: side effect on Ok only; s.put is the method value
+        Tap(saveOrder)                                               // Tap: side effect on Ok only; passes through
     return rslt.Map(storedResult, web.Created[Order])                // rslt.Map: change Result's value type; standalone because Go methods can't introduce new type params
 }
 ```
