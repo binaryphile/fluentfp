@@ -20,6 +20,7 @@ Usage:
     build         -- build examples/orders to bin/
     test          -- run all tests
     clean         -- remove binaries
+    docs-check    -- verify showcase/README count and anchor consistency
 
   Options:
 
@@ -45,6 +46,10 @@ cmd.clean() {
   rm -f "$BinDir/orders"
   rmdir "$BinDir" 2>/dev/null || true
   echo "cleaned"
+}
+
+cmd.docs-check() {
+  mk.Cue python3 scripts/check-docs.py
 }
 
 ## boilerplate

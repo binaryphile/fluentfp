@@ -1,0 +1,20 @@
+name: docs-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'docs/showcase.md'
+      - 'methodology.md'
+      - 'analysis.md'
+      - 'scripts/check-docs.py'
+      - '.github/workflows/docs-check.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check-docs.py
