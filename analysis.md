@@ -44,7 +44,7 @@ Fewer execution paths means:
 - Fewer states to test
 - Fewer opportunities for error
 
-This isn't metaphor. The correlation table in [Measuring the Correlation](#measuring-the-correlation) shows indent reduction tracking cyclometric complexity metric reduction almost perfectly: 27%/26% in the mixed case, 80%/95% in the pure pipeline case.
+This isn't metaphor. The correlation table in [Measuring the Correlation](#measuring-the-correlation) shows indent reduction tracking cyclomatic complexity reduction almost perfectly: 27%/26% in the mixed case, 80%/95% in the pure pipeline case.
 
 **Practical rule of thumb:** You can estimate complexity at a glance by counting indentation levels—no need to run a tool. More indentation means more control structures means higher complexity.
 
@@ -441,11 +441,11 @@ A named function like `completedAfterCutoff` lets you skip the first two and rea
 **Interoperability is frictionless.** fluentfp slices are native slices — index, `range`, `append`, `len`, pass to functions, return from functions. Use fluentfp for one transformation in an otherwise imperative function without ceremony.
 
 **Bounded API surface.** Each package solves specific patterns cleanly:
-- `slice`: KeepIf, RemoveIf, Convert, ToX, Each, Fold, FlatMap—focused on slice operations
-- `kv`: From, Map, Values—map operations that chain via `Entries[K, V]`
-- `option`: Of, Get, Or—no monadic bind chains
-- `must`: Get, BeNil, Of—three functions
-- `value`: Of, When, Or
+- `slice`: `KeepIf`, `RemoveIf`, `Transform`, `ToX` (`ToString`/`ToInt`/...), `Each`, `Fold`, `FlatMap` — slice operations
+- `kv`: `Map`, `Keys`, `Values`, `Merge` — map operations that chain via `Entries[K, V]`
+- `option`: `Of`, `Get`, `Or`, `OrElse`, `When` — absence handling; `FlatMap` chains fallible lookups
+- `must`: `Get`, `BeNil`, `From` — panic-on-violation for invariants that can't fail at runtime
+- `either`: `Left`, `Right`, `Fold` — exhaustive two-branch dispatch the compiler enforces
 
 The restraint is deliberate: solve patterns cleanly without becoming a framework.
 
