@@ -88,20 +88,25 @@ func (ts Mapper[T]) DropLastWhile(fn func(T) bool) Mapper[T] {
 	return ts[:0]
 }
 
-// Each applies fn to each member of ts in index order.
+// Each applies fn to each member of ts in index order and returns ts
+// for chaining. Caller may discard the return for terminal use.
 // fn must not be nil.
-func (ts Mapper[T]) Each(fn func(T)) {
+func (ts Mapper[T]) Each(fn func(T)) Mapper[T] {
 	for _, t := range ts {
 		fn(t)
 	}
+	return ts
 }
 
-// EachIndexed applies fn to each element's index and value in index order.
+// EachIndexed applies fn to each element's index and value in index order
+// and returns ts for chaining. Caller may discard the return for terminal
+// use.
 // fn must not be nil.
-func (ts Mapper[T]) EachIndexed(fn func(int, T)) {
+func (ts Mapper[T]) EachIndexed(fn func(int, T)) Mapper[T] {
 	for i, t := range ts {
 		fn(i, t)
 	}
+	return ts
 }
 
 // First returns the first element, or not-ok if the slice is empty.

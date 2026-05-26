@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.60.0
+
+- **slice/internal/base**: `Mapper[T].Each` and `Mapper[T].EachIndexed` now return `Mapper[T]` for chaining. Source-compatible — callers discarding the return value (the universal pre-change usage) keep working. Lazy types (`Stream[T]`, `Seq[T]`) keep `Each` as terminal because returning a consumed lazy iterator would mislead about the stream state.
+  - Was: `Each(fn func(T))` / `EachIndexed(fn func(int, T))`
+  - Now: `Each(fn func(T)) Mapper[T]` / `EachIndexed(fn func(int, T)) Mapper[T]`
+  - Enables mid-pipeline side effects: `m.Each(audit).KeepIf(active).Each(persist)`
+
 ## v0.59.0
 
 - **BREAKING**: Rename `GetOr`/`GetOrCall` to `Or`/`OrCall` on `either` and `rslt` — aligns with `option.Or()`
