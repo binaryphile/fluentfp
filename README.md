@@ -4,7 +4,7 @@
 
 Type-safe collection chains, composable resilience (retry, circuit breaker), typed HTTP handlers, and optional/result types — all on standard Go, no framework required.
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for API docs and the **[showcase](docs/showcase.md)** for 16 before/after rewrites from real GitHub projects.
+See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp) for API docs and the **[showcase](docs/showcase.md)** for 24 before/after rewrites from real GitHub projects.
 
 Zero reflection. Zero global state. Zero build tags.
 
@@ -91,7 +91,7 @@ See the [orders example](examples/orders/) for all of these composing in a singl
 
 ## What It Looks Like
 
-The **[showcase](docs/showcase.md)** has 16 more, including [Sort, Trim, and Map-to-Slice](docs/showcase.md#sort-and-trim-boilerplate--chenjiandongxsniffer).
+The **[showcase](docs/showcase.md)** has 22 more rewrites across slice operations, lazy streams, concurrency, algorithm decomposition, function decoration, option chaining, and enterprise patterns (fold, middleware-as-data, saga).
 
 ### Conditional Struct Fields
 
@@ -170,7 +170,7 @@ infos, errs := rslt.CollectOkAndErr(results)  // gather successes and failures s
 
 ## Why fluentfp
 
-**Type-safe end-to-end.** [go-linq](https://github.com/ahmetb/go-linq) gives you `[]any` back — cast it and hope you got the type right. [lo](https://github.com/samber/lo) requires `func(T, int)` callbacks, so every stdlib function needs a wrapper to discard the unused index. fluentfp uses generics throughout: `Mapper[T]` is `[]T` with methods. If it compiles, you avoid a class of cast, index, and callback-shape mistakes.
+**Type-safe end-to-end.** [go-linq](https://github.com/ahmetb/go-linq) gives you `[]any` back — type-assert it and hope you got the type right. [lo](https://github.com/samber/lo) requires `func(T, int)` callbacks, so every stdlib function needs a wrapper to discard the unused index. fluentfp uses generics throughout: `Mapper[T]` is `[]T` with methods. If it compiles, you avoid a class of type-assertion, index, and callback-shape mistakes.
 
 **Fewer places for bugs to hide.** No index means no off-by-one in a predicate. No loop variable means no shadowing. No accumulator means no forgetting to initialize one. These are the loop-scaffolding bug classes that code review catches regularly — fluentfp removes the scaffolding where they live.
 
@@ -209,7 +209,7 @@ If you're counting nanoseconds in a hot path, fuse it in a loop. Most loops aren
 | Mixed (typical) | 12%            | 26%                  |
 | Pure pipeline   | 47%            | 95%                  |
 
-*Individual loops see up to 6x line reduction. Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#code-metrics-tool-scc).*
+*Individual loops see up to 6x line reduction. Codebase-wide averages are lower because not every line is a loop. Complexity measured via `scc`. See [methodology](methodology.md#f-code-metrics-tool-scc).*
 
 ## When to Use Loops
 
