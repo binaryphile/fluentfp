@@ -20,6 +20,26 @@ Mirrors a typical production ratio: ~36% of operations are filter/map/fold-conve
 
 12% fewer lines, 26% fewer branch points — the convertible functions shed their `for`/`if`; the rest unchanged. Complexity is scc's count of branch and loop tokens; see [methodology.md § F](../../methodology.md#f-code-metrics-tool-scc).
 
+### Error surfaces reduced — and preserved (Pair 1)
+
+The first three converted functions (`getActiveUsers`, `getEmails`, `countAdmins`), and most of the fourth (`averageAge`), replace **accumulator bookkeeping**. Each conventional version declares a `result` slice or `count` int and feeds it inside a loop body. The most-quoted Go-shaped failures of that pattern:
+
+- Forgotten `result = ` on `append` — works until the backing array reallocates, then silently drops elements.
+- `count++` placed outside the `if` — counts everything instead of the predicate match.
+
+`KeepIf`, `ToString`, `Len`, and `Fold` create the accumulator internally; in these four call sites, those mistakes are no longer expressible. (`averageAge` carries the additional risks of divide-by-zero and integer overflow, which fluentfp does not address — both forms have those risks identically.)
+
+The seven functions kept as loops (5–11) retain other risk surfaces. The lines below point into `conventional.go`:
+
+| Function | Risk preserved | Why fluentfp doesn't replace it |
+|---|---|---|
+| `findByEmail` (line 64) | explicit `users[i]` indexing — index-arithmetic class | the function requires a pointer to the original element; chains return values |
+| `processWithRetry` (line 83) | nested-loop `break` — premature-exit class | multi-level imperative control flow with success-dependent early exit |
+| `validateSequentialIDs` (line 94) | `i+1` arithmetic — index-arithmetic class | possible via `seq.Enumerate` + `Every`, but reads less clearly than the loop |
+| `deactivateAll` (line 111) | input slice mutation | fluentfp deliberately returns new slices; a non-mutating equivalent would change the function's contract |
+
+The examples therefore preserve both reduced and unreduced error surfaces. See [analysis.md § Error Prevention](../../analysis.md#error-prevention) for the broader category table (index typo, defer-in-loop, error shadowing, input mutation) the kept loops illustrate.
+
 ---
 
 ## Pair 2 — Pure data pipeline (best case)
@@ -34,7 +54,7 @@ A report generator with no I/O, only data transformations. The ceiling for fluen
 | [best-case-fluentfp.go](best-case-fluentfp.go) | 148 | 3 |
 | **Reduction** | **−47%** | **−95%** |
 
-When every operation fits filter/map/fold, complexity drops from 57 to 3 — every `for` and `if` is gone; chains have no branch points to count. The remaining complexity-3 is three operators inside predicates (one `&&`, two `==`), not iteration or branching syntax.
+When every operation fits filter/map/fold, complexity drops from 57 to 3 — every `for` and `if` is gone; chains have no branch points to count. The remaining complexity-3 is three operators inside predicates (one `&&`, two `==`), not iteration or branching syntax. Because the conversion is total, Pair 2 has no preserved-risk table to enumerate — the bug-category catalog reduces to zero applicable rows.
 
 ---
 
