@@ -1,12 +1,30 @@
 # Code Shape: Conventional vs fluentfp
 
-Two pairs of files for *seeing* how fluentfp changes the shape of code. Each pair implements the same task two ways — open them side-by-side and the difference is immediate. The visualizations below render each pair at small zoom, so total bulk and indent pattern read at a glance without the syntax demanding attention.
+**Filter/map/fold rewrites drop branch-point complexity 95% and code 47% in pure data pipelines; 26% and 12% in typical Go modules where most loops aren't convertible.** Two pairs of files below show this with side-by-side visualizations, scc-measured numbers, and per-line attributions of the loop-mechanics bug classes the rewrite makes structurally absent.
 
-Code shape correlates with complexity because both come from the same source: nested control structures. Counting indent levels at a glance estimates branch points without running a tool. See [analysis.md § The Principle](../../analysis.md#the-principle) for the full argument.
+The visual shape change is dramatic when every loop converts (best case, immediately below) and subtle when only a fraction does (typical case, further down). In the typical case the value is less about visible shape and more about the bugs that become unwritable and the branch points that disappear — both technically outside *code shape* as a topic, but they travel with it.
+
+Indent levels track complexity 1:1 in the typical case and faster than 1:1 in the pure pipeline. Eyeball the shape, get the estimate. See [analysis.md § The Principle](../../analysis.md#the-principle) for the full argument.
 
 ---
 
-## Pair 1 — Mixed code (typical case)
+## Pure data pipeline (best case)
+
+A report generator with no I/O, only data transformations — the ceiling for fluentfp's impact.
+
+![Best-case code shape comparison](../../images/best-case-code-shape-comparison.png)
+
+| File | Code | Complexity |
+|---|---:|---:|
+| [best-case-conventional.go](best-case-conventional.go) | 281 | 57 |
+| [best-case-fluentfp.go](best-case-fluentfp.go) | 148 | 3 |
+| **Reduction** | **−47%** | **−95%** |
+
+When every operation fits filter/map/fold, complexity drops from 57 to 3 — every `for` and `if` is gone; chains have no branch points to count. The remaining complexity-3 is three operators inside predicates (one `&&`, two `==`), not iteration or branching syntax. Because the conversion is total, there is no preserved-risk surface to enumerate — the bug-category catalog reduces to zero applicable rows.
+
+---
+
+## Mixed code (typical case)
 
 Mirrors a typical production ratio: ~36% of operations are filter/map/fold-convertible; the rest stay as conventional loops with break/continue/error returns.
 
@@ -18,9 +36,9 @@ Mirrors a typical production ratio: ~36% of operations are filter/map/fold-conve
 | [fluentfp.go](fluentfp.go) | 80 | 17 |
 | **Reduction** | **−12%** | **−26%** |
 
-12% fewer lines, 26% fewer branch points — the convertible functions shed their `for`/`if`; the rest unchanged. Complexity is scc's count of branch and loop tokens; see [methodology.md § F](../../methodology.md#f-code-metrics-tool-scc).
+The code-shape change is modest — 12% fewer lines, four converted functions out of eleven, a small stairstep flattened where each conversion sat. The complexity reduction is sharper (26%, branch points only in the convertible code path), and the bug-class elimination sharper still (next subsection). For typical Go modules — the realistic case — the value of fluentfp lives in correctness and branch-point reduction more than in visible shape. Complexity is scc's count of branch and loop tokens; see [methodology.md § F](../../methodology.md#f-code-metrics-tool-scc).
 
-### Error surfaces reduced — and preserved (Pair 1)
+### Error surfaces reduced — and preserved
 
 The first three converted functions (`getActiveUsers`, `getEmails`, `countAdmins`), and most of the fourth (`averageAge`), replace **accumulator bookkeeping**. Each conventional version declares a `result` slice or `count` int and feeds it inside a loop body. The most-quoted Go-shaped failures of that pattern:
 
@@ -42,32 +60,16 @@ The examples therefore preserve both reduced and unreduced error surfaces. See [
 
 ---
 
-## Pair 2 — Pure data pipeline (best case)
-
-A report generator with no I/O, only data transformations. The ceiling for fluentfp's impact.
-
-![Best-case code shape comparison](../../images/best-case-code-shape-comparison.png)
-
-| File | Code | Complexity |
-|---|---:|---:|
-| [best-case-conventional.go](best-case-conventional.go) | 281 | 57 |
-| [best-case-fluentfp.go](best-case-fluentfp.go) | 148 | 3 |
-| **Reduction** | **−47%** | **−95%** |
-
-When every operation fits filter/map/fold, complexity drops from 57 to 3 — every `for` and `if` is gone; chains have no branch points to count. The remaining complexity-3 is three operators inside predicates (one `&&`, two `==`), not iteration or branching syntax. Because the conversion is total, Pair 2 has no preserved-risk table to enumerate — the bug-category catalog reduces to zero applicable rows.
-
----
-
 ## Indent tracks complexity
 
 Indentation correlates with complexity because both trace to the same source. Verified on these same files using `scc` for complexity and `awk` for tab-sum (per [analysis.md § Measuring the Correlation](../../analysis.md#measuring-the-correlation)):
 
 | Pair | Indent change | Complexity change |
 |---|---:|---:|
-| Mixed | −26% | −26% |
 | Best-case | −80% | −95% |
+| Mixed | −26% | −26% |
 
-In the mixed pair the two metrics drop identically — here, indent is an effective 1:1 estimator. In the pure-pipeline pair complexity drops *faster* than indent — a multi-line chain can have visual indentation with zero branch points. Indent is the conservative eyeball estimate.
+In the pure-pipeline pair complexity drops *faster* than indent — a multi-line chain can have visual indentation with zero branch points. In the mixed pair the two metrics drop identically — here, indent is an effective 1:1 estimator. Indent is the conservative eyeball estimate.
 
 ---
 
@@ -75,7 +77,7 @@ In the mixed pair the two metrics drop identically — here, indent is an effect
 
 **Chain vs nested block.** A filter+map+extract in `fluentfp.go` is one expression on three lines, all at the same indent. The same task in `conventional.go` is a `var` declaration and a `for` header at the function indent, then a nested `if` one level deeper, then an `append` one level deeper still — three indents in four lines. The stairstep is the shape difference the visualizations expose.
 
-**Where the loop stays.** `sendNotifications` in `fluentfp.go` keeps the imperative `for` body because it has an early return on error. fluentfp doesn't try to replace every loop, only the mechanical ones. The library is honest about its scope; see the "lower-yield code patterns" table in [analysis.md § Trade-offs](../../analysis.md#trade-offs).
+**Where the loop stays.** `sendNotifications` in `fluentfp.go` keeps the imperative `for` body because it has an early return on error. fluentfp doesn't try to replace every loop, only the mechanical ones. See the "lower-yield code patterns" table in [analysis.md § Trade-offs](../../analysis.md#trade-offs).
 
 **Method expressions.** `User.IsActive` and `User.GetEmail` plug directly into `KeepIf` and `ToString` — the receiver-as-first-arg shape matches the higher-order signature. No wrapper closures, no `func(u User) bool { return u.IsActive() }` adapters.
 
