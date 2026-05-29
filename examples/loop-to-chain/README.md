@@ -6,13 +6,15 @@ The visual shape change is dramatic when every loop converts (best case, immedia
 
 Indent levels track complexity closely: identical drop in the typical pair (−26% / −26%), close-but-not-identical in the pure pipeline (−80% indent / −95% complexity). The mismatch in the pipeline pair is because a multi-line chain can have visual indentation with zero branch points; in the typical pair, every removed indent comes with a removed branch point. Eyeball the shape, get the estimate. See [analysis.md § The Principle](../../analysis.md#the-principle) for the full argument.
 
+The two side-by-side visualizations below render each source line as a colored block: horizontal position shows nesting depth (more indent = further right), width shows code volume (non-indent characters), and color indicates indentation depth on a plasma heatmap (deep purple at the top level, violet inside function bodies, red/orange/yellow in deeply nested blocks). Function declarations and their matching close braces inherit their body's color and are width-capped to the body's median, so each function reads as a single visual block.
+
 ---
 
 ## Pure data pipeline (best case)
 
 A report generator with no I/O, only data transformations — the ceiling for fluentfp's impact.
 
-![Best-case code shape comparison](../../images/best-case-code-shape-comparison.png)
+![Code-shape heatmap comparing the conventional report generator (left) and its fluentfp chain rewrite (right). Lines render as plasma-colored blocks: width = code volume, x-offset = indent depth, color = nesting level. The right column is dramatically shorter and bluer — the chains live at indent 1 with no branch points.](../../images/best-case-code-shape-comparison.svg)
 
 | File | Code | Complexity |
 |---|---:|---:|
@@ -28,7 +30,7 @@ When every operation fits filter/map/fold, complexity drops from 57 to 3 — eve
 
 Mirrors a typical production ratio: ~36% of operations are filter/map/fold-convertible; the rest stay as conventional loops with break/continue/error returns.
 
-![Mixed code shape comparison](../../images/code-shape-comparison.png)
+![Code-shape heatmap comparing the conventional loop implementation (left) and its mixed fluentfp rewrite (right). The differential is subtle here — only four of eleven functions converted — but the orange/yellow stretches showing nested if/for/append patterns are visibly thinner on the right.](../../images/code-shape-comparison.svg)
 
 | File | Code | Complexity |
 |---|---:|---:|

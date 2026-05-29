@@ -113,7 +113,7 @@ The correlation holds across both cases. In the mixed-code example (36% converti
 
 Most modules mix FP-convertible patterns with code that should stay as loops. This example intentionally mirrors a typical production ratio—36% convertible, 64% conventional loops.
 
-![Code shape comparison](images/code-shape-comparison.png)
+![Code-shape heatmap: conventional Go on the left, fluentfp on the right. Each line is a colored block; width = code volume, x-offset = indent depth, color = nesting level (plasma palette).](images/code-shape-comparison.svg)
 
 | Version | Code | Complexity |
 |---------|------|------------|
@@ -135,7 +135,7 @@ What about modules that are *entirely* data transformations? Report generators, 
 
 > **Key result:** When code is pure filter/map/fold, complexity drops from 57 to 3—a 95% reduction in branch points.
 
-![Best-case code shape comparison](images/best-case-code-shape-comparison.png)
+![Code-shape heatmap (pure-pipeline case): the right column ends well before the left, and where the left is heavy with orange/yellow (deep nesting), the right is mostly violet (chain bodies at indent 1).](images/best-case-code-shape-comparison.svg)
 
 *Source: [examples/loop-to-chain/best-case-*](examples/loop-to-chain)*
 

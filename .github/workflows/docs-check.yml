@@ -10,6 +10,9 @@ on:
       - 'methodology.md'
       - 'analysis.md'
       - 'scripts/check-docs.py'
+      - 'scripts/render-shape-viz.py'
+      - 'examples/loop-to-chain/**'
+      - 'images/*.svg'
       - '.github/workflows/docs-check.yml'
   workflow_dispatch:
 
@@ -19,3 +22,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/check-docs.py
+      - name: Regenerate shape-viz SVGs and check for drift
+        run: |
+          python3 scripts/render-shape-viz.py
+          if ! git diff --exit-code images/; then
+            echo "::error::images/*.svg are stale; run 'python3 scripts/render-shape-viz.py' and commit the result"
+            exit 1
+          fi
