@@ -71,6 +71,56 @@ func TestAdapt(t *testing.T) {
 		}
 	})
 
+	t.Run("honors caller content type", func(t *testing.T) {
+		handler := web.Adapt(func(r *http.Request) rslt.Result[web.Response] {
+			return rslt.Ok(web.Response{
+				Status:  http.StatusOK,
+				Headers: http.Header{"Content-Type": {"application/hal+json"}},
+				Body:    map[string]string{"_self": "/orders/42"},
+			})
+		})
+
+		w := httptest.NewRecorder()
+		handler(w, httptest.NewRequest(http.MethodGet, "/", nil))
+
+		if ct := w.Header().Get("Content-Type"); ct != "application/hal+json" {
+			t.Fatalf("Content-Type = %q, want application/hal+json", ct)
+		}
+	})
+
+	t.Run("default content type when unset", func(t *testing.T) {
+		handler := web.Adapt(func(r *http.Request) rslt.Result[web.Response] {
+			return rslt.Ok(web.Response{
+				Status: http.StatusOK,
+				Body:   "ok",
+			})
+		})
+
+		w := httptest.NewRecorder()
+		handler(w, httptest.NewRequest(http.MethodGet, "/", nil))
+
+		if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+			t.Fatalf("Content-Type = %q, want application/json (default when caller did not set)", ct)
+		}
+	})
+
+	t.Run("empty content type falls back to default", func(t *testing.T) {
+		handler := web.Adapt(func(r *http.Request) rslt.Result[web.Response] {
+			return rslt.Ok(web.Response{
+				Status:  http.StatusOK,
+				Headers: http.Header{"Content-Type": {""}},
+				Body:    "ok",
+			})
+		})
+
+		w := httptest.NewRecorder()
+		handler(w, httptest.NewRequest(http.MethodGet, "/", nil))
+
+		if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+			t.Fatalf("Content-Type = %q, want application/json (empty caller value treated as unset)", ct)
+		}
+	})
+
 	t.Run("web.Error renders as ClientError", func(t *testing.T) {
 		handler := web.Adapt(func(r *http.Request) rslt.Result[web.Response] {
 			return rslt.Err[web.Response](web.NotFound("user not found"))
@@ -281,6 +331,37 @@ func TestAdaptWithErrorMapper(t *testing.T) {
 		}
 	})
 
+	t.Run("honors error content type", func(t *testing.T) {
+		// Maps the domain error to a *web.Error that carries an explicit
+		// Content-Type (e.g., application/problem+json) in Headers.
+		problemMapper := func(err error) (*web.Error, bool) {
+			if errors.Is(err, errDuplicate) {
+				return &web.Error{
+					Status:  http.StatusConflict,
+					Message: "already exists",
+					Code:    "CONFLICT",
+					Headers: http.Header{"Content-Type": {"application/problem+json"}},
+				}, true
+			}
+
+			return nil, false
+		}
+
+		handler := web.Adapt(
+			func(r *http.Request) rslt.Result[web.Response] {
+				return rslt.Err[web.Response](errDuplicate)
+			},
+			web.WithErrorMapper(problemMapper),
+		)
+
+		w := httptest.NewRecorder()
+		handler(w, httptest.NewRequest(http.MethodPost, "/", nil))
+
+		if ct := w.Header().Get("Content-Type"); ct != "application/problem+json" {
+			t.Fatalf("Content-Type = %q, want application/problem+json", ct)
+		}
+	})
+
 	t.Run("*web.Error bypasses mapper", func(t *testing.T) {
 		mapperCalled := false
 		// spyMapper tracks whether the mapper is called.
@@ -430,4 +511,3 @@ func TestAdaptPanics(t *testing.T) {
 		web.WithErrorMapper(nil)
 	})
 }
-
