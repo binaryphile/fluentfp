@@ -242,6 +242,32 @@ prints what it ran (via `mk.Cue`), so the operator sees the actual command.
 `./mk -h` shows the full usage. Coverage still goes through `go` directly:
 `go test -cover ./...`.
 
+**Nix shell required.** The `flake.nix` provides `go`, `gopls`,
+`golangci-lint`, `gh`, `nodejs`, and `sqlite`; these are NOT on the system
+PATH outside the dev shell. From a plain bash session, prefix commands with
+`nix develop -c bash -c '...'` (or use `nix develop` interactively). `./mk`
+and direct `go` calls silently fail-as-not-found in unactivated shells —
+the symptom is a "command not found" swallowed by piping or a hang waiting
+for a missing toolchain.
+
+### CI drift gates
+
+Two scripts feed the `docs-check` workflow at `.github/workflows/docs-check.yml`;
+both fail CI if regenerated output diverges from what's committed.
+
+- **`scripts/check-docs.py`** — enforces showcase anchor/count consistency
+  between `docs/showcase.md` (24 entries) and `README.md`. Run locally with
+  `python3 scripts/check-docs.py`. Edit a showcase entry → re-run → commit
+  any updated counts.
+- **`scripts/render-shape-viz.py`** — regenerates the two heatmap SVGs at
+  `images/code-shape-comparison.svg` + `images/best-case-code-shape-comparison.svg`
+  from the source files in `examples/loop-to-chain/`. Run with
+  `nix develop -c python3 scripts/render-shape-viz.py`. CI runs
+  `git diff --exit-code images/` after regeneration. If you edit any
+  `examples/loop-to-chain/*.go`, re-run the script and commit the resulting
+  SVG changes in the same commit as the source edit. The script is
+  byte-deterministic; non-zero diff means stale output.
+
 ## Documentation Updates
 
 When adding or changing packages, always update these docs as part of the same commit:
@@ -256,3 +282,29 @@ When adding or changing packages, always update these docs as part of the same c
 - **Single trunk**: `main` is the only long-lived branch
 - **Small, frequent commits**: Commit directly to main
 - **Tag releases**: Use semantic versioning (v0.6.0, etc.)
+
+### Visual assets: SVG canonical, PNG generated on demand
+
+Visual assets in `images/` are SVG. PNGs are never committed; if a PNG is
+needed (preview, external embed, chat screenshot), generate it on demand
+from the SVG via:
+
+```bash
+nix develop -c magick images/<name>.svg images/<name>.preview.png
+```
+
+The `.preview.png` filename signals it is disposable. Delete after use.
+This keeps the repo SVG-only and avoids the binary-asset failure mode
+described below.
+
+### Pre-commit hook: no binaries in commits
+
+The global `~/dotfiles/githooks/pre-commit` hook refuses any commit whose
+staged changes include binary files — and it does NOT distinguish
+additions from deletions. The SVG-canonical policy above eliminates the
+trip at the source: never commit a PNG, JPG, etc., and the hook is happy.
+
+If a one-off binary commit is genuinely intended (e.g., removing a legacy
+binary asset that's already tracked), the hook's own help text documents
+`git commit --no-verify` as the escape. Use it deliberately, and document
+the reason in the commit message so the audit trail is intact.
