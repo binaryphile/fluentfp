@@ -839,3 +839,19 @@ Where packages depend on each other, and why:
 
 **Why panic recovery by default:** An unrecovered panic in a background goroutine crashes the entire process. RunAsync's purpose is safe async execution — panic recovery is the core value, not optional.
 
+### D38: web.Adapt Content-Type precedence
+
+`writeResponse` and `writeWebError` honor a caller-supplied `Content-Type` in `Response.Headers` (respectively `*Error.Headers`); the library default `application/json` applies only when the caller has not set one. Implementation: check `headers.Get("Content-Type") != ""` before the `w.Header().Set(...)` call; skip the Set when the caller already provided a value.
+
+**Why:** Downstream consumers needing HAL+JSON (`application/hal+json`), Problem Details (`application/problem+json`), or other media types could not use `Adapt` without losing the boundary content-type contract — the prior code unconditionally clobbered any caller value. The precedence rule restores the caller's authority over the response Content-Type while preserving `application/json` as the no-config default.
+
+**Edge cases:**
+- **Multi-valued Content-Type** (caller used `Headers.Add` twice): all caller values are preserved unchanged. The library does not normalize or deduplicate — the caller owns the header.
+- **Empty-string Content-Type** (caller set `Headers["Content-Type"] = [""]`): treated as unset; `application/json` default applies. `http.Header.Get` returns `""` indistinguishably from "not set"; the conditional check cannot distinguish them, and falling back to the documented default is the principle-of-least-surprise behavior.
+- **Header-key case** (`Content-Type` vs `content-type`): canonicalized by `http.Header.Get`'s built-in MIME canonicalization. All forms are equivalent at the lookup site.
+- **nil Headers**: `http.Header(nil).Get(key)` is documented to return `""`. The conditional check is safe on nil headers without special-casing.
+
+**Backward compatibility:** Existing callers that do not set Content-Type in `Headers` continue to receive `application/json` (same as before). A theoretical behavior change exists for callers that *did* set Content-Type and *expected* it to be clobbered to `application/json` — flagged in the CHANGELOG; treated as a low-probability pattern.
+
+**Scope:** Applies to both write paths that accept caller `Headers` — `writeResponse` (success) and `writeWebError` (error rendering via `*Error.Headers`). `writeInternalError` (the fallback for marshal failures and unmapped errors) does not take caller `Headers` and is unaffected.
+
