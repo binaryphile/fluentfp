@@ -1,10 +1,10 @@
-# Code Shape: Conventional vs fluentfp
+# Conventional vs fluentfp: Code Shape, Complexity, and Bug Surface
 
-**Filter/map/fold rewrites drop branch-point complexity 95% and code 47% in pure data pipelines; 26% and 12% in typical Go modules where most loops aren't convertible.** Two pairs of files below show this with side-by-side visualizations, scc-measured numbers, and per-line attributions of the loop-mechanics bug classes the rewrite makes structurally absent.
+**Filter/map/fold rewrites drop branch-point complexity 95% and code 47% in pure data pipelines; 26% and 12% in typical Go modules where many loops aren't convertible.** Two pairs of files below show this with side-by-side visualizations, scc-measured numbers, and per-line attributions of the loop-mechanics bug classes the rewrite makes structurally absent.
 
-The visual shape change is dramatic when every loop converts (best case, immediately below) and subtle when only a fraction does (typical case, further down). In the typical case the value is less about visible shape and more about the bugs that become unwritable and the branch points that disappear — both technically outside *code shape* as a topic, but they travel with it.
+The visual shape change is dramatic when every loop converts (best case, immediately below) and subtle when only a fraction does (typical case, further down). In the typical case the value is less about visible shape and more about the bugs that become unwritable and the branch points that disappear — both adjacent to code shape rather than strictly under it.
 
-Indent levels track complexity 1:1 in the typical case and faster than 1:1 in the pure pipeline. Eyeball the shape, get the estimate. See [analysis.md § The Principle](../../analysis.md#the-principle) for the full argument.
+Indent levels track complexity closely: identical drop in the typical pair (−26% / −26%), close-but-not-identical in the pure pipeline (−80% indent / −95% complexity). The mismatch in the pipeline pair is because a multi-line chain can have visual indentation with zero branch points; in the typical pair, every removed indent comes with a removed branch point. Eyeball the shape, get the estimate. See [analysis.md § The Principle](../../analysis.md#the-principle) for the full argument.
 
 ---
 
@@ -40,7 +40,7 @@ The code-shape change is modest — 12% fewer lines, four converted functions ou
 
 ### Error surfaces reduced — and preserved
 
-The first three converted functions (`getActiveUsers`, `getEmails`, `countAdmins`), and most of the fourth (`averageAge`), replace **accumulator bookkeeping**. Each conventional version declares a `result` slice or `count` int and feeds it inside a loop body. The most-quoted Go-shaped failures of that pattern:
+The first three converted functions (`getActiveUsers`, `getEmails`, `countAdmins`), and most of the fourth (`averageAge`), replace **accumulator bookkeeping**. Each conventional version declares a `result` slice or `count` int and feeds it inside a loop body. Two structural failure modes the pattern admits:
 
 - Forgotten `result = ` on `append` — works until the backing array reallocates, then silently drops elements.
 - `count++` placed outside the `if` — counts everything instead of the predicate match.
@@ -54,7 +54,7 @@ The seven functions kept as loops (5–11) retain other risk surfaces. The lines
 | `findByEmail` (line 64) | explicit `users[i]` indexing — index-arithmetic class | the function requires a pointer to the original element; chains return values |
 | `processWithRetry` (line 83) | nested-loop `break` — premature-exit class | multi-level imperative control flow with success-dependent early exit |
 | `validateSequentialIDs` (line 94) | `i+1` arithmetic — index-arithmetic class | possible via `seq.Enumerate` + `Every`, but reads less clearly than the loop |
-| `deactivateAll` (line 111) | input slice mutation | fluentfp deliberately returns new slices; a non-mutating equivalent would change the function's contract |
+| `deactivateAll` (line 111) | input slice mutation | the chain version (`slice.From(users).Transform(deactivate)`) returns a new slice; same elements-deactivated semantics, but the caller has to assign the result. Mostly a signature swap — the example keeps the mutation form to show what it looks like |
 
 The examples therefore preserve both reduced and unreduced error surfaces. See [analysis.md § Error Prevention](../../analysis.md#error-prevention) for the broader category table (index typo, defer-in-loop, error shadowing, input mutation) the kept loops illustrate.
 
@@ -69,7 +69,7 @@ Indentation correlates with complexity because both trace to the same source. Ve
 | Best-case | −80% | −95% |
 | Mixed | −26% | −26% |
 
-In the pure-pipeline pair complexity drops *faster* than indent — a multi-line chain can have visual indentation with zero branch points. In the mixed pair the two metrics drop identically — here, indent is an effective 1:1 estimator. Indent is the conservative eyeball estimate.
+In the pure-pipeline pair complexity drops *more* than indent does (−95% vs −80%) — a multi-line chain can have visual indentation with zero branch points. In the mixed pair the two metrics drop identically (−26% / −26%) — here, indent is an effective 1:1 estimator. Indent is the conservative eyeball estimate.
 
 ---
 
@@ -91,11 +91,11 @@ The files build with `//go:build ignore` — they don't compile as a package. Me
 
 ```bash
 # Code + complexity per file (glob excludes this README)
-scc --by-file examples/code-shape/*.go
+scc --by-file examples/loop-to-chain/*.go
 
 # Indent sum (tabs)
 awk 'BEGIN{s=0} {n=0; while(substr($0,n+1,1)=="\t") n++; s+=n} END{print s}' \
-  examples/code-shape/conventional.go
+  examples/loop-to-chain/conventional.go
 ```
 
 scc reports the same code/complexity numbers shown in the tables above. The awk script gives per-file tab-sums; compute the percentage from any pair (e.g., (72−97)/97 = −26% for the mixed pair).

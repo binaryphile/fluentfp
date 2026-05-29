@@ -107,7 +107,7 @@ We measured total indentation (sum of leading tabs) against complexity (scc's br
 
 The correlation holds across both cases. In the mixed-code example (36% convertible), indent and complexity drop nearly identically. In the pure-pipeline example (100% convertible), complexity drops *faster*—a chain can have visual indentation with zero branch points.
 
-*Source: [examples/code-shape](examples/code-shape). Measured with [scc](https://github.com/boyter/scc).*
+*Source: [examples/loop-to-chain](examples/loop-to-chain). Measured with [scc](https://github.com/boyter/scc).*
 
 ### Typical Case: Mixed Code
 
@@ -137,7 +137,7 @@ What about modules that are *entirely* data transformations? Report generators, 
 
 ![Best-case code shape comparison](images/best-case-code-shape-comparison.png)
 
-*Source: [examples/code-shape/best-case-*](examples/code-shape)*
+*Source: [examples/loop-to-chain/best-case-*](examples/loop-to-chain)*
 
 47% code reduction when all operations fit the functional pattern. Complexity drops 57 to 3—every `for` and `if` is gone, nothing for scc to count. Predicate methods like `IsActive` often already exist on your types; you're reusing code, not adding overhead. Real codebases fall between 12% (mixed) and 47% (pure pipelines), depending on the module.
 
