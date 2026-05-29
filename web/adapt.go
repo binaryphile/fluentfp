@@ -91,7 +91,9 @@ func writeResponse(w http.ResponseWriter, resp Response) {
 	}
 
 	copyHeaders(w, resp.Headers)
-	w.Header().Set("Content-Type", "application/json")
+	if resp.Headers.Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/json")
+	}
 	w.WriteHeader(resp.Status)
 	w.Write(data)
 }
@@ -140,7 +142,9 @@ func writeWebError(w http.ResponseWriter, e *Error) {
 	}
 
 	copyHeaders(w, e.Headers)
-	w.Header().Set("Content-Type", "application/json")
+	if e.Headers.Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/json")
+	}
 	w.WriteHeader(status)
 	w.Write(data)
 }
