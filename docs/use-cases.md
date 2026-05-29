@@ -3,7 +3,7 @@
 ## System Scope
 
 **System:** fluentfp
-**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics
+**In scope:** Collection transformation, lazy sequence processing (memoized and iterator-native), optional value handling (including JSON/SQL marshaling), typed alternatives, invariant enforcement, conditional value selection, builtin function adapters for higher-order use, function composition, function-level concurrency and control-flow wrappers, memoization, persistent min-heap, combinatorics, typed HTTP handler composition and rendering
 **Out of scope:** General concurrency primitives (channels, mutexes, goroutine lifecycle), I/O, error handling strategies, logging. Note: bounded concurrent traversal (`FanOut`) is in scope as a collection operation — it transforms a slice concurrently, not a general concurrency primitive.
 
 ## System Invariants
@@ -38,6 +38,7 @@
 | Generate combinatorial selections from a collection | Blue | low |
 | Cache expensive function results | Blue | low |
 | Maintain a persistent priority queue | Blue | low |
+| Adapt a typed handler returning Result[Response] into a stdlib http.HandlerFunc | Blue | med |
 | Replace manual loop patterns with composable operations across the codebase | White | — |
 
 ## Use Cases
@@ -574,4 +575,50 @@
 - Zero-arg memoization (`Of`): deferred initialization, `sync.Once` replacement with retry-on-panic
 - Keyed memoization (`Fn`, `FnErr`): function caching by input
 - Cache strategies: unbounded map (`NewMap`), bounded LRU (`NewLRU`), custom (`Cache` interface with `Load`/`Store`)
+
+---
+
+### UC-13: Adapt a Typed Handler to HTTP
+
+**Scope:** fluentfp | **Level:** Blue | **Actor:** Go Developer
+
+**Stakeholders:**
+- Developer: handler logic stays as testable, value-returning code; HTTP plumbing is automatic
+- HTTP client / downstream consumer: response is rendered byte-correctly per protocol — correct status, headers (including caller-specified Content-Type), and body
+- Code reviewer: handler intent reads as expression returning a result, not ResponseWriter mutation
+
+**Postconditions:**
+- HTTP response is written with caller-specified Status, Headers, and Body (JSON-marshaled).
+- Errors are rendered as a structured `ClientError` JSON body with the error's Status, Headers, Code, Message, and Details.
+- Caller-supplied Content-Type in `Response.Headers` or `*Error.Headers` is honored on the rendered response; `application/json` is the library default when the caller does not set one.
+
+**Minimal Guarantee:** No partial writes. If JSON marshaling fails, the system returns 500 with a generic `internal error` payload — no truncated body, no mismatched status, no header leak from the failed marshal attempt.
+
+**Preconditions:**
+- Developer has a typed handler of type `Handler = func(*http.Request) rslt.Result[Response]`
+
+**Main Scenario:**
+1. Developer wraps the typed handler with `web.Adapt(h, opts...)` to produce an `http.HandlerFunc`.
+2. The handler runs against the incoming request, returning `Result[Response]`.
+3. On success: System marshals `Response.Body` to JSON, copies `Response.Headers` to the response, sets `Content-Type` from the caller-supplied value (if present in `Headers`) or `application/json` (if absent), writes `Response.Status`, then the body.
+4. On error: System renders the error per the error rendering flow (see Extensions 4a–4c) — `*Error` directly, error-mapped, or unmapped fall-through to 500.
+
+**Extensions:**
+- 1a. `Response.Body` is nil (e.g., `NoContent`): System copies Headers and writes Status; no body and no `Content-Type` are set.
+- 1b. Developer needs to set arbitrary response headers (e.g., `X-Custom`, `Retry-After`, `WWW-Authenticate`): System copies them via `Headers` field.
+- 3a. Caller sets `Response.Headers["Content-Type"]` to a non-empty value (e.g., `application/hal+json`): System honors the caller's value on the response and skips the library default.
+- 3b. Caller does not set `Content-Type` in `Response.Headers`: System sets `application/json` as the default.
+- 3c. Caller sets `Content-Type` to the empty string: System treats it as unset and applies the `application/json` default (`http.Header.Get` returns `""` indistinguishably from "not set").
+- 3d. Caller adds `Content-Type` multiple times via `Headers.Add(...)` (multi-valued): System preserves all caller-supplied values on the response unchanged — the caller owns the header.
+- 3e. Header key case (`Content-Type` vs `content-type` vs `CONTENT-TYPE`): System canonicalizes via `http.Header.Get`'s built-in MIME canonicalization; all forms are equivalent.
+- 4a. Handler returns an `Err` whose error is (or wraps) `*Error`: System renders the `*Error` directly — applies its `Headers` (with the same Content-Type precedence rule as success path), its `Status`, and emits a `ClientError` body. Detection is `errors.As` (not type-assertion), so wrapped errors work.
+- 4b. Handler returns an `Err` not matching `*Error` and a `WithErrorMapper(fn)` option was supplied: System calls the mapper; if it returns `(*Error, true)`, renders that; if it returns `(nil, false)`, falls through to unmapped behavior.
+- 4c. Handler returns an `Err` with no error-mapper match: System writes a 500 with a generic `internal error` `ClientError` body.
+- 4d. JSON marshal of `Response.Body` fails: System writes 500 with the generic internal-error body; no partial body bytes are written before the status.
+
+**Sub-Variations:**
+- Construction helpers: `JSON[T](status, body)`, `OK[T](body)`, `Created[T](body)`, `NoContent()`.
+- Error construction: `BadRequest`, `Forbidden`, `NotFound`, `Conflict`, `TooManyRequests`, `StatusError` — each produces `*Error` with appropriate Status and Code.
+- Options: `WithErrorMapper(func(error) (*Error, bool))` — maps unhandled domain errors to `*Error`; at most one per Adapt call (last wins if invoked multiple times).
+- Cross-cutting concerns (logging, metrics, tracing, auth): out of Adapt's scope; handled via standard `func(http.Handler) http.Handler` middleware.
 
