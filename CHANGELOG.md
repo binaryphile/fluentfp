@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.61.0
+
+- **web.Adapt**: caller-supplied `Content-Type` in `Response.Headers` or `*Error.Headers` is now honored. Was: always `application/json`. Now: caller's value preserved when set; `application/json` default applies when absent.
+  - **Behavior change**: callers that set Content-Type and relied on it being overwritten will see their value preserved instead. Callers that did not set Content-Type are unaffected.
+  - Unblocks HAL+JSON (`application/hal+json`), Problem Details (`application/problem+json`), and other media types at the boundary.
+  - Edge cases: multi-valued preserved unchanged; empty-string falls back to default; header-key case canonicalized by `http.Header.Get`.
+  - See `docs/use-cases.md` UC-13 and `docs/design.md` D38 for the precedence rule and rationale.
+
 ## v0.60.0
 
 - **slice/internal/base**: `Mapper[T].Each`, `Mapper[T].EachIndexed`, and `String.Each` now return their receiver type for chaining. Source-compatible — callers discarding the return value (the universal pre-change usage) keep working. Lazy types (`Stream[T]`, `Seq[T]`) keep `Each` as terminal because returning a consumed lazy iterator would mislead about the stream state.

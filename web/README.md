@@ -111,6 +111,24 @@ Handlers don't write errors — they return them. Adapt decides how to render.
 - `Created[T](body) Response` — 201
 - `NoContent() Response` — 204
 
+### Content-Type precedence
+
+`Adapt` honors a caller-supplied `Content-Type` in `Response.Headers` (success path) or `*Error.Headers` (error path) and skips the library default. When the caller does not set one, `application/json` is the default. Use this to return `application/hal+json`, `application/problem+json`, or other media types from a typed handler:
+
+```go
+func getOrder(req *http.Request) rslt.Result[web.Response] {
+    return rslt.Of(web.Response{
+        Status:  200,
+        Headers: http.Header{"Content-Type": {"application/hal+json"}},
+        Body:    orderHAL{...},
+    })
+}
+```
+
+Edge cases: multi-valued Content-Type is preserved unchanged (caller owns the header); empty-string Content-Type is treated as unset and falls back to `application/json`; header-key case (`Content-Type` vs `content-type`) is canonicalized by `http.Header.Get`.
+
+**Behavior change vs prior versions:** before v0.61.0 `Adapt` unconditionally set `Content-Type: application/json`, clobbering any caller value. Callers that *set* Content-Type and *relied on it being overwritten* will see their value preserved instead. Callers that didn't set Content-Type are unaffected — they still get `application/json` as before.
+
 **Errors**
 - `BadRequest(msg) error` — 400
 - `Forbidden(msg) error` — 403
