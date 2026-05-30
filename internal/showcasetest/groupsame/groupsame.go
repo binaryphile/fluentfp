@@ -22,7 +22,7 @@ var countByStatus = func(g G) string {
 
 func CombinedStatus(statuses []string) string {
 	// GroupSame returns one Group per distinct value, where Key == Items[0].
-	var statusGroups slice.Mapper[G] = slice.GroupSame(statuses).Sort(byKey)
-	var combined string = statusGroups.ToString(countByStatus).Join(", ")
+	statusGroups := slice.GroupSame(statuses).Sort(byKey)
+	combined := statusGroups.ToString(countByStatus).Join(", ")
 	return combined
 }

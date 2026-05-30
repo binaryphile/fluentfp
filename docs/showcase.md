@@ -359,8 +359,8 @@ countByStatus := func(g G) string {
 }
 
 // GroupSame returns one Group per distinct value, where Key == Items[0].
-var statusGroups slice.Mapper[G] = slice.GroupSame(statuses).Sort(byKey)
-var combined string = statusGroups.ToString(countByStatus).Join(", ")
+statusGroups := slice.GroupSame(statuses).Sort(byKey)
+combined := statusGroups.ToString(countByStatus).Join(", ")
 ```
 
 The two interleaved loops become a pipeline: `GroupSame` → `Sort` → `ToString` → `Join`. Each stage has one responsibility. `GroupSame` names the operation directly ("group occurrences of each distinct value"); the alternative — `GroupBy` with an identity function — does the same thing under a less obvious name. The original's "have I seen this before?" map lookup and "what order did it first appear?" conditional append are two concerns that had to be read together to understand either one; the pipeline separates them.
