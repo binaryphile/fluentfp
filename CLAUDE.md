@@ -282,15 +282,20 @@ When adding or changing packages, always update these docs as part of the same c
 4. **Package README** (`<pkg>/README.md`) — Per-package README following existing patterns (see `web/README.md`, `slice/README.md`, etc.).
 5. **CHANGELOG.md** — User-visible changes go under a new version heading (semver, see existing entries v0.59 / v0.60 / v0.61). Behavior changes get explicit "Behavior change:" notes; new features get one bullet.
 
-### Showcase compile-check suite
+### Showcase compile-check suite (in migration)
 
-`docs/showcase.md` carries 24 before/after rewrites of real-world code. Each entry has a corresponding compile-check package under `internal/showcasetest/<entry>/<entry>.go` that verifies the fluentfp snippet compiles against the real API. When adding or editing a showcase entry:
+`docs/showcase.md` carries 24 before/after rewrites of real-world code. Compile-verification is in transition between two patterns:
 
-1. Update or add the matching `internal/showcasetest/<entry>/<entry>.go` package so the snippet builds.
-2. Run `nix develop -c go build ./internal/showcasetest/...` locally to verify.
-3. Run `python3 scripts/check-docs.py` to re-verify the showcase ↔ README count/anchor consistency (also enforced in CI).
+- **New (preferred — single-source)**: annotate the fluentfp fence with `{compile,context=NAME}` in its language line; create a small harness scaffold at `scripts/snippet-harness/NAME.go` (signature + imports + `// __SNIPPET__` marker; no snippet body). `scripts/check-snippets.py` extracts the snippet body from the markdown at run time, substitutes it into the harness, runs `go build` in a tmpdir. The snippet's `.go` body lives only in the markdown. Run locally with `nix develop -c python3 scripts/check-snippets.py`.
+- **Old (legacy — full per-entry duplication)**: `internal/showcasetest/<entry>/<entry>.go` packages duplicate the snippet body into a tracked .go file. Twenty-three entries still use this pattern; one (`groupsame`) has been migrated and the corresponding legacy package deleted.
 
-The compile-checks have caught real bugs that editorial review missed (e.g., wrong return types in chained calls, stale API names after renames). Treat them as a load-bearing part of the showcase.
+When adding or editing a showcase entry: prefer the new pattern. When editing an entry that still uses the old pattern, sync both files (the dual-edit hazard the new pattern eliminates is real — the session that introduced the renderer caught it on the very entry that's now migrated).
+
+Migration sequencing per entry: (1) annotate the fence with `{compile,context=NAME}`; (2) write `scripts/snippet-harness/NAME.go`; (3) verify with `check-snippets.py`; (4) `git rm` the legacy `internal/showcasetest/<NAME>/` directory.
+
+Also run `python3 scripts/check-docs.py` after edits — verifies the showcase ↔ README count/anchor consistency (also enforced in CI).
+
+The compile-checks (either flavor) have caught real bugs that editorial review missed — wrong return types in chained calls, stale API names after renames, type-inference failures in subtle generics. Load-bearing.
 
 ### Cycle attestation: criterion names verbatim
 

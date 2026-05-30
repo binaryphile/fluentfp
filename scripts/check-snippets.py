@@ -30,6 +30,10 @@ SNIPPET_MARKER = "// __SNIPPET__"
 TARGET_FILES = [
     REPO_ROOT / "docs" / "showcase.md",
 ]
+# Expansion path once migration covers showcase.md: add other markdown
+# files with go fenced blocks worth checking — analysis.md, methodology.md,
+# README.md, web/README.md, examples/*/README.md. Each new entry inherits
+# the same opt-in semantics (un-annotated blocks emit warnings only).
 
 FENCED_RE = re.compile(
     r"^```go(?:\s+\{([^}]*)\})?\s*\n(.*?)^```",
@@ -54,6 +58,16 @@ def parse_metadata(meta_str):
 
 
 def assemble(harness_text, body):
+    """Substitute the snippet body into the harness at __SNIPPET__.
+
+    Known low-probability edge case: if a snippet body itself contains the
+    literal SNIPPET_MARKER string, the substitution fires on the harness's
+    first occurrence (via replace count=1) and the snippet's occurrence is
+    left as a Go line comment in the assembled file — harmless to build,
+    but surprising. The marker is verbose (`// __SNIPPET__`) precisely to
+    minimize this collision risk. The same risk exists regardless of
+    whether the harness is loaded from a file or embedded inline.
+    """
     for line in harness_text.split("\n"):
         if SNIPPET_MARKER in line:
             indent = line[: len(line) - len(line.lstrip())]
