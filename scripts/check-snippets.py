@@ -60,6 +60,12 @@ def parse_metadata(meta_str):
 def assemble(harness_text, body):
     """Substitute the snippet body into the harness at __SNIPPET__.
 
+    Strips any `//go:build ...` constraint lines from the harness first.
+    The harness file carries `//go:build ignore` to keep `go build ./...`
+    in the main module from tripping on the incomplete body; once we're
+    substituting into the tmpdir, the assembled file must be fully
+    buildable and so the constraint is dropped.
+
     Known low-probability edge case: if a snippet body itself contains the
     literal SNIPPET_MARKER string, the substitution fires on the harness's
     first occurrence (via replace count=1) and the snippet's occurrence is
@@ -68,13 +74,18 @@ def assemble(harness_text, body):
     minimize this collision risk. The same risk exists regardless of
     whether the harness is loaded from a file or embedded inline.
     """
-    for line in harness_text.split("\n"):
+    lines = [
+        line for line in harness_text.split("\n")
+        if not line.lstrip().startswith("//go:build")
+    ]
+    cleaned = "\n".join(lines)
+    for line in cleaned.split("\n"):
         if SNIPPET_MARKER in line:
             indent = line[: len(line) - len(line.lstrip())]
             indented_body = "\n".join(
                 (indent + l) if l.strip() else l for l in body.split("\n")
             )
-            return harness_text.replace(line, indented_body, 1)
+            return cleaned.replace(line, indented_body, 1)
     return None
 
 
