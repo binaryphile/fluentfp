@@ -121,7 +121,7 @@ result.RaftProtocol = cmp.Or(b.RaftProtocol, s.RaftProtocol)
 
 Each field reduces to a single expression: stdlib `cmp.Or(override, default)` (Go 1.22+) where zero means "absent"; fluentfp's `option.When(cond, v).Or(fallback)` where zero is a valid override. Because every field is now a single expression, the entire merge can frequently be a struct literal in the `return` statement — no pre-construction variables, no post-construction overrides. The risk this eliminates isn't shadowing; it's copy-paste error and review fatigue across 144 lines of structurally identical conditional assignment.
 
-**So-sue-me:** most of the line reduction here is `cmp.Or`, a Go 1.22 stdlib addition — not fluentfp. `option.When` carries only the cases where zero is a valid override and the trigger is a separate condition. The credit this entry *will* take: focusing the rewrite around the approach (read the merge as field expressions, not control flow) and putting `cmp.Or` on your radar. You don't look up an alternative to a simple `if` statement while learning Go; `cmp.Or` lives in that discoverability gap.
+Most of the line reduction here is `cmp.Or`, a Go 1.22 stdlib addition — not fluentfp. `option.When` carries only the cases where zero is a valid override and the trigger is a separate condition. What this entry claims: focusing the rewrite around the approach (read the merge as field expressions, not control flow) and putting `cmp.Or` on your radar. You don't look up an alternative to a simple `if` statement while learning Go; `cmp.Or` lives in that discoverability gap.
 
 ---
 
