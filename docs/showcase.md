@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 3 entries (groupsame, annotation, consul_ingress) have migrated, the remaining 19 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 4 entries (groupsame, annotation, consul_ingress, nomad) have migrated, the remaining 18 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -112,14 +112,17 @@ if b.RaftProtocol != 0 {
 }
 ```
 
-**Rewritten** (stdlib `cmp.Or` + fluentfp `option.When`):
-```go
-result.AuthoritativeRegion = cmp.Or(b.AuthoritativeRegion, s.AuthoritativeRegion)
-result.BootstrapExpect = option.When(b.BootstrapExpect > 0, b.BootstrapExpect).Or(s.BootstrapExpect)
-result.RaftProtocol = cmp.Or(b.RaftProtocol, s.RaftProtocol)
+**Rewritten** (stdlib `cmp.Or` + fluentfp `option.When` — the whole `Merge` becomes a single struct-literal return):
+```go {compile,context=nomad}
+return Config{
+    AuthoritativeRegion: cmp.Or(b.AuthoritativeRegion, s.AuthoritativeRegion),
+    BootstrapExpect:     option.When(b.BootstrapExpect > 0, b.BootstrapExpect).Or(s.BootstrapExpect),
+    RaftProtocol:        cmp.Or(b.RaftProtocol, s.RaftProtocol),
+    // ... 45 more fields, same shape
+}
 ```
 
-Each field reduces to a single expression: stdlib `cmp.Or(override, default)` (Go 1.22+) where zero means "absent"; fluentfp's `option.When(cond, v).Or(fallback)` where zero is a valid override. Because every field is now a single expression, the entire merge can frequently be a struct literal in the `return` statement — no pre-construction variables, no post-construction overrides. The risk this eliminates isn't shadowing; it's copy-paste error and review fatigue across 144 lines of structurally identical conditional assignment.
+Each field reduces to a single expression: stdlib `cmp.Or(override, default)` (Go 1.22+) where zero means "absent"; fluentfp's `option.When(cond, v).Or(fallback)` where zero is a valid override. Because every field is a single expression, the entire merge fits inside one struct literal in the `return` statement — no pre-construction `result` variable, no post-construction overrides, no temporary state for a reader to track. The risk this eliminates isn't shadowing; it's copy-paste error and review fatigue across 144 lines of structurally identical conditional assignment.
 
 Most of the line reduction here is `cmp.Or`, a Go 1.22 stdlib addition — not fluentfp. `option.When` carries only the cases where zero is a valid override and the trigger is a separate condition. What this entry claims: focusing the rewrite around the approach (read the merge as field expressions, not control flow) and putting `cmp.Or` on your radar. You don't look up an alternative to a simple `if` statement while learning Go; `cmp.Or` lives in that discoverability gap.
 
