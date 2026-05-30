@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 2 entries (groupsame, annotation) have migrated, the remaining 20 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 3 entries (groupsame, annotation, consul_ingress) have migrated, the remaining 19 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -213,17 +213,17 @@ func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
 ```
 
 **fluentfp:**
-```go
+```go {compile,context=consul_ingress}
 // isExplicit returns true if the service is not a wildcard.
-isExplicit := func(s IngressService) bool { return s.Name != WildcardSpecifier }
+var isExplicit = func(s IngressService) bool { return s.Name != WildcardSpecifier }
 
 // toServiceID builds a ServiceID from an IngressService.
-toServiceID := func(s IngressService) ServiceID {
+var toServiceID = func(s IngressService) ServiceID {
     return NewServiceID(s.Name, &s.EnterpriseMeta)
 }
 
 // byEnterpriseThenID sorts by enterprise metadata, then by ID.
-byEnterpriseThenID := func(a, b ServiceID) int {
+var byEnterpriseThenID = func(a, b ServiceID) int {
     switch {
     case a.LessThan(&b.EnterpriseMeta):
         return -1
@@ -235,8 +235,8 @@ byEnterpriseThenID := func(a, b ServiceID) int {
 }
 
 func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
-    var services slice.Mapper[IngressService] = slice.FlatMap(e.Listeners, IngressListener.Services).KeepIf(isExplicit)
-    var serviceIDs slice.Mapper[ServiceID] = slice.Map(services, toServiceID)
+    services := slice.FlatMap(e.Listeners, IngressListener.Services).KeepIf(isExplicit)
+    serviceIDs := slice.Map(services, toServiceID)
     return slice.UniqueBy(serviceIDs, ServiceID.Key).Sort(byEnterpriseThenID)
 }
 ```
