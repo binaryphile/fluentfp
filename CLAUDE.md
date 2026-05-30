@@ -211,16 +211,20 @@ When multiple methods share **identical logic**, test ONE representative:
 - `option.Get`, `option.IsOk` - just return fields
 - `option.When` - trivial delegation to option.New
 
-### Coverage Baseline (2026-03-13)
+### Coverage
 
-| Package | Coverage | Notes |
-|---------|----------|-------|
-| must | 100% | All domain (conditional + panic) |
-| option | 76.9% | Domain tested, trivial aliases untested |
-| slice | 93.4% | Domain tested, new ops fully covered |
-| stream | 100% | All operations tested |
-| seq | 92.3% | Domain tested, generation + new ops covered |
-| lof | 0.0% | All trivial wrappers - acceptable |
+The load-bearing rule is the Khorikov posture above (domain heavily,
+controllers integration-once, trivial untested). Per-package numbers
+rot too fast to keep in this file. Current snapshot:
+
+```bash
+nix develop -c go test -cover ./...
+```
+
+Low coverage on a wrapper package (e.g. `lof`) is acceptable when the
+wrapped operations are stdlib; high coverage on a domain package is the
+target. Don't refactor to chase a number — refactor when the test class
+(domain / controller / trivial / overcomplicated) is wrong.
 
 ### Go Test Style
 
@@ -270,12 +274,27 @@ both fail CI if regenerated output diverges from what's committed.
 
 ## Documentation Updates
 
-When adding or changing packages, always update these docs as part of the same commit:
+When adding or changing packages, always update these docs as part of the same cycle (docs-first per protocol §3a — UC → design → README+CHANGELOG → impl → tests):
 
-1. **Use cases** (`docs/use-cases.md`) — Cockburn-style, use the `use-case-skill` skill for format. Update scope line, actor-goal list, and add/modify use cases. Use cases come first — they define what the package does before design explains how.
-2. **Design** (`docs/design.md`) — Package structure table, mermaid diagram, design decisions (D-numbered).
+1. **Use cases** (`docs/use-cases.md`) — Cockburn-style. Existing UC-1 through UC-13 are the canonical shape: Scope/Level/Actor line, Stakeholders, Postconditions, Minimal Guarantee, Preconditions, Main Scenario, Extensions, Sub-Variations. Update the scope line (top of file) and the Actor-Goal table when adding a new domain. UCs come first — they define WHAT the package does before design explains HOW.
+2. **Design** (`docs/design.md`) — Package structure table, mermaid diagram, design decisions (D-numbered; last entry is D38). Edge cases and rationale live here, not in the UC.
 3. **README** (`README.md`) — Packages table, package highlights if warranted.
-4. **Package README** (`pkg/README.md`) — Per-package README following existing patterns.
+4. **Package README** (`<pkg>/README.md`) — Per-package README following existing patterns (see `web/README.md`, `slice/README.md`, etc.).
+5. **CHANGELOG.md** — User-visible changes go under a new version heading (semver, see existing entries v0.59 / v0.60 / v0.61). Behavior changes get explicit "Behavior change:" notes; new features get one bullet.
+
+### Showcase compile-check suite
+
+`docs/showcase.md` carries 24 before/after rewrites of real-world code. Each entry has a corresponding compile-check package under `internal/showcasetest/<entry>/<entry>.go` that verifies the fluentfp snippet compiles against the real API. When adding or editing a showcase entry:
+
+1. Update or add the matching `internal/showcasetest/<entry>/<entry>.go` package so the snippet builds.
+2. Run `nix develop -c go build ./internal/showcasetest/...` locally to verify.
+3. Run `python3 scripts/check-docs.py` to re-verify the showcase ↔ README count/anchor consistency (also enforced in CI).
+
+The compile-checks have caught real bugs that editorial review missed (e.g., wrong return types in chained calls, stale API names after renames). Treat them as a load-bearing part of the showcase.
+
+### Cycle attestation: criterion names verbatim
+
+When publishing `evtctl complete` for a contract, copy the criterion-name strings verbatim from the published contract event into the completion's `criteria[].name` fields. The `validate-attestation` superset-match join is string-equality on these names — paraphrasing (e.g., "writeResponse honors caller Content-Type" → "writeResponse honors caller's Content-Type") will cause the audit to leave the contract unmatched even though the work shipped. Get the names from `era query "tasks.fluentfp" 'id = <contract-event-id>' --json` before drafting the attestation.
 
 ## Branching Strategy: Trunk-Based Development
 
