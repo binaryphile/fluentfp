@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 16 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold) have migrated, the remaining 6 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 17 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold, validation) have migrated, the remaining 5 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -1400,20 +1400,20 @@ func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagno
 ```
 
 **fluentfp (structural pattern):**
-```go
+```go {compile,context=validation}
 // validateTriggerExpr validates a single replace_triggered_by expression
-// and returns all diagnostics found. Returns []*hcl.Diagnostic (not the
-// hcl.Diagnostics defined type) so slice.FlatMap's generic inference
-// resolves R = *hcl.Diagnostic.
-validateTriggerExpr := func(expr hcl.Expression) []*hcl.Diagnostic {
+// and returns all diagnostics found. Returns []*Diagnostic (not the
+// Diagnostics defined type) so slice.FlatMap's generic inference
+// resolves R = *Diagnostic.
+var validateTriggerExpr = func(expr Expression) []*Diagnostic {
     expr, jsDiags := unwrapJSONRefExpr(expr)
-    refs, refDiags := langrefs.ReferencesInExpr(addrs.ParseRef, expr)
+    _, refDiags := langrefs.ReferencesInExpr(addrs.ParseRef, expr)
     // ... classify refs, build diagnostics ...
     return append(jsDiags, refDiags...)
 }
 
-func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagnostics) {
-    exprs, diags := hcl.ExprList(expr)
+func DecodeReplaceTriggeredBy(expr Expression) ([]Expression, Diagnostics) {
+    exprs, diags := ExprList(expr)
     diags = append(diags, slice.FlatMap(exprs, validateTriggerExpr)...)
     return exprs, diags
 }

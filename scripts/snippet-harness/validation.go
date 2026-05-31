@@ -1,14 +1,28 @@
-// Package validation compile-checks the showcase entry for hashicorp/terraform
-// replace_triggered_by validation. The showcase elides "// classify refs,
-// build diagnostics" inside the helper; compile-check uses minimal stubs so
-// the slice.FlatMap pattern verifies.
-package validation
+//go:build ignore
+
+// Package snippet is the verification harness for the validation
+// showcase entry in docs/showcase.md (hashicorp/terraform
+// replace_triggered_by validation accumulator rewrite). The snippet
+// declares a package-level closure (validateTriggerExpr) and a top-
+// level function (DecodeReplaceTriggeredBy); both go at package
+// scope.
+//
+// Local stub names stand in for hcl.Expression / hcl.Diagnostic /
+// hcl.Diagnostics / hcl.ExprList — same trade-off as annotation,
+// sagas, temporal: lose the qualified-package texture in exchange
+// for compile-verifiability without pulling in hashicorp/hcl. The
+// addrs and langrefs package-level vars match the names the snippet
+// uses; the harness defines them as singleton vars rather than
+// actual packages.
+//
+// The `go:build ignore` constraint excludes this file from default
+// `go build ./...`; scripts/check-snippets.py strips the constraint
+// when assembling into the tmpdir.
+package snippet
 
 import (
 	"github.com/binaryphile/fluentfp/slice"
 )
-
-// --- stubs for hcl / langrefs / addrs types (heavily simplified) ---
 
 // Expression stubs hcl.Expression.
 type Expression struct{}
@@ -28,8 +42,9 @@ type Diagnostic struct {
 	Subject  *RangePtr
 }
 
-// Diagnostics stubs hcl.Diagnostics (a defined slice type — see the showcase
-// note about why validateTriggerExpr returns []*Diagnostic instead).
+// Diagnostics stubs hcl.Diagnostics (a defined slice type — the
+// showcase prose explains why validateTriggerExpr returns
+// []*Diagnostic rather than this).
 type Diagnostics []*Diagnostic
 
 func (d Diagnostics) Extend(other Diagnostics) Diagnostics { return append(d, other...) }
@@ -61,21 +76,8 @@ func (LangrefsClient) ReferencesInExpr(parser func(Expression) (Reference, Diagn
 
 var langrefs = LangrefsClient{}
 
-// --- the fluentfp rewrite from docs/showcase.md (verbatim structural pattern) ---
+// Force-reference slice so the unsubstituted harness parses with its
+// imports used. The assembled snippet exercises slice.FlatMap.
+var _ = slice.FlatMap[Expression, *Diagnostic]
 
-// validateTriggerExpr validates a single replace_triggered_by expression
-// and returns all diagnostics found. Returns []*Diagnostic (not the
-// Diagnostics defined type) so slice.FlatMap's generic inference
-// resolves R = *Diagnostic.
-func validateTriggerExpr(expr Expression) []*Diagnostic {
-	expr, jsDiags := unwrapJSONRefExpr(expr)
-	_, refDiags := langrefs.ReferencesInExpr(addrs.ParseRef, expr)
-	// ... classify refs, build diagnostics ...
-	return append(jsDiags, refDiags...)
-}
-
-func DecodeReplaceTriggeredBy(expr Expression) ([]Expression, Diagnostics) {
-	exprs, diags := ExprList(expr)
-	diags = append(diags, slice.FlatMap(exprs, validateTriggerExpr)...)
-	return exprs, diags
-}
+// __SNIPPET__
