@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 12 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas) have migrated, the remaining 10 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 13 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve) have migrated, the remaining 9 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -425,7 +425,7 @@ for i := 0; i < 25; i++ {
 ```
 
 **fluentfp:**
-```go
+```go {compile,context=sieve}
 // isPrime returns true if n has no divisors other than 1 and itself.
 isPrime := func(n int) bool {
     for i := 2; i*i <= n; i++ {
@@ -437,6 +437,7 @@ isPrime := func(n int) bool {
 }
 
 primes := stream.Generate(2, lof.Inc).KeepIf(isPrime).Take(25).Collect()
+return primes
 ```
 
 `stream.Generate` produces 2, 3, 4, ... lazily via deferred thunks; `.KeepIf(isPrime)` filters; `.Take(25)` bounds; `.Collect()` materializes. The channel version creates goroutines that run for the process lifetime — `Generate` loops infinitely, each `Filter` waits forever on a channel that never closes. Go's [garbage collector cannot collect goroutines](https://go.dev/blog/pipelines); they must exit on their own. A short-lived test escapes consequences; a long-lived server using the same pattern leaks indefinitely. The stream version uses zero goroutines and zero channels — laziness comes from deferred thunks, not concurrency primitives, and dropping the stream reference makes every cell GC-eligible.
