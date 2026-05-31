@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 14 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer) have migrated, the remaining 8 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 15 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal) have migrated, the remaining 7 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -1194,14 +1194,14 @@ func (b *MutableStateRebuilderImpl) applyEvents(
 ```
 
 **fluentfp (structural pattern):**
-```go
+```go {compile,context=temporal}
 // applyEvent transitions workflow state based on a single event.
 // Each case is a pure state transition — no loop context needed.
-applyEvent := func(state WorkflowState, event *historypb.HistoryEvent) WorkflowState {
+applyEvent := func(state WorkflowState, event *historyEvent) WorkflowState {
     switch event.GetEventType() {
-    case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED:
+    case eventTypeWorkflowExecutionStarted:
         return state.WithExecution(event.GetWorkflowExecutionStartedEventAttributes())
-    case enumspb.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED:
+    case eventTypeActivityTaskScheduled:
         return state.WithScheduledActivity(event.GetActivityTaskScheduledEventAttributes())
     // ...
     }
@@ -1209,6 +1209,7 @@ applyEvent := func(state WorkflowState, event *historypb.HistoryEvent) WorkflowS
 }
 
 currentState := slice.Fold(history, initialState, applyEvent)
+return currentState
 ```
 
 Every Go event-sourcing library hides a *fold* inside imperative replay code: a `for` loop that walks an input slice and accumulates a single result — here, the workflow's mutable state — via a switch statement. Surfacing it as `slice.Fold(events, initial, applyEvent)` exposes the shape directly: state is a deterministic function of an initial value and an ordered sequence of transformations. The transition function (`applyEvent`) becomes independently unit-testable — each event type tested without constructing a full event stream. The fold makes the invariant explicit: events apply left-to-right, and the accumulator type is the aggregate type.
