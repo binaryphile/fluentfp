@@ -1,13 +1,21 @@
-// Package prometheus compile-checks the showcase entry for prometheus/prometheus init.
-package prometheus
+//go:build ignore
+
+// Package snippet is the verification harness for the prometheus
+// showcase entry in docs/showcase.md (prometheus/prometheus cmd init
+// rewrite). The snippet is a top-level `func init()` declaration; the
+// harness provides the package-level vars and stubs the prometheus +
+// versioncollector + model packages it references.
+//
+// The `go:build ignore` constraint excludes this file from default
+// `go build ./...`; scripts/check-snippets.py strips the constraint
+// when assembling into the tmpdir.
+package snippet
 
 import (
 	"time"
 
 	"github.com/binaryphile/fluentfp/must"
 )
-
-// --- stubs for the prometheus packages referenced in the showcase ---
 
 // Collector stubs prometheus.Collector.
 type Collector struct{}
@@ -38,10 +46,4 @@ var (
 	appName                  = "prometheus"
 )
 
-// --- the fluentfp rewrite from docs/showcase.md (verbatim) ---
-
-func init() {
-	prometheus.MustRegister(versioncollector.NewCollector(appName))
-
-	defaultRetentionDuration = must.Get(model.ParseDuration(defaultRetentionString))
-}
+// __SNIPPET__
