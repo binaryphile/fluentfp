@@ -12,7 +12,7 @@ Every Go developer has written this handler. Decode JSON, validate, call a servi
 
 **Conventional Go (50 lines):**
 
-```go
+```go {compile,context=raw_handler}
 func handleCreateOrder(w http.ResponseWriter, req *http.Request) {
     if req.Header.Get("Content-Type") != "application/json" {
         w.Header().Set("Content-Type", "application/json")
@@ -61,7 +61,7 @@ Count the `w.Header().Set` / `w.WriteHeader` / `json.NewEncoder` blocks: five of
 
 The chain builds a value of type `rslt.Result[Order]` — either `Ok(order)` or `Err(error)`. Each step receives the `Ok` value if present, or short-circuits past if the prior step produced an `Err`. The comments below say what each method does to the Result (the business purpose is in the method names themselves).
 
-```go
+```go {compile,context=fluent_handler}
 handleCreateOrder := func(req *http.Request) rslt.Result[web.Response] {
     reqID := ctxval.Lookup[RequestID](req.Context()).Or("unknown")   // Lookup → Option; .Or unwraps with fallback
 
@@ -114,13 +114,13 @@ The standard `http.HandlerFunc` takes a `ResponseWriter` and mutates it. That me
 
 fluentfp's `web.Handler` returns a `rslt.Result[web.Response]`:
 
-```go
+```go {ignore}
 type Handler = func(*http.Request) rslt.Result[web.Response]
 ```
 
 The handler returns Ok or Err. `web.Adapt` converts it to a standard `http.HandlerFunc`:
 
-```go
+```go {ignore}
 mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder))
 ```
 
@@ -138,7 +138,7 @@ Decoding a JSON body correctly in Go requires:
 
 `web.DecodeJSON[Order](req)` does steps 1-4 in one call, returning `(Order, error)`. `rslt.Of` wraps the pair into a Result, and `FlatMap` chains it into validation:
 
-```go
+```go {ignore}
 order, err := web.DecodeJSON[Order](req)
 validatedResult := rslt.Of(order, err).FlatMap(validateOrder)
 ```
@@ -153,7 +153,7 @@ In practice: if decoding fails (wrong Content-Type -> 415, malformed JSON -> 400
 
 Looking up a resource and returning 404 on miss is two branches with identical boilerplate in conventional Go. With fluentfp, it's a pipeline:
 
-```go
+```go {ignore}
 handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
     idResult := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
     foundResult := rslt.FlatMap(idResult, findOrder)   // FlatMap: findOrder can fail (404)
@@ -171,7 +171,7 @@ Both are standalone (not methods) because the type changes at each step: string 
 
 `findOrder` is a named function that bridges the store lookup:
 
-```go
+```go {ignore}
 findOrder := func(id string) rslt.Result[Order] {
     return option.New(s.get(id)).OkOr(web.NotFound("order not found"))
 }
@@ -181,7 +181,7 @@ If any step fails, the error propagates through FlatMap and Map untouched.
 
 When a map lookup needs a fallback instead of an error, `option.Lookup(m, k).Or(default)` replaces the entire `if !ok` block:
 
-```go
+```go {ignore}
 price := option.Lookup(prices, item.SKU).Or(100)
 ```
 
@@ -191,7 +191,7 @@ Query parameters are optional. In conventional Go, each one requires checking em
 
 With fluentfp, parsing is a pipeline and filtering is a chain:
 
-```go
+```go {compile,context=query_parse}
 status, hasStatus := option.NonEmpty(q.Get("status")).Get()  // "" -> not-ok, non-empty -> ok
 
 // MapResult: skip parsing when missing, parse when present, 400 when invalid.
@@ -219,7 +219,7 @@ The conventional equivalent uses `sort.Slice` with an `i, j` closure that access
 
 Go's `context.WithValue` requires a private key type, a type assertion on retrieval, and a nil check. Three lines of ceremony per value.
 
-```go
+```go {ignore}
 // Middleware -- store by type, no key needed:
 ctx := ctxval.With(r.Context(), RequestID("req-1"))
 

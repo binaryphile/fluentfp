@@ -46,6 +46,7 @@ DEFAULT_MARKER = "// __SNIPPET__"
 TARGET_FILES = [
     REPO_ROOT / "docs" / "showcase.md",
     REPO_ROOT / "docs" / "parallelism-research.md",
+    REPO_ROOT / "examples" / "orders" / "README.md",
     REPO_ROOT / "web" / "README.md",
 ]
 # All target files share opt-in semantics — un-annotated blocks emit
