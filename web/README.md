@@ -2,7 +2,7 @@
 
 JSON HTTP handlers that return values instead of mutating ResponseWriter.
 
-```go
+```go {ignore}
 // Before: mutation, manual headers, repeated error blocks
 func handleGetUser(w http.ResponseWriter, req *http.Request) {
     user, err := db.FindUser(req.PathValue("id"))
@@ -31,25 +31,25 @@ Twelve lines become four. No `ResponseWriter`, no manual headers, no `json.NewEn
 
 ## What It Looks Like
 
-```go
+```go {ignore}
 // Decode JSON request body — Content-Type, MaxBytes, UnknownFields handled
 order, err := web.DecodeJSON[Order](req)  // (Order, error)
 ```
 
-```go
+```go {ignore}
 // Validation chain — short-circuits on first error, each step carries HTTP status
 validateOrder := web.Steps(hasCustomer, hasItems, itemsHavePositiveQty)
 validated := rslt.FlatMap(order, validateOrder)
 ```
 
-```go
+```go {ignore}
 // Response constructors — status code travels with the body
 return rslt.Ok(web.Created(order))   // 201
 return rslt.Ok(web.OK(order))        // 200
 return rslt.Ok(web.NoContent())      // 204
 ```
 
-```go
+```go {ignore}
 // Error constructors — structured JSON errors with status codes
 return rslt.Err[web.Response](web.BadRequest("customer is required"))   // 400
 return rslt.Err[web.Response](web.NotFound("order not found"))          // 404
@@ -57,7 +57,7 @@ return rslt.Err[web.Response](web.Conflict("order already exists"))     // 409
 return rslt.Err[web.Response](web.Forbidden("insufficient permissions")) // 403
 ```
 
-```go
+```go {ignore}
 // Error mapping — domain errors → HTTP errors, defined once at the boundary
 mapDomainError := func(err error) (*web.Error, bool) {
     if errors.Is(err, wrap.ErrCircuitOpen) {
@@ -69,7 +69,7 @@ mux.HandleFunc("POST /orders",
     web.Adapt(handleCreateOrder, web.WithErrorMapper(mapDomainError)))
 ```
 
-```go
+```go {ignore}
 // Custom decode options
 order, err := web.DecodeJSONWith[Order](req, web.DecodeOpts{
     MaxBytes:     5 << 20,  // 5 MB
@@ -115,7 +115,7 @@ Handlers don't write errors — they return them. Adapt decides how to render.
 
 `Adapt` honors a caller-supplied `Content-Type` in `Response.Headers` (success path) or `*Error.Headers` (error path) and skips the library default. When the caller does not set one, `application/json` is the default. Use this to return `application/hal+json`, `application/problem+json`, or other media types from a typed handler:
 
-```go
+```go {ignore}
 func getOrder(req *http.Request) rslt.Result[web.Response] {
     return rslt.Of(web.Response{
         Status:  200,
@@ -141,7 +141,7 @@ Edge cases: multi-valued Content-Type is preserved unchanged (caller owns the he
 
 Rate limiting lives in middleware, not in fluentfp. The web package provides the error constructor; your middleware provides the logic:
 
-```go
+```go {compile,context=rate_limit_mw}
 // Rate limit middleware using golang.org/x/time/rate
 func withRateLimit(limit rate.Limit, burst int, next http.Handler) http.Handler {
     limiter := rate.NewLimiter(limit, burst)
@@ -168,7 +168,7 @@ func writeRateLimitError(w http.ResponseWriter) {
 
 For handlers that return `Result[Response]`, use `web.TooManyRequests` in an error mapper:
 
-```go
+```go {compile,context=rate_limit_mapper}
 mapRateLimit := func(err error) (*web.Error, bool) {
     if errors.Is(err, errRateLimited) {
         return &web.Error{

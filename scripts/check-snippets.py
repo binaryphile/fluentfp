@@ -45,11 +45,12 @@ DEFAULT_MARKER = "// __SNIPPET__"
 
 TARGET_FILES = [
     REPO_ROOT / "docs" / "showcase.md",
+    REPO_ROOT / "web" / "README.md",
 ]
-# Expansion path once migration covers showcase.md: add other markdown
-# files with go fenced blocks worth checking — analysis.md, methodology.md,
-# README.md, web/README.md, examples/*/README.md. Each new entry inherits
-# the same opt-in semantics (un-annotated blocks emit warnings only).
+# All target files share opt-in semantics — un-annotated blocks emit
+# warnings only. Per-file expansion intentionally lands one file at a
+# time so each addition bundles its `{compile,...}` annotations,
+# harnesses, and `{ignore}` rationale in a single commit.
 
 FENCED_RE = re.compile(
     r"^```go(?:\s+\{([^}]*)\})?\s*\n(.*?)^```",
@@ -145,6 +146,12 @@ def check_compile_group(context, blocks):
     Returns (ok: bool, err: Optional[str]). When ok is False, every block
     in the group reports FAIL with the same error message — they share a
     build.
+
+    Per-harness extra requires: if `scripts/snippet-harness/<NAME>.gomod`
+    exists, each non-blank line is appended as an additional `require`
+    line in the assembled tmpdir go.mod. Lines starting with `#` are
+    ignored as comments. Use this for harnesses that exercise external
+    packages (e.g. `golang.org/x/time/rate v0.5.0`).
     """
     harness_file = HARNESS_DIR / f"{context}.go"
     if not harness_file.exists():
@@ -155,15 +162,29 @@ def check_compile_group(context, blocks):
     if assembled is None:
         return False, err
 
+    extra_requires = []
+    gomod_extra = HARNESS_DIR / f"{context}.gomod"
+    if gomod_extra.exists():
+        for line in gomod_extra.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                extra_requires.append(f"require {line}")
+
     with tempfile.TemporaryDirectory(prefix="fluentfp-snippet-") as tmp:
         tmp = Path(tmp)
         (tmp / "snippet.go").write_text(assembled)
-        (tmp / "go.mod").write_text(
-            f"module snippet\n\n"
-            f"go 1.22\n\n"
-            f"require github.com/binaryphile/fluentfp v0.0.0\n\n"
-            f"replace github.com/binaryphile/fluentfp => {REPO_ROOT}\n"
-        )
+        gomod_lines = [
+            "module snippet",
+            "",
+            "go 1.22",
+            "",
+            "require github.com/binaryphile/fluentfp v0.0.0",
+        ]
+        gomod_lines.extend(extra_requires)
+        gomod_lines.append("")
+        gomod_lines.append(f"replace github.com/binaryphile/fluentfp => {REPO_ROOT}")
+        gomod_lines.append("")
+        (tmp / "go.mod").write_text("\n".join(gomod_lines))
         # `go build` answers the literal question "does it compile?". `vet`
         # performs extra analysis that can flag valid-but-suspect code; the
         # reserved `{vet}` mode in the metadata vocabulary will opt into the
