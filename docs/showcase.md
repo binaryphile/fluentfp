@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 17 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold, validation) have migrated, the remaining 5 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 18 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold, validation, consul_retry) have migrated, the remaining 4 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -788,24 +788,24 @@ func (s *Server) invalidateSession(id string, entMeta *acl.EnterpriseMeta) {
 ```
 
 **fluentfp:**
-```go
+```go {compile,context=consul_retry,slot=construct}
 // At server construction — retry policy defined once, applied everywhere
 s.resilientRaftApply = wrap.
     Func(s.leaderRaftApply).
     Retry(maxInvalidateAttempts, wrap.ExpBackoff(invalidateRetryBase), nil)
 ```
 
-```go
+```go {compile,context=consul_retry,slot=call}
 // At call site — retry mechanics gone
-func (s *Server) invalidateSession(ctx context.Context, id string, entMeta *acl.EnterpriseMeta) {
+func (s *Server) invalidateSession(ctx context.Context, id string, entMeta *EnterpriseMeta) {
     defer metrics.MeasureSince([]string{"session_ttl", "invalidate"}, time.Now())
 
     s.sessionTimers.Del(id)
 
-    args := structs.SessionRequest{
+    args := SessionRequest{
         Datacenter: s.config.Datacenter,
-        Op:         structs.SessionDestroy,
-        Session:    structs.Session{ID: id},
+        Op:         SessionDestroy,
+        Session:    Session{ID: id},
     }
     if entMeta != nil {
         args.Session.EnterpriseMeta = *entMeta
