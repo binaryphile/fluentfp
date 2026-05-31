@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 9 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace) have migrated, the remaining 13 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 10 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa) have migrated, the remaining 12 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -156,8 +156,9 @@ func tokenize(s string) []string {
 ```
 
 **fluentfp:**
-```go
+```go {compile,context=paisa}
 tokens := splitTokens(s).Transform(strings.ToLower).KeepIf(lof.IsNonBlank)
+return tokens
 ```
 
 `strings.ToLower` and `lof.IsNonBlank` plug in directly. lo's `func(T, int)` callbacks pay off when the index matters, but turn every stdlib function into a wrapper when it doesn't — `toLower` and `isNonBlank` exist only to swallow `_ int`. With no wrappers to write, the fluentfp version is compact enough to inline at the call site without a `tokenize` function at all. This isn't a bug risk, just steady friction across a codebase.
