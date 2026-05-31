@@ -282,20 +282,25 @@ When adding or changing packages, always update these docs as part of the same c
 4. **Package README** (`<pkg>/README.md`) — Per-package README following existing patterns (see `web/README.md`, `slice/README.md`, etc.).
 5. **CHANGELOG.md** — User-visible changes go under a new version heading (semver, see existing entries v0.59 / v0.60 / v0.61). Behavior changes get explicit "Behavior change:" notes; new features get one bullet.
 
-### Showcase compile-check suite (in migration)
+### Showcase compile-check suite
 
-`docs/showcase.md` carries 24 before/after rewrites of real-world code. Compile-verification is in transition between two patterns:
+`docs/showcase.md` carries 24 before/after rewrites of real-world code. 22 of the 24 are compile-verified on every CI push via `scripts/check-snippets.py`:
 
-- **New (preferred — single-source)**: annotate the fluentfp fence with `{compile,context=NAME}` in its language line; create a small harness scaffold at `scripts/snippet-harness/NAME.go` (signature + imports + `// __SNIPPET__` marker; no snippet body). `scripts/check-snippets.py` extracts the snippet body from the markdown at run time, substitutes it into the harness, runs `go build` in a tmpdir. The snippet's `.go` body lives only in the markdown. Run locally with `nix develop -c python3 scripts/check-snippets.py`.
-- **Old (legacy — full per-entry duplication)**: `internal/showcasetest/<entry>/<entry>.go` packages duplicate the snippet body into a tracked .go file. Twenty-three entries still use this pattern; one (`groupsame`) has been migrated and the corresponding legacy package deleted.
+1. The fluentfp fence in the markdown carries metadata in its language line: `{compile,context=NAME}` for a single-block context, or `{compile,context=NAME,slot=<name>}` when one entry has multiple distinct fences (e.g. construct + call, or 3 different return-shape demos).
+2. The matching harness scaffold lives at `scripts/snippet-harness/NAME.go` — `//go:build ignore`, imports, type/var stubs, and `// __SNIPPET__` markers (or `// __SNIPPET_<slot>__` for multi-slot). No snippet body.
+3. The script reads the markdown at run time, substitutes each fence body at its respective marker, runs `go build` in a tmpdir with a `replace` directive pointing at the local repo.
 
-When adding or editing a showcase entry: prefer the new pattern. When editing an entry that still uses the old pattern, sync both files (the dual-edit hazard the new pattern eliminates is real — the session that introduced the renderer caught it on the very entry that's now migrated).
+The snippet body lives only in the markdown — there's one source of truth. The harness carries the surrounding context (types, function shells, helper imports) that the snippet wouldn't compile against in isolation.
 
-Migration sequencing per entry: (1) annotate the fence with `{compile,context=NAME}`; (2) write `scripts/snippet-harness/NAME.go`; (3) verify with `check-snippets.py`; (4) `git rm` the legacy `internal/showcasetest/<NAME>/` directory.
+When adding or editing a showcase entry:
+1. Edit the fence in `docs/showcase.md`. If it's a new entry, also annotate the fluentfp fence with `{compile,context=NAME}` and create `scripts/snippet-harness/NAME.go` (signature + imports + marker).
+2. Snippets ending in a value that the harness's function shell returns should append `return X` explicitly — the harness must not silently assume a variable name.
+3. Run `nix develop -c python3 scripts/check-snippets.py` locally to verify (CI also enforces it). Parallel execution across contexts; per-context groups all slots into one build.
+4. Run `python3 scripts/check-docs.py` to verify showcase ↔ README count/anchor consistency.
 
-Also run `python3 scripts/check-docs.py` after edits — verifies the showcase ↔ README count/anchor consistency (also enforced in CI).
+The two showcase entries without compile-checks (kubernetes/route_controller and traefik) are too abbreviated in the doc to extract cleanly.
 
-The compile-checks (either flavor) have caught real bugs that editorial review missed — wrong return types in chained calls, stale API names after renames, type-inference failures in subtle generics. Load-bearing.
+The compile-checks have caught real bugs editorial review missed — wrong return types in chained calls, stale API names after renames, type-inference failures in subtle generics, and snippet bugs that the legacy compile-checks silently papered over (e.g. tryfold's `*e` vs `e`). Load-bearing.
 
 ### Cycle attestation: criterion names verbatim
 

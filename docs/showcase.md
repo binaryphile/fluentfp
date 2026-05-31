@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 20 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold, validation, consul_retry, exaws, pagination) have migrated, the remaining 2 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/) — the markdown is the source of truth for each snippet body; the harnesses are the surrounding type/function context. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -515,7 +515,7 @@ Bounded parallelism without `sync.WaitGroup` bookkeeping, panic recovery, or per
 **Go equivalent:** A CLI dashboard that evaluates independent status modules in parallel — the same "render N independent widgets concurrently" problem.
 
 **Extracted:**
-```go
+```go {compile,context=pmap,slot=extracted}
 // Segment holds rendered output from one status module.
 type Segment struct {
     Name  string
@@ -538,20 +538,22 @@ func renderModule(name string) Segment {
 ```
 
 **Sequential:**
-```go
+```go {compile,context=pmap,slot=sequential}
 segments := slice.Map(enabledModules, renderModule)
+return segments
 ```
 
 **Parallel:**
-```go
+```go {compile,context=pmap,slot=parallel}
 segments := slice.PMap(enabledModules, 8, renderModule)
+return segments
 ```
 
 Same function, one call-site change — the Rayon pattern. `renderModule` doesn't gain a worker ID, doesn't need a mutex.
 
 The method form matches Starship's `par_iter().filter_map()` — parallel filter for modules that should display:
 
-```go
+```go {compile,context=pmap,slot=method}
 // isEnabled returns true if the module has something to show in the current environment.
 isEnabled := func(name string) bool {
     switch name {
@@ -566,6 +568,7 @@ isEnabled := func(name string) bool {
 }
 
 active := slice.From(allModules).PKeepIf(8, isEnabled)
+return active
 ```
 
 Parallelism is a property of the *traversal*, not the *transform*. The function you wrote for sequential use works unchanged. Plain Go would require a `sync.WaitGroup`, a result slice with index bookkeeping, goroutines with closure capture, and — for the filter variant — a mutex-protected accumulator. `PMap` absorbs all of that.
@@ -702,7 +705,7 @@ func (g *AcyclicGraph) topoOrder(order walkType) []Vertex {
 One function, four algorithms — only the behavioral arguments change. Terraform's 43 lines couple traversal to behavior, so each new algorithm means copy-paste-modify the same DFS boilerplate.
 
 **Go equivalent — separating engine from behavior:**
-```go
+```go {compile,context=topo,slot=engine}
 // dfs traverses all vertices depth-first, calling arrive on entry and depart on exit.
 // The engine is reusable; the algorithm lives in arrive and depart.
 func dfs[V comparable](
@@ -733,7 +736,10 @@ func dfs[V comparable](
         return acc
     }
 }
+```
 
+Each algorithm becomes a 3-line choice of `arrive` and `depart`:
+```go {compile,context=topo,slot=algorithms}
 // Topological sort: ignore on arrive, collect on depart, reverse.
 noop := func(_ Vertex, acc []Vertex) []Vertex { return acc }
 collect := func(v Vertex, acc []Vertex) []Vertex { return append(acc, v) }
@@ -744,6 +750,7 @@ slices.Reverse(sorted)
 // Reachability from a single source: collect on arrive, ignore on depart.
 reachFrom := dfs(graph.Neighbors, collect, noop)
 reachable := reachFrom([]Vertex{source})
+return sorted, reachable
 ```
 
 The one line that makes this a topological sort — `sorted = append(sorted, v)` — is surrounded by 42 lines of DFS mechanics. The functional decomposition makes the insight visible: topological order *is* DFS departure order; everything else is engine. Stone further separates cycle detection into a standalone `acyclic?` predicate — a precondition, not part of the sort.
