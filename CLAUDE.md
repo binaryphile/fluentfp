@@ -282,25 +282,27 @@ When adding or changing packages, always update these docs as part of the same c
 4. **Package README** (`<pkg>/README.md`) — Per-package README following existing patterns (see `web/README.md`, `slice/README.md`, etc.).
 5. **CHANGELOG.md** — User-visible changes go under a new version heading (semver, see existing entries v0.59 / v0.60 / v0.61). Behavior changes get explicit "Behavior change:" notes; new features get one bullet.
 
-### Showcase compile-check suite
+### Snippet compile-check suite
 
-`docs/showcase.md` carries 24 before/after rewrites of real-world code. 22 of the 24 are compile-verified on every CI push via `scripts/check-snippets.py`:
+`scripts/check-snippets.py` compile-verifies go fenced blocks across 11 markdown docs (showcase, parallelism-research, all package READMEs, examples/orders/README, top-level README, design.md). Per the script: 40 blocks compile-checked, ~155 blocks marked `{ignore}` as illustrative / API surface / before-after-with-name-collision.
 
-1. The fluentfp fence in the markdown carries metadata in its language line: `{compile,context=NAME}` for a single-block context, or `{compile,context=NAME,slot=<name>}` when one entry has multiple distinct fences (e.g. construct + call, or 3 different return-shape demos).
+1. The fluentfp fence in the markdown carries metadata in its language line: `{compile,context=NAME}` for a single-block context, `{compile,context=NAME,slot=<name>}` when one entry has multiple distinct fences (multi-slot), or `{ignore}` to skip.
 2. The matching harness scaffold lives at `scripts/snippet-harness/NAME.go` — `//go:build ignore`, imports, type/var stubs, and `// __SNIPPET__` markers (or `// __SNIPPET_<slot>__` for multi-slot). No snippet body.
-3. The script reads the markdown at run time, substitutes each fence body at its respective marker, runs `go build` in a tmpdir with a `replace` directive pointing at the local repo.
+3. External-package deps live in `scripts/snippet-harness/NAME.gomod`: one `module-path version` per line (no `require` keyword); the script appends them to the tmpdir `go.mod`. Used for `golang.org/x/sync` (errgroup pattern) and `golang.org/x/time` (rate-limit middleware).
+4. The script reads the markdown at run time, substitutes each fence body at its respective marker, runs `go build` in a tmpdir with a `replace` directive pointing at the local repo.
 
 The snippet body lives only in the markdown — there's one source of truth. The harness carries the surrounding context (types, function shells, helper imports) that the snippet wouldn't compile against in isolation.
 
-When adding or editing a showcase entry:
-1. Edit the fence in `docs/showcase.md`. If it's a new entry, also annotate the fluentfp fence with `{compile,context=NAME}` and create `scripts/snippet-harness/NAME.go` (signature + imports + marker).
+When adding or editing an annotated fence:
+1. Edit the fence in the markdown. If it's a new compile-checked block, also annotate the fluentfp fence with `{compile,context=NAME}` and create `scripts/snippet-harness/NAME.go` (signature + imports + marker). Add a `NAME.gomod` companion if external deps are needed.
 2. Snippets ending in a value that the harness's function shell returns should append `return X` explicitly — the harness must not silently assume a variable name.
-3. Run `nix develop -c python3 scripts/check-snippets.py` locally to verify (CI also enforces it). Parallel execution across contexts; per-context groups all slots into one build.
-4. Run `python3 scripts/check-docs.py` to verify showcase ↔ README count/anchor consistency.
+3. Adding a new markdown doc to `TARGET_FILES`: extend the `TARGET_FILES` list in the script, then either annotate each go fence individually or run a bulk-`{ignore}` sweep (see `/tmp/bulk_ignore.py` shape during the 2026-05-31 expansion) followed by selectively flipping high-value blocks to `{compile,...}` with harnesses.
+4. Run `nix develop -c python3 scripts/check-snippets.py` locally to verify (CI also enforces it). Parallel execution across contexts; per-context groups all slots into one build.
+5. Run `python3 scripts/check-docs.py` to verify showcase ↔ README count/anchor consistency.
 
-The two showcase entries without compile-checks (kubernetes/route_controller and traefik) are too abbreviated in the doc to extract cleanly.
+The two showcase entries without compile-checks (kubernetes/route_controller and traefik) are too abbreviated in the doc to extract cleanly. Most before/after pairs in package READMEs are `{ignore}` because the before and after halves declare the same name at incompatible scopes (package-level `func` vs function-body `:=`), breaking single-file compile.
 
-The compile-checks have caught real bugs editorial review missed — wrong return types in chained calls, stale API names after renames, type-inference failures in subtle generics, and snippet bugs that the legacy compile-checks silently papered over (e.g. tryfold's `*e` vs `e`). Load-bearing.
+The compile-checks have caught real bugs editorial review missed — wrong return types in chained calls, stale API names after renames (notably `rslt.Result.IsRight()` → `IsOk()` in parallelism-research.md during the 2026-05-31 expansion), type-inference failures in subtle generics, and snippet bugs that the legacy compile-checks silently papered over (e.g. tryfold's `*e` vs `e`). Load-bearing.
 
 ### Cycle attestation: criterion names verbatim
 
