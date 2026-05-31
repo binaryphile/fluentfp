@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 13 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve) have migrated, the remaining 9 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 14 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer) have migrated, the remaining 8 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -76,7 +76,7 @@ func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
 ```
 
 **fluentfp:**
-```go
+```go {compile,context=sniffer}
 var sortFuncs = map[ViewMode]func(ProcessesResult) int{
     ModeTableBytes:   ProcessesResult.TotalBytes,
     ModeTablePackets: ProcessesResult.TotalPackets,
@@ -84,6 +84,7 @@ var sortFuncs = map[ViewMode]func(ProcessesResult) int{
 
 byViewModeDesc := slice.Desc(sortFuncs[mode])  // slice.Desc creates a comparator for .Sort
 results := kv.Map(s.Processes, NewResult).Sort(byViewModeDesc).Take(n)
+return results
 ```
 
 `kv.Map` replaces the map-to-slice loop; the two duplicated `sort.Slice` closures collapse into a `mode → method-expression` table consumed by `.Sort(slice.Desc(...))`; `.Take(n)` replaces the bounds check and reslices like `[:n]`. The deeper win is escaping the index-driven API: `sort.Slice`'s comparator takes positions, which invites *misreference* (`items[i]` where you meant `items[j]` — compiles silently) and *variable shadowing* (Go itself shipped [#48838](https://github.com/golang/go/issues/48838) — an inner `i` masking an outer `i`). Go's own replacement, `slices.SortFunc`, takes element comparators for the same reason. See [Error Prevention](../analysis.md#error-prevention) (Index usage typo).
