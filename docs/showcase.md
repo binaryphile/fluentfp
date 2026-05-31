@@ -787,7 +787,9 @@ func (s *Server) invalidateSession(id string, entMeta *acl.EnterpriseMeta) {
 **fluentfp:**
 ```go
 // At server construction — retry policy defined once, applied everywhere
-s.resilientRaftApply = wrap.Func(s.leaderRaftApply).Retry(maxInvalidateAttempts, wrap.ExpBackoff(invalidateRetryBase), nil)
+s.resilientRaftApply = wrap.
+    Func(s.leaderRaftApply).
+    Retry(maxInvalidateAttempts, wrap.ExpBackoff(invalidateRetryBase), nil)
 ```
 
 ```go
