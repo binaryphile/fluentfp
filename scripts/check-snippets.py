@@ -45,6 +45,7 @@ DEFAULT_MARKER = "// __SNIPPET__"
 
 TARGET_FILES = [
     REPO_ROOT / "docs" / "showcase.md",
+    REPO_ROOT / "docs" / "parallelism-research.md",
     REPO_ROOT / "web" / "README.md",
 ]
 # All target files share opt-in semantics — un-annotated blocks emit
@@ -176,7 +177,7 @@ def check_compile_group(context, blocks):
         gomod_lines = [
             "module snippet",
             "",
-            "go 1.22",
+            "go 1.26",
             "",
             "require github.com/binaryphile/fluentfp v0.0.0",
         ]

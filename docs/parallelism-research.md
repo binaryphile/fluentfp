@@ -40,7 +40,7 @@ let results: Vec<String> = users
 
 **Model:** Structured concurrency with `iter.Map`/`iter.MapErr` for concurrent slice transforms.
 
-```go
+```go {ignore}
 results, err := iter.MapErr(input, func(item *T) (R, error) {
     return transform(item)
 })
@@ -75,7 +75,7 @@ List<String> results = users.parallelStream()
 
 **Model:** Generic worker pool with typed results, bounded queues, panic recovery.
 
-```go
+```go {ignore}
 pool := pond.NewResultPool[string](8)
 defer pool.StopAndWait()
 group := pool.NewGroup()
@@ -112,7 +112,7 @@ results, _ := group.Wait()  // ordered by submission
 
 **`errgroup`** is the standard Go pattern for bounded parallel work — error propagation, `context.Context` cancellation, `SetLimit(n)` for concurrency bounds:
 
-```go
+```go {compile,context=errgroup_pattern}
 results := make([]Response, len(items))
 g, ctx := errgroup.WithContext(ctx)
 g.SetLimit(8)
@@ -296,7 +296,7 @@ How many surveyed call sites are clean fits for `FanOut(ctx, n, items, fn) Mappe
 
 ### API Sketch
 
-```go
+```go {ignore}
 func FanOut[T, R any](
     ctx context.Context,
     n   int,
@@ -309,20 +309,20 @@ Where `Result[R]` is a type alias `Either[error, R]` in the `rslt` package. flue
 
 **Constructors:**
 
-```go
+```go {ignore}
 func Ok[R any](r R) Result[R]     // = either.Right[error, R](r)
 func Err[R any](e error) Result[R] // = either.Left[error, R](e)
 ```
 
 **Usage:**
-```go
+```go {compile,context=fanout_consumer}
 // Fan out HTTP calls, get per-item results
 results := slice.FanOut(ctx, 8, urls, fetchURL)
 
 // Consume: extract successes (Go doesn't support method expressions
 // on generic type instantiations, so use named functions)
-isOk := func(r Result[Response]) bool { return r.IsRight() }
-getBody := func(r Result[Response]) string { return r.Or(Response{}).Body }
+isOk := func(r rslt.Result[Response]) bool { return r.IsOk() }
+getBody := func(r rslt.Result[Response]) string { return r.Or(Response{}).Body }
 bodies := results.KeepIf(isOk).ToString(getBody)
 
 // Consume: collect results (first error by index order)
@@ -334,7 +334,7 @@ oks, errs := rslt.CollectOkAndErr(results)
 
 **Best-effort fail-fast** requires the caller to cancel the context — FanOut does not cancel automatically on error:
 
-```go
+```go {compile,context=fanout_cancel}
 ctx, cancel := context.WithCancel(parentCtx)
 defer cancel()
 failFast := func(ctx context.Context, url string) (Response, error) {
@@ -353,7 +353,7 @@ results := slice.FanOut(ctx, 8, urls, failFast)
 
 **Two wrappers, one engine.** Map-with-errors is FanOut. Side-effect fan-out is FanOutEach. Both share one internal traversal engine — separate public APIs, not "FanOut where you discard results."
 
-```go
+```go {ignore}
 func FanOutEach[T any](
     ctx context.Context,
     n   int,
@@ -392,7 +392,7 @@ Returns `[]error` with `len(errs) == len(ts)` — nil entries for successes, pre
 
 **Cancellation model:** Semaphore acquired before spawn (bounds goroutine count). Scheduling loop races permit acquisition against cancellation:
 
-```go
+```go {ignore}
 select {
 case sem <- struct{}{}:
     // permit acquired — launch worker goroutine
@@ -413,7 +413,7 @@ Package placement: `slice.FanOut` and `slice.FanOutEach` — sit alongside exist
 
 ### Relationship to Existing Ops
 
-```go
+```go {ignore}
 // CPU-bound, infallible: fn cannot fail, uniform work
 hashes := slice.PMap(slice.From(files), 8, computeHash)
 
@@ -504,7 +504,7 @@ Before making `FanOut` public, benchmark the actual overhead.
 - Per-item scheduling handles skew better than static chunking (the core hypothesis)
 - No excessive allocation pressure (verify with `go tool pprof -alloc_space`)
 
-```go
+```go {compile,context=fanout_bench}
 func BenchmarkFanOut(b *testing.B) {
     items := make([]string, 1000)
     fn := func(ctx context.Context, url string) (Response, error) {
@@ -529,7 +529,7 @@ Per-item results make panic handling cleaner than in fail-fast models. Each item
 
 **Concrete error type:**
 
-```go
+```go {compile,context=panic_error}
 // PanicError wraps a recovered panic value with its stack trace.
 // Callers detect panic-originated failures via errors.As.
 type PanicError struct {
