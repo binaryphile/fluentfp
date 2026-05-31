@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 11 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus) have migrated, the remaining 11 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 12 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas) have migrated, the remaining 10 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -1331,22 +1331,22 @@ func (r *Replica) lockLearnerSnapshot(
 ```
 
 **fluentfp:**
-```go
+```go {compile,context=sagas}
 // call invokes a zero-argument function.
-call := func(fn func()) { fn() }
+var call = func(fn func()) { fn() }
 
 func (r *Replica) lockLearnerSnapshot(
-    ctx context.Context, additions []roachpb.ReplicationTarget,
+    ctx context.Context, additions []ReplicationTarget,
 ) (unlock func()) {
     // acquireLock acquires a snapshot lock and returns its cleanup.
-    acquireLock := func(addition roachpb.ReplicationTarget) func() {
+    acquireLock := func(addition ReplicationTarget) func() {
         lockUUID := uuid.MakeV4()
         _, cleanup := r.addSnapshotLogTruncationConstraint(
             ctx, lockUUID, true, addition.StoreID)
         return cleanup
     }
 
-    var cleanups slice.Mapper[func()] = slice.Map(additions, acquireLock)
+    cleanups := slice.Map(additions, acquireLock)
     return func() { cleanups.Each(call) }
 }
 ```
