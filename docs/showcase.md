@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 19 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold, validation, consul_retry, exaws) have migrated, the remaining 3 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 20 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold, validation, consul_retry, exaws, pagination) have migrated, the remaining 2 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -476,21 +476,21 @@ func listAllObjects(bucket string) []Object {
 Every consumer (collect all, find one, sample first N) rewrites this loop with a different body.
 
 **fluentfp** — separate *fetching* from *consuming*:
-```go
+```go {compile,context=pagination,slot=define}
 // pageStep fetches one page and returns the optional next cursor.
 pageStep := func(token string) (ObjectPage, option.String) {
     page := listObjects(bucket, token)
     return page, page.NextTokenOption
 }
 
-var pages stream.Stream[ObjectPage] = stream.Paginate("", pageStep)
+pages := stream.Paginate("", pageStep)
 ```
 
 `Paginate` calls `pageStep` with the seed (`""`), emits the page, then lazily calls again with the next token. When `NextToken` is not-ok, it emits the last page and stops.
 
 Define fetching once, pick any consumer — no loop rewriting:
 
-```go
+```go {compile,context=pagination,slot=consume}
 pages.Collect()                                // fetch everything
 pages.Take(3).Collect()                        // first 3 pages only
 pages.Find(pageContainsKey)                    // stop at first match
