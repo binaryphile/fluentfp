@@ -7,7 +7,7 @@ Replace loop scaffolding with type-safe collection chains.
 - **Method expressions** — pass `User.IsActive` directly. No wrapper closures.
 - **Comma-ok** — `Find`, `IndexWhere` return `option` with `.Get()` → `(value, ok)`.
 
-```go
+```go {ignore}
 // Before: 3 lines of scaffolding, 2 closing braces, 1 line of intent
 var names []string
 for _, u := range users {
@@ -24,17 +24,17 @@ Six lines become one.
 
 ## What It Looks Like
 
-```go
+```go {ignore}
 // Ranking
 top5 := slice.SortByDesc(players, Player.Score).Take(5)
 ```
 
-```go
+```go {ignore}
 // Cross-type mapping (both types inferred)
 users := slice.Map(ids, FetchUser)
 ```
 
-```go
+```go {ignore}
 // Multi-field extraction in one pass
 prices, quantities, discounts, taxes := slice.Unzip4(orders,
     Order.Price, Order.Quantity, Order.Discount, Order.Tax,
@@ -43,7 +43,7 @@ prices, quantities, discounts, taxes := slice.Unzip4(orders,
 
 `Order.Price` is a [method expression](https://go.dev/ref/spec#Method_expressions) — Go turns the method into a `func(Order) float64`, which is exactly what Unzip expects. This works when your types have accessor methods. Without them, named functions work in the same position:
 
-```go
+```go {ignore}
 // With accessor methods
 prices, qtys := slice.Unzip2(orders, Order.Price, Order.Quantity)
 
@@ -55,7 +55,7 @@ prices, qtys := slice.Unzip2(orders, getPrice, getQty)
 
 Method expressions read as intent at the call site — `Order.Price` vs reading a function body. They pay off when multiple sites extract the same field. For one-off use, named functions avoid the extra method.
 
-```go
+```go {ignore}
 // Set construction for O(1) lookup — works with any comparable type
 allowed := slice.ToSet(cfg.AllowedRoles)
 if allowed[user.Role] {
@@ -63,17 +63,17 @@ if allowed[user.Role] {
 }
 ```
 
-```go
+```go {ignore}
 // Expand each department into its members — one-to-many, then flatten
 allEmployees := slice.From(departments).FlatMap(Department.Employees)
 ```
 
-```go
+```go {ignore}
 // Reduce to map
 byMAC := slice.Fold(devices, make(map[string]Device), addDevice)
 ```
 
-```go
+```go {ignore}
 // Number items starting from 1 — state is the counter, output is the labeled string
 // number returns the next counter and a formatted label.
 number := func(n int, item Item) (int, string) {
@@ -87,7 +87,7 @@ _, numbered := slice.MapAccum(items, 1, number)
 
 `Mapper[T]` is `[]T`. Use it anywhere you'd use a slice:
 
-```go
+```go {ignore}
 func activeNames(users []User) []string {
     names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
     names.Each(lof.Println)
@@ -95,7 +95,7 @@ func activeNames(users []User) []string {
 }
 ```
 
-```go
+```go {ignore}
 result := slice.From(users).KeepIf(User.IsActive)
 fmt.Println(result[0])         // index
 fmt.Println(len(result))       // len
@@ -141,7 +141,7 @@ See [comparison](../comparison.md) for the full library comparison.
 
 `FanOut` runs a function on every element of a slice concurrently, limited to `n` at a time. Each element gets its own goroutine. Results come back in input order — `output[i]` corresponds to `input[i]`.
 
-```go
+```go {ignore}
 results := slice.FanOut(ctx, 10, cities, City)
 infos, err := rslt.CollectAll(results)
 ```
@@ -169,7 +169,7 @@ FanOut returns only after every started goroutine has finished — no goroutine 
 
 When every item must succeed or the whole operation fails, use `FanOutAll`. On the first error or panic, it cancels a derived context — this skips unstarted work and lets in-flight callbacks stop early if they honor `ctx`, but it still waits for started callbacks to return. Returns `([]R, error)` directly:
 
-```go
+```go {ignore}
 infos, err := slice.FanOutAll(ctx, 10, cities, City)
 ```
 
@@ -185,7 +185,7 @@ If any failure should fail the whole batch, use `FanOutAll` instead — on the f
 
 If `fn` panics, that item's result becomes `Err` wrapping a `*rslt.PanicError` (with the panic value and stack trace). Other items are unaffected. Detect panics with `errors.As`:
 
-```go
+```go {ignore}
 var pe *rslt.PanicError
 if errors.As(err, &pe) {
     log.Printf("panic: %v\n%s", pe.Value, pe.Stack)
@@ -214,7 +214,7 @@ Choose in two steps:
 
 **No error return** — use `PMap`, `PKeepIf`, or `PEach` when your callback does not return an error. Panics in fn are recovered, converted to `*rslt.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Remaining workers continue until fn returns. If fn may block indefinitely, use `FanOut` or `FanOutAll` instead — they accept `context.Context` for timeout and cancellation. This is a good fit for transforms and filters where failure is not part of the callback's contract:
 
-```go
+```go {ignore}
 // Normalize 10K strings
 normalized := slice.PMap(inputs, 8, strings.ToLower)
 
@@ -224,7 +224,7 @@ digests := slice.PMap(blobs, 4, sha256.Sum256)
 
 **All-or-nothing** — every item must succeed or the whole batch fails. On the first error or panic, `FanOutAll` cancels a derived context — this skips unstarted work and lets in-flight callbacks stop early if they honor `ctx`, but it still waits for started callbacks to return:
 
-```go
+```go {ignore}
 // Fetch all prices before computing portfolio (partial is useless)
 prices, err := slice.FanOutAll(ctx, 5, tickers, fetchPrice)
 
@@ -234,13 +234,13 @@ manifests, err := slice.FanOutAll(ctx, 4, files, parseAndValidateManifest)
 
 **Partial success** — gather what you can, log failures separately. Use `FanOut` with a collector:
 
-```go
+```go {ignore}
 // Download avatars (missing ones OK)
 avatarResults := slice.FanOut(ctx, 10, users, downloadAvatar)
 avatars, errs := rslt.CollectOkAndErr(avatarResults)
 ```
 
-```go
+```go {ignore}
 // Decode untrusted images (some may be corrupt)
 imageResults := slice.FanOut(ctx, 8, blobs, decodeImage)
 images := rslt.CollectOk(imageResults)
@@ -248,14 +248,14 @@ images := rslt.CollectOk(imageResults)
 
 **Side effects only** — `FanOutEach` returns `[]error` instead of values:
 
-```go
+```go {ignore}
 // Send notifications (log failures, keep going)
 errs := slice.FanOutEach(ctx, 20, users, sendNotification)
 ```
 
 **Scheduling model** is the next question after callback signature and error contract. `PMap` uses a fixed set of workers processing chunks of the input, which has lower scheduling overhead for many small, uniform tasks. `FanOut` schedules work per item under a concurrency limit, which handles variable-latency work better and enables cancellation and per-item error handling. If you've chosen the `FanOut` family and item costs vary widely, use the corresponding weighted variant to bound total in-flight cost instead of item count:
 
-```go
+```go {ignore}
 // Upload files bounded by total in-flight MB
 sizeMB := func(f File) int { return f.SizeMB }
 uploads, err := slice.FanOutWeightedAll(ctx, 100, files, sizeMB, uploadFile)

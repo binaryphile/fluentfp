@@ -4,7 +4,7 @@ Fluent chains on Go's `iter.Seq` — lazy, re-evaluating, stdlib-compatible.
 
 Use `seq` when you want laziness, early termination, or `iter.Seq` interop. Prefer `slice` for eager in-memory collection work. For memoized lazy sequences, use `stream`.
 
-```go
+```go {ignore}
 // Before: manual loop to filter an iterator
 var active []string
 for k := range maps.Keys(configs) {
@@ -19,70 +19,70 @@ active := seq.FromIter(maps.Keys(configs)).KeepIf(isActive).Collect()
 
 ## What It Looks Like
 
-```go
+```go {ignore}
 // Lazy filter + limit — stops after finding 5 matches
 top5 := seq.From(items).KeepIf(Item.IsActive).Take(5).Collect()
 ```
 
-```go
+```go {ignore}
 // Infinite sequence — always use Take or TakeWhile before a terminal op
 naturals := seq.Generate(0, func(n int) int { return n + 1 })
 first10 := naturals.Take(10).Collect()
 ```
 
-```go
+```go {ignore}
 // Range works directly — no .Iter() needed
 for v := range seq.From(data).KeepIf(isValid) {
     fmt.Println(v)
 }
 ```
 
-```go
+```go {ignore}
 // .Iter() when passing to functions expecting iter.Seq
 slices.Collect(seq.From(data).KeepIf(isValid).Iter())
 ```
 
-```go
+```go {ignore}
 // Cross-type map (standalone — Go methods can't introduce type params)
 names := seq.Map(users, User.Name).Collect()
 ```
 
-```go
+```go {ignore}
 // FlatMap — expand each item into a sub-sequence and flatten
 allTags := seq.FlatMap(items, Item.Tags).Collect()
 ```
 
-```go
+```go {ignore}
 // Zip — pair corresponding elements from two sequences
 ranked := seq.Zip(seq.From(names), seq.From(scores)).Collect()
 ```
 
-```go
+```go {ignore}
 // Scan — running totals as a lazy sequence
 totals := seq.Scan(seq.From(amounts), 0.0, sumFloat64).Collect()
 ```
 
-```go
+```go {ignore}
 // FilterMap — filter and transform in one pass
 parsed := seq.FilterMap(lines, parseLine).Collect()
 ```
 
-```go
+```go {ignore}
 // Reduce — combine without an initial value
 sum := seq.From(amounts).Reduce(add).OrZero()
 ```
 
-```go
+```go {ignore}
 // Unique — deduplicate lazily
 distinct := seq.Unique(seq.From(ids)).Collect()
 ```
 
-```go
+```go {ignore}
 // Intersperse — insert separator between elements
 csv := seq.From(fields).Intersperse(",").Collect()
 ```
 
-```go
+```go {ignore}
 // Chunk — process in batches
 batches := seq.Chunk(seq.From(records), 100)
 for batch := range batches {
@@ -90,19 +90,19 @@ for batch := range batches {
 }
 ```
 
-```go
+```go {ignore}
 // Contains — short-circuit membership check
 if seq.Contains(seq.From(allowed), userRole) {
     grant()
 }
 ```
 
-```go
+```go {ignore}
 // FromChannel — bridge a channel to a lazy Seq
 events := seq.FromChannel(ctx, eventCh).KeepIf(Event.IsImportant).Take(10).Collect()
 ```
 
-```go
+```go {ignore}
 // ToChannel — bridge a Seq pipeline to a channel
 out := seq.From(items).Transform(transform).ToChannel(ctx, 0)
 for v := range out {
@@ -114,7 +114,7 @@ for v := range out {
 
 Seq pipelines re-evaluate on every terminal call. There is no caching:
 
-```go
+```go {ignore}
 evens := seq.From(numbers).KeepIf(isEven)
 a := evens.Collect()  // runs the filter
 b := evens.Collect()  // runs the filter again

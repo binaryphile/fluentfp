@@ -16,7 +16,7 @@ Requires Go 1.26+.
 go get github.com/binaryphile/fluentfp
 ```
 
-```go
+```go {ignore}
 import "github.com/binaryphile/fluentfp/slice"
 
 // Before: scaffolding around one line of intent
@@ -37,14 +37,14 @@ That's a **fluent chain** — each step returns a value you can call the next me
 
 Go lets you reference a method by its type name, creating a function value where the receiver becomes the first argument:
 
-```go
+```go {ignore}
 func (u User) IsActive() bool  // method
 func(User) bool                // method expression: User.IsActive
 ```
 
 `KeepIf` expects `func(T) bool` — `User.IsActive` is exactly that:
 
-```go
+```go {ignore}
 names := slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
 ```
 
@@ -58,7 +58,7 @@ See [naming patterns](naming-in-hof.md) for when to use method expressions vs na
 
 fluentfp isn't just `slice`. Here's the same library applied to HTTP handlers, resilience, and request plumbing:
 
-```go
+```go {ignore}
 // HTTP handler returns a value — no ResponseWriter mutation
 handleGetUser := func(r *http.Request) rslt.Result[web.Response] {
     return rslt.Map(
@@ -69,7 +69,7 @@ handleGetUser := func(r *http.Request) rslt.Result[web.Response] {
 mux.HandleFunc("GET /users/{id}", web.Adapt(handleGetUser))
 ```
 
-```go
+```go {ignore}
 // Chainable resilience — retry, then circuit breaker
 breaker := wrap.NewBreaker(wrap.BreakerConfig{
     ResetTimeout: 10 * time.Second,
@@ -81,7 +81,7 @@ safeFetch := wrap.Func(fetchFromAPI).
 resp, err := safeFetch(ctx, url)  // returns wrap.ErrCircuitOpen when tripped
 ```
 
-```go
+```go {ignore}
 // Typed context values — no sentinel keys, no type assertions
 ctx = ctxval.With(ctx, RequestID("req-123"))
 reqID := ctxval.Lookup[RequestID](ctx).Or("unknown")
@@ -161,7 +161,7 @@ Fetch weather for a list of cities with at most 10 simultaneous goroutines.
 
 When you need per-item outcomes instead of all-or-nothing, use `FanOut`:
 
-```go
+```go {ignore}
 results := slice.FanOut(ctx, 10, cities, City)
 infos, errs := rslt.CollectOkAndErr(results)  // gather successes and failures separately
 ```
@@ -180,7 +180,7 @@ infos, errs := rslt.CollectOkAndErr(results)  // gather successes and failures s
 
 `Mapper[T]` is defined as `type Mapper[T any] []T` — a [defined type](https://go.dev/ref/spec#Type_definitions), not a wrapper. `[]T` and `Mapper[T]` convert implicitly in either direction, so you choose how much to expose:
 
-```go
+```go {ignore}
 // Public API — hide the dependency. Callers never see fluentfp types.
 func ActiveNames(users []User) []string {
     return slice.From(users).KeepIf(User.IsActive).ToString(User.Name)
@@ -215,7 +215,7 @@ If you're counting nanoseconds in a hot path, fuse it in a loop. Most loops aren
 
 fluentfp replaces mechanical loops — iteration scaffolding around a predicate and a transform. It doesn't try to replace loops that do structural work:
 
-```go
+```go {ignore}
 // Mutation in place — fluentfp returns new slices, but elements are shared (shallow copy)
 for i := range items {
     if items[i].ID == target {
@@ -277,7 +277,7 @@ Packages are independent — import one or all.
 
 **[wrap](wrap/)** — chainable resilience decorators:
 
-```go
+```go {ignore}
 // Retry transient errors, then circuit-break the dependency
 breaker := wrap.NewBreaker(wrap.BreakerConfig{ResetTimeout: 30 * time.Second})
 
@@ -288,7 +288,7 @@ safeFetch := wrap.Func(fetchData).
 
 **[web](web/)** — typed HTTP handlers on net/http:
 
-```go
+```go {ignore}
 // Handlers return Result[Response] — no ResponseWriter, no manual status codes
 var createUser web.Handler = func(r *http.Request) rslt.Result[web.Response] {
     req, err := web.DecodeJSON[CreateReq](r)
@@ -302,7 +302,7 @@ mux.HandleFunc("POST /users", endpoint)
 
 **[ctxval](ctxval/)** — typed context values without type assertions:
 
-```go
+```go {ignore}
 type RequestID string
 ctx = ctxval.With(ctx, RequestID("abc-123"))
 reqID := ctxval.Lookup[RequestID](ctx)  // Option[RequestID]
@@ -310,20 +310,20 @@ reqID := ctxval.Lookup[RequestID](ctx)  // Option[RequestID]
 
 **[rslt](rslt/)** — typed error handling as values:
 
-```go
+```go {ignore}
 r := rslt.Of(strconv.Atoi(input))  // wrap (int, error) → Result[int]
 port := r.Or(8080)                   // value or default
 ```
 
 **[seq](seq/)** — fluent chains on Go's `iter.Seq`:
 
-```go
+```go {ignore}
 active := seq.FromIter(maps.Keys(configs)).KeepIf(isActive).Collect()
 ```
 
 **[stream](stream/)** — lazy memoized sequences:
 
-```go
+```go {ignore}
 naturals := stream.Generate(0, lof.Inc)
 first10Squares := stream.Map(naturals, square).Take(10).Collect()
 ```

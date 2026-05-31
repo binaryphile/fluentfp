@@ -2,7 +2,7 @@
 
 Fluent operations on Go maps — filter, transform, extract.
 
-```go
+```go {ignore}
 // Before: five lines to extract active config values from a map
 var active []Config
 for _, cfg := range configs {
@@ -21,27 +21,27 @@ Five lines become two.
 
 ## What It Looks Like
 
-```go
+```go {ignore}
 // Transform map values (type change)
 labels := kv.MapValues(counts, strconv.Itoa)
 ```
 
-```go
+```go {ignore}
 // Filter entries, then chain
 valid := kv.MapValues(raw, parseConfig).KeepIf(configIsValid)
 ```
 
-```go
+```go {ignore}
 // Map entries to structs
 items := kv.Map(s.Processes, toResult)
 ```
 
-```go
+```go {ignore}
 // Extract and filter values
 actives := kv.Values(userMap).KeepIf(User.IsActive)
 ```
 
-```go
+```go {ignore}
 // Map entries to a built-in type
 // formatEntry returns "key=value" for each map entry.
 formatEntry := func(k string, v int) string { return fmt.Sprintf("%s=%d", k, v) }
@@ -52,7 +52,7 @@ labels := kv.From(m).ToString(formatEntry)
 
 `Entries[K,V]` is `map[K]V` — a defined type, not a wrapper. The zero value is a nil map — safe for reads (`len`, `range`) but panics on write. Indexing, `range`, and `len` all work as with a plain map. `From` does not copy; the `Entries` and the original map share the same backing data.
 
-```go
+```go {ignore}
 entries := kv.From(m)
 v := entries["key"]          // indexing works
 for k, v := range entries {} // range works

@@ -4,7 +4,7 @@ Lazy, memoized, persistent sequences. Zero goroutines, zero channels.
 
 Use `stream` when you need lazy evaluation — infinite sequences, early termination, or deferred computation over expensive elements. For finite in-memory collections, use `slice`. For lightweight `iter.Seq` chaining without caching, use `seq`.
 
-```go
+```go {ignore}
 // Before: channel-based Fibonacci leaks a goroutine when you stop reading
 func fib() <-chan int {
     ch := make(chan int)
@@ -26,50 +26,50 @@ first10 := fib.Take(10).Collect()
 
 ## What It Looks Like
 
-```go
+```go {ignore}
 // Infinite sequence of natural numbers
 naturals := stream.Generate(0, func(n int) int { return n + 1 })
 ```
 
-```go
+```go {ignore}
 // First 10 primes — lazy filter over infinite sequence
 primes := stream.Generate(2, inc).KeepIf(isPrime).Take(10).Collect()
 ```
 
-```go
+```go {ignore}
 // Cross-type lazy map (standalone — Go methods can't introduce type params)
 names := stream.Map(users, User.Name).Collect()
 ```
 
-```go
+```go {ignore}
 // Bridge to Go's range protocol
 for v := range stream.Of(1, 2, 3).Seq() {
     fmt.Println(v)
 }
 ```
 
-```go
+```go {ignore}
 // Cursor-based pagination — each step returns a page and optional next cursor
 pages := stream.Paginate(firstCursor, fetchPage)
 allItems := stream.Map(pages, Page.Items).Collect()
 ```
 
-```go
+```go {ignore}
 // FlatMap — expand each element and flatten, head-eager
 allChildren := stream.FlatMap(nodes, Node.Children).Collect()
 ```
 
-```go
+```go {ignore}
 // Concat — chain two streams end-to-end
 combined := stream.Concat(priorityItems, regularItems)
 ```
 
-```go
+```go {ignore}
 // Zip — pair corresponding elements, truncates to shorter
 pairs := stream.Zip(keys, values).Collect()
 ```
 
-```go
+```go {ignore}
 // Scan — running accumulation as a lazy stream
 balances := stream.Scan(transactions, startingBalance, applyTransaction)
 ```
@@ -88,7 +88,7 @@ The zero value is an empty stream. `First()` returns a not-ok option on empty. `
 
 Each tail thunk runs at most once on success. After evaluation, the result is cached — calling `.Collect()` twice on the same stream returns the same elements without re-computing them:
 
-```go
+```go {ignore}
 s := stream.Generate(0, expensiveStep).Take(1000)
 a := s.Collect()  // computes all 1000 steps
 b := s.Collect()  // returns cached results — no recomputation
@@ -96,7 +96,7 @@ b := s.Collect()  // returns cached results — no recomputation
 
 Multiple references to the same stream share the cache. This is what makes streams **persistent** — operations return new streams, but shared prefixes are computed once. Note that downstream operations (predicates, transforms) in derived streams are not shared — only the upstream forcing is deduplicated:
 
-```go
+```go {ignore}
 s := stream.Generate(0, expensiveStep).Take(1000)
 evens := s.KeepIf(isEven)   // s is the shared source
 odds  := s.KeepIf(isOdd)    // same s — steps are computed once

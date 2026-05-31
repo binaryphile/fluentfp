@@ -2,7 +2,7 @@
 
 Most production Go code spends more lines on iteration mechanics than on the work itself.
 
-```go
+```go {ignore}
 // Before — mechanics interleaved with intent
 var names []string
 for _, u := range users {
@@ -50,7 +50,7 @@ Six ways production code shapes slice work — sorted, merged, mapped, piped, se
 The original is 22 lines that duplicate `sort.Slice` closures across two modes — `items[i].TotalBytes()` then `items[i].TotalPackets()` — and end with a hand-rolled `if len(items) < n { n = len(items) }`. Both versions assume `TotalBytes`/`TotalPackets` methods on `ProcessesResult` and a `NewResult` constructor; with those, the original goes 22 → 18 lines and the fluentfp version is a two-line function body plus a sort-key map defined once.
 
 **Original** (with methods — 22 → 18 lines):
-```go
+```go {ignore}
 func (s *Snapshot) TopNProcesses(n int, mode ViewMode) []ProcessesResult {
     var items []ProcessesResult
     for k, v := range s.Processes {
@@ -101,7 +101,7 @@ return results
 Nomad's `Merge` walks 48 fields with the same three-line pattern: `if b.Field != zero { result.Field = b.Field }`. Below shows one representative field per pattern; the full method is 217 lines.
 
 **Original** (one field per pattern — `s` is the receiver, `b` is the override):
-```go
+```go {ignore}
 if b.AuthoritativeRegion != "" {
     result.AuthoritativeRegion = b.AuthoritativeRegion
 }
@@ -137,7 +137,7 @@ Most of the line reduction here is `cmp.Or`, a Go 1.22 stdlib addition — not f
 The original is 9 lines: split on punctuation, lowercase each token via `lo.Map` with a `func(string, _ int) string` wrapper around `strings.ToLower`, then filter blanks via `lo.Filter` with another wrapper. Both wrappers exist solely to discard lo's index parameter.
 
 **Extracted (both sides share):**
-```go
+```go {ignore}
 // splitTokens splits on punctuation and whitespace.
 splitTokens := func(s string) slice.Mapper[string] {
     return regexp.MustCompile("[ .()/:]+").Split(s, -1)
@@ -145,7 +145,7 @@ splitTokens := func(s string) slice.Mapper[string] {
 ```
 
 **lo with extraction:**
-```go
+```go {ignore}
 // lo-specific — stdlib functions need wrappers for the _ int parameter
 toLower := func(s string, _ int) string { return strings.ToLower(s) }
 isNonBlank := func(s string, _ int) bool { return strings.TrimSpace(s) != "" }
@@ -167,7 +167,7 @@ return tokens
 *`splitTokens` returns `slice.Mapper[string]`; Go's assignability rules make it interchangeable with `[]string` in either direction — lo accepts it without a conversion, and `regexp.Split`'s `[]string` flows into the `Mapper[string]` return without one either.*
 
 **Design note: standalone vs method form.** For a single cross-type map, fluentfp's standalone `slice.Map` infers both types — same inference as lo, without the `_ int` wrapper:
-```go
+```go {ignore}
 // lo - still requires wrapper to discard index
 getAddr := func(u User, _ int) Address { return u.Address() }
 addrs := lo.Map(users, getAddr)
@@ -187,7 +187,7 @@ Since `slice.Map` returns `Mapper[R]`, you can chain further: `slice.Map(users, 
 Consul (28k stars) lists services behind an ingress gateway. `ListRelatedServices` must flatten listeners to their services, skip wildcards, build canonical `ServiceID`s, deduplicate, and sort. Map-based dedup forces two loops — one to populate `map[ServiceID]struct{}`, one to extract the keys for sorting — so the original needs 27 lines to thread five concerns past an emptiness check.
 
 **Original:**
-```go
+```go {ignore}
 func (e *IngressGatewayConfigEntry) ListRelatedServices() []ServiceID {
     found := make(map[ServiceID]struct{})
 
@@ -262,7 +262,7 @@ A dependency of HashiCorp Vault (80k+ stars), Consul, Nomad, and Boundary. The o
 Note: the original's early returns (when `a` or `b` is empty) skip `RemoveDuplicates` preprocessing, so empty-`b` callers receive unnormalized output while main-path callers get normalized output — a subtle inconsistency the fluentfp version eliminates by processing all inputs uniformly.
 
 **Original** (30 lines, plus `RemoveDuplicates` helper not shown):
-```go
+```go {ignore}
 func Difference(a, b []string, lowercase bool) []string {
     if len(a) == 0 {
         return a
@@ -327,7 +327,7 @@ Three manual loops — build the map, delete matches, collect survivors — coll
 Docker Compose (37.1k stars) formats container statuses as `"running(3), exited(1)"` for `docker compose ls`. The original interleaves two concerns in the same loop: a frequency map (`nbByStatus`) and a separate `keys` slice that records first-seen order via a conditional append. A second loop builds the output string with manual comma separation.
 
 **Original:**
-```go
+```go {ignore}
 func combinedStatus(statuses []string) string {
 	nbByStatus := map[string]int{}
 	keys := []string{}
@@ -389,7 +389,7 @@ Before iterator-like libraries, Go code often used channels and goroutines to mo
 This comparison is not algorithmically equivalent. The original distributes trial division across N goroutines (each checking divisibility by one specific prime); the replacement uses a single `isPrime` predicate that checks all factors up to √n. Both produce identical output. The value demonstrated is that `stream` can express lazy evaluation — generate, filter, take — without goroutines or channels.
 
 **Original** (25 lines — `Generate`, `Filter`, `Sieve`):
-```go
+```go {ignore}
 func Generate(ch chan<- int) {
     for i := 2; ; i++ {
         ch <- i
@@ -456,7 +456,7 @@ return primes
 **Go equivalent:** S3 object listing with cursor pagination.
 
 **Typical Go** — a for loop mixing fetching, accumulation, and termination:
-```go
+```go {ignore}
 func listAllObjects(bucket string) []Object {
     var all []Object
     token := ""
@@ -584,7 +584,7 @@ Parallelism is a property of the *traversal*, not the *transform*. The function 
 **The pattern:** Both need bounded concurrent I/O with per-item results. ExAws S3 uploads file chunks concurrently (`Task.async_stream` with `max_concurrency: 4`) — all must succeed or abort. Hex downloads dependency tarballs concurrently — partial success is fine, failures are reported. Same operation, different success modes.
 
 **Typical Go** — semaphore, WaitGroup, recover, mutex-protected results:
-```go
+```go {ignore}
 func uploadChunks(ctx context.Context, chunks []Chunk) ([]ChunkUpload, error) {
     sem := make(chan struct{}, 4)
     var mu sync.Mutex
@@ -651,7 +651,7 @@ Three idioms cover the spectrum: `FanOutAll` for all-or-nothing with early cance
 Terraform builds a DAG of infrastructure resources — VPCs before subnets, subnets before EC2 instances — and topologically sorts it to determine execution order. Every `terraform apply` runs this algorithm.
 
 **Original** (43 lines):
-```go
+```go {ignore}
 func (g *AcyclicGraph) topoOrder(order walkType) []Vertex {
     sorted := make([]Vertex, 0, len(g.vertices))
     tmp := map[Vertex]bool{}
@@ -769,7 +769,7 @@ Retry, throttle, panic-recovery, and error-routing as composable wrappers — de
 Consul (28k stars) invalidates expired session TTLs via Raft consensus. The core operation — `leaderRaftApply` — is a single call. Around it: a hand-rolled retry loop, bit-shift backoff (`1 << attempt * base`), per-attempt error logging, and final max-retries logging. Every function that needs resilience rebuilds this scaffolding.
 
 **Original:**
-```go
+```go {ignore}
 func (s *Server) invalidateSession(id string, entMeta *acl.EnterpriseMeta) {
     defer metrics.MeasureSince([]string{"session_ttl", "invalidate"}, time.Now())
 
@@ -844,7 +844,7 @@ The retry-loop-with-backoff pattern recurs in CockroachDB's [TCP accept loop](ht
 Kubernetes' route controller (121k stars) creates cloud-provider routes for nodes. The core operation — `CreateRoute` — is one line. Around it: a channel-based semaphore, `RetryOnConflict` for retry, timing measurement, structured logging at multiple levels, and Kubernetes event recording on failure.
 
 **Original:**
-```go
+```go {ignore}
 go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
     defer wg.Done()
     err := clientretry.RetryOnConflict(updateNetworkConditionBackoff, func() error {
@@ -875,13 +875,13 @@ go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
 ```
 
 **fluentfp:**
-```go
+```go {ignore}
 // At construction — retry policy defined once
 createRoute := wrap.Func(rc.routes.CreateRoute).
     Retry(maxRetries, wrap.ExpBackoff(retryInterval), nil)
 ```
 
-```go
+```go {ignore}
 // At call site — retry mechanics extracted, only business logic remains
 go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
     defer wg.Done()
@@ -907,7 +907,7 @@ The `RetryOnConflict` wrapper-with-callback becomes `.Retry()`; the goroutine bo
 Traefik (62k stars) implements provider loops for Kubernetes CRD, Ingress, Gateway, and others. Each provider's `Provide` method watches for events, throttles updates, retries with exponential backoff, logs errors, and recovers from panics. The same ~80 lines of ceremony repeat across 5 files — only the inner operation differs.
 
 **Original** (abbreviated):
-```go
+```go {ignore}
 func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.Pool) error {
     logger := log.With().Str(logs.ProviderName, providerName).Logger()
 
@@ -960,7 +960,7 @@ The structural win isn't line count in a single file — it's that 5 provider fi
 etcd (48k stars) intercepts gRPC unary calls with retry logic. The for-loop body handles 6 concerns in 45 lines: backoff waiting, the gRPC invoke, debug logging per attempt, warn logging on failure, error classification (is it safe to retry? is it a context error?), and conditional token refresh.
 
 **Original** (abbreviated):
-```go
+```go {ignore}
 func (c *Client) unaryClientInterceptor(ctx context.Context, method string, req, reply any,
     cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
     // ...
@@ -1032,7 +1032,7 @@ Cascades for absent / missing / error values, as a single expression instead of 
 Kubernetes client-go (121k stars) resolves the in-cluster namespace through a priority chain: environment variable → service account file → default. Each level is a check-and-return block with its own early return.
 
 **Original:**
-```go
+```go {ignore}
 func (config *inClusterClientConfig) Namespace() (string, bool, error) {
     // This way assumes you've set the POD_NAMESPACE environment variable using the downward API.
     if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
@@ -1080,7 +1080,7 @@ Viper's [`find()`](https://github.com/spf13/viper/blob/master/viper.go#L1194-L13
 Docker CLI (5.7k stars) resolves the config directory: env var override, or a computed default from the home directory.
 
 **Original:**
-```go
+```go {ignore}
 func Dir() string {
     initConfigDir.Do(func() {
         configDir = os.Getenv(EnvOverrideConfigDir)
@@ -1093,7 +1093,7 @@ func Dir() string {
 ```
 
 And `getHomeDir()` itself (lines 61-69) has the same pattern:
-```go
+```go {ignore}
 func getHomeDir() string {
     home, _ := os.UserHomeDir()
     if home == "" && runtime.GOOS != "windows" {
@@ -1127,7 +1127,7 @@ func Dir() string {
 Kubernetes (121k stars) reads an integer from a node annotation: check annotations not nil, check key exists, parse to int. Each failure returns `(0, false)`.
 
 **Original:**
-```go
+```go {ignore}
 func getIntFromAnnotation(ctx context.Context, node *v1.Node, annotationKey string) (int, bool) {
     if node.Annotations == nil {
         return 0, false
@@ -1181,7 +1181,7 @@ Larger structural shapes — folds, middleware chains, sagas, validation accumul
 Temporal (12k stars) rebuilds workflow state by replaying history events. `applyEvents` iterates over `[]*HistoryEvent`, applying each event to a mutable state aggregate via a switch with 40+ cases. The function is 664 lines because iteration mechanics interleave with event application.
 
 **Original** (abbreviated):
-```go
+```go {ignore}
 func (b *MutableStateRebuilderImpl) applyEvents(
     ctx context.Context,
     history []*historypb.HistoryEvent,
@@ -1235,7 +1235,7 @@ Every Go event-sourcing library hides a *fold* inside imperative replay code: a 
 Kubernetes' API server (121k stars) builds its HTTP handler chain by wrapping a base handler in 15+ middleware layers — authentication, authorization, CORS, audit, panic recovery, etc. Each line is `handler = wrapper(handler, config...)`.
 
 **Original** (abbreviated):
-```go
+```go {ignore}
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
     handler := apiHandler
     handler = filterlatency.TrackCompleted(handler)
@@ -1295,7 +1295,7 @@ The repeated `handler = wrapper(handler)` pattern is a left-fold over a middlewa
 Event-sourced systems fold state through a function that may fail on any event. The pattern is universal:
 
 **Original:**
-```go
+```go {ignore}
 func (e *Engine) applyEvents(events []Event) (Engine, error) {
     for _, evt := range events {
         var err error
@@ -1324,7 +1324,7 @@ The for/if-err/return shape is a fold with short-circuit error propagation. `Try
 CockroachDB (32k stars) acquires snapshot locks for learner replicas. Each addition gets a lock and a cleanup function; on completion or failure, cleanups run in reverse order. The imperative version manages a cleanup slice manually and builds a closure that iterates it.
 
 **Original:**
-```go
+```go {ignore}
 func (r *Replica) lockLearnerSnapshot(
     ctx context.Context, additions []roachpb.ReplicationTarget,
 ) (unlock func()) {
@@ -1374,7 +1374,7 @@ The pattern is a map (acquire resources → get cleanups) paired with an each (r
 Terraform (48k stars) validates `replace_triggered_by` expressions. Each expression needs unwrapping, reference extraction, and multiple checks. Diagnostics from each step accumulate into a shared slice.
 
 **Original** (abbreviated):
-```go
+```go {ignore}
 func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagnostics) {
     exprs, diags := hcl.ExprList(expr)
 
@@ -1445,7 +1445,7 @@ A small one-off that doesn't fit the showcase sections above but earns its place
 Prometheus (56k stars) uses `prometheus.MustRegister` for metrics — a Must wrapper baked into the metrics package. But `model.ParseDuration` has no Must variant, so the same init function falls back to manual panic boilerplate.
 
 **Original:**
-```go
+```go {ignore}
 func init() {
     prometheus.MustRegister(versioncollector.NewCollector(appName))
 

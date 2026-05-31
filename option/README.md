@@ -4,7 +4,7 @@ Optional values that make absence explicit in the type.
 
 `Option[T]` stores a value plus an `ok` flag. The zero value is not-ok, so it works without initialization.
 
-```go
+```go {ignore}
 // Before: four lines to extract a map value with a default
 token, ok := headers["Authorization"]
 if !ok {
@@ -19,29 +19,29 @@ Four lines become one.
 
 ## What It Looks Like
 
-```go
+```go {ignore}
 // Environment with default
 port := option.Env("PORT").Or("8080")
 ```
 
-```go
+```go {ignore}
 // Conditional pipeline
 name := userOption.KeepIf(User.IsActive).ToString(User.Name).Or("unknown")
 ```
 
-```go
+```go {ignore}
 // Comma-ok extraction
 if user, ok := userOption.Get(); ok {
     fmt.Println(user.Name())
 }
 ```
 
-```go
+```go {ignore}
 // Side effect — fires only if ok
 userOption.IfOk(User.Save)
 ```
 
-```go
+```go {ignore}
 // Before: three separate absence checks, then assemble
 host := record.RawHost()
 if host == "" {
@@ -65,7 +65,7 @@ return Config{
 }
 ```
 
-```go
+```go {ignore}
 // Tri-state boolean — option.Bool is Option[bool]
 type ScanResult struct {
     IsConnected option.Bool  // true, false, or unknown
@@ -73,7 +73,7 @@ type ScanResult struct {
 connected := option.OrFalse(rslt.IsConnected)  // unknown → false
 ```
 
-```go
+```go {ignore}
 // Nullable field — return option instead of zero value
 func (r Record) Host() option.String {
     return option.NonZero(r.host)
@@ -82,7 +82,7 @@ func (r Record) Host() option.String {
 addr := record.Host().Or("localhost")
 ```
 
-```go
+```go {ignore}
 // Pre-declared not-ok values read as intent in returns
 func (db *DB) FindUser(id int) option.Int {
     row := db.QueryRow("SELECT id FROM users WHERE id = ?", id)

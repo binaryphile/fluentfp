@@ -82,7 +82,7 @@ Every package uses a `doc.go` containing a `func _()` that references all named 
 
 ### D1: Mapper[T] as defined type over []T
 
-```go
+```go {ignore}
 type Mapper[T any] []T
 ```
 
@@ -98,7 +98,7 @@ A defined type with underlying type `[]T` — not a struct wrapper, not a type a
 
 Extends D1's defined-type approach to terminal slices that need domain-specific methods.
 
-```go
+```go {ignore}
 type Float64 []float64   // Sum, Max, Min
 type Int    []int         // Sum, Max, Min
 type String []string      // Unique, Contains, ContainsAny, ToSet, NonEmpty, Join
@@ -106,7 +106,7 @@ type String []string      // Unique, Contains, ContainsAny, ToSet, NonEmpty, Joi
 
 Other types remain aliases with no additional methods:
 
-```go
+```go {ignore}
 type Any     = Mapper[any]
 type Bool    = Mapper[bool]
 type Byte    = Mapper[byte]
@@ -119,7 +119,7 @@ type Rune    = Mapper[rune]
 
 ### D4: Option as value struct
 
-```go
+```go {ignore}
 type Option[T any] struct {
     ok bool
     t  T
@@ -144,7 +144,7 @@ For the user-facing case for options over pointers, see [nil-safety.md](../nil-s
 
 ### D5: Either[L,R] with right-bias
 
-```go
+```go {ignore}
 type Either[L, R any] struct {
     left    L
     right   R
@@ -162,7 +162,7 @@ Boolean flag dispatch — Go has no discriminated unions.
 
 ### D6: Conditional value selection
 
-```go
+```go {ignore}
 option.When(cond, v)        // eager — v evaluated by Go call semantics
 option.WhenCall(cond, fn)   // lazy — fn called only when cond is true
 ```
@@ -240,7 +240,7 @@ Standalone functions for operations needing extra type parameters or custom trav
 
 ### D11: Result as standalone defined type
 
-```go
+```go {ignore}
 type Result[R any] struct {
     value R
     err   error
@@ -259,7 +259,7 @@ A standalone package with zero internal imports — not an alias for `Either[err
 
 ### D12: Stream as lazy memoized linked list
 
-```go
+```go {ignore}
 type Stream[T any] struct { cell *cell[T] }
 type cell[T any] struct {
     head  T
@@ -355,7 +355,7 @@ function is called from multiple goroutines.
 
 ### D17: pair as standalone tuple package
 
-```go
+```go {ignore}
 type Pair[A, B any] struct {
     First  A
     Second B
@@ -388,7 +388,7 @@ Go has no positional destructuring, so `t.V3` is less readable than `t.Latitude`
 
 ### D18: kv as map-oriented fluent operations
 
-```go
+```go {ignore}
 type Entries[K comparable, V any] = base.Entries[K, V]
 ```
 
@@ -423,7 +423,7 @@ imports and cannot create cycles. The alternative (duplicating Pair in `kv` or u
 
 ### D19: memo — Memoization as state machine
 
-```go
+```go {ignore}
 type ofCell[T any] struct {
     mu     sync.Mutex
     fn     func() T
@@ -445,7 +445,7 @@ Mirrors stream's D12 cell pattern: same three-state machine (pending → evaluat
 
 ### D20: heap — Persistent pairing heap
 
-```go
+```go {ignore}
 type Heap[T any] struct {
     root *node[T]
     cmp  func(T, T) int
@@ -465,7 +465,7 @@ A persistent (immutable) priority queue based on Stone's Algorithms for Function
 
 ### D21: combo — Combinatorial generators
 
-```go
+```go {ignore}
 // Eager — return slice.Mapper
 func CartesianProduct[A, B any](a []A, b []B) slice.Mapper[pair.Pair[A, B]]
 func Permutations[T any](items []T) slice.Mapper[[]T]
@@ -487,7 +487,7 @@ Standalone functions that generate combinatorial constructions. Eager functions 
 
 ### D22: seq — Iterator-native fluent chains
 
-```go
+```go {ignore}
 type Seq[T any] iter.Seq[T]
 ```
 
@@ -515,7 +515,7 @@ A defined type over `iter.Seq[T]` that enables method chaining — the same tric
 returning a function with the same `func(context.Context, T) (R, error)`
 signature as Throttle and OnErr.
 
-```go
+```go {ignore}
 type Backoff func(n int) time.Duration
 
 func Retry[T, R any](maxAttempts int, backoff Backoff, shouldRetry func(error) bool, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error)
@@ -559,7 +559,7 @@ programming errors, not runtime conditions.
 `Debouncer[T]` is the first struct-based API in `hof`, breaking the transparent
 function decorator pattern used by Throttle, OnErr, and Retry.
 
-```go
+```go {ignore}
 type Debouncer[T any] struct { /* unexported */ }
 
 func NewDebouncer[T any](wait time.Duration, fn func(T), opts ...DebounceOption) *Debouncer[T]
@@ -617,7 +617,7 @@ before the panic continues.
 
 `FromChannel` and `ToChannel` bridge Go channels and `Seq[T]` iterators.
 
-```go
+```go {ignore}
 func FromChannel[T any](ctx context.Context, ch <-chan T) Seq[T]
 func (s Seq[T]) ToChannel(ctx context.Context, buf int) <-chan T
 ```
@@ -719,7 +719,7 @@ In practice, fluentfp code lives alongside imperative code — legacy libraries,
 
 Most chains are safe by default — any allocating operation produces an independent result:
 
-```go
+```go {ignore}
 // Safe: KeepIf allocates a new slice. Mutating users later won't affect actives.
 actives := slice.From(users).KeepIf(User.IsActive)
 ```
@@ -728,14 +728,14 @@ actives := slice.From(users).KeepIf(User.IsActive)
 
 1. **`From()` alone** — if you store the `Mapper[T]` without chaining an allocating operation, it shares the original's backing array. If anything later mutates the original — your own code, a caller, a library function — the Mapper sees it.
 
-```go
+```go {ignore}
 m := slice.From(users)   // shares backing array with users
 sort.Slice(users, ...)   // m is now also sorted — probably not what you want
 ```
 
 This is especially relevant when receiving slices from other code. The caller may retain and mutate the slice after you've wrapped it:
 
-```go
+```go {ignore}
 func processUsers(users []User) {
     cached := slice.From(users)  // shares backing array
     // ... if the caller sorts or overwrites users later, cached reflects it
@@ -746,7 +746,7 @@ Fix: chain an allocating operation (`m := slice.From(users).Clone()`) or accept 
 
 2. **`Take`/`TakeLast`/`Chunk`** — these return subslice views (no allocation). The result shares the original's backing array. Safe for read-only use; risky if the result or source is later mutated or appended to.
 
-```go
+```go {ignore}
 first5 := slice.From(users).Take(5)   // subslice view
 // Appending to first5 may overwrite users[5] if capacity remains
 ```
@@ -755,7 +755,7 @@ Fix: `.Take(5).Clone()` when the result will be mutated or outlive the source.
 
 3. **Passing results to code that mutates in place** — if a third-party function sorts, shuffles, or overwrites elements of a slice you pass it, and you still need the original order, clone first. This only matters for view operations — allocating operations already produce independent slices.
 
-```go
+```go {ignore}
 // Take returns a view — clone before handing to mutating code
 batch := slice.From(items).Take(10).Clone()
 legacySort(batch)  // safe — batch has independent backing array
