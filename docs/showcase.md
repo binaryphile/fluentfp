@@ -34,7 +34,7 @@ These are **proxies for maintenance burden, not direct measures of "readability"
 
 **Methodology.** Where the original used inline lambdas, we extract them to named functions before comparing pipelines — this is plain refactoring, not a library win, and shouldn't count as one. The real difference shows up in what changes *after* both sides have had the same cleanup applied.
 
-**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 18 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold, validation, consul_retry) have migrated, the remaining 4 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
+**Snippet provenance.** Originals are linked verbatim and copy-pasted from their cited line ranges. 22 of the 24 fluentfp rewrites are compile-checked against current APIs and exercised on every CI push. Verification is in transition from per-entry packages under [`internal/showcasetest/`](../internal/showcasetest/) to markdown-extraction via [`scripts/check-snippets.py`](../scripts/check-snippets.py) + scaffolds at [`scripts/snippet-harness/`](../scripts/snippet-harness/); 19 entries (groupsame, annotation, consul_ingress, nomad, difference, dockerdir, etcd, middleware, namespace, paisa, prometheus, sagas, sieve, sniffer, temporal, tryfold, validation, consul_retry, exaws) have migrated, the remaining 3 still use the legacy pattern. The two exceptions (kubernetes/route_controller and traefik) are too abbreviated in this doc to extract cleanly. Verify against the package docs before adopting.
 
 ---
 
@@ -612,22 +612,25 @@ func uploadChunks(ctx context.Context, chunks []Chunk) ([]ChunkUpload, error) {
 No panic recovery. No context cancellation. No per-item error tracking. Adding those doubles the code.
 
 **fluentfp:**
-```go
+```go {compile,context=exaws,slot=upload_all}
 uploads, err := slice.FanOutAll(ctx, 4, chunks, uploadChunk)
+return uploads, err
 ```
 
 `FanOutAll` runs up to 4 uploads concurrently with per-item error handling, panic recovery, and early cancellation — when the first chunk fails, remaining unscheduled uploads cancel promptly. All-or-nothing semantics in one call.
 
 For Hex's pattern — partial success is acceptable:
 
-```go
+```go {compile,context=exaws,slot=fetch_both}
 downloaded, errs := rslt.CollectOkAndErr(slice.FanOut(ctx, 8, deps, fetchDep))
+return downloaded, errs
 ```
 
 Or when only successes matter:
 
-```go
+```go {compile,context=exaws,slot=fetch_ok}
 downloaded := rslt.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
+return downloaded
 ```
 
 Three idioms cover the spectrum: `FanOutAll` for all-or-nothing with early cancellation; `FanOut` + `CollectOkAndErr` for both halves; `FanOut` + `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
