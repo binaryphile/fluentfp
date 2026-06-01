@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.62.0
+
+- **BREAKING**: Rename `rslt.CollectOkAndErr` to `rslt.Partition` — the operation is a partition (every result lands in exactly one of two output buckets), not a collector; the new name matches the FP convention (Haskell `partitionEithers`, Rust `partition_map`) and engages the structural difference from `CollectAll`/`CollectOk`/`CollectErr` (which return single-shape values) rather than asserting kinship via a compound suffix.
+
 ## v0.61.0
 
 - **web.Adapt**: caller-supplied `Content-Type` in `Response.Headers` or `*Error.Headers` is now honored. Was: always `application/json`. Now: caller's value preserved when set; `application/json` default applies when absent.

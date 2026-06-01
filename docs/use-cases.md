@@ -242,7 +242,7 @@
 - Either: general two-branch sum type, left = failure convention, right = success convention
 - Result: specialized `Either[error, T]` with `Ok`/`Err` constructors, `PanicError` for recovered panics
 - Async: `RunAsync` — typed goroutine launcher with panic→PanicError normalization
-- Collectors: `CollectAll`, `CollectOk`, `CollectErr`, `CollectOkAndErr` — batch result processing returning plain slices
+- Collectors: `CollectAll`, `CollectOk`, `CollectErr`, `Partition` — batch result processing returning plain slices
 - Extraction: value-and-presence pair (`Get`), error accessor (`Err`), default value (`Or`), lazy default (`OrCall`)
 - Side effects: `IfOk`, `IfErr` (void), `Tap`, `TapErr` (chainable)
 

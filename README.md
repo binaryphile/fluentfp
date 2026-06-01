@@ -163,7 +163,7 @@ When you need per-item outcomes instead of all-or-nothing, use `FanOut`:
 
 ```go {ignore}
 results := slice.FanOut(ctx, 10, cities, City)
-infos, errs := rslt.CollectOkAndErr(results)  // gather successes and failures separately
+infos, errs := rslt.Partition(results)  // gather successes and failures separately
 ```
 
 *From the [errgroup pattern](https://encore.dev/blog/advanced-go-concurrency).*
@@ -260,7 +260,7 @@ Packages are independent — import one or all.
 | [stream](stream/)   | Lazy memoized sequences          | `Generate`, `Unfold`, `Take`, `Collect`        |
 | [option](option/)   | Optional values + conditionals   | `Of`, `When`, `Or`, `NonZero`, `Env`           |
 | [either](either/)   | Sum types                        | `Left`, `Right`, `Fold`, `Transform`, `FlatMap`  |
-| [rslt](rslt/)       | Typed error handling             | `Ok`, `Err`, `CollectAll`, `CollectOkAndErr`   |
+| [rslt](rslt/)       | Typed error handling             | `Ok`, `Err`, `CollectAll`, `Partition`   |
 | [must](must/)       | Invariant enforcement            | `Get`, `BeNil`, `Of`                           |
 | [hof](hof/)         | Higher-order functions              | `Pipe`, `Bind`, `Cross`, `Eq`, `NewDebouncer`    |
 | [wrap](wrap/)           | Resilience decorators              | `Func`, `Retry`, `Breaker`, `MapError`, `OnError` |
@@ -343,7 +343,7 @@ first10Squares := stream.Map(naturals, square).Take(10).Collect()
 | Represent optional values | `option.Of(v)`, `option.NonZero(v)`, `option.Env("KEY")` | option |
 | Inline conditional (no ternary in Go) | `option.When(cond, val).Or(fallback)` | option |
 | Handle (value, error) as a single value | `rslt.Of(strconv.Atoi(s))` | rslt |
-| Collect per-item outcomes from FanOut | `rslt.CollectOkAndErr(results)` | rslt |
+| Collect per-item outcomes from FanOut | `rslt.Partition(results)` | rslt |
 | Exhaustive two-branch dispatch | `either.Fold(e, onLeft, onRight)` | either |
 | Panic on invariant violation | `must.Get(fn())`, `must.BeNil(err)` | must |
 | Store typed values in context.Context | `ctxval.With(ctx, val)` / `ctxval.Lookup[T](ctx)` | ctxval |

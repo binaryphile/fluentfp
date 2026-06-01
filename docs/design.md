@@ -62,7 +62,7 @@ ctxval --> option
 | `kv` | Core map type (`Entries[K,V]`) with methods + map-consuming standalone functions (From, Map, MapKeys, MapValues, Values, Keys). Implementation lives in `internal/base`. |
 | `option` | Explicit absent-value handling without nil |
 | `either` | Two-branch typed alternatives with right-bias |
-| `rslt` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`CollectOkAndErr` collectors |
+| `rslt` | Per-item success/failure with `Ok`/`Err` constructors, `PanicError` for recovered panics, `CollectAll`/`CollectOk`/`CollectErr`/`Partition` collectors |
 | `stream` | Lazy memoized sequences with per-cell mutex memoization. Head-eager, tail-lazy. Pure sources only. |
 | `must` | Panic-on-error enforcement for initialization invariants |
 | `pair` | Tuple construction and pairwise slice operations |

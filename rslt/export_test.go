@@ -28,7 +28,7 @@ func _() {
 	_ = CollectAll[int]
 	_ = CollectErr[int]
 	_ = CollectOk[int]
-	_ = CollectOkAndErr[int]
+	_ = Partition[int]
 
 	// PanicError type and methods
 	type _ = PanicError

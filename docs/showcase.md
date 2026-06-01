@@ -358,7 +358,7 @@ func combinedStatus(statuses []string) string {
 type G = slice.Group[string, string]
 
 // byKey: ascending comparator on Key.
-var byKey = slice.Asc(G.GetKey)
+byKey := slice.Asc(G.GetKey)
 
 // countByStatus: formats one group as "status(count)".
 countByStatus := func(g G) string {
@@ -625,7 +625,7 @@ return uploads, err
 For Hex's pattern — partial success is acceptable:
 
 ```go {compile,context=exaws,slot=fetch_both}
-downloaded, errs := rslt.CollectOkAndErr(slice.FanOut(ctx, 8, deps, fetchDep))
+downloaded, errs := rslt.Partition(slice.FanOut(ctx, 8, deps, fetchDep))
 return downloaded, errs
 ```
 
@@ -636,7 +636,7 @@ downloaded := rslt.CollectOk(slice.FanOut(ctx, 8, deps, fetchDep))
 return downloaded
 ```
 
-Three idioms cover the spectrum: `FanOutAll` for all-or-nothing with early cancellation; `FanOut` + `CollectOkAndErr` for both halves; `FanOut` + `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
+Three idioms cover the spectrum: `FanOutAll` for all-or-nothing with early cancellation; `FanOut` + `Partition` for both halves; `FanOut` + `CollectOk` for successes only. All include panic recovery that `errgroup` lacks entirely.
 
 ---
 

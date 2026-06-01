@@ -129,7 +129,7 @@ See [comparison](../comparison.md) for the full library comparison.
 - **Generate**: `Range`, `RangeFrom`, `RangeStep` (return `Int` for numeric chaining), `RepeatN`
 - **View**: `Chunk`, `Window` (sliding windows sharing backing array — overlapping windows alias the same memory; mutating one affects adjacent windows; use `.Clone()` for independent copies)
 - **Parallel (no error return)**: `PMap`, `PFlatMap`, `PKeepIf`, `PEach` — bounded concurrent operations for callbacks that do not return errors. Panics in fn are recovered, converted to `*rslt.PanicError` with a stack captured during recovery, and re-panicked on the calling goroutine after all workers exit. If multiple workers panic, one arbitrary panic is re-thrown; others are suppressed. Usually only worth using when per-item workload is large enough to amortize the overhead caused by creation and scheduling of goroutines.
-- **Parallel (error-aware)**: `FanOut`, `FanOutAll`, `FanOutEach` — bounded concurrency for callbacks that take `context.Context` and return errors. Use `FanOut` for value-producing operations where partial success is acceptable, `FanOutAll` for all-or-nothing operations with early cancellation, and `FanOutEach` for side-effecting callbacks that return only `error`. If item costs vary widely, use the corresponding weighted variant (`FanOutWeighted`, `FanOutWeightedAll`, `FanOutEachWeighted`). See [rslt](../rslt/) for `CollectAll`, `CollectOk`, and `CollectOkAndErr`.
+- **Parallel (error-aware)**: `FanOut`, `FanOutAll`, `FanOutEach` — bounded concurrency for callbacks that take `context.Context` and return errors. Use `FanOut` for value-producing operations where partial success is acceptable, `FanOutAll` for all-or-nothing operations with early cancellation, and `FanOutEach` for side-effecting callbacks that return only `error`. If item costs vary widely, use the corresponding weighted variant (`FanOutWeighted`, `FanOutWeightedAll`, `FanOutEachWeighted`). See [rslt](../rslt/) for `CollectAll`, `CollectOk`, and `Partition`.
 
 `Fold`, not `Reduce`: `Fold` takes an initial value and allows the return type to differ from the element type (`func(R, T) R`). `Reduce` conventionally implies no initial value and same-type accumulation. The name matches the semantics.
 
@@ -177,7 +177,7 @@ infos, err := slice.FanOutAll(ctx, 10, cities, City)
 
 ### Fail-fast vs partial results
 
-`FanOut` does not cancel siblings on failure — every item runs to completion. This is intentional: many workloads want partial results. Use `rslt.CollectOk(results)` to gather successes and discard failures, or `rslt.CollectOkAndErr(results)` to get both halves.
+`FanOut` does not cancel siblings on failure — every item runs to completion. This is intentional: many workloads want partial results. Use `rslt.CollectOk(results)` to gather successes and discard failures, or `rslt.Partition(results)` to get both halves.
 
 If any failure should fail the whole batch, use `FanOutAll` instead — on the first error or panic it cancels a derived context, skips unstarted work, lets in-flight callbacks stop early if they honor `ctx`, and still waits for started callbacks to return.
 
@@ -237,7 +237,7 @@ manifests, err := slice.FanOutAll(ctx, 4, files, parseAndValidateManifest)
 ```go {ignore}
 // Download avatars (missing ones OK)
 avatarResults := slice.FanOut(ctx, 10, users, downloadAvatar)
-avatars, errs := rslt.CollectOkAndErr(avatarResults)
+avatars, errs := rslt.Partition(avatarResults)
 ```
 
 ```go {ignore}

@@ -3,7 +3,7 @@
 // Package snippet is the verification harness for the FanOut
 // consumer-patterns block in docs/parallelism-research.md (~line 318).
 // The snippet declares `results := slice.FanOut(...)` and three
-// consumer expressions (KeepIf/ToString, CollectAll, CollectOkAndErr).
+// consumer expressions (KeepIf/ToString, CollectAll, Partition).
 // All run inside one function shell, returning the three consumer
 // outputs so each is live.
 package snippet

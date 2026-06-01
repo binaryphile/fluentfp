@@ -329,7 +329,7 @@ bodies := results.KeepIf(isOk).ToString(getBody)
 responses, err := rslt.CollectAll(results)
 
 // Consume: split successes and failures
-oks, errs := rslt.CollectOkAndErr(results)
+oks, errs := rslt.Partition(results)
 ```
 
 **Best-effort fail-fast** requires the caller to cancel the context — FanOut does not cancel automatically on error:
@@ -369,7 +369,7 @@ Returns `[]error` with `len(errs) == len(ts)` — nil entries for successes, pre
 **Per-item results preserve chainability.** `Mapper[Result[R]]` composes with KeepIf, Partition, Map. A `(Mapper[R], error)` return breaks the chain and discards partial results. The caller controls error policy at consumption time:
 - `rslt.CollectAll(results)` — returns `(Mapper[R], error)` where error is the first `Err` by index order (post-hoc extraction, not execution control)
 - `rslt.CollectOk(results)` — returns `Mapper[R]` containing only successes (keep-successes)
-- `rslt.CollectOkAndErr(results)` — split into successes and failures for independent handling
+- `rslt.Partition(results)` — split into successes and failures for independent handling
 
 **Naming:** `FanOut` chosen over `ConcurrentMap` (long, doesn't signal per-item results), `MapResults` (doesn't signal concurrency), `TraverseN` (opaque to Go developers). The fan-out/fan-in pattern is well-known in Go (Go Blog: Pipelines). The name signals "concurrent I/O dispatch" without promising CPU parallelism. Naming can be revised during internal use.
 

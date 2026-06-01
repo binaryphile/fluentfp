@@ -15,7 +15,7 @@ Pairs with `FanOut` for per-item error and panic handling in concurrent workload
 ```go
 // Per-item outcomes — collect what you need
 results := slice.FanOut(ctx, 8, urls, fetchURL)
-pages, errs := rslt.CollectOkAndErr(results)
+pages, errs := rslt.Partition(results)
 ```
 
 ```go
@@ -97,6 +97,6 @@ If the panic value was an `error`, `PanicError.Unwrap()` returns it — enabling
 
 **Async**: `RunAsync` (typed goroutine launcher with panic recovery), `AsyncResult.Wait`, `AsyncResult.Done`
 
-**Collect**: `CollectAll` (all values or first error by index), `CollectOk` (successes only), `CollectErr` (errors only), `CollectOkAndErr` (both in one pass)
+**Collect**: `CollectAll` (all values or first error by index), `CollectOk` (successes only), `CollectErr` (errors only), `Partition` (both in one pass)
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/binaryphile/fluentfp/rslt) for complete API documentation, the [main README](../README.md) for installation, and the [showcase](../docs/showcase.md) for real-world comparisons.
