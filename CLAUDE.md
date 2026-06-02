@@ -232,24 +232,26 @@ target. Don't refactor to chase a number — refactor when the test class
 - Use descriptive test names that explain the behavior being tested
 - Group related assertions in subtests with `t.Run()`
 
-### Build and test via ./mk
+### Build and test via mk
 
-Use `./mk` for build/test/clean — it wraps the underlying `go` commands and
+Use `mk` for build/test/clean — it wraps the underlying `go` commands and
 prints what it ran (via `mk.Cue`), so the operator sees the actual command.
+The script lives at `bin/mk`; `.envrc` puts `bin/` on PATH so the bare
+name works.
 
 | Command | What it runs |
 |---|---|
-| `./mk build` | `mkdir -p bin && go build -o bin/orders ./examples/orders/` |
-| `./mk test`  | `go test ./...` |
-| `./mk clean` | `rm -f bin/orders && rmdir bin 2>/dev/null \|\| true` |
+| `mk build` | `mkdir -p bin && go build -o bin/orders ./examples/orders/` |
+| `mk test`  | `go test ./...` |
+| `mk clean` | `rm -f bin/orders && rmdir bin 2>/dev/null \|\| true` |
 
-`./mk -h` shows the full usage. Coverage still goes through `go` directly:
+`mk -h` shows the full usage. Coverage still goes through `go` directly:
 `go test -cover ./...`.
 
 **Nix shell required.** The `flake.nix` provides `go`, `gopls`,
 `golangci-lint`, `gh`, `nodejs`, and `sqlite`; these are NOT on the system
 PATH outside the dev shell. From a plain bash session, prefix commands with
-`nix develop -c bash -c '...'` (or use `nix develop` interactively). `./mk`
+`nix develop -c bash -c '...'` (or use `nix develop` interactively). `mk`
 and direct `go` calls silently fail-as-not-found in unactivated shells —
 the symptom is a "command not found" swallowed by piping or a hang waiting
 for a missing toolchain.
