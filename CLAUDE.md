@@ -1,4 +1,4 @@
-@/home/ted/projects/tandem-protocol/README.md
+@/home/ted/icarus/tandem-protocol/README.md
 
 # fluentfp - Functional Programming Library for Go
 
