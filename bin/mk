@@ -55,7 +55,6 @@ cmd.docs-check() {
 ## boilerplate
 
 source ~/.local/lib/mk.bash 2>/dev/null ||
-  eval "$(curl -fsSL https://raw.githubusercontent.com/binaryphile/mk.bash/develop/mk.bash)" ||
   { echo 'fatal: mk.bash not found' >&2; exit 1; }
 
 # enable safe expansion
