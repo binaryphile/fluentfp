@@ -63,7 +63,7 @@ fluentfp isn't just `slice`. Here's the same library applied to HTTP handlers, r
 handleGetUser := func(r *http.Request) rslt.Result[web.Response] {
     return rslt.Map(
         option.New(store.Get(r.PathValue("id"))).OkOr(web.NotFound("user not found")),
-        web.OK[User],
+        web.Ok[User],
     )
 }
 mux.HandleFunc("GET /users/{id}", web.Adapt(handleGetUser))

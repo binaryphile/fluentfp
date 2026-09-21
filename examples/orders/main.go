@@ -220,7 +220,7 @@ func newGetOrder(s *store) web.Handler {
 	return func(req *http.Request) rslt.Result[web.Response] {
 		idResult := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
 		foundResult := rslt.FlatMap(idResult, findOrder)
-		return rslt.Map(foundResult, web.OK[Order])
+		return rslt.Map(foundResult, web.Ok[Order])
 	}
 }
 
@@ -248,7 +248,7 @@ func newListOrders(s *store) web.Handler {
 
 		orders := slice.SortBy(s.list(), orderNum).KeepIf(hasMatchingStatus).KeepIf(totalAtLeast)
 
-		return rslt.Ok(web.OK(orders))
+		return rslt.Ok(web.Ok(orders))
 	}
 }
 

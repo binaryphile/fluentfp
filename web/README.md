@@ -21,7 +21,7 @@ func handleGetUser(w http.ResponseWriter, req *http.Request) {
 handleGetUser := func(req *http.Request) rslt.Result[web.Response] {
     return rslt.Map(
         rslt.Of(db.FindUser(req.PathValue("id"))),
-        web.OK[User],
+        web.Ok[User],
     )
 }
 mux.HandleFunc("GET /users/{id}", web.Adapt(handleGetUser))
@@ -45,8 +45,18 @@ validated := rslt.FlatMap(order, validateOrder)
 ```go {ignore}
 // Response constructors — status code travels with the body
 return rslt.Ok(web.Created(order))   // 201
-return rslt.Ok(web.OK(order))        // 200
+return rslt.Ok(web.Ok(order))        // 200
 return rslt.Ok(web.NoContent())      // 204
+```
+
+```go {ignore}
+// Result-shaped siblings — direct-return shortcuts for the common case
+// where a Handler returns immediately with no post-construction header
+// mutation. Same status codes as above, already wrapped.
+return web.CreatedResult(order)   // rslt.Ok(web.Created(order))
+return web.OkResult(order)        // rslt.Ok(web.Ok(order))
+return web.NoContentResult()      // rslt.Ok(web.NoContent())
+return web.ErrResult(err)         // rslt.Err[web.Response](err)
 ```
 
 ```go {ignore}

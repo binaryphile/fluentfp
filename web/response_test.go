@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 
@@ -23,8 +24,8 @@ func TestJSON(t *testing.T) {
 	})
 }
 
-func TestOK(t *testing.T) {
-	resp := web.OK(42)
+func TestOk(t *testing.T) {
+	resp := web.Ok(42)
 
 	if resp.Status != http.StatusOK {
 		t.Fatalf("Status = %d, want %d", resp.Status, http.StatusOK)
@@ -53,5 +54,34 @@ func TestNoContent(t *testing.T) {
 	}
 	if resp.Body != nil {
 		t.Fatalf("Body = %v, want nil", resp.Body)
+	}
+}
+
+// TestOkResult is the representative test for the Result-shaped
+// constructors (OkResult/CreatedResult/NoContentResult/JSONResult share
+// the identical delegate-then-wrap shape -- see the guide's
+// "Representative Pattern Testing" section).
+func TestOkResult(t *testing.T) {
+	result := web.OkResult(42)
+
+	resp, err := result.Unpack()
+	if err != nil {
+		t.Fatalf("Unpack() err = %v, want nil", err)
+	}
+	if resp.Status != http.StatusOK {
+		t.Fatalf("Status = %d, want %d", resp.Status, http.StatusOK)
+	}
+	if resp.Body != 42 {
+		t.Fatalf("Body = %v, want 42", resp.Body)
+	}
+}
+
+func TestErrResult(t *testing.T) {
+	wantErr := errors.New("boom")
+
+	_, err := web.ErrResult(wantErr).Unpack()
+
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Unpack() err = %v, want %v", err, wantErr)
 	}
 }

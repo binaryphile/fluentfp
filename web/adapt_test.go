@@ -16,7 +16,7 @@ import (
 func TestAdapt(t *testing.T) {
 	t.Run("ok response with body", func(t *testing.T) {
 		handler := web.Adapt(func(r *http.Request) rslt.Result[web.Response] {
-			return rslt.Ok(web.OK(map[string]string{"msg": "hello"}))
+			return rslt.Ok(web.Ok(map[string]string{"msg": "hello"}))
 		})
 
 		w := httptest.NewRecorder()
@@ -263,7 +263,7 @@ func TestAdapt(t *testing.T) {
 	t.Run("marshal failure returns 500", func(t *testing.T) {
 		handler := web.Adapt(func(r *http.Request) rslt.Result[web.Response] {
 			// Channels cannot be marshaled to JSON.
-			return rslt.Ok(web.OK(make(chan int)))
+			return rslt.Ok(web.Ok(make(chan int)))
 		})
 
 		w := httptest.NewRecorder()
@@ -429,7 +429,7 @@ func TestAdaptDecodeIntegration(t *testing.T) {
 				return rslt.Err[web.Response](err)
 			}
 
-			return rslt.Ok(web.OK(p))
+			return rslt.Ok(web.Ok(p))
 		})
 
 		w := httptest.NewRecorder()
@@ -467,7 +467,7 @@ func TestAdaptDecodeIntegration(t *testing.T) {
 					return rslt.Err[web.Response](err)
 				}
 
-				return rslt.Ok(web.OK(p))
+				return rslt.Ok(web.Ok(p))
 			},
 			web.WithErrorMapper(func(err error) (*web.Error, bool) {
 				mapperCalled = true

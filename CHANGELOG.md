@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.63.0
+
+- **BREAKING**: Rename `web.OK` to `web.Ok` — matches `rslt.Ok`/`rslt.Err`'s
+  casing (mirrors Rust's `Result::Ok`/`Err` naming, which the rest of the
+  `rslt` package already follows). This is a deliberate departure from
+  Go's own initialism convention, not an application of it — the
+  standard guidance (Google's Go Style Guide) is that an initialism
+  keeps uniform casing throughout an identifier (`URL`, `ID`, `HTTP`,
+  never `Url`/`Id`/`Http`), and the stdlib's own `http.StatusOK`
+  confirms `OK` follows that same rule — so `web.OK` was arguably the
+  *more* idiomatic name by that measure. Chosen anyway because internal
+  consistency within this package's own `rslt`-mirroring constructor
+  family (`Ok`/`Err` reads as one paired vocabulary) outweighs matching
+  a stdlib convention this package doesn't otherwise lean on.
+- **web**: Add `OkResult`, `CreatedResult`, `NoContentResult`, `JSONResult`,
+  `ErrResult` — Result-shaped siblings of the plain response constructors,
+  for the common case where a `Handler` returns immediately with no
+  post-construction header mutation. Shortcuts for the
+  `rslt.Ok(web.Xxx(...))` / `rslt.Err[web.Response](err)` shapes; additive
+  alongside the plain constructors, which are still needed whenever a
+  caller mutates the `Response` (e.g. setting a cookie header) before
+  wrapping it.
+
 ## v0.62.0
 
 - **BREAKING**: Rename `rslt.CollectOkAndErr` to `rslt.Partition` — the operation is a partition (every result lands in exactly one of two output buckets), not a collector; the new name matches the FP convention (Haskell `partitionEithers`, Rust `partition_map`) and engages the structural difference from `CollectAll`/`CollectOk`/`CollectErr` (which return single-shape values) rather than asserting kinship via a compound suffix.
