@@ -24,8 +24,8 @@ func TestJSON(t *testing.T) {
 	})
 }
 
-func TestOk(t *testing.T) {
-	resp := web.Ok(42)
+func TestOK(t *testing.T) {
+	resp := web.OK(42)
 
 	if resp.Status != http.StatusOK {
 		t.Fatalf("Status = %d, want %d", resp.Status, http.StatusOK)
@@ -57,12 +57,12 @@ func TestNoContent(t *testing.T) {
 	}
 }
 
-// TestOkResult is the representative test for the Result-shaped
-// constructors (OkResult/CreatedResult/NoContentResult/JSONResult share
+// TestOKResult is the representative test for the Result-shaped
+// constructors (OKResult/CreatedResult/NoContentResult/JSONResult share
 // the identical delegate-then-wrap shape -- see the guide's
 // "Representative Pattern Testing" section).
-func TestOkResult(t *testing.T) {
-	result := web.OkResult(42)
+func TestOKResult(t *testing.T) {
+	result := web.OKResult(42)
 
 	resp, err := result.Unpack()
 	if err != nil {

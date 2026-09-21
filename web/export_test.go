@@ -8,13 +8,13 @@ import "github.com/binaryphile/fluentfp/rslt"
 func _() {
 	// Response constructors
 	_ = JSON[int]
-	_ = Ok[int]
+	_ = OK[int]
 	_ = Created[int]
 	_ = NoContent
 	_ = Response{}
 
 	// Result-shaped siblings of the response constructors above
-	_ = OkResult[int]
+	_ = OKResult[int]
 	_ = CreatedResult[int]
 	_ = NoContentResult
 	_ = JSONResult[int]

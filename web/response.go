@@ -21,8 +21,8 @@ func JSON[T any](status int, body T) Response {
 	return Response{Status: status, Body: body}
 }
 
-// Ok returns a 200 Response with the given body.
-func Ok[T any](body T) Response {
+// OK returns a 200 Response with the given body.
+func OK[T any](body T) Response {
 	return Response{Status: http.StatusOK, Body: body}
 }
 
@@ -48,10 +48,10 @@ func NoContent() Response {
 // it -- a real, still-needed shape (see handleSignup/handleLogin in
 // internal/platformapi for TNT's own examples).
 
-// OkResult returns a 200 Response with the given body, already wrapped
+// OKResult returns a 200 Response with the given body, already wrapped
 // in rslt.Result.
-func OkResult[T any](body T) rslt.Result[Response] {
-	return rslt.Ok(Ok(body))
+func OKResult[T any](body T) rslt.Result[Response] {
+	return rslt.Ok(OK(body))
 }
 
 // CreatedResult returns a 201 Response with the given body, already

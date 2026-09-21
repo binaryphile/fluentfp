@@ -8,7 +8,7 @@
 // The snippet has an early `return rslt.Err[web.Response](err)`
 // inside an `if err != nil`, so the function shell must return
 // rslt.Result[web.Response]. The terminal `orders` is wrapped into
-// rslt.Ok(web.Ok(orders)) so the variable is live.
+// rslt.Ok(web.OK(orders)) so the variable is live.
 package snippet
 
 import (
@@ -44,7 +44,7 @@ var s = orderStore{}
 
 func Demo(q url.Values) rslt.Result[web.Response] {
 	// __SNIPPET__
-	return rslt.Ok(web.Ok(orders))
+	return rslt.Ok(web.OK(orders))
 }
 
 // Force-reference for pre-substitution parse parity.

@@ -319,10 +319,10 @@ idResult := web.PathParam(req, "id").
 // so it returns Result -- use FlatMap.
 foundResult := rslt.FlatMap(idResult, findOrder)
 
-// Map: web.Ok always succeeds (just wraps
+// Map: web.OK always succeeds (just wraps
 // in 200), so it returns a plain value --
 // use Map, not FlatMap.
-return rslt.Map(foundResult, web.Ok[Order])
+return rslt.Map(foundResult, web.OK[Order])
 ```
 
 The difference between `FlatMap` and `Map`: if the next function can fail (returns `Result`), use `FlatMap`. If it always succeeds (returns a plain value), use `Map`. Both are standalone here because the types change (string -> Order -> Response) -- Go methods can't change the generic type parameter.

@@ -124,7 +124,7 @@ The handler returns Ok or Err. `web.Adapt` converts it to a standard `http.Handl
 mux.HandleFunc("POST /orders", web.Adapt(handleCreateOrder))
 ```
 
-The response constructors -- `web.Created`, `web.Ok`, `web.BadRequest`, `web.NotFound` -- carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
+The response constructors -- `web.Created`, `web.OK`, `web.BadRequest`, `web.NotFound` -- carry the status code with them. No more remembering to call `WriteHeader(201)` vs `WriteHeader(200)`.
 
 ### Chaining decode into validation (rslt.FlatMap)
 
@@ -157,7 +157,7 @@ Looking up a resource and returning 404 on miss is two branches with identical b
 handleGetOrder := func(req *http.Request) rslt.Result[web.Response] {
     idResult := web.PathParam(req, "id").OkOr(web.BadRequest("missing order id"))
     foundResult := rslt.FlatMap(idResult, findOrder)   // FlatMap: findOrder can fail (404)
-    return rslt.Map(foundResult, web.Ok[Order])         // Map: web.Ok always succeeds (200)
+    return rslt.Map(foundResult, web.OK[Order])         // Map: web.OK always succeeds (200)
 }
 ```
 
@@ -165,7 +165,7 @@ Three steps, each building on the last:
 
 1. `web.PathParam` wraps `PathValue` into `Option[string]`; `.OkOr(...)` bridges missing -> `Err(400)`
 2. `rslt.FlatMap(idResult, findOrder)` -- `FlatMap` because `findOrder` can fail (returns Result). If id was already an error, findOrder is skipped.
-3. `rslt.Map(foundResult, web.Ok[Order])` -- `Map` because `web.Ok` always succeeds (returns a plain Response, not a Result). If foundResult was an error, it propagates untouched.
+3. `rslt.Map(foundResult, web.OK[Order])` -- `Map` because `web.OK` always succeeds (returns a plain Response, not a Result). If foundResult was an error, it propagates untouched.
 
 Both are standalone (not methods) because the type changes at each step: string -> Order -> Response. Go methods can't introduce new type parameters.
 

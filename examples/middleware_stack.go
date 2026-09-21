@@ -94,7 +94,7 @@ func main() {
 		log.Printf("[%s] looking up weather for %s", reqID, city)
 		return rslt.Map(
 			rslt.Of(safeWeather(req.Context(), city)),
-			web.Ok[string],
+			web.OK[string],
 		)
 	}
 
