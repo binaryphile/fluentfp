@@ -21,6 +21,9 @@
             nodejs
             sqlite
           ];
+          # nixpkgs go defaults to cgo on with CC=gcc, but this shell has no
+          # C compiler and no package here needs cgo.
+          CGO_ENABLED = "0";
         };
       });
 }
