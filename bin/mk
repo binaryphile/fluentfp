@@ -67,15 +67,31 @@ mk.SetVersion $Version
 
 return 2>/dev/null    # stop if sourced, for interactive debugging
 
-# go lives only in this project's nix devShell. When it is missing from PATH,
-# re-exec once under `nix develop` against this project's flake; inside the
-# operator's own `nix develop` it resolves and nothing nests. MK_DEV_SHELL
-# marks the re-exec, so a shell that still lacks go fails instead of looping.
-# Replaces the retired bin/nix-wrapper (jeeves#84632bb9).
-if ! type -P go >/dev/null; then
-  [[ -z ${MK_DEV_SHELL:-} ]] || { echo 'fatal: nix develop did not provide go' >&2; exit 1; }
+# needsGo reports whether the requested command runs go: help, version, bare
+# usage, clean and docs-check do not, so they never enter the dev shell.
+needsGo() {
+  local arg
+  for arg in "$@"; do
+    case $arg in
+      -h | --help | -v | --version | clean | docs-check ) return 1 ;;
+      -* ) ;;
+      * ) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# go lives only in this project's nix devShell. When a command needs it and it
+# is missing from PATH, re-exec once under `nix develop` against this
+# project's flake; inside the operator's own `nix develop` it resolves and
+# nothing nests. MK_DEV_SHELL holds the project root of the re-exec, so a
+# shell this mk entered that still lacks go fails instead of looping, while a
+# marker left by another project's mk does not block entry. Replaces the
+# retired bin/nix-wrapper (jeeves#84632bb9).
+if needsGo "$@" && ! type -P go >/dev/null; then
   ProjectRoot=$(cd "$(dirname "$0")/.." && pwd)
-  MK_DEV_SHELL=1 exec nix develop $ProjectRoot -c $0 "$@"
+  [[ ${MK_DEV_SHELL:-} != "$ProjectRoot" ]] || { echo 'fatal: nix develop did not provide go' >&2; exit 1; }
+  MK_DEV_SHELL=$ProjectRoot exec nix develop $ProjectRoot -c $0 "$@"
 fi
 
 mk.HandleOptions $*   # handle standard options, returns 1-based offset
