@@ -66,5 +66,17 @@ mk.SetUsage "$Usage_"
 mk.SetVersion $Version
 
 return 2>/dev/null    # stop if sourced, for interactive debugging
+
+# go lives only in this project's nix devShell. When it is missing from PATH,
+# re-exec once under `nix develop` against this project's flake; inside the
+# operator's own `nix develop` it resolves and nothing nests. MK_DEV_SHELL
+# marks the re-exec, so a shell that still lacks go fails instead of looping.
+# Replaces the retired bin/nix-wrapper (jeeves#84632bb9).
+if ! type -P go >/dev/null; then
+  [[ -z ${MK_DEV_SHELL:-} ]] || { echo 'fatal: nix develop did not provide go' >&2; exit 1; }
+  ProjectRoot=$(cd "$(dirname "$0")/.." && pwd)
+  MK_DEV_SHELL=1 exec nix develop $ProjectRoot -c $0 "$@"
+fi
+
 mk.HandleOptions $*   # handle standard options, returns 1-based offset
 mk.Main ${*:$?}       # remaining arguments

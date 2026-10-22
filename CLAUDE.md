@@ -246,15 +246,16 @@ name works.
 | `mk clean` | `rm -f bin/orders && rmdir bin 2>/dev/null \|\| true` |
 
 `mk -h` shows the full usage. Coverage still goes through `go` directly:
-`go test -cover ./...`.
+`nix develop -c go test -cover ./...`.
 
 **Nix shell required.** The `flake.nix` provides `go`, `gopls`,
 `golangci-lint`, `gh`, `nodejs`, and `sqlite`; these are NOT on the system
-PATH outside the dev shell. From a plain bash session, prefix commands with
-`nix develop -c bash -c '...'` (or use `nix develop` interactively). `mk`
-and direct `go` calls silently fail-as-not-found in unactivated shells —
-the symptom is a "command not found" swallowed by piping or a hang waiting
-for a missing toolchain.
+PATH outside the dev shell, and `bin/` holds no tool wrappers. `mk` enters
+the dev shell itself when `go` is missing. Every direct tool call needs the
+dev shell: prefix it with `nix develop -c` (for example
+`nix develop -c go test ./...`), or work inside `nix develop`. A bare `go`
+in a plain shell fails with "command not found"; watch for that being
+swallowed by a pipe.
 
 ### CI drift gates
 
